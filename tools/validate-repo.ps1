@@ -37,6 +37,8 @@ function Assert-NotContains {
 }
 
 $required = @(
+    'VERSION',
+    'RELEASES.md',
     'PROJECT_BRIEF.md',
     'AI_CONTINUATION.md',
     'IMPLEMENTATION_STATUS.md',
@@ -80,13 +82,19 @@ $required = @(
     'docs/testing-and-benchmarks.md',
     'docs/non-goals.md',
     'docs/validation.md',
+    'docs/versioning.md',
+    'docs/release-policy.md',
+    'docs/release-checklist.md',
+    'docs/release-plan-v1.md',
     'docs/decisions/0001-systemd-cgroup-v2.md',
     'docs/decisions/0002-wayland-pipewire.md',
     'docs/decisions/0003-uki-rollback.md',
     'docs/decisions/0004-adaptive-optid.md',
     'docs/decisions/0005-avoid-obsolete-defaults.md',
     'tools/build-rootfs.sh',
-    'tools/publish-github.ps1'
+    'tools/publish-github.ps1',
+    'release/milestones.toml',
+    'release/test-tiers.toml'
 )
 
 foreach ($file in $required) {
@@ -106,13 +114,21 @@ Assert-Contains 'packaging/dbus/io.adaptive.Optid.xml' 'io.adaptive.Optid1'
 Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
 Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'
 Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
+Assert-Contains 'VERSION' '^0\.1\.0-alpha\.0\s*$'
+Assert-Contains 'RELEASES.md' '0\.1\.0-alpha\.1'
 Assert-Contains 'AI_CONTINUATION.md' 'Forbidden Shortcuts'
 Assert-Contains 'AI_CONTINUATION.md' 'Next Task'
 Assert-Contains 'IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
-Assert-Contains 'ROADMAP.md' 'Phase 1: Compile-Clean Optimizer MVP'
+Assert-Contains 'ROADMAP.md' 'v0\.1\.0-alpha\.1: Compile-Clean Core'
 Assert-Contains 'CONTRIBUTING.md' 'Documentation Is Required'
 Assert-Contains 'docs/testing-and-benchmarks.md' 'Docs are part of acceptance criteria'
 Assert-Contains 'docs/validation.md' 'Docs are part of acceptance criteria'
+Assert-Contains 'docs/versioning.md' 'MAJOR'
+Assert-Contains 'docs/release-policy.md' 'Release Blockers'
+Assert-Contains 'docs/release-checklist.md' 'Stable Release'
+Assert-Contains 'docs/release-plan-v1.md' 'v1\.0\.0: Final Stable Release'
+Assert-Contains 'release/milestones.toml' 'version = "1\.0\.0"'
+Assert-Contains 'release/test-tiers.toml' '\[tier\.T5\]'
 Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'
 Assert-Contains 'docs/decisions/0004-adaptive-optid.md' 'only default runtime optimization policy owner'
 
@@ -132,4 +148,4 @@ foreach ($entry in $legacyChecks.GetEnumerator()) {
     }
 }
 
-Write-Host "Adaptive Linux repository validation passed."
+Write-Host "Rush Linux repository validation passed."

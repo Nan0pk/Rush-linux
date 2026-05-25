@@ -1,0 +1,126 @@
+[project]
+current_version = "0.1.0-alpha.0"
+final_target = "1.0.0"
+first_stable_arch = "x86_64"
+arm64_status = "experimental-until-tested"
+
+[[milestone]]
+version = "0.1.0-alpha.1"
+channel = "alpha"
+name = "Compile-Clean Core"
+required_tiers = ["T0", "T1"]
+exit_criteria = [
+  "GitHub CI is green",
+  "optid --once works on Linux in dry-run mode",
+  "optctl commands compile",
+  "status, roadmap, and continuation docs are current",
+]
+
+[[milestone]]
+version = "0.2.0-alpha.1"
+channel = "alpha"
+name = "Real Control Plane"
+required_tiers = ["T0", "T1"]
+exit_criteria = [
+  "optctl mode works through D-Bus",
+  "optctl explain reports reasons",
+  "invalid config fails safely",
+  "D-Bus docs match implementation",
+]
+
+[[milestone]]
+version = "0.3.0-alpha.1"
+channel = "alpha"
+name = "Rootfs And Package Builder MVP"
+required_tiers = ["T0", "T1", "T2-smoke"]
+exit_criteria = [
+  "minimal VM boots to multi-user.target",
+  "cgroup v2 and PSI are active",
+  "optid.service starts",
+  "nftables.conf loads",
+]
+
+[[milestone]]
+version = "0.4.0-alpha.1"
+channel = "alpha"
+name = "UKI, Boot, Rollback, Updates"
+required_tiers = ["T0", "T1", "T2"]
+exit_criteria = [
+  "VM boots through UKI",
+  "three rollback entries are retained",
+  "simulated bad kernel rolls back",
+  "test update metadata is signed",
+]
+
+[[milestone]]
+version = "0.5.0-beta.1"
+channel = "beta"
+name = "Minimal Installable System"
+required_tiers = ["T0", "T1", "T2", "T3-smoke"]
+exit_criteria = [
+  "fresh VM install succeeds",
+  "installed system boots twice cleanly",
+  "update and rollback tests pass",
+  "server edition has no desktop dependency",
+]
+
+[[milestone]]
+version = "0.6.0-beta.1"
+channel = "beta"
+name = "Hardware-Aware optid"
+required_tiers = ["T0", "T1", "T2", "T3"]
+exit_criteria = [
+  "unsupported knobs are skipped with reasons",
+  "mixed-load responsiveness improves on two machines",
+  "battery behavior matches or improves mainstream defaults",
+  "no unsafe write occurs outside allowlisted paths",
+]
+
+[[milestone]]
+version = "0.7.0-beta.1"
+channel = "beta"
+name = "Editions"
+required_tiers = ["T0", "T1", "T2", "T3"]
+exit_criteria = [
+  "desktop, laptop, realtime, and server editions install and boot",
+  "desktop uses Wayland and PipeWire by default",
+  "realtime edition uses RT kernel only when selected",
+  "edition docs and recipes match",
+]
+
+[[milestone]]
+version = "0.8.0-beta.1"
+channel = "beta"
+name = "Benchmark Lab"
+required_tiers = ["T0", "T1", "T2", "T3", "T4"]
+exit_criteria = [
+  "public benchmark artifact is generated",
+  "regressions block release candidates",
+  "optctl explain correlates with benchmark traces",
+]
+
+[[milestone]]
+version = "0.9.0-rc.1"
+channel = "rc"
+name = "Release Candidate Hardening"
+required_tiers = ["T0", "T1", "T2", "T3", "T4", "T5"]
+exit_criteria = [
+  "v1 schemas and public interfaces are frozen",
+  "signed package metadata is complete",
+  "security review is complete",
+  "only release blockers are accepted",
+]
+
+[[milestone]]
+version = "1.0.0"
+channel = "stable"
+name = "Final Stable Release"
+required_tiers = ["T0", "T1", "T2", "T3", "T4", "T5"]
+exit_criteria = [
+  "installable on mainstream x86_64 hardware and VMs",
+  "optid is active, explainable, and reversible",
+  "stable update channel exists",
+  "rollback works for bad kernel and update scenarios",
+  "benchmark report supports release claims",
+]
+

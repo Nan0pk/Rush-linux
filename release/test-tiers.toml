@@ -1,0 +1,64 @@
+[tier.T0]
+name = "repository-policy"
+required_for = ["unstable", "alpha", "beta", "rc", "stable", "security"]
+checks = [
+  "required docs and ADRs exist",
+  "no obsolete defaults",
+  "required recipes and configs exist",
+  "tools/validate-repo.ps1 passes",
+]
+
+[tier.T1]
+name = "rust-core"
+required_for = ["alpha", "beta", "rc", "stable"]
+checks = [
+  "cargo fmt --all -- --check",
+  "cargo test --workspace",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "fixture tests for /proc and /sys readers",
+]
+
+[tier.T2]
+name = "vm-system"
+required_for = ["beta", "rc", "stable"]
+checks = [
+  "rootfs boots to multi-user.target",
+  "optid.service starts",
+  "cgroup v2 and PSI are active",
+  "nftables loads",
+  "update and rollback smoke tests pass",
+]
+
+[tier.T3]
+name = "hardware"
+required_for = ["beta", "rc", "stable"]
+checks = [
+  "battery and AC policy",
+  "thermal guardrails",
+  "suspend and resume",
+  "CPU, GPU, and storage policy",
+  "unsafe knobs are allowlisted",
+]
+
+[tier.T4]
+name = "comparative-benchmarks"
+required_for = ["rc", "stable"]
+checks = [
+  "Fedora current comparison",
+  "Ubuntu current comparison",
+  "Arch current comparison",
+  "minimal tuned baseline comparison",
+  "benchmark report generated",
+]
+
+[tier.T5]
+name = "security"
+required_for = ["rc", "stable", "security"]
+checks = [
+  "privileged writes are allowlisted",
+  "service sandboxing reviewed",
+  "package and update signatures verified",
+  "rollback verified",
+  "config and D-Bus inputs fuzzed",
+]
+

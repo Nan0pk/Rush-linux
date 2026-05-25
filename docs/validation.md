@@ -21,12 +21,24 @@ The validation script must fail when the core documentation layer is missing:
 - `ROADMAP.md`
 - `CONTRIBUTING.md`
 - `SECURITY.md`
+- `VERSION`
+- `RELEASES.md`
+- `docs/versioning.md`
+- `docs/release-policy.md`
+- `docs/release-checklist.md`
+- `docs/release-plan-v1.md`
 - architecture docs under `docs/`
 - ADRs under `docs/decisions/`
+- release gates under `release/`
 
 Docs are part of acceptance criteria, not cleanup. A change that alters code,
 policy, packaging, boot, kernel fragments, benchmark expectations, or defaults
 must update the relevant documentation in the same change.
+
+Release governance is part of validation. Changes to version numbers, release
+channels, milestone exit criteria, or test tiers must update `VERSION`,
+`RELEASES.md`, `docs/versioning.md`, `docs/release-policy.md`, and
+`release/milestones.toml` together.
 
 Hardware lab scenarios:
 

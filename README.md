@@ -31,6 +31,7 @@ distro/kernel/            Kernel config fragments
 distro/network/           nftables baseline
 packaging/systemd/        systemd units and tmpfiles
 recipes/                  Source package recipe skeletons
+release/                  Version milestones and test-tier gates
 tools/                    Local validation scripts
 docs/                     Architecture and implementation notes
 ```
@@ -43,6 +44,11 @@ Start with:
 - [AI continuation guide](AI_CONTINUATION.md)
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Roadmap](ROADMAP.md)
+- [Release ledger](RELEASES.md)
+- [Versioning](docs/versioning.md)
+- [Release policy](docs/release-policy.md)
+- [Release checklist](docs/release-checklist.md)
+- [v1 release plan](docs/release-plan-v1.md)
 - [Architecture](docs/architecture.md)
 - [Adaptive engine](docs/adaptive-engine.md)
 - [Kernel policy](docs/kernel-policy.md)

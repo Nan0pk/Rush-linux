@@ -11,6 +11,9 @@ engineering milestones.
 
 ## Implemented
 
+- Current project version recorded in `VERSION` as `0.1.0-alpha.0`.
+- Release plan, versioning rules, release policy, release checklist, and
+  machine-readable milestone/test-tier manifests.
 - Git repository initialized locally on `main`.
 - GitHub remote configured for `https://github.com/Nan0pk/Rush-linux.git`.
 - Apache-2.0 license, CI workflow, security policy, and publishing helper.
@@ -61,8 +64,7 @@ engineering milestones.
 
 - `rustc` and `cargo` are not installed locally.
 - `gh` is not installed locally.
-- GitHub repository creation is blocked until `Nan0pk/adaptive-linux` exists or
-  a GitHub token is provided.
+- The GitHub repository exists at `https://github.com/Nan0pk/Rush-linux`.
 
 ## Acceptance Rule
 

@@ -11,6 +11,9 @@ Read:
 - `PROJECT_BRIEF.md`
 - `AI_CONTINUATION.md`
 - `IMPLEMENTATION_STATUS.md`
+- `docs/versioning.md`
+- `docs/release-policy.md`
+- `docs/release-checklist.md`
 - `docs/architecture.md`
 - relevant ADRs under `docs/decisions/`
 
@@ -43,6 +46,7 @@ modify:
 - package recipes or edition profiles;
 - hardware support policy;
 - benchmark scenarios or release criteria.
+- version, channel, milestone, or release-gate policy.
 
 ## Defaults Policy
 
@@ -55,4 +59,3 @@ packages can exist later, but defaults must stay aligned with the accepted ADRs.
 - Prefer deterministic policy before ML or heuristic sprawl.
 - Include validation output in pull requests.
 - Do not weaken guardrails to make a benchmark look better.
-

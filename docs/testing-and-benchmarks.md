@@ -40,7 +40,20 @@ Required scenarios:
 
 ## Release Gates
 
-A release candidate must show:
+Release gates are tiered. The source of truth is `release/test-tiers.toml`.
+
+- T0 repository policy: required docs, ADRs, no obsolete defaults, recipe
+  presence.
+- T1 Rust tests: unit, fixture, config parsing, D-Bus, CLI, policy decisions.
+- T2 VM tests: rootfs boot, service start, cgroup v2, PSI, nftables, update,
+  rollback.
+- T3 hardware tests: laptop battery, thermals, suspend/resume, CPU/GPU/storage
+  policy.
+- T4 comparative benchmarks: Fedora, Ubuntu, Arch, minimal tuned baseline.
+- T5 security tests: privileged write allowlists, service sandboxing, signature
+  checks, rollback, config fuzzing, and D-Bus input fuzzing.
+
+An RC must show:
 
 - better mixed-load foreground latency than mainstream defaults;
 - competitive or better laptop battery behavior;
@@ -48,8 +61,14 @@ A release candidate must show:
 - successful rollback tests;
 - `optctl explain` coverage for optimizer actions.
 
+Channel requirements:
+
+- Alpha requires T0-T1 passing and basic VM smoke tests once rootfs exists.
+- Beta requires T0-T3 passing.
+- RC requires T0-T5 passing plus benchmark publication.
+- Stable requires no release-blocker regressions for at least one RC cycle.
+
 ## Documentation Gate
 
 Docs are part of acceptance criteria. CI must require the core docs and ADRs to
 exist. Any behavior change must update the relevant docs in the same commit.
-

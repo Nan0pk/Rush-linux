@@ -1,5 +1,5 @@
 [suite]
-name = "adaptive-linux-baseline"
+name = "rush-linux-baseline"
 competitors = [
   "fedora-current",
   "ubuntu-current",
@@ -56,4 +56,3 @@ metrics = [
   "iperf3-gbps",
 ]
 workload = "PostgreSQL, nginx, containers, fio, iperf3"
-

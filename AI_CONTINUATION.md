@@ -31,6 +31,10 @@ Do not:
 
 Implemented:
 
+- Release governance exists with `VERSION`, `RELEASES.md`,
+  `docs/versioning.md`, `docs/release-policy.md`,
+  `docs/release-checklist.md`, `docs/release-plan-v1.md`, and
+  `release/milestones.toml`.
 - Rust workspace with `crates/optid` and `crates/optctl`.
 - `optid` MVP reads PSI, AC/battery, thermal, and load signals.
 - `optid` emits explainable decisions and applies guarded actions only with
@@ -108,6 +112,9 @@ https://github.com/Nan0pk/Rush-linux
 ```
 
 ## Next Task
+
+Current project version is `0.1.0-alpha.0`. The next milestone is
+`0.1.0-alpha.1`, Compile-Clean Core.
 
 First, install or provide a Rust toolchain and make CI pass:
 
