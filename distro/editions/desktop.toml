@@ -1,0 +1,18 @@
+[edition]
+name = "desktop"
+description = "Wayland/PipeWire desktop with adaptive balanced policy"
+
+[defaults]
+session = "plasma-wayland"
+filesystem = "btrfs"
+network = "NetworkManager"
+firewall = "nftables"
+optimizer_mode = "auto"
+
+[packages]
+required = [
+  "adaptive-desktop-plasma",
+  "linux-adaptive",
+  "optid",
+]
+

@@ -1,0 +1,25 @@
+[package]
+name = "linux-adaptive-rt"
+version = "stable-rt-tracked"
+kind = "kernel"
+
+[source]
+upstream = "https://kernel.org"
+verification = "signed-tarball"
+
+[build]
+fragments = [
+  "distro/kernel/default-adaptive.config",
+  "distro/kernel/realtime.config",
+]
+uki = true
+reproducible = true
+default_kernel = false
+
+[outputs]
+packages = [
+  "linux-adaptive-rt",
+  "linux-adaptive-rt-devel",
+  "linux-adaptive-rt-uki",
+]
+

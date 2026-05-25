@@ -1,0 +1,12 @@
+[Unit]
+Description=Adaptive Linux background workload slice
+Documentation=man:systemd.slice(5)
+
+[Slice]
+CPUAccounting=yes
+IOAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes
+CPUWeight=50
+IOWeight=50
+

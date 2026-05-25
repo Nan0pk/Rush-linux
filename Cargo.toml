@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "crates/optid",
+    "crates/optctl",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/Nan0pk/adaptive-linux"
+rust-version = "1.78"

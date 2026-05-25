@@ -1,0 +1,23 @@
+[package]
+name = "linux-adaptive"
+version = "stable-tracked"
+kind = "kernel"
+
+[source]
+upstream = "https://kernel.org"
+verification = "signed-tarball"
+
+[build]
+fragments = [
+  "distro/kernel/default-adaptive.config",
+]
+uki = true
+reproducible = true
+
+[outputs]
+packages = [
+  "linux-adaptive",
+  "linux-adaptive-devel",
+  "linux-adaptive-uki",
+]
+

@@ -1,0 +1,12 @@
+[uki]
+layout = "bls-type-2"
+builder = "systemd-ukify"
+secure_boot = "supported"
+measured_boot = "supported"
+rollback_entries = 3
+fallback_bootloader = "grub"
+
+[assessment]
+use_systemd_boot_check_no_failures = true
+mark_good_after = "multi-user.target"
+

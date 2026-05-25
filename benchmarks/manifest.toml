@@ -1,0 +1,59 @@
+[suite]
+name = "adaptive-linux-baseline"
+competitors = [
+  "fedora-current",
+  "ubuntu-current",
+  "arch-current",
+  "minimal-tuned-baseline",
+]
+
+[[scenario]]
+name = "mixed-load-responsiveness"
+metrics = [
+  "input-latency-p95-ms",
+  "input-latency-p99-ms",
+  "foreground-launch-ms",
+  "psi-cpu-avg10",
+  "psi-io-avg10",
+]
+workload = "browser + kernel build + package update + fio"
+
+[[scenario]]
+name = "laptop-battery"
+metrics = [
+  "idle-discharge-w",
+  "browser-discharge-w",
+  "video-call-discharge-w",
+  "suspend-drain-percent-hour",
+]
+workload = "idle, browser, video playback, video call, suspend/resume"
+
+[[scenario]]
+name = "gaming-frame-time"
+metrics = [
+  "fps-average",
+  "frametime-p95-ms",
+  "frametime-p99-ms",
+  "shader-stutter-count",
+]
+workload = "Vulkan game benchmark with background package build"
+
+[[scenario]]
+name = "realtime-audio"
+metrics = [
+  "cyclictest-max-us",
+  "oslat-max-us",
+  "pipewire-underruns",
+]
+workload = "PipeWire low-buffer session with CPU and I/O pressure"
+
+[[scenario]]
+name = "server-throughput"
+metrics = [
+  "postgres-tps",
+  "nginx-rps",
+  "fio-iops",
+  "iperf3-gbps",
+]
+workload = "PostgreSQL, nginx, containers, fio, iperf3"
+

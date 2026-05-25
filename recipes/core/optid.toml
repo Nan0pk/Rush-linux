@@ -1,0 +1,24 @@
+[package]
+name = "optid"
+version = "0.1.0"
+kind = "rust"
+
+[source]
+path = "crates/optid"
+
+[build]
+command = "cargo build --release --locked -p optid -p optctl"
+reproducible = true
+
+[install]
+bins = [
+  ["target/release/optid", "/usr/libexec/optid"],
+  ["target/release/optctl", "/usr/bin/optctl"],
+]
+systemd_units = [
+  "packaging/systemd/optid.service",
+]
+config = [
+  ["config/optid/policy.toml", "/usr/lib/optid/policy.toml"],
+]
+

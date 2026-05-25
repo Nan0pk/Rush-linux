@@ -1,0 +1,18 @@
+[package]
+name = "adaptive-server-minimal"
+kind = "edition"
+
+[depends]
+required = [
+  "systemd",
+  "systemd-networkd",
+  "nftables",
+  "optid",
+]
+
+[policy]
+desktop = false
+network = "systemd-networkd"
+firewall = "nftables"
+container_cgroups = "v2"
+

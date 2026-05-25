@@ -1,0 +1,45 @@
+# Default Adaptive Linux optimizer policy.
+# The Rust MVP currently embeds these defaults; this file is the package
+# interface that the daemon will parse once the D-Bus/config layer lands.
+
+[policy]
+owner = "optid"
+competing_policy_daemons = [
+  "tlp.service",
+  "power-profiles-daemon.service",
+  "tuned.service",
+]
+
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+background_cpu_weight = 25
+background_io_weight = 25
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+user_cpu_weight = 150
+user_io_weight = 150
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 200
+user_io_weight = 200
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 250
+user_io_weight = 200
+requires_controlled_rt_access = true
+

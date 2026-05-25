@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=io.adaptive.Optid1
+Exec=/usr/libexec/optid --apply --interval-sec 2 --state-dir /run/optid
+SystemdService=optid.service
+

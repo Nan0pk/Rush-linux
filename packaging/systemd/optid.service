@@ -1,0 +1,27 @@
+[Unit]
+Description=Adaptive Linux optimization daemon
+Documentation=man:optid(8)
+ConditionPathExists=/proc/pressure/cpu
+Conflicts=tlp.service power-profiles-daemon.service tuned.service
+After=multi-user.target systemd-udevd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/optid --apply --interval-sec 2 --state-dir /run/optid
+Restart=on-failure
+RestartSec=2
+StateDirectory=optid
+RuntimeDirectory=optid
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE CAP_SYS_RESOURCE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=no
+ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
+
