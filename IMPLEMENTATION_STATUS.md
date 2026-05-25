@@ -14,6 +14,8 @@ engineering milestones.
 - Current project version recorded in `VERSION` as `0.1.0-alpha.0`.
 - Release plan, versioning rules, release policy, release checklist, and
   machine-readable milestone/test-tier manifests.
+- Documentation policy requiring future changes to document purpose, impact,
+  validation, safety implications, and follow-up work.
 - Git repository initialized locally on `main`.
 - GitHub remote configured for `https://github.com/Nan0pk/Rush-linux.git`.
 - Apache-2.0 license, CI workflow, security policy, and publishing helper.

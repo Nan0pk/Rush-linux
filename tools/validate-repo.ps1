@@ -88,6 +88,7 @@ $required = @(
     'docs/release-policy.md',
     'docs/release-checklist.md',
     'docs/release-plan-v1.md',
+    'docs/documentation-policy.md',
     'docs/decisions/0001-systemd-cgroup-v2.md',
     'docs/decisions/0002-wayland-pipewire.md',
     'docs/decisions/0003-uki-rollback.md',
@@ -131,6 +132,7 @@ Assert-Contains 'docs/versioning.md' 'MAJOR'
 Assert-Contains 'docs/release-policy.md' 'Release Blockers'
 Assert-Contains 'docs/release-checklist.md' 'Stable Release'
 Assert-Contains 'docs/release-plan-v1.md' 'v1\.0\.0: Final Stable Release'
+Assert-Contains 'docs/documentation-policy.md' 'Every non-trivial change must document'
 Assert-Contains 'release/milestones.toml' 'version = "1\.0\.0"'
 Assert-Contains 'release/test-tiers.toml' '\[tier\.T5\]'
 Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'

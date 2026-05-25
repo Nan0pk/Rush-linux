@@ -45,6 +45,8 @@ A release must stop if any of these are present:
 - obsolete default introduced against ADRs;
 - regression beyond the benchmark threshold for the target channel;
 - docs inconsistent with release behavior.
+- undocumented behavior, config, service, release-gate, benchmark, or safety
+  change.
 
 ## Signing And Provenance
 
@@ -60,4 +62,3 @@ Each release must publish:
 - test tier results;
 - known issues;
 - rollback instructions.
-

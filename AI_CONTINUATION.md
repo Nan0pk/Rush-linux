@@ -26,6 +26,9 @@ Do not:
   rollback.
 - Touch privileged sysfs paths without an allowlist and an explanation path.
 - Treat docs as optional cleanup. Docs must stay aligned with code and config.
+- Make undocumented changes. Every future code, config, service, recipe,
+  release, benchmark, or safety change must update the relevant docs in the
+  same commit.
 
 ## Current Status
 
@@ -35,6 +38,8 @@ Implemented:
   `docs/versioning.md`, `docs/release-policy.md`,
   `docs/release-checklist.md`, `docs/release-plan-v1.md`, and
   `release/milestones.toml`.
+- Documentation governance exists in `docs/documentation-policy.md`; future
+  changes must document purpose, impact, validation, and follow-up work.
 - Rust workspace with `crates/optid` and `crates/optctl`.
 - `optid` MVP reads PSI, AC/battery, thermal, and load signals.
 - `optid` emits explainable decisions and applies guarded actions only with

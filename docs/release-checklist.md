@@ -8,6 +8,8 @@ Use this checklist for every tagged release.
 - [ ] `RELEASES.md` contains the release entry.
 - [ ] `docs/release-plan-v1.md` milestone status is updated.
 - [ ] `IMPLEMENTATION_STATUS.md` and `AI_CONTINUATION.md` are current.
+- [ ] `docs/documentation-policy.md` was followed for all behavior, config,
+      service, release, benchmark, or safety changes.
 - [ ] `tools/validate-repo.ps1` passes.
 - [ ] CI passes on GitHub.
 - [ ] No obsolete defaults are introduced.
@@ -47,4 +49,3 @@ Use this checklist for every tagged release.
 - [ ] Upgrade and rollback guide is verified.
 - [ ] Benchmark report supports the release claims.
 - [ ] The release can be installed on mainstream x86_64 hardware and VMs.
-

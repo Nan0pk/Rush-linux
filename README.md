@@ -49,6 +49,7 @@ Start with:
 - [Release policy](docs/release-policy.md)
 - [Release checklist](docs/release-checklist.md)
 - [v1 release plan](docs/release-plan-v1.md)
+- [Documentation policy](docs/documentation-policy.md)
 - [Architecture](docs/architecture.md)
 - [Adaptive engine](docs/adaptive-engine.md)
 - [Kernel policy](docs/kernel-policy.md)

@@ -48,6 +48,10 @@ modify:
 - benchmark scenarios or release criteria.
 - version, channel, milestone, or release-gate policy.
 
+Follow `docs/documentation-policy.md` for the required documentation surface.
+Pull requests or commits that change behavior without matching docs should be
+treated as incomplete, even if tests pass.
+
 ## Defaults Policy
 
 Do not add obsolete or near-obsolete components as defaults. Compatibility
