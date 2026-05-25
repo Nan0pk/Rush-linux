@@ -1,7 +1,7 @@
-# Adaptive Linux
+# Rush Linux
 
-Adaptive Linux is a source-built Linux distribution project centered on one
-native optimization service: `optid`. The distribution target is a modern,
+Rush Linux is a source-built Linux distribution project centered on one native
+optimization service: `optid`. The distribution target is a modern,
 future-facing Linux baseline with automatic, explainable runtime policy changes
 for responsiveness, battery life, thermal behavior, and resource utilization.
 
