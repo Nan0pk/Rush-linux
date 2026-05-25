@@ -37,6 +37,13 @@ function Assert-NotContains {
 }
 
 $required = @(
+    'PROJECT_BRIEF.md',
+    'AI_CONTINUATION.md',
+    'IMPLEMENTATION_STATUS.md',
+    'ROADMAP.md',
+    'CONTRIBUTING.md',
+    'SECURITY.md',
+    'README.md',
     'Cargo.toml',
     'crates/optid/src/main.rs',
     'crates/optctl/src/main.rs',
@@ -54,17 +61,31 @@ $required = @(
     'recipes/core/optid.toml',
     'recipes/core/systemd.toml',
     'recipes/desktop/plasma-wayland.toml',
-    'recipes/server/minimal.toml'
-    'packaging/dbus/io.adaptive.Optid.xml'
-    'packaging/dbus/io.adaptive.Optid.service'
-    'distro/sysupdate/base.conf'
-    'distro/sysupdate/uki.conf'
-    'distro/editions/desktop.toml'
-    'distro/editions/laptop.toml'
-    'distro/editions/server.toml'
-    'distro/editions/realtime-audio.toml'
-    'benchmarks/manifest.toml'
-    'tools/build-rootfs.sh'
+    'recipes/server/minimal.toml',
+    'packaging/dbus/io.adaptive.Optid.xml',
+    'packaging/dbus/io.adaptive.Optid.service',
+    'distro/sysupdate/base.conf',
+    'distro/sysupdate/uki.conf',
+    'distro/editions/desktop.toml',
+    'distro/editions/laptop.toml',
+    'distro/editions/server.toml',
+    'distro/editions/realtime-audio.toml',
+    'benchmarks/manifest.toml',
+    'docs/architecture.md',
+    'docs/adaptive-engine.md',
+    'docs/kernel-policy.md',
+    'docs/packaging-and-builds.md',
+    'docs/boot-and-updates.md',
+    'docs/hardware-support.md',
+    'docs/testing-and-benchmarks.md',
+    'docs/non-goals.md',
+    'docs/validation.md',
+    'docs/decisions/0001-systemd-cgroup-v2.md',
+    'docs/decisions/0002-wayland-pipewire.md',
+    'docs/decisions/0003-uki-rollback.md',
+    'docs/decisions/0004-adaptive-optid.md',
+    'docs/decisions/0005-avoid-obsolete-defaults.md',
+    'tools/build-rootfs.sh',
     'tools/publish-github.ps1'
 )
 
@@ -85,6 +106,15 @@ Assert-Contains 'packaging/dbus/io.adaptive.Optid.xml' 'io.adaptive.Optid1'
 Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
 Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'
 Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
+Assert-Contains 'AI_CONTINUATION.md' 'Forbidden Shortcuts'
+Assert-Contains 'AI_CONTINUATION.md' 'Next Task'
+Assert-Contains 'IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
+Assert-Contains 'ROADMAP.md' 'Phase 1: Compile-Clean Optimizer MVP'
+Assert-Contains 'CONTRIBUTING.md' 'Documentation Is Required'
+Assert-Contains 'docs/testing-and-benchmarks.md' 'Docs are part of acceptance criteria'
+Assert-Contains 'docs/validation.md' 'Docs are part of acceptance criteria'
+Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'
+Assert-Contains 'docs/decisions/0004-adaptive-optid.md' 'only default runtime optimization policy owner'
 
 $legacyChecks = @{
     'recipes/desktop/plasma-wayland.toml' = @('pulseaudio_default = true', 'legacy_x11_default = true')

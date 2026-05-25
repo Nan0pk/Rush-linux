@@ -35,6 +35,28 @@ tools/                    Local validation scripts
 docs/                     Architecture and implementation notes
 ```
 
+## First-Class Documentation
+
+Start with:
+
+- [Project brief](PROJECT_BRIEF.md)
+- [AI continuation guide](AI_CONTINUATION.md)
+- [Implementation status](IMPLEMENTATION_STATUS.md)
+- [Roadmap](ROADMAP.md)
+- [Architecture](docs/architecture.md)
+- [Adaptive engine](docs/adaptive-engine.md)
+- [Kernel policy](docs/kernel-policy.md)
+- [Packaging and builds](docs/packaging-and-builds.md)
+- [Boot and updates](docs/boot-and-updates.md)
+- [Hardware support](docs/hardware-support.md)
+- [Testing and benchmarks](docs/testing-and-benchmarks.md)
+- [Non-goals](docs/non-goals.md)
+- [ADRs](docs/decisions/)
+
+Documentation is part of acceptance criteria. Changes to behavior, defaults,
+policy, boot/update flow, kernel fragments, recipes, or tests must update the
+relevant docs in the same change.
+
 ## Current Implementation Status
 
 `optid` is implemented as a safe MVP:
