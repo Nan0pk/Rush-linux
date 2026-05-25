@@ -38,6 +38,7 @@ function Assert-NotContains {
 
 $required = @(
     'VERSION',
+    'Cargo.lock',
     'RELEASES.md',
     'PROJECT_BRIEF.md',
     'AI_CONTINUATION.md',
@@ -51,6 +52,7 @@ $required = @(
     'crates/optctl/src/main.rs',
     'config/optid/policy.toml',
     'packaging/systemd/optid.service',
+    'packaging/systemd/optid-apply.service',
     'distro/boot/cmdline.d/adaptive.conf',
     'distro/boot/uki.toml',
     'distro/kernel/default-adaptive.config',
@@ -110,6 +112,8 @@ Assert-Contains 'distro/kernel/default-adaptive.config' 'CONFIG_ZSWAP=y'
 Assert-Contains 'distro/kernel/realtime.config' 'CONFIG_PREEMPT_RT=y'
 Assert-Contains 'distro/network/nftables.conf' 'table inet adaptive_filter'
 Assert-Contains 'packaging/systemd/optid.service' 'Conflicts=tlp.service power-profiles-daemon.service tuned.service'
+Assert-NotContains 'packaging/systemd/optid.service' '--apply'
+Assert-Contains 'packaging/systemd/optid-apply.service' '--apply'
 Assert-Contains 'packaging/dbus/io.adaptive.Optid.xml' 'io.adaptive.Optid1'
 Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
 Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'

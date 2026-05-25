@@ -30,6 +30,8 @@ Security-sensitive areas:
 
 - Privileged actions must be allowlisted and explainable.
 - `optid` must preserve a dry-run mode.
+- The default packaged service must not pass `--apply`; mutating mode must stay
+  explicit until the safety model is proven.
 - Update and package metadata must be signed before any installable release.
 - Bad kernels and failed updates must be rollbackable.
 - eBPF probes must have explicit overhead and safety limits.

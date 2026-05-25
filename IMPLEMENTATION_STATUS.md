@@ -31,6 +31,8 @@ engineering milestones.
   - sets mode through the state directory;
   - exposes benchmark and pin placeholders.
 - systemd service and tmpfiles config for `optid`.
+- Default `optid.service` runs dry-run; `optid-apply.service` is the explicit
+  mutating service.
 - D-Bus interface contract for the future first-class control API.
 - Kernel config fragments:
   - default adaptive kernel;
@@ -59,6 +61,8 @@ engineering milestones.
 - Installer and role selection UI.
 - Benchmark harness execution and published results.
 - Rust CI results, because this local Windows workspace has no Rust toolchain.
+- The `Cargo.lock` file is checked in, but it still needs confirmation from
+  real Cargo on Linux.
 
 ## Known Local Constraints
 

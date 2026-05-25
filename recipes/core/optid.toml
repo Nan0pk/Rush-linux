@@ -17,8 +17,8 @@ bins = [
 ]
 systemd_units = [
   "packaging/systemd/optid.service",
+  "packaging/systemd/optid-apply.service",
 ]
 config = [
   ["config/optid/policy.toml", "/usr/lib/optid/policy.toml"],
 ]
-

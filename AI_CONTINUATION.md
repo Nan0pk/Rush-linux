@@ -39,6 +39,8 @@ Implemented:
 - `optid` MVP reads PSI, AC/battery, thermal, and load signals.
 - `optid` emits explainable decisions and applies guarded actions only with
   `--apply`.
+- `optid.service` is intentionally dry-run by default; use
+  `optid-apply.service` only for explicit mutating tests.
 - `optctl` supports status, explain, mode, trace, and benchmark placeholders
   through the state directory.
 - systemd service, D-Bus contract, nftables baseline, kernel fragments, UKI and

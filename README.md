@@ -75,6 +75,9 @@ relevant docs in the same change.
 - Applies only guarded actions when `--apply` is passed.
 - Writes status and decision logs under `/run/optid` by default.
 
+The packaged default service is dry-run. `optid-apply.service` exists for
+explicit mutating tests only.
+
 `optctl` currently talks through the state directory:
 
 - `optctl status`

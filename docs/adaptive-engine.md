@@ -19,6 +19,10 @@ The current Rust implementation:
 `optctl` currently uses files in the state directory. The accepted target is a
 D-Bus API defined in `packaging/dbus/io.adaptive.Optid.xml`.
 
+The packaged default `optid.service` runs in dry-run mode. Mutating policy is
+split into `optid-apply.service` so early releases cannot silently change CPU,
+platform, or cgroup settings without an explicit service choice.
+
 ## Policy Ownership
 
 `optid` is the only default owner of runtime optimization knobs. This avoids
@@ -62,4 +66,3 @@ Accepted action classes:
 - Unsafe sysfs writes require explicit allowlisting.
 - Hardware-specific policy must degrade safely when sensors or firmware knobs
   are missing.
-
