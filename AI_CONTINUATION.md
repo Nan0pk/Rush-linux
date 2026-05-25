@@ -104,7 +104,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 Publishing target:
 
 ```text
-https://github.com/Nan0pk/adaptive-linux
+https://github.com/Nan0pk/Rush-linux
 ```
 
 ## Next Task
@@ -117,4 +117,3 @@ First, install or provide a Rust toolchain and make CI pass:
    `packaging/dbus/io.adaptive.Optid.xml`.
 4. Keep `IMPLEMENTATION_STATUS.md`, `ROADMAP.md`, and the relevant docs updated
    in the same commit.
-

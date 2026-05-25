@@ -12,7 +12,7 @@ engineering milestones.
 ## Implemented
 
 - Git repository initialized locally on `main`.
-- GitHub remote configured for `https://github.com/Nan0pk/adaptive-linux.git`.
+- GitHub remote configured for `https://github.com/Nan0pk/Rush-linux.git`.
 - Apache-2.0 license, CI workflow, security policy, and publishing helper.
 - `optid` Rust MVP:
   - reads PSI from `/proc/pressure/{cpu,memory,io}`;
@@ -69,4 +69,3 @@ engineering milestones.
 Any change that modifies behavior, defaults, policy, boot/update flow, kernel
 fragments, recipes, service files, or command behavior must update the relevant
 documentation in the same change.
-

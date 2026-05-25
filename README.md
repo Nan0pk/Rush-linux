@@ -5,7 +5,7 @@ native optimization service: `optid`. The distribution target is a modern,
 future-facing Linux baseline with automatic, explainable runtime policy changes
 for responsiveness, battery life, thermal behavior, and resource utilization.
 
-Repository: https://github.com/Nan0pk/adaptive-linux
+Repository: https://github.com/Nan0pk/Rush-linux
 
 This repository is the first implementation slice:
 
@@ -110,7 +110,7 @@ The repository includes GitHub Actions checks for:
 This local workspace is already configured for:
 
 ```sh
-https://github.com/Nan0pk/adaptive-linux
+https://github.com/Nan0pk/Rush-linux
 ```
 
 If the GitHub repository does not exist yet, create it with a token that has

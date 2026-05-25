@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Owner = 'Nan0pk',
-    [string]$Repo = 'adaptive-linux',
+    [string]$Repo = 'Rush-linux',
     [switch]$Private
 )
 
@@ -49,4 +49,3 @@ try {
 git remote remove origin 2>$null
 git remote add origin "$repoUrl.git"
 git push -u origin main
-

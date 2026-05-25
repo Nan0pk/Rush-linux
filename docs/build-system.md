@@ -21,6 +21,6 @@ risk distraction from the distro's differentiator: adaptive runtime policy.
 
 ## Publishing Source
 
-The source repository target is `https://github.com/Nan0pk/adaptive-linux`.
+The source repository target is `https://github.com/Nan0pk/Rush-linux`.
 Use `tools/publish-github.ps1` with `GH_TOKEN` or `GITHUB_TOKEN` when the
 repository needs to be created non-interactively.
