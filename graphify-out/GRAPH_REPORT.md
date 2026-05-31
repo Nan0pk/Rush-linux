@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-05-31)
 
 ## Corpus Check
-- 36 files · ~12,684 words
+- 36 files · ~12,695 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 277 nodes · 343 edges · 37 communities (33 shown, 4 thin omitted)
+- 279 nodes · 346 edges · 37 communities (33 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `24ad8877`
+- Built from commit: `ba23f10b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -59,27 +59,27 @@
 5. `Self` - 9 edges
 6. `AI Continuation` - 9 edges
 7. `Rush Linux` - 9 edges
-8. `run()` - 8 edges
-9. `Mode` - 8 edges
-10. `Snapshot` - 8 edges
+8. `Mode` - 8 edges
+9. `Snapshot` - 8 edges
+10. `run()` - 8 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `main()` --calls--> `run()`  [EXTRACTED]
-  crates/optid/src/main.rs → crates/optid/src/main.rs  _Bridges community 0 → community 1_
+- `Snapshot` --references--> `Option`  [EXTRACTED]
+  crates/optid/src/main.rs → crates/optid/src/main.rs  _Bridges community 1 → community 0_
 
 ## Import Cycles
-- 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
+- 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 
 ## Communities (37 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.14
-Nodes (24): Option, main(), print_usage(), Decision, Default, Display, Self, ac_cpu_pressure_prefers_performance() (+16 more)
+Cohesion: 0.23
+Nodes (9): Decision, Default, Self, ac_cpu_pressure_prefers_performance(), Action, battery_auto_mode_prefers_battery(), critical_thermal_overrides_performance_bias(), Policy (+1 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.16
-Nodes (16): Action, Args, Path, Result, run(), String, Vec, Formatter (+8 more)
+Cohesion: 0.11
+Nodes (31): Action, Args, Option, Path, Result, main(), print_usage(), run() (+23 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.15
@@ -186,8 +186,8 @@ Cohesion: 0.40
 Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 
 ### Community 28 - "Community 28"
-Cohesion: 0.50
-Nodes (3): graphify-refresh.sh script, PYTHONHASHSEED, run_graphify()
+Cohesion: 0.47
+Nodes (4): graphify-refresh.sh script, graphify-refresh.sh script, PYTHONHASHSEED, run_graphify()
 
 ### Community 29 - "Community 29"
 Cohesion: 0.50
@@ -198,20 +198,18 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ## Knowledge Gaps
-- **148 isolated node(s):** `Vec`, `String`, `Option`, `Args`, `I` (+143 more)
+- **149 isolated node(s):** `build-rootfs.sh script`, `PYTHONHASHSEED`, `Args`, `I`, `Display` (+144 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Mode` connect `Community 0` to `Community 1`?**
+- **Why does `Mode` connect `Community 1` to `Community 0`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **Why does `run()` connect `Community 1` to `Community 0`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Why does `Decision` connect `Community 1` to `Community 0`?**
-  _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **What connects `Vec`, `String`, `Option` to the rest of the system?**
-  _148 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.1411764705882353 - nodes in this community are weakly interconnected._
+- **What connects `build-rootfs.sh script`, `PYTHONHASHSEED`, `Args` to the rest of the system?**
+  _149 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 1` be split into smaller, more focused modules?**
+  _Cohesion score 0.11265969802555169 - nodes in this community are weakly interconnected._
