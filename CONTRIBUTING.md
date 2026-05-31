@@ -16,6 +16,13 @@ Read:
 - `docs/release-checklist.md`
 - `docs/architecture.md`
 - relevant ADRs under `docs/decisions/`
+- `docs/graphify-knowledge-graph.md`
+
+For orientation, query the committed graph before broad source scans:
+
+```sh
+graphify query "what files are related to the change I am about to make?" --graph graphify-out/graph.json
+```
 
 ## Required Checks
 
@@ -32,6 +39,16 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
+
+After code or supported config changes, refresh the local Graphify graph without
+LLM/API token use:
+
+```sh
+./tools/graphify-refresh.sh code
+```
+
+Use `./tools/graphify-refresh.sh full --backend <backend>` only when semantic
+document extraction is needed and the backend credentials are available.
 
 ## Documentation Is Required
 

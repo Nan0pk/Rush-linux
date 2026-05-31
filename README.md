@@ -50,6 +50,7 @@ Start with:
 - [Release checklist](docs/release-checklist.md)
 - [v1 release plan](docs/release-plan-v1.md)
 - [Documentation policy](docs/documentation-policy.md)
+- [Graphify knowledge graph](docs/graphify-knowledge-graph.md)
 - [Architecture](docs/architecture.md)
 - [Adaptive engine](docs/adaptive-engine.md)
 - [Kernel policy](docs/kernel-policy.md)
@@ -63,6 +64,26 @@ Start with:
 Documentation is part of acceptance criteria. Changes to behavior, defaults,
 policy, boot/update flow, kernel fragments, recipes, or tests must update the
 relevant docs in the same change.
+
+## Knowledge Graph For Continuation
+
+This repository commits a Graphify knowledge graph under `graphify-out/` so
+future agents can query architecture and code relationships before spending
+context on broad file reads. Start with:
+
+```sh
+graphify query "what should I inspect before changing optid policy?" --graph graphify-out/graph.json
+```
+
+After code or supported config changes, refresh the graph without LLM/API token
+use:
+
+```sh
+./tools/graphify-refresh.sh code
+```
+
+For Markdown/design-document semantic refreshes, run the explicit full mode with
+a configured backend. See [Graphify knowledge graph](docs/graphify-knowledge-graph.md).
 
 ## Current Implementation Status
 
@@ -114,6 +135,7 @@ The repository includes GitHub Actions checks for:
 - `cargo test`
 - `cargo clippy -D warnings`
 - future-facing repository policy validation
+- Graphify knowledge-graph refresh on `main` pushes
 
 ## Publishing
 

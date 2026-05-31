@@ -40,6 +40,9 @@ Implemented:
   `release/milestones.toml`.
 - Documentation governance exists in `docs/documentation-policy.md`; future
   changes must document purpose, impact, validation, and follow-up work.
+- Graphify continuation support exists in `graphify-out/`, `AGENTS.md`,
+  `.agents/skills/graphify/`, `.codex/hooks.json`,
+  `docs/graphify-knowledge-graph.md`, and `tools/graphify-refresh.sh`.
 - Rust workspace with `crates/optid` and `crates/optctl`.
 - `optid` MVP reads PSI, AC/battery, thermal, and load signals.
 - `optid` emits explainable decisions and applies guarded actions only with
@@ -92,6 +95,34 @@ recipes/                  Source recipe skeletons
 benchmarks/               Benchmark manifest
 docs/                     Architecture docs and ADRs
 tools/                    Validation and publishing helpers
+```
+
+## Graphify Continuation Workflow
+
+Use the committed knowledge graph before broad searches:
+
+```sh
+graphify query "what connects optid policy to systemd packaging?" --graph graphify-out/graph.json
+```
+
+After code or supported config changes, refresh the AST/local graph without API
+or LLM tokens:
+
+```sh
+./tools/graphify-refresh.sh code
+```
+
+If Markdown/design-document changes need semantic graph updates, run full mode
+with an available backend, for example:
+
+```sh
+GEMINI_API_KEY=... ./tools/graphify-refresh.sh full --backend gemini
+```
+
+If hooks are not installed in the current clone, install them once:
+
+```sh
+./tools/graphify-refresh.sh install-hooks
 ```
 
 ## Commands And Checks

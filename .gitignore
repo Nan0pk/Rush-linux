@@ -4,3 +4,10 @@
 /dist/
 *.log
 
+# Graphify committed artifacts live in graphify-out/, but these files are
+# local-only or mtime/cache based and should not be versioned.
+/graphify-out/cache/
+/graphify-out/cost.json
+/graphify-out/manifest.json
+/graphify-out/.graphify_root
+
