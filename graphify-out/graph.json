@@ -70,7 +70,7 @@
       "label": "mode_command()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L163",
+      "source_location": "L194",
       "id": "src_main_mode_command",
       "community": 5,
       "norm_label": "mode_command()"
@@ -79,7 +79,7 @@
       "label": "Path",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L163",
+      "source_location": "L194",
       "id": "crates_optctl_src_main_rs_path",
       "community": 5,
       "norm_label": "path"
@@ -88,7 +88,7 @@
       "label": "Option",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L163",
+      "source_location": "L194",
       "id": "crates_optctl_src_main_rs_option",
       "community": 5,
       "norm_label": "option"
@@ -97,7 +97,7 @@
       "label": "print_file_or_hint()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L180",
+      "source_location": "L211",
       "id": "src_main_print_file_or_hint",
       "community": 5,
       "norm_label": "print_file_or_hint()"
@@ -106,10 +106,37 @@
       "label": "print_usage()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L194",
+      "source_location": "L225",
       "id": "crates_optctl_src_main_rs_src_main_print_usage",
       "community": 5,
       "norm_label": "print_usage()"
+    },
+    {
+      "label": "format_status_as_json()",
+      "file_type": "code",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L237",
+      "id": "src_main_format_status_as_json",
+      "community": 5,
+      "norm_label": "format_status_as_json()"
+    },
+    {
+      "label": "test_format_status_as_json_all_values()",
+      "file_type": "code",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L444",
+      "id": "src_main_test_format_status_as_json_all_values",
+      "community": 5,
+      "norm_label": "test_format_status_as_json_all_values()"
+    },
+    {
+      "label": "test_format_status_as_json_none_values()",
+      "file_type": "code",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L483",
+      "id": "src_main_test_format_status_as_json_none_values",
+      "community": 5,
+      "norm_label": "test_format_status_as_json_none_values()"
     },
     {
       "label": "main.rs",
@@ -124,7 +151,7 @@
       "label": "OptidServer",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L15",
+      "source_location": "L16",
       "id": "src_main_optidserver",
       "community": 1,
       "norm_label": "optidserver"
@@ -133,7 +160,7 @@
       "label": "PathBuf",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L16",
+      "source_location": "L17",
       "id": "pathbuf",
       "community": 1,
       "norm_label": "pathbuf"
@@ -142,7 +169,7 @@
       "label": ".status()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L21",
+      "source_location": "L22",
       "id": "src_main_optidserver_status",
       "community": 1,
       "norm_label": ".status()"
@@ -151,7 +178,7 @@
       "label": "Result",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L21",
+      "source_location": "L22",
       "id": "crates_optid_src_main_rs_result",
       "community": 1,
       "norm_label": "result"
@@ -160,7 +187,7 @@
       "label": "String",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L21",
+      "source_location": "L22",
       "id": "crates_optid_src_main_rs_string",
       "community": 1,
       "norm_label": "string"
@@ -169,7 +196,7 @@
       "label": ".explain()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L26",
+      "source_location": "L27",
       "id": "src_main_optidserver_explain",
       "community": 1,
       "norm_label": ".explain()"
@@ -178,7 +205,7 @@
       "label": ".set_mode()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L31",
+      "source_location": "L32",
       "id": "src_main_optidserver_set_mode",
       "community": 1,
       "norm_label": ".set_mode()"
@@ -187,7 +214,7 @@
       "label": ".pin_application()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L38",
+      "source_location": "L39",
       "id": "src_main_optidserver_pin_application",
       "community": 1,
       "norm_label": ".pin_application()"
@@ -196,7 +223,7 @@
       "label": ".mode()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L46",
+      "source_location": "L47",
       "id": "src_main_optidserver_mode",
       "community": 1,
       "norm_label": ".mode()"
@@ -205,7 +232,7 @@
       "label": ".version()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L52",
+      "source_location": "L53",
       "id": "src_main_optidserver_version",
       "community": 1,
       "norm_label": ".version()"
@@ -214,7 +241,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L57",
+      "source_location": "L58",
       "id": "crates_optid_src_main_rs_src_main_main",
       "community": 1,
       "norm_label": "main()"
@@ -223,7 +250,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L78",
+      "source_location": "L79",
       "id": "crates_optid_src_main_rs_src_main_run",
       "community": 1,
       "norm_label": "run()"
@@ -232,7 +259,7 @@
       "label": "Args",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L78",
+      "source_location": "L79",
       "id": "args",
       "community": 1,
       "norm_label": "args"
@@ -241,7 +268,7 @@
       "label": "Args",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L128",
+      "source_location": "L129",
       "id": "src_main_args",
       "community": 1,
       "norm_label": "args"
@@ -250,7 +277,7 @@
       "label": ".parse()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L137",
+      "source_location": "L139",
       "id": "src_main_args_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -259,7 +286,7 @@
       "label": "I",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L137",
+      "source_location": "L139",
       "id": "i",
       "community": 1,
       "norm_label": "i"
@@ -268,7 +295,7 @@
       "label": "Self",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L137",
+      "source_location": "L139",
       "id": "self",
       "community": 1,
       "norm_label": "self"
@@ -277,7 +304,7 @@
       "label": "print_usage()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L177",
+      "source_location": "L186",
       "id": "crates_optid_src_main_rs_src_main_print_usage",
       "community": 1,
       "norm_label": "print_usage()"
@@ -286,7 +313,7 @@
       "label": "Mode",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L186",
+      "source_location": "L195",
       "id": "src_main_mode",
       "community": 1,
       "norm_label": "mode"
@@ -295,7 +322,7 @@
       "label": ".parse()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L195",
+      "source_location": "L204",
       "id": "src_main_mode_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -304,7 +331,7 @@
       "label": "Option",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L195",
+      "source_location": "L204",
       "id": "crates_optid_src_main_rs_option",
       "community": 1,
       "norm_label": "option"
@@ -313,7 +340,7 @@
       "label": "Display",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L207",
+      "source_location": "L216",
       "id": "display",
       "community": 1,
       "norm_label": "display"
@@ -322,7 +349,7 @@
       "label": ".fmt()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L208",
+      "source_location": "L217",
       "id": "src_main_mode_fmt",
       "community": 1,
       "norm_label": ".fmt()"
@@ -331,7 +358,7 @@
       "label": "Formatter",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L208",
+      "source_location": "L217",
       "id": "formatter",
       "community": 1,
       "norm_label": "formatter"
@@ -340,7 +367,7 @@
       "label": "Pressure",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L221",
+      "source_location": "L230",
       "id": "src_main_pressure",
       "community": 1,
       "norm_label": "pressure"
@@ -349,7 +376,7 @@
       "label": ".read()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L229",
+      "source_location": "L238",
       "id": "src_main_pressure_read",
       "community": 1,
       "norm_label": ".read()"
@@ -358,7 +385,7 @@
       "label": "Snapshot",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L236",
+      "source_location": "L245",
       "id": "src_main_snapshot",
       "community": 1,
       "norm_label": "snapshot"
@@ -367,7 +394,7 @@
       "label": ".collect()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L248",
+      "source_location": "L257",
       "id": "src_main_snapshot_collect",
       "community": 1,
       "norm_label": ".collect()"
@@ -376,7 +403,7 @@
       "label": ".thermal_c()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L261",
+      "source_location": "L270",
       "id": "src_main_snapshot_thermal_c",
       "community": 1,
       "norm_label": ".thermal_c()"
@@ -385,16 +412,70 @@
       "label": "Policy",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L267",
+      "source_location": "L276",
       "id": "src_main_policy",
       "community": 1,
       "norm_label": "policy"
     },
     {
+      "label": "Thresholds",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L277",
+      "id": "thresholds",
+      "community": 1,
+      "norm_label": "thresholds"
+    },
+    {
+      "label": "Modes",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L278",
+      "id": "modes",
+      "community": 1,
+      "norm_label": "modes"
+    },
+    {
+      "label": "Thresholds",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L282",
+      "id": "src_main_thresholds",
+      "community": 1,
+      "norm_label": "thresholds"
+    },
+    {
+      "label": "Modes",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L292",
+      "id": "src_main_modes",
+      "community": 1,
+      "norm_label": "modes"
+    },
+    {
+      "label": "ModeConfig",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L293",
+      "id": "modeconfig",
+      "community": 1,
+      "norm_label": "modeconfig"
+    },
+    {
+      "label": "ModeConfig",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L300",
+      "id": "src_main_modeconfig",
+      "community": 1,
+      "norm_label": "modeconfig"
+    },
+    {
       "label": "Default",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L276",
+      "source_location": "L315",
       "id": "default",
       "community": 1,
       "norm_label": "default"
@@ -403,16 +484,34 @@
       "label": ".default()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L277",
+      "source_location": "L316",
       "id": "src_main_policy_default",
       "community": 1,
       "norm_label": ".default()"
     },
     {
+      "label": ".load()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L369",
+      "id": "src_main_policy_load",
+      "community": 1,
+      "norm_label": ".load()"
+    },
+    {
+      "label": "Path",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L369",
+      "id": "crates_optid_src_main_rs_path",
+      "community": 1,
+      "norm_label": "path"
+    },
+    {
       "label": ".decide()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L290",
+      "source_location": "L514",
       "id": "src_main_policy_decide",
       "community": 1,
       "norm_label": ".decide()"
@@ -421,7 +520,7 @@
       "label": "Decision",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L290",
+      "source_location": "L514",
       "id": "decision",
       "community": 1,
       "norm_label": "decision"
@@ -430,7 +529,7 @@
       "label": ".auto_mode()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L443",
+      "source_location": "L672",
       "id": "src_main_policy_auto_mode",
       "community": 1,
       "norm_label": ".auto_mode()"
@@ -439,7 +538,7 @@
       "label": "Decision",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L481",
+      "source_location": "L710",
       "id": "src_main_decision",
       "community": 1,
       "norm_label": "decision"
@@ -448,7 +547,7 @@
       "label": "Vec",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L483",
+      "source_location": "L712",
       "id": "crates_optid_src_main_rs_vec",
       "community": 1,
       "norm_label": "vec"
@@ -457,7 +556,7 @@
       "label": "Action",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L484",
+      "source_location": "L713",
       "id": "action",
       "community": 1,
       "norm_label": "action"
@@ -466,7 +565,7 @@
       "label": ".render()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L488",
+      "source_location": "L717",
       "id": "src_main_decision_render",
       "community": 1,
       "norm_label": ".render()"
@@ -475,7 +574,7 @@
       "label": "Action",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L521",
+      "source_location": "L750",
       "id": "src_main_action",
       "community": 1,
       "norm_label": "action"
@@ -484,7 +583,7 @@
       "label": ".cpu_epp()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L538",
+      "source_location": "L767",
       "id": "src_main_action_cpu_epp",
       "community": 1,
       "norm_label": ".cpu_epp()"
@@ -493,7 +592,7 @@
       "label": ".platform_profile()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L542",
+      "source_location": "L771",
       "id": "src_main_action_platform_profile",
       "community": 1,
       "norm_label": ".platform_profile()"
@@ -502,7 +601,7 @@
       "label": ".systemd_set_property()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L546",
+      "source_location": "L775",
       "id": "src_main_action_systemd_set_property",
       "community": 1,
       "norm_label": ".systemd_set_property()"
@@ -511,7 +610,7 @@
       "label": ".describe()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L558",
+      "source_location": "L787",
       "id": "src_main_action_describe",
       "community": 1,
       "norm_label": ".describe()"
@@ -520,7 +619,7 @@
       "label": "Actuator",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L576",
+      "source_location": "L805",
       "id": "src_main_actuator",
       "community": 1,
       "norm_label": "actuator"
@@ -529,7 +628,7 @@
       "label": ".new()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L581",
+      "source_location": "L810",
       "id": "src_main_actuator_new",
       "community": 1,
       "norm_label": ".new()"
@@ -538,7 +637,7 @@
       "label": ".apply()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L585",
+      "source_location": "L814",
       "id": "src_main_actuator_apply",
       "community": 1,
       "norm_label": ".apply()"
@@ -547,7 +646,7 @@
       "label": ".log()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L639",
+      "source_location": "L868",
       "id": "src_main_actuator_log",
       "community": 1,
       "norm_label": ".log()"
@@ -556,25 +655,16 @@
       "label": "guarded_write()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L644",
+      "source_location": "L873",
       "id": "src_main_guarded_write",
       "community": 1,
       "norm_label": "guarded_write()"
     },
     {
-      "label": "Path",
-      "file_type": "code",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L644",
-      "id": "crates_optid_src_main_rs_path",
-      "community": 1,
-      "norm_label": "path"
-    },
-    {
       "label": "discover_cpu_epp_paths()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L658",
+      "source_location": "L887",
       "id": "src_main_discover_cpu_epp_paths",
       "community": 1,
       "norm_label": "discover_cpu_epp_paths()"
@@ -583,7 +673,7 @@
       "label": "read_mode_override()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L679",
+      "source_location": "L908",
       "id": "src_main_read_mode_override",
       "community": 1,
       "norm_label": "read_mode_override()"
@@ -592,7 +682,7 @@
       "label": "read_on_ac()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L684",
+      "source_location": "L913",
       "id": "src_main_read_on_ac",
       "community": 1,
       "norm_label": "read_on_ac()"
@@ -601,7 +691,7 @@
       "label": "read_battery_pct()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L711",
+      "source_location": "L940",
       "id": "src_main_read_battery_pct",
       "community": 1,
       "norm_label": "read_battery_pct()"
@@ -610,7 +700,7 @@
       "label": "read_max_thermal_millic()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L724",
+      "source_location": "L953",
       "id": "src_main_read_max_thermal_millic",
       "community": 1,
       "norm_label": "read_max_thermal_millic()"
@@ -619,7 +709,7 @@
       "label": "read_loadavg_1()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L739",
+      "source_location": "L968",
       "id": "src_main_read_loadavg_1",
       "community": 1,
       "norm_label": "read_loadavg_1()"
@@ -628,7 +718,7 @@
       "label": "parse_pressure()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L744",
+      "source_location": "L973",
       "id": "src_main_parse_pressure",
       "community": 1,
       "norm_label": "parse_pressure()"
@@ -637,7 +727,7 @@
       "label": "fmt_pressure()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L764",
+      "source_location": "L993",
       "id": "src_main_fmt_pressure",
       "community": 1,
       "norm_label": "fmt_pressure()"
@@ -646,7 +736,7 @@
       "label": "append_log()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L774",
+      "source_location": "L1003",
       "id": "src_main_append_log",
       "community": 1,
       "norm_label": "append_log()"
@@ -655,7 +745,7 @@
       "label": "now_unix()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L788",
+      "source_location": "L1017",
       "id": "src_main_now_unix",
       "community": 1,
       "norm_label": "now_unix()"
@@ -664,7 +754,7 @@
       "label": "parses_psi_some_line()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L800",
+      "source_location": "L1029",
       "id": "src_main_parses_psi_some_line",
       "community": 1,
       "norm_label": "parses_psi_some_line()"
@@ -673,7 +763,7 @@
       "label": "battery_auto_mode_prefers_battery()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L812",
+      "source_location": "L1041",
       "id": "src_main_battery_auto_mode_prefers_battery",
       "community": 1,
       "norm_label": "battery_auto_mode_prefers_battery()"
@@ -682,7 +772,7 @@
       "label": "ac_cpu_pressure_prefers_performance()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L829",
+      "source_location": "L1058",
       "id": "src_main_ac_cpu_pressure_prefers_performance",
       "community": 1,
       "norm_label": "ac_cpu_pressure_prefers_performance()"
@@ -691,7 +781,7 @@
       "label": "critical_thermal_overrides_performance_bias()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L849",
+      "source_location": "L1078",
       "id": "src_main_critical_thermal_overrides_performance_bias",
       "community": 1,
       "norm_label": "critical_thermal_overrides_performance_bias()"
@@ -3576,6 +3666,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L237",
+      "weight": 1.0,
+      "source": "crates_optctl_src_main_rs_src_main",
+      "target": "src_main_format_status_as_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
       "source_location": "L68",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -3588,9 +3688,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_optid",
-      "confidence_score": 1.0
+      "target": "src_main_optid"
     },
     {
       "relation": "contains",
@@ -3601,6 +3701,26 @@
       "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
       "target": "src_main_print_file_or_hint"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L444",
+      "weight": 1.0,
+      "source": "crates_optctl_src_main_rs_src_main",
+      "target": "src_main_test_format_status_as_json_all_values",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L483",
+      "weight": 1.0,
+      "source": "crates_optctl_src_main_rs_src_main",
+      "target": "src_main_test_format_status_as_json_none_values",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -3682,6 +3802,17 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "crates_optctl_src_main_rs_src_main_run",
+      "target": "src_main_format_status_as_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
       "source_location": "L48",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -3698,6 +3829,28 @@
       "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main_run",
       "target": "src_main_print_file_or_hint"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L237",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "source": "src_main_format_status_as_json",
+      "target": "crates_optctl_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L237",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_format_status_as_json",
+      "target": "crates_optctl_src_main_rs_result",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -3805,6 +3958,39 @@
       "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs",
       "target": "crates_optctl_src_main_rs_src_main_print_usage"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L356",
+      "weight": 1.0,
+      "source": "src_main_format_status_as_json",
+      "target": "src_main_parse_pressure"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L462",
+      "weight": 1.0,
+      "source": "src_main_test_format_status_as_json_all_values",
+      "target": "src_main_format_status_as_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L497",
+      "weight": 1.0,
+      "source": "src_main_test_format_status_as_json_none_values",
+      "target": "src_main_format_status_as_json",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports_from",
@@ -3971,6 +4157,26 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
+      "source_location": "L300",
+      "weight": 1.0,
+      "source": "crates_optid_src_main_rs_src_main",
+      "target": "src_main_modeconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L292",
+      "weight": 1.0,
+      "source": "crates_optid_src_main_rs_src_main",
+      "target": "src_main_modes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
       "source_location": "L716",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -3983,9 +4189,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_optidserver",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver"
     },
     {
       "relation": "contains",
@@ -4088,15 +4294,25 @@
       "target": "src_main_snapshot"
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L282",
+      "weight": 1.0,
+      "source": "crates_optid_src_main_rs_src_main",
+      "target": "src_main_thresholds",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L16",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "pathbuf",
-      "confidence_score": 1.0
+      "target": "pathbuf"
     },
     {
       "relation": "method",
@@ -4104,9 +4320,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_explain",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_explain"
     },
     {
       "relation": "method",
@@ -4114,9 +4330,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L46",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_mode",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_mode"
     },
     {
       "relation": "method",
@@ -4124,9 +4340,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_pin_application",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_pin_application"
     },
     {
       "relation": "method",
@@ -4134,9 +4350,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_set_mode",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_set_mode"
     },
     {
       "relation": "method",
@@ -4144,9 +4360,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_status",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_status"
     },
     {
       "relation": "method",
@@ -4154,9 +4370,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver",
-      "target": "src_main_optidserver_version",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_version"
     },
     {
       "relation": "references",
@@ -4209,9 +4425,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L610",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_actuator_apply",
-      "target": "src_main_optidserver_status",
-      "confidence_score": 1.0
+      "target": "src_main_optidserver_status"
     },
     {
       "relation": "references",
@@ -4220,9 +4436,9 @@
       "source_location": "L21",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_status",
-      "target": "crates_optid_src_main_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_result"
     },
     {
       "relation": "references",
@@ -4231,9 +4447,9 @@
       "source_location": "L21",
       "weight": 1.0,
       "context": "generic_arg",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_status",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4319,9 +4535,9 @@
       "source_location": "L26",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_explain",
-      "target": "crates_optid_src_main_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_result"
     },
     {
       "relation": "references",
@@ -4330,9 +4546,9 @@
       "source_location": "L38",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_pin_application",
-      "target": "crates_optid_src_main_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_result"
     },
     {
       "relation": "references",
@@ -4341,8 +4557,19 @@
       "source_location": "L31",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_set_mode",
-      "target": "crates_optid_src_main_rs_result",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L767",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "source": "src_main_action_cpu_epp",
+      "target": "crates_optid_src_main_rs_string",
       "confidence_score": 1.0
     },
     {
@@ -4355,6 +4582,28 @@
       "confidence_score": 1.0,
       "source": "src_main_action_describe",
       "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L771",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "source": "src_main_action_platform_profile",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L775",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "source": "src_main_action_systemd_set_property",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -4404,12 +4653,23 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
+      "source_location": "L302",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_modeconfig",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
       "source_location": "L26",
       "weight": 1.0,
       "context": "generic_arg",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_explain",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4418,9 +4678,9 @@
       "source_location": "L46",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_mode",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4429,9 +4689,9 @@
       "source_location": "L52",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_version",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "calls",
@@ -4440,9 +4700,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_set_mode",
-      "target": "src_main_mode_parse",
-      "confidence_score": 1.0
+      "target": "src_main_mode_parse"
     },
     {
       "relation": "calls",
@@ -4451,9 +4711,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_pin_application",
-      "target": "src_main_mode_parse",
-      "confidence_score": 1.0
+      "target": "src_main_mode_parse"
     },
     {
       "relation": "calls",
@@ -4462,9 +4722,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_optidserver_mode",
-      "target": "src_main_mode_parse",
-      "confidence_score": 1.0
+      "target": "src_main_mode_parse"
     },
     {
       "relation": "contains",
@@ -4601,6 +4861,17 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
+      "source_location": "L105",
+      "weight": 1.0,
+      "source": "crates_optid_src_main_rs_src_main_run",
+      "target": "src_main_policy_load",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
       "source_location": "L38",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -4725,6 +4996,17 @@
       "confidence_score": 1.0,
       "source": "src_main_policy_default",
       "target": "self"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L369",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_policy_load",
+      "target": "self",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -4869,6 +5151,17 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
+      "source_location": "L418",
+      "weight": 1.0,
+      "source": "src_main_policy_load",
+      "target": "src_main_mode_parse",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
       "source_location": "L609",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -4885,6 +5178,17 @@
       "confidence_score": 1.0,
       "source": "src_main_fmt_pressure",
       "target": "crates_optid_src_main_rs_option"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L312",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_modeconfig",
+      "target": "crates_optid_src_main_rs_option",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -5254,6 +5558,17 @@
       "target": "default"
     },
     {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L278",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_policy",
+      "target": "modes",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
@@ -5282,6 +5597,38 @@
       "confidence_score": 1.0,
       "source": "src_main_policy",
       "target": "src_main_policy_default"
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L369",
+      "weight": 1.0,
+      "source": "src_main_policy",
+      "target": "src_main_policy_load",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L277",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_policy",
+      "target": "thresholds",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L296",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_modes",
+      "target": "modeconfig",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -5326,6 +5673,83 @@
       "confidence_score": 1.0,
       "source": "src_main_parse_pressure",
       "target": "src_main_policy_default"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L370",
+      "weight": 1.0,
+      "source": "src_main_policy_load",
+      "target": "src_main_policy_default",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L369",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "source": "src_main_policy_load",
+      "target": "crates_optid_src_main_rs_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L383",
+      "weight": 1.0,
+      "source": "src_main_policy_load",
+      "target": "src_main_actuator_new",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L5",
+      "weight": 1.0,
+      "context": "import",
+      "confidence_score": 1.0,
+      "source": "crates_optid_src_main_rs",
+      "target": "crates_optid_src_main_rs_path"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L702",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "confidence_score": 1.0,
+      "source": "src_main_append_log",
+      "target": "crates_optid_src_main_rs_path"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L571",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "confidence_score": 1.0,
+      "source": "src_main_guarded_write",
+      "target": "crates_optid_src_main_rs_path"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L607",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "confidence_score": 1.0,
+      "source": "src_main_read_mode_override",
+      "target": "crates_optid_src_main_rs_path"
     },
     {
       "relation": "calls",
@@ -5467,6 +5891,17 @@
       "confidence_score": 1.0,
       "source": "src_main_decision",
       "target": "src_main_decision_render"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L775",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "source": "src_main_action_systemd_set_property",
+      "target": "crates_optid_src_main_rs_vec",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -5688,50 +6123,6 @@
       "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs",
       "target": "src_main_guarded_write"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L571",
-      "weight": 1.0,
-      "context": "parameter_type",
-      "confidence_score": 1.0,
-      "source": "src_main_guarded_write",
-      "target": "crates_optid_src_main_rs_path"
-    },
-    {
-      "relation": "imports_from",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L5",
-      "weight": 1.0,
-      "context": "import",
-      "confidence_score": 1.0,
-      "source": "crates_optid_src_main_rs",
-      "target": "crates_optid_src_main_rs_path"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L702",
-      "weight": 1.0,
-      "context": "parameter_type",
-      "confidence_score": 1.0,
-      "source": "src_main_append_log",
-      "target": "crates_optid_src_main_rs_path"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L607",
-      "weight": 1.0,
-      "context": "parameter_type",
-      "confidence_score": 1.0,
-      "source": "src_main_read_mode_override",
-      "target": "crates_optid_src_main_rs_path"
     },
     {
       "relation": "contains",
@@ -8589,5 +8980,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "c50ab857e0ef2f30472ba651d6137552d4e42662"
+  "built_at_commit": "f02998314c65f55f94603dd0232392f7404a9eeb"
 }

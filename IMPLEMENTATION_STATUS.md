@@ -52,6 +52,8 @@ engineering milestones.
 
 - D-Bus server implementation inside `optid` and client integration inside `optctl` (supporting both system bus calls and file-based fallback).
 - Rust workspace compilation and test verification on Windows using local Rust toolchain.
+- Dynamic system-wide policy loading and parsing (`/config/optid/policy.toml`) with clean fallback to defaults.
+- JSON status output option (`--json`) for `optctl status` to support machine-readable telemetry output.
 
 ## Not Yet Implemented
 

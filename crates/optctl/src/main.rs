@@ -34,6 +34,7 @@ fn main() {
 fn run(args: Vec<String>) -> io::Result<()> {
     let mut state_dir = PathBuf::from(DEFAULT_STATE_DIR);
     let mut positional = Vec::new();
+    let mut json = false;
     let mut it = args.into_iter();
 
     while let Some(arg) = it.next() {
@@ -43,6 +44,9 @@ fn run(args: Vec<String>) -> io::Result<()> {
                     io::Error::new(io::ErrorKind::InvalidInput, "--state-dir requires a value")
                 })?;
                 state_dir = PathBuf::from(value);
+            }
+            "--json" => {
+                json = true;
             }
             "-h" | "--help" => {
                 print_usage();
@@ -60,16 +64,43 @@ fn run(args: Vec<String>) -> io::Result<()> {
     let command = positional.first().map(String::as_str).unwrap_or("status");
     match command {
         "status" => {
-            if let Some(ref p) = proxy {
-                if let Ok(status) = p.status() {
-                    print!("{status}");
-                    return Ok(());
+            let status_str = if let Some(ref p) = proxy {
+                p.status().ok()
+            } else {
+                None
+            };
+            let status_str = match status_str {
+                Some(s) => s,
+                None => match fs::read_to_string(state_dir.join("status")) {
+                    Ok(s) => s,
+                    Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                        if json {
+                            println!("{{\"error\": \"optid has not written status yet\"}}");
+                            return Ok(());
+                        } else {
+                            println!("optid has not written status yet");
+                            return Ok(());
+                        }
+                    }
+                    Err(err) => return Err(err),
+                },
+            };
+
+            if json {
+                match format_status_as_json(&status_str) {
+                    Ok(json_str) => {
+                        println!("{json_str}");
+                        Ok(())
+                    }
+                    Err(e) => Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("failed to format status as JSON: {e}"),
+                    )),
                 }
+            } else {
+                print!("{status_str}");
+                Ok(())
             }
-            print_file_or_hint(
-                &state_dir.join("status"),
-                "optid has not written status yet",
-            )
         }
         "explain" => {
             if let Some(ref p) = proxy {
@@ -193,11 +224,283 @@ fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
 
 fn print_usage() {
     println!(
-        "Usage: optctl [--state-dir PATH] <status|explain|mode|pin|trace|benchmark>\n\
+        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace|benchmark>\n\
          \n\
          Examples:\n\
            optctl status\n\
+           optctl status --json\n\
            optctl mode performance\n\
            optctl explain"
     );
+}
+
+fn format_status_as_json(status_str: &str) -> Result<String, String> {
+    let mut timestamp: Option<u64> = None;
+    let mut mode = String::new();
+    let mut on_ac: Option<bool> = None;
+    let mut battery_pct: Option<u8> = None;
+    let mut thermal_c: Option<f32> = None;
+    let mut loadavg_1: Option<f32> = None;
+
+    struct PressureJson {
+        avg10: f32,
+        avg60: f32,
+        avg300: f32,
+        total: u64,
+    }
+    let mut cpu_pressure: Option<PressureJson> = None;
+    let mut memory_pressure: Option<PressureJson> = None;
+    let mut io_pressure: Option<PressureJson> = None;
+
+    let mut reasons = Vec::new();
+    let mut actions = Vec::new();
+
+    let mut current_section = "";
+
+    for line in status_str.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line == "reasons:" {
+            current_section = "reasons";
+            continue;
+        }
+        if line == "actions:" {
+            current_section = "actions";
+            continue;
+        }
+
+        if current_section == "reasons" {
+            if let Some(stripped) = line.strip_prefix("- ") {
+                reasons.push(stripped.to_string());
+            }
+            continue;
+        }
+        if current_section == "actions" {
+            if let Some(stripped) = line.strip_prefix("- ") {
+                actions.push(stripped.to_string());
+            }
+            continue;
+        }
+
+        let (key, val) = match line.split_once('=') {
+            Some(pair) => pair,
+            None => continue,
+        };
+
+        let parse_option_bool = |s: &str| -> Option<bool> {
+            if s == "None" {
+                None
+            } else if s.starts_with("Some(") && s.ends_with(')') {
+                s[5..s.len() - 1].parse().ok()
+            } else {
+                s.parse().ok()
+            }
+        };
+
+        let parse_option_u8 = |s: &str| -> Option<u8> {
+            if s == "None" {
+                None
+            } else if s.starts_with("Some(") && s.ends_with(')') {
+                s[5..s.len() - 1].parse().ok()
+            } else {
+                s.parse().ok()
+            }
+        };
+
+        let parse_option_f32 = |s: &str| -> Option<f32> {
+            if s == "None" {
+                None
+            } else if s.starts_with("Some(") && s.ends_with(')') {
+                s[5..s.len() - 1].parse().ok()
+            } else {
+                s.parse().ok()
+            }
+        };
+
+        let parse_pressure = |s: &str| -> Option<PressureJson> {
+            if s == "unavailable" {
+                return None;
+            }
+            let mut avg10 = 0.0;
+            let mut avg60 = 0.0;
+            let mut avg300 = 0.0;
+            let mut total = 0;
+            for token in s.split_whitespace() {
+                if let Some((k, v)) = token.split_once('=') {
+                    match k {
+                        "avg10" => avg10 = v.parse().unwrap_or(0.0),
+                        "avg60" => avg60 = v.parse().unwrap_or(0.0),
+                        "avg300" => avg300 = v.parse().unwrap_or(0.0),
+                        "total" => total = v.parse().unwrap_or(0),
+                        _ => {}
+                    }
+                }
+            }
+            Some(PressureJson {
+                avg10,
+                avg60,
+                avg300,
+                total,
+            })
+        };
+
+        match key {
+            "timestamp" => timestamp = val.parse().ok(),
+            "mode" => mode = val.to_string(),
+            "on_ac" => on_ac = parse_option_bool(val),
+            "battery_pct" => battery_pct = parse_option_u8(val),
+            "thermal_c" => thermal_c = parse_option_f32(val),
+            "loadavg_1" => loadavg_1 = parse_option_f32(val),
+            "cpu_pressure" => cpu_pressure = parse_pressure(val),
+            "memory_pressure" => memory_pressure = parse_pressure(val),
+            "io_pressure" => io_pressure = parse_pressure(val),
+            _ => {}
+        }
+    }
+
+    let mut out = String::new();
+    out.push_str("{\n");
+    out.push_str(&format!("  \"timestamp\": {},\n", timestamp.unwrap_or(0)));
+    out.push_str(&format!("  \"mode\": \"{}\",\n", mode));
+
+    match on_ac {
+        Some(b) => out.push_str(&format!("  \"on_ac\": {},\n", b)),
+        None => out.push_str("  \"on_ac\": null,\n"),
+    }
+
+    match battery_pct {
+        Some(pct) => out.push_str(&format!("  \"battery_pct\": {},\n", pct)),
+        None => out.push_str("  \"battery_pct\": null,\n"),
+    }
+
+    match thermal_c {
+        Some(temp) => out.push_str(&format!("  \"thermal_c\": {:.2},\n", temp)),
+        None => out.push_str("  \"thermal_c\": null,\n"),
+    }
+
+    match loadavg_1 {
+        Some(load) => out.push_str(&format!("  \"loadavg_1\": {:.2},\n", load)),
+        None => out.push_str("  \"loadavg_1\": null,\n"),
+    }
+
+    let format_pressure_json = |p: Option<PressureJson>| -> String {
+        match p {
+            Some(pj) => format!(
+                "{{\"avg10\":{:.2},\"avg60\":{:.2},\"avg300\":{:.2},\"total\":{}}}",
+                pj.avg10, pj.avg60, pj.avg300, pj.total
+            ),
+            None => "null".to_string(),
+        }
+    };
+
+    out.push_str(&format!(
+        "  \"cpu_pressure\": {},\n",
+        format_pressure_json(cpu_pressure)
+    ));
+    out.push_str(&format!(
+        "  \"memory_pressure\": {},\n",
+        format_pressure_json(memory_pressure)
+    ));
+    out.push_str(&format!(
+        "  \"io_pressure\": {},\n",
+        format_pressure_json(io_pressure)
+    ));
+
+    out.push_str("  \"reasons\": [\n");
+    for (i, r) in reasons.iter().enumerate() {
+        let escaped = r.replace('"', "\\\"");
+        out.push_str(&format!("    \"{}\"", escaped));
+        if i + 1 < reasons.len() {
+            out.push_str(",\n");
+        } else {
+            out.push('\n');
+        }
+    }
+    out.push_str("  ],\n");
+
+    out.push_str("  \"actions\": [\n");
+    for (i, a) in actions.iter().enumerate() {
+        let escaped = a.replace('"', "\\\"");
+        out.push_str(&format!("    \"{}\"", escaped));
+        if i + 1 < actions.len() {
+            out.push_str(",\n");
+        } else {
+            out.push('\n');
+        }
+    }
+    out.push_str("  ]\n");
+
+    out.push('}');
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_status_as_json_all_values() {
+        let input = "\
+timestamp=1717500000
+mode=balanced
+on_ac=Some(true)
+battery_pct=Some(95)
+thermal_c=Some(45.5)
+loadavg_1=Some(0.45)
+cpu_pressure=avg10=0.01 avg60=0.02 avg300=0.03 total=42
+memory_pressure=avg10=0.04 avg60=0.05 avg300=0.06 total=84
+io_pressure=avg10=0.07 avg60=0.08 avg300=0.09 total=126
+reasons:
+- reason 1
+- reason 2
+actions:
+- action 1
+- action 2
+";
+        let result = format_status_as_json(input).unwrap();
+        assert!(result.contains("\"timestamp\": 1717500000"));
+        assert!(result.contains("\"mode\": \"balanced\""));
+        assert!(result.contains("\"on_ac\": true"));
+        assert!(result.contains("\"battery_pct\": 95"));
+        assert!(result.contains("\"thermal_c\": 45.50"));
+        assert!(result.contains("\"loadavg_1\": 0.45"));
+        assert!(result.contains(
+            "\"cpu_pressure\": {\"avg10\":0.01,\"avg60\":0.02,\"avg300\":0.03,\"total\":42}"
+        ));
+        assert!(result.contains(
+            "\"memory_pressure\": {\"avg10\":0.04,\"avg60\":0.05,\"avg300\":0.06,\"total\":84}"
+        ));
+        assert!(result.contains(
+            "\"io_pressure\": {\"avg10\":0.07,\"avg60\":0.08,\"avg300\":0.09,\"total\":126}"
+        ));
+        assert!(result.contains("\"reasons\": [\n    \"reason 1\",\n    \"reason 2\"\n  ]"));
+        assert!(result.contains("\"actions\": [\n    \"action 1\",\n    \"action 2\"\n  ]"));
+    }
+
+    #[test]
+    fn test_format_status_as_json_none_values() {
+        let input = "\
+timestamp=1717500000
+mode=battery
+on_ac=None
+battery_pct=None
+thermal_c=None
+loadavg_1=None
+cpu_pressure=unavailable
+memory_pressure=unavailable
+io_pressure=unavailable
+reasons:
+actions:
+";
+        let result = format_status_as_json(input).unwrap();
+        assert!(result.contains("\"on_ac\": null"));
+        assert!(result.contains("\"battery_pct\": null"));
+        assert!(result.contains("\"thermal_c\": null"));
+        assert!(result.contains("\"loadavg_1\": null"));
+        assert!(result.contains("\"cpu_pressure\": null"));
+        assert!(result.contains("\"reasons\": [\n  ]"));
+        assert!(result.contains("\"actions\": [\n  ]"));
+    }
 }

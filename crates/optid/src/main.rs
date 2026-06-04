@@ -10,6 +10,7 @@ use zbus::blocking::ConnectionBuilder;
 use zbus::dbus_interface;
 
 const DEFAULT_STATE_DIR: &str = "/run/optid";
+const DEFAULT_CONFIG_PATH: &str = "/usr/lib/optid/policy.toml";
 const DEFAULT_INTERVAL_SEC: u64 = 2;
 
 struct OptidServer {
@@ -101,7 +102,7 @@ fn run(args: Args) -> io::Result<()> {
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let snapshot = Snapshot::collect();
-        let decision = Policy::default().decide(&snapshot, override_mode);
+        let decision = Policy::load(&args.config_path).decide(&snapshot, override_mode);
         let report = decision.render(&snapshot);
 
         fs::write(args.state_dir.join("status"), &report)?;
@@ -131,6 +132,7 @@ struct Args {
     help: bool,
     interval_sec: u64,
     state_dir: PathBuf,
+    config_path: PathBuf,
 }
 
 impl Args {
@@ -144,6 +146,7 @@ impl Args {
             help: false,
             interval_sec: DEFAULT_INTERVAL_SEC,
             state_dir: PathBuf::from(DEFAULT_STATE_DIR),
+            config_path: PathBuf::from(DEFAULT_CONFIG_PATH),
         };
 
         let mut it = iter.into_iter();
@@ -166,6 +169,12 @@ impl Args {
                         .ok_or_else(|| "--state-dir requires a value".to_string())?;
                     args.state_dir = PathBuf::from(value);
                 }
+                "--config" => {
+                    let value = it
+                        .next()
+                        .ok_or_else(|| "--config requires a value".to_string())?;
+                    args.config_path = PathBuf::from(value);
+                }
                 unknown => return Err(format!("unknown argument: {unknown}")),
             }
         }
@@ -176,7 +185,7 @@ impl Args {
 
 fn print_usage() {
     println!(
-        "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH]\n\
+        "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
          \n\
          Default mode is dry-run. Use --apply only on Adaptive Linux or a test host."
     );
@@ -263,30 +272,245 @@ impl Snapshot {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
 struct Policy {
-    cpu_pressure_perf_threshold: f32,
-    memory_pressure_protect_threshold: f32,
-    io_pressure_throttle_threshold: f32,
+    thresholds: Thresholds,
+    modes: Modes,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct Thresholds {
+    cpu_pressure_perf_avg10: f32,
+    memory_pressure_protect_avg10: f32,
+    io_pressure_throttle_avg10: f32,
     hot_temp_c: f32,
     critical_temp_c: f32,
     low_battery_pct: u8,
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+struct Modes {
+    battery: ModeConfig,
+    balanced: ModeConfig,
+    performance: ModeConfig,
+    realtime: ModeConfig,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct ModeConfig {
+    cpu_epp: String,
+    platform_profile: String,
+    #[serde(default)]
+    background_cpu_weight: Option<u32>,
+    #[serde(default)]
+    background_io_weight: Option<u32>,
+    #[serde(default)]
+    user_cpu_weight: Option<u32>,
+    #[serde(default)]
+    user_io_weight: Option<u32>,
+    #[serde(default)]
+    requires_controlled_rt_access: Option<bool>,
+}
+
 impl Default for Policy {
     fn default() -> Self {
         Self {
-            cpu_pressure_perf_threshold: 12.0,
-            memory_pressure_protect_threshold: 5.0,
-            io_pressure_throttle_threshold: 8.0,
-            hot_temp_c: 82.0,
-            critical_temp_c: 92.0,
-            low_battery_pct: 20,
+            thresholds: Thresholds {
+                cpu_pressure_perf_avg10: 12.0,
+                memory_pressure_protect_avg10: 5.0,
+                io_pressure_throttle_avg10: 8.0,
+                hot_temp_c: 82.0,
+                critical_temp_c: 92.0,
+                low_battery_pct: 20,
+            },
+            modes: Modes {
+                battery: ModeConfig {
+                    cpu_epp: "power".to_string(),
+                    platform_profile: "low-power".to_string(),
+                    background_cpu_weight: Some(25),
+                    background_io_weight: Some(25),
+                    user_cpu_weight: None,
+                    user_io_weight: None,
+                    requires_controlled_rt_access: None,
+                },
+                balanced: ModeConfig {
+                    cpu_epp: "balance_performance".to_string(),
+                    platform_profile: "balanced".to_string(),
+                    background_cpu_weight: None,
+                    background_io_weight: None,
+                    user_cpu_weight: Some(150),
+                    user_io_weight: Some(150),
+                    requires_controlled_rt_access: None,
+                },
+                performance: ModeConfig {
+                    cpu_epp: "performance".to_string(),
+                    platform_profile: "performance".to_string(),
+                    background_cpu_weight: None,
+                    background_io_weight: None,
+                    user_cpu_weight: Some(200),
+                    user_io_weight: Some(200),
+                    requires_controlled_rt_access: None,
+                },
+                realtime: ModeConfig {
+                    cpu_epp: "performance".to_string(),
+                    platform_profile: "performance".to_string(),
+                    background_cpu_weight: None,
+                    background_io_weight: None,
+                    user_cpu_weight: Some(250),
+                    user_io_weight: Some(200),
+                    requires_controlled_rt_access: Some(true),
+                },
+            },
         }
     }
 }
 
 impl Policy {
+    fn load(path: &Path) -> Self {
+        let mut policy = Self::default();
+        let text = match fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "optid: failed to read policy TOML from {}: {}. Using defaults.",
+                    path.display(),
+                    e
+                );
+                return policy;
+            }
+        };
+
+        let mut current_section = String::new();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if line.starts_with('[') && line.ends_with(']') {
+                current_section = line[1..line.len() - 1].trim().to_string();
+                continue;
+            }
+
+            let mut parts = line.splitn(2, '=');
+            let key = match parts.next() {
+                Some(k) => k.trim(),
+                None => continue,
+            };
+            let val = match parts.next() {
+                Some(v) => v.trim(),
+                None => continue,
+            };
+
+            let clean_str = |s: &str| -> String {
+                let s = s.trim();
+                if (s.starts_with('"') && s.ends_with('"'))
+                    || (s.starts_with('\'') && s.ends_with('\''))
+                {
+                    s[1..s.len() - 1].to_string()
+                } else {
+                    s.to_string()
+                }
+            };
+
+            match current_section.as_str() {
+                "thresholds" => match key {
+                    "cpu_pressure_perf_avg10" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.cpu_pressure_perf_avg10 = n;
+                        }
+                    }
+                    "memory_pressure_protect_avg10" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.memory_pressure_protect_avg10 = n;
+                        }
+                    }
+                    "io_pressure_throttle_avg10" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.io_pressure_throttle_avg10 = n;
+                        }
+                    }
+                    "hot_temp_c" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.hot_temp_c = n;
+                        }
+                    }
+                    "critical_temp_c" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.critical_temp_c = n;
+                        }
+                    }
+                    "low_battery_pct" => {
+                        if let Ok(n) = val.parse() {
+                            policy.thresholds.low_battery_pct = n;
+                        }
+                    }
+                    _ => {}
+                },
+                "modes.battery" => match key {
+                    "cpu_epp" => policy.modes.battery.cpu_epp = clean_str(val),
+                    "platform_profile" => policy.modes.battery.platform_profile = clean_str(val),
+                    "background_cpu_weight" => {
+                        policy.modes.battery.background_cpu_weight = val.parse().ok()
+                    }
+                    "background_io_weight" => {
+                        policy.modes.battery.background_io_weight = val.parse().ok()
+                    }
+                    "user_cpu_weight" => policy.modes.battery.user_cpu_weight = val.parse().ok(),
+                    "user_io_weight" => policy.modes.battery.user_io_weight = val.parse().ok(),
+                    _ => {}
+                },
+                "modes.balanced" => match key {
+                    "cpu_epp" => policy.modes.balanced.cpu_epp = clean_str(val),
+                    "platform_profile" => policy.modes.balanced.platform_profile = clean_str(val),
+                    "background_cpu_weight" => {
+                        policy.modes.balanced.background_cpu_weight = val.parse().ok()
+                    }
+                    "background_io_weight" => {
+                        policy.modes.balanced.background_io_weight = val.parse().ok()
+                    }
+                    "user_cpu_weight" => policy.modes.balanced.user_cpu_weight = val.parse().ok(),
+                    "user_io_weight" => policy.modes.balanced.user_io_weight = val.parse().ok(),
+                    _ => {}
+                },
+                "modes.performance" => match key {
+                    "cpu_epp" => policy.modes.performance.cpu_epp = clean_str(val),
+                    "platform_profile" => {
+                        policy.modes.performance.platform_profile = clean_str(val)
+                    }
+                    "background_cpu_weight" => {
+                        policy.modes.performance.background_cpu_weight = val.parse().ok()
+                    }
+                    "background_io_weight" => {
+                        policy.modes.performance.background_io_weight = val.parse().ok()
+                    }
+                    "user_cpu_weight" => {
+                        policy.modes.performance.user_cpu_weight = val.parse().ok()
+                    }
+                    "user_io_weight" => policy.modes.performance.user_io_weight = val.parse().ok(),
+                    _ => {}
+                },
+                "modes.realtime" => match key {
+                    "cpu_epp" => policy.modes.realtime.cpu_epp = clean_str(val),
+                    "platform_profile" => policy.modes.realtime.platform_profile = clean_str(val),
+                    "background_cpu_weight" => {
+                        policy.modes.realtime.background_cpu_weight = val.parse().ok()
+                    }
+                    "background_io_weight" => {
+                        policy.modes.realtime.background_io_weight = val.parse().ok()
+                    }
+                    "user_cpu_weight" => policy.modes.realtime.user_cpu_weight = val.parse().ok(),
+                    "user_io_weight" => policy.modes.realtime.user_io_weight = val.parse().ok(),
+                    "requires_controlled_rt_access" => {
+                        policy.modes.realtime.requires_controlled_rt_access = val.parse().ok()
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        policy
+    }
+
     fn decide(&self, snapshot: &Snapshot, requested: Mode) -> Decision {
         let effective_mode = match requested {
             Mode::Auto => self.auto_mode(snapshot),
@@ -305,126 +529,131 @@ impl Policy {
         }
 
         if let Some(pct) = snapshot.battery_pct {
-            if pct <= self.low_battery_pct {
+            if pct <= self.thresholds.low_battery_pct {
                 reasons.push(format!("battery is low: {pct}%"));
             }
         }
 
         if let Some(temp) = snapshot.thermal_c() {
-            if temp >= self.critical_temp_c {
+            if temp >= self.thresholds.critical_temp_c {
                 reasons.push(format!("critical thermal pressure: {temp:.1}C"));
-            } else if temp >= self.hot_temp_c {
+            } else if temp >= self.thresholds.hot_temp_c {
                 reasons.push(format!("high thermal pressure: {temp:.1}C"));
             }
         }
 
         if let Some(cpu) = snapshot.cpu_pressure {
-            if cpu.avg10 >= self.cpu_pressure_perf_threshold {
+            if cpu.avg10 >= self.thresholds.cpu_pressure_perf_avg10 {
                 reasons.push(format!("CPU pressure avg10 is {:.2}", cpu.avg10));
             }
         }
 
         if let Some(memory) = snapshot.memory_pressure {
-            if memory.avg10 >= self.memory_pressure_protect_threshold {
+            if memory.avg10 >= self.thresholds.memory_pressure_protect_avg10 {
                 reasons.push(format!("memory pressure avg10 is {:.2}", memory.avg10));
                 actions.push(Action::systemd_set_property(
                     "user.slice",
-                    &["MemoryLow=256M"],
+                    vec!["MemoryLow=256M".to_string()],
                     "protect active user sessions from reclaim pressure",
                 ));
                 actions.push(Action::systemd_set_property(
                     "background.slice",
-                    &["CPUWeight=50", "IOWeight=50", "MemoryHigh=75%"],
+                    vec![
+                        "CPUWeight=50".to_string(),
+                        "IOWeight=50".to_string(),
+                        "MemoryHigh=75%".to_string(),
+                    ],
                     "throttle background work during memory pressure",
                 ));
             }
         }
 
         if let Some(io) = snapshot.io_pressure {
-            if io.avg10 >= self.io_pressure_throttle_threshold {
+            if io.avg10 >= self.thresholds.io_pressure_throttle_avg10 {
                 reasons.push(format!("I/O pressure avg10 is {:.2}", io.avg10));
                 actions.push(Action::systemd_set_property(
                     "background.slice",
-                    &["IOWeight=25"],
+                    vec!["IOWeight=25".to_string()],
                     "reduce background I/O interference",
                 ));
             }
         }
 
-        match effective_mode {
-            Mode::Battery => {
-                actions.push(Action::cpu_epp(
-                    "power",
-                    "prefer battery life through CPU energy preference",
-                ));
-                actions.push(Action::platform_profile(
-                    "low-power",
-                    "request low-power platform profile",
-                ));
-                actions.push(Action::systemd_set_property(
-                    "background.slice",
-                    &["CPUWeight=25", "IOWeight=25"],
-                    "deprioritize background services on battery",
-                ));
-            }
-            Mode::Balanced => {
-                actions.push(Action::cpu_epp(
-                    "balance_performance",
-                    "keep foreground responsiveness without full turbo bias",
-                ));
-                actions.push(Action::platform_profile(
-                    "balanced",
-                    "request balanced platform profile",
-                ));
-                actions.push(Action::systemd_set_property(
-                    "user.slice",
-                    &["CPUWeight=150", "IOWeight=150"],
-                    "favor interactive user sessions",
-                ));
-            }
-            Mode::Performance => {
-                actions.push(Action::cpu_epp(
-                    "performance",
-                    "reduce CPU wakeup and ramp latency for sustained load",
-                ));
-                actions.push(Action::platform_profile(
-                    "performance",
-                    "request performance platform profile",
-                ));
-                actions.push(Action::systemd_set_property(
-                    "user.slice",
-                    &["CPUWeight=200", "IOWeight=200"],
-                    "boost foreground user work",
-                ));
-            }
-            Mode::Realtime => {
-                actions.push(Action::cpu_epp(
-                    "performance",
-                    "minimize latency for realtime mode",
-                ));
-                actions.push(Action::platform_profile(
-                    "performance",
-                    "avoid firmware power-save latency in realtime mode",
-                ));
-                actions.push(Action::systemd_set_property(
-                    "user.slice",
-                    &["CPUWeight=250", "IOWeight=200"],
-                    "prioritize controlled realtime user workload",
-                ));
-            }
+        let mode_config = match effective_mode {
+            Mode::Battery => &self.modes.battery,
+            Mode::Balanced => &self.modes.balanced,
+            Mode::Performance => &self.modes.performance,
+            Mode::Realtime => &self.modes.realtime,
             Mode::Auto => unreachable!("auto is resolved before action planning"),
+        };
+
+        actions.push(Action::cpu_epp(
+            mode_config.cpu_epp.clone(),
+            match effective_mode {
+                Mode::Battery => "prefer battery life through CPU energy preference",
+                Mode::Balanced => "keep foreground responsiveness without full turbo bias",
+                Mode::Performance => "reduce CPU wakeup and ramp latency for sustained load",
+                Mode::Realtime => "minimize latency for realtime mode",
+                _ => "",
+            },
+        ));
+
+        actions.push(Action::platform_profile(
+            mode_config.platform_profile.clone(),
+            match effective_mode {
+                Mode::Battery => "request low-power platform profile",
+                Mode::Balanced => "request balanced platform profile",
+                Mode::Performance => "request performance platform profile",
+                Mode::Realtime => "avoid firmware power-save latency in realtime mode",
+                _ => "",
+            },
+        ));
+
+        let mut bg_properties = Vec::new();
+        if let Some(w) = mode_config.background_cpu_weight {
+            bg_properties.push(format!("CPUWeight={w}"));
+        }
+        if let Some(w) = mode_config.background_io_weight {
+            bg_properties.push(format!("IOWeight={w}"));
+        }
+        if !bg_properties.is_empty() {
+            actions.push(Action::systemd_set_property(
+                "background.slice",
+                bg_properties,
+                "deprioritize background services on battery",
+            ));
+        }
+
+        let mut user_properties = Vec::new();
+        if let Some(w) = mode_config.user_cpu_weight {
+            user_properties.push(format!("CPUWeight={w}"));
+        }
+        if let Some(w) = mode_config.user_io_weight {
+            user_properties.push(format!("IOWeight={w}"));
+        }
+        if !user_properties.is_empty() {
+            actions.push(Action::systemd_set_property(
+                "user.slice",
+                user_properties,
+                match effective_mode {
+                    Mode::Balanced => "favor interactive user sessions",
+                    Mode::Performance => "boost foreground user work",
+                    Mode::Realtime => "prioritize controlled realtime user workload",
+                    _ => "",
+                },
+            ));
         }
 
         if snapshot
             .thermal_c()
-            .is_some_and(|temp| temp >= self.critical_temp_c)
+            .is_some_and(|temp| temp >= self.thresholds.critical_temp_c)
         {
             actions.push(Action::cpu_epp(
-                "balance_power",
+                "balance_power".to_string(),
                 "override performance bias because thermals are critical",
             ));
             actions.push(Action::platform_profile(
-                "balanced",
+                "balanced".to_string(),
                 "back off platform profile under critical thermals",
             ));
         }
@@ -443,7 +672,7 @@ impl Policy {
     fn auto_mode(&self, snapshot: &Snapshot) -> Mode {
         if snapshot
             .thermal_c()
-            .is_some_and(|temp| temp >= self.critical_temp_c)
+            .is_some_and(|temp| temp >= self.thresholds.critical_temp_c)
         {
             return Mode::Balanced;
         }
@@ -451,14 +680,14 @@ impl Policy {
         if snapshot.on_ac == Some(false) {
             if snapshot
                 .battery_pct
-                .is_some_and(|pct| pct <= self.low_battery_pct)
+                .is_some_and(|pct| pct <= self.thresholds.low_battery_pct)
             {
                 return Mode::Battery;
             }
 
             if snapshot
                 .cpu_pressure
-                .is_some_and(|p| p.avg10 >= self.cpu_pressure_perf_threshold)
+                .is_some_and(|p| p.avg10 >= self.thresholds.cpu_pressure_perf_avg10)
             {
                 return Mode::Balanced;
             }
@@ -468,7 +697,7 @@ impl Policy {
 
         if snapshot
             .cpu_pressure
-            .is_some_and(|p| p.avg10 >= self.cpu_pressure_perf_threshold)
+            .is_some_and(|p| p.avg10 >= self.thresholds.cpu_pressure_perf_avg10)
         {
             return Mode::Performance;
         }
@@ -520,11 +749,11 @@ impl Decision {
 #[derive(Debug, Clone)]
 enum Action {
     CpuEpp {
-        value: &'static str,
+        value: String,
         reason: &'static str,
     },
     PlatformProfile {
-        value: &'static str,
+        value: String,
         reason: &'static str,
     },
     SystemdSetProperty {
@@ -535,22 +764,22 @@ enum Action {
 }
 
 impl Action {
-    fn cpu_epp(value: &'static str, reason: &'static str) -> Self {
+    fn cpu_epp(value: String, reason: &'static str) -> Self {
         Self::CpuEpp { value, reason }
     }
 
-    fn platform_profile(value: &'static str, reason: &'static str) -> Self {
+    fn platform_profile(value: String, reason: &'static str) -> Self {
         Self::PlatformProfile { value, reason }
     }
 
     fn systemd_set_property(
         unit: &'static str,
-        properties: &[&'static str],
+        properties: Vec<String>,
         reason: &'static str,
     ) -> Self {
         Self::SystemdSetProperty {
             unit,
-            properties: properties.iter().map(|p| p.to_string()).collect(),
+            properties,
             reason,
         }
     }
@@ -862,12 +1091,12 @@ mod tests {
         };
 
         let decision = Policy::default().decide(&snapshot, Mode::Performance);
-        assert!(decision.actions.iter().any(|action| matches!(
-            action,
-            Action::CpuEpp {
-                value: "balance_power",
-                ..
+        assert!(decision.actions.iter().any(|action| {
+            if let Action::CpuEpp { value, .. } = action {
+                value == "balance_power"
+            } else {
+                false
             }
-        )));
+        }));
     }
 }

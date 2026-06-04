@@ -20,41 +20,41 @@ Exit criteria:
 - Release versioning, checklist, and milestone docs exist.
 
 ## v0.1.0-alpha.1: Compile-Clean Core
-
-Status: next.
-
+ 
+Status: complete.
+ 
 - Make `optid` and `optctl` compile cleanly.
 - Run `cargo fmt`, `cargo test`, and `cargo clippy -D warnings` in CI.
 - Add fixture-based tests for PSI, battery, thermal, and policy decisions.
 - Keep status, roadmap, and continuation docs aligned.
-
+ 
 Exit criteria:
-
+ 
 - CI green on GitHub.
 - `optid --once` works on Linux in dry-run mode.
 - `optctl status`, `explain`, `mode`, `trace`, and `benchmark` compile.
 - No docs drift.
-
+ 
 ## v0.2.0-alpha.1: Real Control Plane
-
-Status: planned.
-
+ 
+Status: complete.
+ 
 - Implement `io.adaptive.Optid1` D-Bus server in `optid`.
 - Implement D-Bus client calls in `optctl`.
 - Keep `/run/optid` files as diagnostics and recovery state.
 - Parse `config/optid/policy.toml`.
 - Add `optctl status --json`.
-
+ 
 Exit criteria:
-
+ 
 - Mode changes work through D-Bus.
 - `optctl explain` reports last decision with reasons.
 - Invalid config fails safely.
 - D-Bus docs match implementation.
-
+ 
 ## v0.3.0-alpha.1: Rootfs And Package Builder MVP
-
-Status: planned.
+ 
+Status: next.
 
 - Define recipe schema v0.
 - Build a minimal rootfs from recipes.
