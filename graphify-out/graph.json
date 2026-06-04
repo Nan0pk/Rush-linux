@@ -706,7 +706,7 @@
         "kind": "file"
       },
       "id": "tools_build_rootfs",
-      "community": 46,
+      "community": 35,
       "norm_label": "build-rootfs.sh"
     },
     {
@@ -719,7 +719,7 @@
         "kind": "bash_entrypoint"
       },
       "id": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry",
-      "community": 46,
+      "community": 35,
       "norm_label": "build-rootfs.sh script"
     },
     {
@@ -2642,6 +2642,32 @@
       "norm_label": "tagging rules"
     },
     {
+      "label": "build-rootfs.sh script",
+      "file_type": "code",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 35,
+      "norm_label": "build-rootfs.sh script",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "label": "graphify-refresh.sh script",
+      "file_type": "code",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 28,
+      "norm_label": "graphify-refresh.sh script",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
       "label": "publish-github.ps1",
       "file_type": "code",
       "source_file": "tools/publish-github.ps1",
@@ -2664,19 +2690,6 @@
       "id": "tools_build_rootfs_sh"
     },
     {
-      "label": "build-rootfs.sh script",
-      "file_type": "code",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 35,
-      "norm_label": "build-rootfs.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
       "label": "validate-repo.ps1",
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
@@ -2697,19 +2710,6 @@
       "community": 28,
       "norm_label": "graphify-refresh.sh",
       "id": "tools_graphify_refresh_sh"
-    },
-    {
-      "label": "graphify-refresh.sh script",
-      "file_type": "code",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 28,
-      "norm_label": "graphify-refresh.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "label": "main.rs",
@@ -5897,12 +5897,32 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_build_rootfs",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L1",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
       "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_graphify_refresh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "defines",
@@ -7980,22 +8000,22 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_build_rootfs_sh",
-      "target": "home_user_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L1",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_graphify_refresh_sh",
       "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_build_rootfs_sh",
+      "target": "home_user_rush_linux_tools_build_rootfs_sh__entry"
     },
     {
       "relation": "contains",
@@ -8569,5 +8589,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "9dce2cc860aebb19e9c6af8194854e38abf09420"
+  "built_at_commit": "c50ab857e0ef2f30472ba651d6137552d4e42662"
 }
