@@ -54,11 +54,13 @@ engineering milestones.
 - Rust workspace compilation and test verification on Windows using local Rust toolchain.
 - Dynamic system-wide policy loading and parsing (`/config/optid/policy.toml`) with clean fallback to defaults.
 - JSON status output option (`--json`) for `optctl status` to support machine-readable telemetry output.
+- Custom package and rootfs builder (`tools/rush-builder.py`) using Python standard libraries (including TOML parsing via `tomllib`).
+- Package metadata database generation (`repodata.json`) and signature validation stubs (`repodata.json.sig`).
+- Extensible rootfs generator populating output rootfs from recipe-resolved dependency trees.
+- GPT raw VM disk image compiler using native `systemd-repart` to format ext4 partition and clone rootfs trees without loop mounts or root privileges.
 
 ## Not Yet Implemented
 
-- Bootable root filesystem from source recipes.
-- Real binary package repository and metadata signing.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - eBPF probes and overhead budget enforcement.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
@@ -70,7 +72,7 @@ engineering milestones.
 
 ## Known Local Constraints
 
-- `rustc` and `cargo` are not installed locally.
+- `rustc` and `cargo` are installed locally under both Windows host and WSL2 Ubuntu environment.
 - `gh` is not installed locally.
 - The GitHub repository exists at `https://github.com/Nan0pk/Rush-linux`.
 

@@ -887,6 +887,60 @@
       "norm_label": "publish-github.ps1"
     },
     {
+      "label": "rush-builder.py",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L1",
+      "id": "tools_rush_builder",
+      "community": 46,
+      "norm_label": "rush-builder.py"
+    },
+    {
+      "label": "cmd_build()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L13",
+      "id": "tools_rush_builder_cmd_build",
+      "community": 46,
+      "norm_label": "cmd_build()"
+    },
+    {
+      "label": "cmd_repo_init()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L127",
+      "id": "tools_rush_builder_cmd_repo_init",
+      "community": 46,
+      "norm_label": "cmd_repo_init()"
+    },
+    {
+      "label": "cmd_rootfs_create()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L171",
+      "id": "tools_rush_builder_cmd_rootfs_create",
+      "community": 46,
+      "norm_label": "cmd_rootfs_create()"
+    },
+    {
+      "label": "cmd_vm_image()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L247",
+      "id": "tools_rush_builder_cmd_vm_image",
+      "community": 46,
+      "norm_label": "cmd_vm_image()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L294",
+      "id": "tools_rush_builder_main",
+      "community": 46,
+      "norm_label": "main()"
+    },
+    {
       "label": "validate-repo.ps1",
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
@@ -1142,7 +1196,7 @@
       "label": "Not Yet Implemented",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L56",
+      "source_location": "L58",
       "id": "implementation_status_not_yet_implemented",
       "community": 40,
       "norm_label": "not yet implemented"
@@ -1151,7 +1205,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L69",
+      "source_location": "L71",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
       "norm_label": "known local constraints"
@@ -1160,7 +1214,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L75",
+      "source_location": "L77",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
       "norm_label": "acceptance rule"
@@ -3668,9 +3722,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L237",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_format_status_as_json",
-      "confidence_score": 1.0
+      "target": "src_main_format_status_as_json"
     },
     {
       "relation": "contains",
@@ -3708,9 +3762,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L444",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_test_format_status_as_json_all_values",
-      "confidence_score": 1.0
+      "target": "src_main_test_format_status_as_json_all_values"
     },
     {
       "relation": "contains",
@@ -3718,9 +3772,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L483",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_test_format_status_as_json_none_values",
-      "confidence_score": 1.0
+      "target": "src_main_test_format_status_as_json_none_values"
     },
     {
       "relation": "contains",
@@ -3804,9 +3858,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L90",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main_run",
-      "target": "src_main_format_status_as_json",
-      "confidence_score": 1.0
+      "target": "src_main_format_status_as_json"
     },
     {
       "relation": "calls",
@@ -3837,9 +3891,9 @@
       "source_location": "L237",
       "weight": 1.0,
       "context": "generic_arg",
+      "confidence_score": 1.0,
       "source": "src_main_format_status_as_json",
-      "target": "crates_optctl_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -3848,9 +3902,9 @@
       "source_location": "L237",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_format_status_as_json",
-      "target": "crates_optctl_src_main_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_result"
     },
     {
       "relation": "references",
@@ -3977,9 +4031,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L462",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_test_format_status_as_json_all_values",
-      "target": "src_main_format_status_as_json",
-      "confidence_score": 1.0
+      "target": "src_main_format_status_as_json"
     },
     {
       "relation": "calls",
@@ -3988,9 +4042,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L497",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_test_format_status_as_json_none_values",
-      "target": "src_main_format_status_as_json",
-      "confidence_score": 1.0
+      "target": "src_main_format_status_as_json"
     },
     {
       "relation": "imports_from",
@@ -4159,9 +4213,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L300",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_modeconfig",
-      "confidence_score": 1.0
+      "target": "src_main_modeconfig"
     },
     {
       "relation": "contains",
@@ -4169,9 +4223,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L292",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_modes",
-      "confidence_score": 1.0
+      "target": "src_main_modes"
     },
     {
       "relation": "contains",
@@ -4299,9 +4353,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L282",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_thresholds",
-      "confidence_score": 1.0
+      "target": "src_main_thresholds"
     },
     {
       "relation": "references",
@@ -4568,9 +4622,9 @@
       "source_location": "L767",
       "weight": 1.0,
       "context": "parameter_type",
+      "confidence_score": 1.0,
       "source": "src_main_action_cpu_epp",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4590,9 +4644,9 @@
       "source_location": "L771",
       "weight": 1.0,
       "context": "parameter_type",
+      "confidence_score": 1.0,
       "source": "src_main_action_platform_profile",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4601,9 +4655,9 @@
       "source_location": "L775",
       "weight": 1.0,
       "context": "generic_arg",
+      "confidence_score": 1.0,
       "source": "src_main_action_systemd_set_property",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4656,9 +4710,9 @@
       "source_location": "L302",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_modeconfig",
-      "target": "crates_optid_src_main_rs_string",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4863,9 +4917,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main_run",
-      "target": "src_main_policy_load",
-      "confidence_score": 1.0
+      "target": "src_main_policy_load"
     },
     {
       "relation": "calls",
@@ -5004,9 +5058,9 @@
       "source_location": "L369",
       "weight": 1.0,
       "context": "return_type",
+      "confidence_score": 1.0,
       "source": "src_main_policy_load",
-      "target": "self",
-      "confidence_score": 1.0
+      "target": "self"
     },
     {
       "relation": "references",
@@ -5153,9 +5207,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L418",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_policy_load",
-      "target": "src_main_mode_parse",
-      "confidence_score": 1.0
+      "target": "src_main_mode_parse"
     },
     {
       "relation": "calls",
@@ -5186,9 +5240,9 @@
       "source_location": "L312",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_modeconfig",
-      "target": "crates_optid_src_main_rs_option",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_option"
     },
     {
       "relation": "references",
@@ -5564,9 +5618,9 @@
       "source_location": "L278",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_policy",
-      "target": "modes",
-      "confidence_score": 1.0
+      "target": "modes"
     },
     {
       "relation": "method",
@@ -5604,9 +5658,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L369",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_policy",
-      "target": "src_main_policy_load",
-      "confidence_score": 1.0
+      "target": "src_main_policy_load"
     },
     {
       "relation": "references",
@@ -5615,9 +5669,9 @@
       "source_location": "L277",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_policy",
-      "target": "thresholds",
-      "confidence_score": 1.0
+      "target": "thresholds"
     },
     {
       "relation": "references",
@@ -5626,9 +5680,9 @@
       "source_location": "L296",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "src_main_modes",
-      "target": "modeconfig",
-      "confidence_score": 1.0
+      "target": "modeconfig"
     },
     {
       "relation": "calls",
@@ -5681,9 +5735,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L370",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_policy_load",
-      "target": "src_main_policy_default",
-      "confidence_score": 1.0
+      "target": "src_main_policy_default"
     },
     {
       "relation": "references",
@@ -5692,9 +5746,9 @@
       "source_location": "L369",
       "weight": 1.0,
       "context": "parameter_type",
+      "confidence_score": 1.0,
       "source": "src_main_policy_load",
-      "target": "crates_optid_src_main_rs_path",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_path"
     },
     {
       "relation": "calls",
@@ -5703,9 +5757,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L383",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_main_policy_load",
-      "target": "src_main_actuator_new",
-      "confidence_score": 1.0
+      "target": "src_main_actuator_new"
     },
     {
       "relation": "imports_from",
@@ -5899,9 +5953,9 @@
       "source_location": "L775",
       "weight": 1.0,
       "context": "parameter_type",
+      "confidence_score": 1.0,
       "source": "src_main_action_systemd_set_property",
-      "target": "crates_optid_src_main_rs_vec",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_vec"
     },
     {
       "relation": "references",
@@ -6407,6 +6461,100 @@
       "confidence_score": 1.0,
       "source": "tools_graphify_refresh_sh",
       "target": "tools_graphify_refresh_run_graphify"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_cmd_build",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L127",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_cmd_repo_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L171",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_cmd_rootfs_create",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L247",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_cmd_vm_image",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L294",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L320",
+      "weight": 1.0,
+      "source": "tools_rush_builder_main",
+      "target": "tools_rush_builder_cmd_build",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L322",
+      "weight": 1.0,
+      "source": "tools_rush_builder_main",
+      "target": "tools_rush_builder_cmd_repo_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L324",
+      "weight": 1.0,
+      "source": "tools_rush_builder_main",
+      "target": "tools_rush_builder_cmd_rootfs_create",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L326",
+      "weight": 1.0,
+      "source": "tools_rush_builder_main",
+      "target": "tools_rush_builder_cmd_vm_image",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -8980,5 +9128,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f02998314c65f55f94603dd0232392f7404a9eeb"
+  "built_at_commit": "10ca650a1bbcf10fc8074eb20e7f3bb765b2aff4"
 }

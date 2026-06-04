@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-04)
 
 ## Corpus Check
-- 37 files · ~14,781 words
+- 38 files · ~15,740 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 396 nodes · 520 edges · 47 communities (43 shown, 4 thin omitted)
+- 402 nodes · 529 edges · 48 communities (44 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f0299831`
+- Built from commit: `10ca650a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -60,6 +60,7 @@
 - [[_COMMUNITY_Community 43|Community 43]]
 - [[_COMMUNITY_Community 44|Community 44]]
 - [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -81,7 +82,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (47 total, 4 thin omitted)
+## Communities (48 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -246,6 +247,10 @@ Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 ### Community 44 - "Community 44"
 Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
+
+### Community 46 - "Community 46"
+Cohesion: 0.60
+Nodes (5): cmd_build(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), main()
 
 ## Knowledge Gaps
 - **201 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+196 more)

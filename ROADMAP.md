@@ -54,24 +54,24 @@ Exit criteria:
  
 ## v0.3.0-alpha.1: Rootfs And Package Builder MVP
  
-Status: next.
-
+Status: complete.
+ 
 - Define recipe schema v0.
 - Build a minimal rootfs from recipes.
 - Generate package metadata locally.
 - Add package signing stub.
 - Produce a bootable VM disk image before ISO images.
-
+ 
 Exit criteria:
-
+ 
 - Minimal VM boots to `multi-user.target`.
 - `optid.service` starts.
 - `nftables.conf` loads.
 - cgroup v2 and PSI are active.
-
+ 
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
-
-Status: planned.
+ 
+Status: next.
 
 - Generate UKIs from kernel package outputs.
 - Add systemd-boot path and GRUB fallback path.
