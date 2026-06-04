@@ -15,7 +15,7 @@ Required direction:
 - PSI enabled for pressure-aware policy.
 - cgroup v2 controllers and BPF integration.
 - uclamp support for future scheduling hints.
-- zswap and zram support for memory pressure control.
+- zswap and zram support for memory pressure control (run as mutually exclusive to avoid double compression overhead).
 - DAMON support for future memory policy.
 - BFQ and mq-deadline support for device-appropriate I/O policy.
 - modern CPUFreq, Intel P-state, AMD P-state, and CPPC support.

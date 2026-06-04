@@ -21,4 +21,5 @@ systemd_units = [
 ]
 config = [
   ["config/optid/policy.toml", "/usr/lib/optid/policy.toml"],
+  ["distro/systemd/99-adaptive-performance.conf", "/usr/lib/sysctl.d/99-adaptive-performance.conf"],
 ]
