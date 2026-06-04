@@ -16,8 +16,7 @@ The current Rust implementation:
 - writes status and decision logs under `/run/optid`;
 - applies guarded actions only when `--apply` is passed.
 
-`optctl` currently uses files in the state directory. The accepted target is a
-D-Bus API defined in `packaging/dbus/io.adaptive.Optid.xml`.
+`optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.adaptive.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
 
 The packaged default `optid.service` runs in dry-run mode. Mutating policy is
 split into `optid-apply.service` so early releases cannot silently change CPU,

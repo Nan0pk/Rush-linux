@@ -13,10 +13,19 @@
       "norm_label": "main.rs"
     },
     {
+      "label": "Optid",
+      "file_type": "code",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L13",
+      "id": "src_main_optid",
+      "community": 5,
+      "norm_label": "optid"
+    },
+    {
       "label": "main()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L9",
+      "source_location": "L27",
       "id": "crates_optctl_src_main_rs_src_main_main",
       "community": 5,
       "norm_label": "main()"
@@ -25,7 +34,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L16",
+      "source_location": "L34",
       "id": "crates_optctl_src_main_rs_src_main_run",
       "community": 5,
       "norm_label": "run()"
@@ -34,7 +43,7 @@
       "label": "Vec",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L16",
+      "source_location": "L34",
       "id": "crates_optctl_src_main_rs_vec",
       "community": 5,
       "norm_label": "vec"
@@ -43,7 +52,7 @@
       "label": "String",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L16",
+      "source_location": "L34",
       "id": "crates_optctl_src_main_rs_string",
       "community": 5,
       "norm_label": "string"
@@ -52,7 +61,7 @@
       "label": "Result",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L16",
+      "source_location": "L34",
       "id": "crates_optctl_src_main_rs_result",
       "community": 5,
       "norm_label": "result"
@@ -61,7 +70,7 @@
       "label": "mode_command()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L68",
+      "source_location": "L163",
       "id": "src_main_mode_command",
       "community": 5,
       "norm_label": "mode_command()"
@@ -70,7 +79,7 @@
       "label": "Path",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L68",
+      "source_location": "L163",
       "id": "crates_optctl_src_main_rs_path",
       "community": 5,
       "norm_label": "path"
@@ -79,7 +88,7 @@
       "label": "Option",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L68",
+      "source_location": "L163",
       "id": "crates_optctl_src_main_rs_option",
       "community": 5,
       "norm_label": "option"
@@ -88,7 +97,7 @@
       "label": "print_file_or_hint()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L85",
+      "source_location": "L180",
       "id": "src_main_print_file_or_hint",
       "community": 5,
       "norm_label": "print_file_or_hint()"
@@ -97,7 +106,7 @@
       "label": "print_usage()",
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
-      "source_location": "L99",
+      "source_location": "L194",
       "id": "crates_optctl_src_main_rs_src_main_print_usage",
       "community": 5,
       "norm_label": "print_usage()"
@@ -112,10 +121,100 @@
       "norm_label": "main.rs"
     },
     {
+      "label": "OptidServer",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L15",
+      "id": "src_main_optidserver",
+      "community": 1,
+      "norm_label": "optidserver"
+    },
+    {
+      "label": "PathBuf",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L16",
+      "id": "pathbuf",
+      "community": 1,
+      "norm_label": "pathbuf"
+    },
+    {
+      "label": ".status()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "id": "src_main_optidserver_status",
+      "community": 1,
+      "norm_label": ".status()"
+    },
+    {
+      "label": "Result",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "id": "crates_optid_src_main_rs_result",
+      "community": 1,
+      "norm_label": "result"
+    },
+    {
+      "label": "String",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "id": "crates_optid_src_main_rs_string",
+      "community": 1,
+      "norm_label": "string"
+    },
+    {
+      "label": ".explain()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L26",
+      "id": "src_main_optidserver_explain",
+      "community": 1,
+      "norm_label": ".explain()"
+    },
+    {
+      "label": ".set_mode()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L31",
+      "id": "src_main_optidserver_set_mode",
+      "community": 1,
+      "norm_label": ".set_mode()"
+    },
+    {
+      "label": ".pin_application()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L38",
+      "id": "src_main_optidserver_pin_application",
+      "community": 1,
+      "norm_label": ".pin_application()"
+    },
+    {
+      "label": ".mode()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L46",
+      "id": "src_main_optidserver_mode",
+      "community": 1,
+      "norm_label": ".mode()"
+    },
+    {
+      "label": ".version()",
+      "file_type": "code",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L52",
+      "id": "src_main_optidserver_version",
+      "community": 1,
+      "norm_label": ".version()"
+    },
+    {
       "label": "main()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L13",
+      "source_location": "L57",
       "id": "crates_optid_src_main_rs_src_main_main",
       "community": 1,
       "norm_label": "main()"
@@ -124,7 +223,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L34",
+      "source_location": "L78",
       "id": "crates_optid_src_main_rs_src_main_run",
       "community": 1,
       "norm_label": "run()"
@@ -133,43 +232,25 @@
       "label": "Args",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L34",
+      "source_location": "L78",
       "id": "args",
       "community": 1,
       "norm_label": "args"
     },
     {
-      "label": "Result",
-      "file_type": "code",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L34",
-      "id": "crates_optid_src_main_rs_result",
-      "community": 1,
-      "norm_label": "result"
-    },
-    {
       "label": "Args",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L64",
+      "source_location": "L128",
       "id": "src_main_args",
       "community": 1,
       "norm_label": "args"
     },
     {
-      "label": "PathBuf",
-      "file_type": "code",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L69",
-      "id": "pathbuf",
-      "community": 1,
-      "norm_label": "pathbuf"
-    },
-    {
       "label": ".parse()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
+      "source_location": "L137",
       "id": "src_main_args_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -178,7 +259,7 @@
       "label": "I",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
+      "source_location": "L137",
       "id": "i",
       "community": 1,
       "norm_label": "i"
@@ -187,25 +268,16 @@
       "label": "Self",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
+      "source_location": "L137",
       "id": "self",
       "community": 1,
       "norm_label": "self"
     },
     {
-      "label": "String",
-      "file_type": "code",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
-      "id": "crates_optid_src_main_rs_string",
-      "community": 1,
-      "norm_label": "string"
-    },
-    {
       "label": "print_usage()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L113",
+      "source_location": "L177",
       "id": "crates_optid_src_main_rs_src_main_print_usage",
       "community": 1,
       "norm_label": "print_usage()"
@@ -214,7 +286,7 @@
       "label": "Mode",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L122",
+      "source_location": "L186",
       "id": "src_main_mode",
       "community": 1,
       "norm_label": "mode"
@@ -223,7 +295,7 @@
       "label": ".parse()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L131",
+      "source_location": "L195",
       "id": "src_main_mode_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -232,7 +304,7 @@
       "label": "Option",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L131",
+      "source_location": "L195",
       "id": "crates_optid_src_main_rs_option",
       "community": 1,
       "norm_label": "option"
@@ -241,7 +313,7 @@
       "label": "Display",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L143",
+      "source_location": "L207",
       "id": "display",
       "community": 1,
       "norm_label": "display"
@@ -250,7 +322,7 @@
       "label": ".fmt()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L144",
+      "source_location": "L208",
       "id": "src_main_mode_fmt",
       "community": 1,
       "norm_label": ".fmt()"
@@ -259,7 +331,7 @@
       "label": "Formatter",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L144",
+      "source_location": "L208",
       "id": "formatter",
       "community": 1,
       "norm_label": "formatter"
@@ -268,7 +340,7 @@
       "label": "Pressure",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L157",
+      "source_location": "L221",
       "id": "src_main_pressure",
       "community": 1,
       "norm_label": "pressure"
@@ -277,7 +349,7 @@
       "label": ".read()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L165",
+      "source_location": "L229",
       "id": "src_main_pressure_read",
       "community": 1,
       "norm_label": ".read()"
@@ -286,7 +358,7 @@
       "label": "Snapshot",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L172",
+      "source_location": "L236",
       "id": "src_main_snapshot",
       "community": 1,
       "norm_label": "snapshot"
@@ -295,7 +367,7 @@
       "label": ".collect()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L184",
+      "source_location": "L248",
       "id": "src_main_snapshot_collect",
       "community": 1,
       "norm_label": ".collect()"
@@ -304,7 +376,7 @@
       "label": ".thermal_c()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L197",
+      "source_location": "L261",
       "id": "src_main_snapshot_thermal_c",
       "community": 1,
       "norm_label": ".thermal_c()"
@@ -313,7 +385,7 @@
       "label": "Policy",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L203",
+      "source_location": "L267",
       "id": "src_main_policy",
       "community": 1,
       "norm_label": "policy"
@@ -322,7 +394,7 @@
       "label": "Default",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L212",
+      "source_location": "L276",
       "id": "default",
       "community": 1,
       "norm_label": "default"
@@ -331,7 +403,7 @@
       "label": ".default()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L213",
+      "source_location": "L277",
       "id": "src_main_policy_default",
       "community": 1,
       "norm_label": ".default()"
@@ -340,7 +412,7 @@
       "label": ".decide()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L226",
+      "source_location": "L290",
       "id": "src_main_policy_decide",
       "community": 1,
       "norm_label": ".decide()"
@@ -349,7 +421,7 @@
       "label": "Decision",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L226",
+      "source_location": "L290",
       "id": "decision",
       "community": 1,
       "norm_label": "decision"
@@ -358,7 +430,7 @@
       "label": ".auto_mode()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L379",
+      "source_location": "L443",
       "id": "src_main_policy_auto_mode",
       "community": 1,
       "norm_label": ".auto_mode()"
@@ -367,7 +439,7 @@
       "label": "Decision",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L417",
+      "source_location": "L481",
       "id": "src_main_decision",
       "community": 1,
       "norm_label": "decision"
@@ -376,7 +448,7 @@
       "label": "Vec",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L419",
+      "source_location": "L483",
       "id": "crates_optid_src_main_rs_vec",
       "community": 1,
       "norm_label": "vec"
@@ -385,7 +457,7 @@
       "label": "Action",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L420",
+      "source_location": "L484",
       "id": "action",
       "community": 1,
       "norm_label": "action"
@@ -394,7 +466,7 @@
       "label": ".render()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L424",
+      "source_location": "L488",
       "id": "src_main_decision_render",
       "community": 1,
       "norm_label": ".render()"
@@ -403,7 +475,7 @@
       "label": "Action",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L451",
+      "source_location": "L521",
       "id": "src_main_action",
       "community": 1,
       "norm_label": "action"
@@ -412,7 +484,7 @@
       "label": ".cpu_epp()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L468",
+      "source_location": "L538",
       "id": "src_main_action_cpu_epp",
       "community": 1,
       "norm_label": ".cpu_epp()"
@@ -421,7 +493,7 @@
       "label": ".platform_profile()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L472",
+      "source_location": "L542",
       "id": "src_main_action_platform_profile",
       "community": 1,
       "norm_label": ".platform_profile()"
@@ -430,7 +502,7 @@
       "label": ".systemd_set_property()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L476",
+      "source_location": "L546",
       "id": "src_main_action_systemd_set_property",
       "community": 1,
       "norm_label": ".systemd_set_property()"
@@ -439,7 +511,7 @@
       "label": ".describe()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L488",
+      "source_location": "L558",
       "id": "src_main_action_describe",
       "community": 1,
       "norm_label": ".describe()"
@@ -448,7 +520,7 @@
       "label": "Actuator",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L503",
+      "source_location": "L576",
       "id": "src_main_actuator",
       "community": 1,
       "norm_label": "actuator"
@@ -457,7 +529,7 @@
       "label": ".new()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L508",
+      "source_location": "L581",
       "id": "src_main_actuator_new",
       "community": 1,
       "norm_label": ".new()"
@@ -466,7 +538,7 @@
       "label": ".apply()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L512",
+      "source_location": "L585",
       "id": "src_main_actuator_apply",
       "community": 1,
       "norm_label": ".apply()"
@@ -475,7 +547,7 @@
       "label": ".log()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L566",
+      "source_location": "L639",
       "id": "src_main_actuator_log",
       "community": 1,
       "norm_label": ".log()"
@@ -484,7 +556,7 @@
       "label": "guarded_write()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L571",
+      "source_location": "L644",
       "id": "src_main_guarded_write",
       "community": 1,
       "norm_label": "guarded_write()"
@@ -493,7 +565,7 @@
       "label": "Path",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L571",
+      "source_location": "L644",
       "id": "crates_optid_src_main_rs_path",
       "community": 1,
       "norm_label": "path"
@@ -502,7 +574,7 @@
       "label": "discover_cpu_epp_paths()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L585",
+      "source_location": "L658",
       "id": "src_main_discover_cpu_epp_paths",
       "community": 1,
       "norm_label": "discover_cpu_epp_paths()"
@@ -511,7 +583,7 @@
       "label": "read_mode_override()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L607",
+      "source_location": "L679",
       "id": "src_main_read_mode_override",
       "community": 1,
       "norm_label": "read_mode_override()"
@@ -520,7 +592,7 @@
       "label": "read_on_ac()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L612",
+      "source_location": "L684",
       "id": "src_main_read_on_ac",
       "community": 1,
       "norm_label": "read_on_ac()"
@@ -529,7 +601,7 @@
       "label": "read_battery_pct()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L639",
+      "source_location": "L711",
       "id": "src_main_read_battery_pct",
       "community": 1,
       "norm_label": "read_battery_pct()"
@@ -538,7 +610,7 @@
       "label": "read_max_thermal_millic()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L652",
+      "source_location": "L724",
       "id": "src_main_read_max_thermal_millic",
       "community": 1,
       "norm_label": "read_max_thermal_millic()"
@@ -547,7 +619,7 @@
       "label": "read_loadavg_1()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L667",
+      "source_location": "L739",
       "id": "src_main_read_loadavg_1",
       "community": 1,
       "norm_label": "read_loadavg_1()"
@@ -556,7 +628,7 @@
       "label": "parse_pressure()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L672",
+      "source_location": "L744",
       "id": "src_main_parse_pressure",
       "community": 1,
       "norm_label": "parse_pressure()"
@@ -565,7 +637,7 @@
       "label": "fmt_pressure()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L692",
+      "source_location": "L764",
       "id": "src_main_fmt_pressure",
       "community": 1,
       "norm_label": "fmt_pressure()"
@@ -574,7 +646,7 @@
       "label": "append_log()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L702",
+      "source_location": "L774",
       "id": "src_main_append_log",
       "community": 1,
       "norm_label": "append_log()"
@@ -583,7 +655,7 @@
       "label": "now_unix()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L716",
+      "source_location": "L788",
       "id": "src_main_now_unix",
       "community": 1,
       "norm_label": "now_unix()"
@@ -592,7 +664,7 @@
       "label": "parses_psi_some_line()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L728",
+      "source_location": "L800",
       "id": "src_main_parses_psi_some_line",
       "community": 1,
       "norm_label": "parses_psi_some_line()"
@@ -601,7 +673,7 @@
       "label": "battery_auto_mode_prefers_battery()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L740",
+      "source_location": "L812",
       "id": "src_main_battery_auto_mode_prefers_battery",
       "community": 1,
       "norm_label": "battery_auto_mode_prefers_battery()"
@@ -610,7 +682,7 @@
       "label": "ac_cpu_pressure_prefers_performance()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L757",
+      "source_location": "L829",
       "id": "src_main_ac_cpu_pressure_prefers_performance",
       "community": 1,
       "norm_label": "ac_cpu_pressure_prefers_performance()"
@@ -619,7 +691,7 @@
       "label": "critical_thermal_overrides_performance_bias()",
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
-      "source_location": "L777",
+      "source_location": "L849",
       "id": "src_main_critical_thermal_overrides_performance_bias",
       "community": 1,
       "norm_label": "critical_thermal_overrides_performance_bias()"
@@ -980,7 +1052,7 @@
       "label": "Not Yet Implemented",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L53",
+      "source_location": "L56",
       "id": "implementation_status_not_yet_implemented",
       "community": 40,
       "norm_label": "not yet implemented"
@@ -1376,7 +1448,7 @@
       "label": "Policy Ownership",
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
-      "source_location": "L26",
+      "source_location": "L25",
       "id": "docs_adaptive_engine_policy_ownership",
       "community": 9,
       "norm_label": "policy ownership"
@@ -1385,7 +1457,7 @@
       "label": "Inputs",
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
-      "source_location": "L35",
+      "source_location": "L34",
       "id": "docs_adaptive_engine_inputs",
       "community": 9,
       "norm_label": "inputs"
@@ -1394,7 +1466,7 @@
       "label": "Actions",
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
-      "source_location": "L49",
+      "source_location": "L48",
       "id": "docs_adaptive_engine_actions",
       "community": 9,
       "norm_label": "actions"
@@ -1403,7 +1475,7 @@
       "label": "Guardrails",
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
-      "source_location": "L61",
+      "source_location": "L60",
       "id": "docs_adaptive_engine_guardrails",
       "community": 9,
       "norm_label": "guardrails"
@@ -3466,9 +3538,9 @@
       "source_location": "L4",
       "weight": 1.0,
       "context": "import",
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_path",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_path"
     },
     {
       "relation": "contains",
@@ -3476,9 +3548,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_main",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_main"
     },
     {
       "relation": "contains",
@@ -3486,9 +3558,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L99",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_print_usage",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_print_usage"
     },
     {
       "relation": "contains",
@@ -3496,9 +3568,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_run",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_run"
     },
     {
       "relation": "contains",
@@ -3506,8 +3578,18 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_mode_command",
+      "target": "src_main_mode_command"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optctl/src/main.rs",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "crates_optctl_src_main_rs_src_main",
+      "target": "src_main_optid",
       "confidence_score": 1.0
     },
     {
@@ -3516,9 +3598,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_print_file_or_hint",
-      "confidence_score": 1.0
+      "target": "src_main_print_file_or_hint"
     },
     {
       "relation": "contains",
@@ -3731,9 +3813,9 @@
       "source_location": "L5",
       "weight": 1.0,
       "context": "import",
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_path",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_path"
     },
     {
       "relation": "contains",
@@ -3741,9 +3823,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_main",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_main"
     },
     {
       "relation": "contains",
@@ -3751,9 +3833,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L113",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_print_usage",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_print_usage"
     },
     {
       "relation": "contains",
@@ -3761,9 +3843,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L34",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_run",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_run"
     },
     {
       "relation": "contains",
@@ -3771,9 +3853,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L757",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_ac_cpu_pressure_prefers_performance",
-      "confidence_score": 1.0
+      "target": "src_main_ac_cpu_pressure_prefers_performance"
     },
     {
       "relation": "contains",
@@ -3781,9 +3863,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L451",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_action",
-      "confidence_score": 1.0
+      "target": "src_main_action"
     },
     {
       "relation": "contains",
@@ -3791,9 +3873,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L503",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_actuator",
-      "confidence_score": 1.0
+      "target": "src_main_actuator"
     },
     {
       "relation": "contains",
@@ -3801,9 +3883,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L702",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_append_log",
-      "confidence_score": 1.0
+      "target": "src_main_append_log"
     },
     {
       "relation": "contains",
@@ -3811,9 +3893,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_args",
-      "confidence_score": 1.0
+      "target": "src_main_args"
     },
     {
       "relation": "contains",
@@ -3821,9 +3903,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L740",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_battery_auto_mode_prefers_battery",
-      "confidence_score": 1.0
+      "target": "src_main_battery_auto_mode_prefers_battery"
     },
     {
       "relation": "contains",
@@ -3831,9 +3913,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L777",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_critical_thermal_overrides_performance_bias",
-      "confidence_score": 1.0
+      "target": "src_main_critical_thermal_overrides_performance_bias"
     },
     {
       "relation": "contains",
@@ -3841,9 +3923,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L417",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_decision",
-      "confidence_score": 1.0
+      "target": "src_main_decision"
     },
     {
       "relation": "contains",
@@ -3851,9 +3933,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L585",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_discover_cpu_epp_paths",
-      "confidence_score": 1.0
+      "target": "src_main_discover_cpu_epp_paths"
     },
     {
       "relation": "contains",
@@ -3861,9 +3943,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L692",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_fmt_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_fmt_pressure"
     },
     {
       "relation": "contains",
@@ -3871,9 +3953,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L571",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_guarded_write",
-      "confidence_score": 1.0
+      "target": "src_main_guarded_write"
     },
     {
       "relation": "contains",
@@ -3881,9 +3963,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L122",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_mode",
-      "confidence_score": 1.0
+      "target": "src_main_mode"
     },
     {
       "relation": "contains",
@@ -3891,8 +3973,18 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L716",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_now_unix",
+      "target": "src_main_now_unix"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "crates_optid_src_main_rs_src_main",
+      "target": "src_main_optidserver",
       "confidence_score": 1.0
     },
     {
@@ -3901,9 +3993,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L672",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_parse_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_parse_pressure"
     },
     {
       "relation": "contains",
@@ -3911,9 +4003,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L728",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_parses_psi_some_line",
-      "confidence_score": 1.0
+      "target": "src_main_parses_psi_some_line"
     },
     {
       "relation": "contains",
@@ -3921,9 +4013,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L203",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_policy",
-      "confidence_score": 1.0
+      "target": "src_main_policy"
     },
     {
       "relation": "contains",
@@ -3931,9 +4023,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L157",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_pressure"
     },
     {
       "relation": "contains",
@@ -3941,9 +4033,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L639",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_battery_pct",
-      "confidence_score": 1.0
+      "target": "src_main_read_battery_pct"
     },
     {
       "relation": "contains",
@@ -3951,9 +4043,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L667",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_loadavg_1",
-      "confidence_score": 1.0
+      "target": "src_main_read_loadavg_1"
     },
     {
       "relation": "contains",
@@ -3961,9 +4053,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L652",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_max_thermal_millic",
-      "confidence_score": 1.0
+      "target": "src_main_read_max_thermal_millic"
     },
     {
       "relation": "contains",
@@ -3971,9 +4063,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L607",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_mode_override",
-      "confidence_score": 1.0
+      "target": "src_main_read_mode_override"
     },
     {
       "relation": "contains",
@@ -3981,9 +4073,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L612",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_on_ac",
-      "confidence_score": 1.0
+      "target": "src_main_read_on_ac"
     },
     {
       "relation": "contains",
@@ -3991,8 +4083,387 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L172",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_snapshot",
+      "target": "src_main_snapshot"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L16",
+      "weight": 1.0,
+      "context": "field",
+      "source": "src_main_optidserver",
+      "target": "pathbuf",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_explain",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_mode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_pin_application",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_set_mode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "src_main_optidserver",
+      "target": "src_main_optidserver_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L504",
+      "weight": 1.0,
+      "context": "field",
+      "confidence_score": 1.0,
+      "source": "src_main_actuator",
+      "target": "pathbuf"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L508",
+      "weight": 1.0,
+      "context": "parameter_type",
+      "confidence_score": 1.0,
+      "source": "src_main_actuator_new",
+      "target": "pathbuf"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L69",
+      "weight": 1.0,
+      "context": "field",
+      "confidence_score": 1.0,
+      "source": "src_main_args",
+      "target": "pathbuf"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L585",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "confidence_score": 1.0,
+      "source": "src_main_discover_cpu_epp_paths",
+      "target": "pathbuf"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L610",
+      "weight": 1.0,
+      "source": "src_main_actuator_apply",
+      "target": "src_main_optidserver_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_status",
+      "target": "crates_optid_src_main_rs_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L21",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "source": "src_main_optidserver_status",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L34",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "crates_optid_src_main_rs_src_main_run",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L512",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_actuator_apply",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L566",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_actuator_log",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L702",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_append_log",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_args_parse",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L571",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_guarded_write",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_mode_fmt",
+      "target": "crates_optid_src_main_rs_result"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L26",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_explain",
+      "target": "crates_optid_src_main_rs_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L38",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_pin_application",
+      "target": "crates_optid_src_main_rs_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L31",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_set_mode",
+      "target": "crates_optid_src_main_rs_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L488",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_action_describe",
+      "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "confidence_score": 1.0,
+      "source": "src_main_args_parse",
+      "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L419",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "confidence_score": 1.0,
+      "source": "src_main_decision",
+      "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L424",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_decision_render",
+      "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L692",
+      "weight": 1.0,
+      "context": "return_type",
+      "confidence_score": 1.0,
+      "source": "src_main_fmt_pressure",
+      "target": "crates_optid_src_main_rs_string"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L26",
+      "weight": 1.0,
+      "context": "generic_arg",
+      "source": "src_main_optidserver_explain",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L46",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_mode",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L52",
+      "weight": 1.0,
+      "context": "return_type",
+      "source": "src_main_optidserver_version",
+      "target": "crates_optid_src_main_rs_string",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "src_main_optidserver_set_mode",
+      "target": "src_main_mode_parse",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L39",
+      "weight": 1.0,
+      "source": "src_main_optidserver_pin_application",
+      "target": "src_main_mode_parse",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "crates/optid/src/main.rs",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "src_main_optidserver_mode",
+      "target": "src_main_mode_parse",
       "confidence_score": 1.0
     },
     {
@@ -4058,17 +4529,6 @@
       "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main_run",
       "target": "args"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L34",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "crates_optid_src_main_rs_src_main_run",
-      "target": "crates_optid_src_main_rs_result"
     },
     {
       "relation": "calls",
@@ -4159,72 +4619,6 @@
       "target": "src_main_snapshot_collect"
     },
     {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L512",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_actuator_apply",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L566",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_actuator_log",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L702",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_append_log",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_args_parse",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L571",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_guarded_write",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L144",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_mode_fmt",
-      "target": "crates_optid_src_main_rs_result"
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
@@ -4235,17 +4629,6 @@
       "target": "src_main_args"
     },
     {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L69",
-      "weight": 1.0,
-      "context": "field",
-      "confidence_score": 1.0,
-      "source": "src_main_args",
-      "target": "pathbuf"
-    },
-    {
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "crates/optid/src/main.rs",
@@ -4254,50 +4637,6 @@
       "confidence_score": 1.0,
       "source": "src_main_args",
       "target": "src_main_args_parse"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L504",
-      "weight": 1.0,
-      "context": "field",
-      "confidence_score": 1.0,
-      "source": "src_main_actuator",
-      "target": "pathbuf"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L508",
-      "weight": 1.0,
-      "context": "parameter_type",
-      "confidence_score": 1.0,
-      "source": "src_main_actuator_new",
-      "target": "pathbuf"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L585",
-      "weight": 1.0,
-      "context": "generic_arg",
-      "confidence_score": 1.0,
-      "source": "src_main_discover_cpu_epp_paths",
-      "target": "pathbuf"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L73",
-      "weight": 1.0,
-      "context": "generic_arg",
-      "confidence_score": 1.0,
-      "source": "src_main_args_parse",
-      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "references",
@@ -4408,50 +4747,6 @@
       "confidence_score": 1.0,
       "source": "src_main_snapshot_collect",
       "target": "self"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L488",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_action_describe",
-      "target": "crates_optid_src_main_rs_string"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L419",
-      "weight": 1.0,
-      "context": "generic_arg",
-      "confidence_score": 1.0,
-      "source": "src_main_decision",
-      "target": "crates_optid_src_main_rs_string"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L424",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_decision_render",
-      "target": "crates_optid_src_main_rs_string"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "crates/optid/src/main.rs",
-      "source_location": "L692",
-      "weight": 1.0,
-      "context": "return_type",
-      "confidence_score": 1.0,
-      "source": "src_main_fmt_pressure",
-      "target": "crates_optid_src_main_rs_string"
     },
     {
       "relation": "contains",
@@ -5595,9 +5890,9 @@
       "source_file": "tools/build-rootfs.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_build_rootfs",
-      "target": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry",
-      "confidence_score": 1.0
+      "target": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry"
     },
     {
       "relation": "contains",
@@ -5605,9 +5900,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
-      "confidence_score": 1.0
+      "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "defines",
@@ -5615,9 +5910,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_find_graphify",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_find_graphify"
     },
     {
       "relation": "defines",
@@ -5625,9 +5920,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_pythonhashseed",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_pythonhashseed"
     },
     {
       "relation": "defines",
@@ -5635,9 +5930,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_run_graphify",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_run_graphify"
     },
     {
       "relation": "calls",
@@ -5646,9 +5941,9 @@
       "source_location": "L50",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
-      "target": "tools_graphify_refresh_run_graphify",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_run_graphify"
     },
     {
       "relation": "defines",
@@ -5708,9 +6003,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_contains",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_contains"
     },
     {
       "relation": "contains",
@@ -5718,9 +6013,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_file"
     },
     {
       "relation": "contains",
@@ -5728,9 +6023,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_notcontains",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_notcontains"
     },
     {
       "relation": "contains",
@@ -5768,9 +6063,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents",
-      "target": "agents_agent_instructions",
-      "confidence_score": 1.0
+      "target": "agents_agent_instructions"
     },
     {
       "relation": "contains",
@@ -5778,9 +6073,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agent_instructions",
-      "target": "agents_graphify",
-      "confidence_score": 1.0
+      "target": "agents_graphify"
     },
     {
       "relation": "contains",
@@ -5788,9 +6083,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation",
-      "target": "ai_continuation_ai_continuation",
-      "confidence_score": 1.0
+      "target": "ai_continuation_ai_continuation"
     },
     {
       "relation": "contains",
@@ -5798,9 +6093,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L128",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_commands_and_checks",
-      "confidence_score": 1.0
+      "target": "ai_continuation_commands_and_checks"
     },
     {
       "relation": "contains",
@@ -5808,9 +6103,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_current_status",
-      "confidence_score": 1.0
+      "target": "ai_continuation_current_status"
     },
     {
       "relation": "contains",
@@ -5818,9 +6113,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_forbidden_shortcuts",
-      "confidence_score": 1.0
+      "target": "ai_continuation_forbidden_shortcuts"
     },
     {
       "relation": "contains",
@@ -5828,9 +6123,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_graphify_continuation_workflow",
-      "confidence_score": 1.0
+      "target": "ai_continuation_graphify_continuation_workflow"
     },
     {
       "relation": "contains",
@@ -5838,9 +6133,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_mission",
-      "confidence_score": 1.0
+      "target": "ai_continuation_mission"
     },
     {
       "relation": "contains",
@@ -5848,9 +6143,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L152",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_next_task",
-      "confidence_score": 1.0
+      "target": "ai_continuation_next_task"
     },
     {
       "relation": "contains",
@@ -5858,9 +6153,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L80",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_repo_layout",
-      "confidence_score": 1.0
+      "target": "ai_continuation_repo_layout"
     },
     {
       "relation": "contains",
@@ -5868,9 +6163,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_safe_assumptions",
-      "confidence_score": 1.0
+      "target": "ai_continuation_safe_assumptions"
     },
     {
       "relation": "contains",
@@ -5878,9 +6173,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing",
-      "target": "contributing_contributing",
-      "confidence_score": 1.0
+      "target": "contributing_contributing"
     },
     {
       "relation": "contains",
@@ -5888,9 +6183,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_before_you_change_code",
-      "confidence_score": 1.0
+      "target": "contributing_before_you_change_code"
     },
     {
       "relation": "contains",
@@ -5898,9 +6193,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_commit_quality",
-      "confidence_score": 1.0
+      "target": "contributing_commit_quality"
     },
     {
       "relation": "contains",
@@ -5908,9 +6203,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_defaults_policy",
-      "confidence_score": 1.0
+      "target": "contributing_defaults_policy"
     },
     {
       "relation": "contains",
@@ -5918,9 +6213,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_documentation_is_required",
-      "confidence_score": 1.0
+      "target": "contributing_documentation_is_required"
     },
     {
       "relation": "contains",
@@ -5928,9 +6223,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_required_checks",
-      "confidence_score": 1.0
+      "target": "contributing_required_checks"
     },
     {
       "relation": "contains",
@@ -5938,9 +6233,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status",
-      "target": "implementation_status_implementation_status",
-      "confidence_score": 1.0
+      "target": "implementation_status_implementation_status"
     },
     {
       "relation": "contains",
@@ -5948,9 +6243,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_acceptance_rule",
-      "confidence_score": 1.0
+      "target": "implementation_status_acceptance_rule"
     },
     {
       "relation": "contains",
@@ -5958,9 +6253,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L12",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_implemented",
-      "confidence_score": 1.0
+      "target": "implementation_status_implemented"
     },
     {
       "relation": "contains",
@@ -5968,9 +6263,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L69",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_known_local_constraints",
-      "confidence_score": 1.0
+      "target": "implementation_status_known_local_constraints"
     },
     {
       "relation": "contains",
@@ -5978,9 +6273,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_not_yet_implemented",
-      "confidence_score": 1.0
+      "target": "implementation_status_not_yet_implemented"
     },
     {
       "relation": "contains",
@@ -5988,9 +6283,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_overall_state",
-      "confidence_score": 1.0
+      "target": "implementation_status_overall_state"
     },
     {
       "relation": "contains",
@@ -5998,9 +6293,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief",
-      "target": "project_brief_project_brief",
-      "confidence_score": 1.0
+      "target": "project_brief_project_brief"
     },
     {
       "relation": "contains",
@@ -6008,9 +6303,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_current_product_shape",
-      "confidence_score": 1.0
+      "target": "project_brief_current_product_shape"
     },
     {
       "relation": "contains",
@@ -6018,9 +6313,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_engineering_principles",
-      "confidence_score": 1.0
+      "target": "project_brief_engineering_principles"
     },
     {
       "relation": "contains",
@@ -6028,9 +6323,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_mission",
-      "confidence_score": 1.0
+      "target": "project_brief_mission"
     },
     {
       "relation": "contains",
@@ -6038,9 +6333,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_success_criteria",
-      "confidence_score": 1.0
+      "target": "project_brief_success_criteria"
     },
     {
       "relation": "contains",
@@ -6048,9 +6343,9 @@
       "source_file": "README.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme",
-      "target": "readme_rush_linux",
-      "confidence_score": 1.0
+      "target": "readme_rush_linux"
     },
     {
       "relation": "contains",
@@ -6058,9 +6353,9 @@
       "source_file": "README.md",
       "source_location": "L114",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_build",
-      "confidence_score": 1.0
+      "target": "readme_build"
     },
     {
       "relation": "contains",
@@ -6068,9 +6363,9 @@
       "source_file": "README.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_current_implementation_status",
-      "confidence_score": 1.0
+      "target": "readme_current_implementation_status"
     },
     {
       "relation": "contains",
@@ -6078,9 +6373,9 @@
       "source_file": "README.md",
       "source_location": "L156",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_design_rules",
-      "confidence_score": 1.0
+      "target": "readme_design_rules"
     },
     {
       "relation": "contains",
@@ -6088,9 +6383,9 @@
       "source_file": "README.md",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_first_class_documentation",
-      "confidence_score": 1.0
+      "target": "readme_first_class_documentation"
     },
     {
       "relation": "contains",
@@ -6098,9 +6393,9 @@
       "source_file": "README.md",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_github_ci",
-      "confidence_score": 1.0
+      "target": "readme_github_ci"
     },
     {
       "relation": "contains",
@@ -6108,9 +6403,9 @@
       "source_file": "README.md",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_knowledge_graph_for_continuation",
-      "confidence_score": 1.0
+      "target": "readme_knowledge_graph_for_continuation"
     },
     {
       "relation": "contains",
@@ -6118,9 +6413,9 @@
       "source_file": "README.md",
       "source_location": "L140",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_publishing",
-      "confidence_score": 1.0
+      "target": "readme_publishing"
     },
     {
       "relation": "contains",
@@ -6128,9 +6423,9 @@
       "source_file": "README.md",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_repository_layout",
-      "confidence_score": 1.0
+      "target": "readme_repository_layout"
     },
     {
       "relation": "contains",
@@ -6138,9 +6433,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases",
-      "target": "releases_releases",
-      "confidence_score": 1.0
+      "target": "releases_releases"
     },
     {
       "relation": "contains",
@@ -6148,9 +6443,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases_releases",
-      "target": "releases_release_ledger",
-      "confidence_score": 1.0
+      "target": "releases_release_ledger"
     },
     {
       "relation": "contains",
@@ -6158,9 +6453,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L24",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases_releases",
-      "target": "releases_release_rule",
-      "confidence_score": 1.0
+      "target": "releases_release_rule"
     },
     {
       "relation": "contains",
@@ -6168,9 +6463,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap",
-      "target": "roadmap_roadmap",
-      "confidence_score": 1.0
+      "target": "roadmap_roadmap"
     },
     {
       "relation": "contains",
@@ -6178,9 +6473,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_phase_0_repository_foundation",
-      "confidence_score": 1.0
+      "target": "roadmap_phase_0_repository_foundation"
     },
     {
       "relation": "contains",
@@ -6188,9 +6483,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_1_0_alpha_1_compile_clean_core",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_1_0_alpha_1_compile_clean_core"
     },
     {
       "relation": "contains",
@@ -6198,9 +6493,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_2_0_alpha_1_real_control_plane",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_2_0_alpha_1_real_control_plane"
     },
     {
       "relation": "contains",
@@ -6208,9 +6503,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_3_0_alpha_1_rootfs_and_package_builder_mvp",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_3_0_alpha_1_rootfs_and_package_builder_mvp"
     },
     {
       "relation": "contains",
@@ -6218,9 +6513,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_4_0_alpha_1_uki_boot_rollback_updates",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_4_0_alpha_1_uki_boot_rollback_updates"
     },
     {
       "relation": "contains",
@@ -6228,9 +6523,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_5_0_beta_1_minimal_installable_system",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_5_0_beta_1_minimal_installable_system"
     },
     {
       "relation": "contains",
@@ -6238,9 +6533,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_6_0_beta_1_hardware_aware_optid",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_6_0_beta_1_hardware_aware_optid"
     },
     {
       "relation": "contains",
@@ -6248,9 +6543,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L124",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_7_0_beta_1_editions",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_7_0_beta_1_editions"
     },
     {
       "relation": "contains",
@@ -6258,9 +6553,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L141",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_8_0_beta_1_benchmark_lab",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_8_0_beta_1_benchmark_lab"
     },
     {
       "relation": "contains",
@@ -6268,9 +6563,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L158",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_9_0_rc_1_release_candidate_hardening",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_9_0_rc_1_release_candidate_hardening"
     },
     {
       "relation": "contains",
@@ -6278,9 +6573,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L175",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v1_0_0_stable",
-      "confidence_score": 1.0
+      "target": "roadmap_v1_0_0_stable"
     },
     {
       "relation": "contains",
@@ -6288,9 +6583,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security",
-      "target": "security_security_policy",
-      "confidence_score": 1.0
+      "target": "security_security_policy"
     },
     {
       "relation": "contains",
@@ -6298,9 +6593,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_reporting",
-      "confidence_score": 1.0
+      "target": "security_reporting"
     },
     {
       "relation": "contains",
@@ -6308,9 +6603,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L29",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_security_requirements",
-      "confidence_score": 1.0
+      "target": "security_security_requirements"
     },
     {
       "relation": "contains",
@@ -6318,9 +6613,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_supported_versions",
-      "confidence_score": 1.0
+      "target": "security_supported_versions"
     },
     {
       "relation": "contains",
@@ -6328,9 +6623,9 @@
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_adaptive_engine",
-      "target": "docs_adaptive_engine_adaptive_engine",
-      "confidence_score": 1.0
+      "target": "docs_adaptive_engine_adaptive_engine"
     },
     {
       "relation": "contains",
@@ -6398,9 +6693,9 @@
       "source_file": "docs/architecture.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_architecture",
-      "target": "docs_architecture_architecture",
-      "confidence_score": 1.0
+      "target": "docs_architecture_architecture"
     },
     {
       "relation": "contains",
@@ -6458,9 +6753,9 @@
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_boot_and_updates",
-      "target": "docs_boot_and_updates_boot_and_updates",
-      "confidence_score": 1.0
+      "target": "docs_boot_and_updates_boot_and_updates"
     },
     {
       "relation": "contains",
@@ -6518,9 +6813,9 @@
       "source_file": "docs/build-system.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_build_system",
-      "target": "docs_build_system_build_system_direction",
-      "confidence_score": 1.0
+      "target": "docs_build_system_build_system_direction"
     },
     {
       "relation": "contains",
@@ -6548,9 +6843,9 @@
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0001_systemd_cgroup_v2",
-      "target": "decisions_0001_systemd_cgroup_v2_adr_0001_use_systemd_with_unified_cgroup_v2",
-      "confidence_score": 1.0
+      "target": "decisions_0001_systemd_cgroup_v2_adr_0001_use_systemd_with_unified_cgroup_v2"
     },
     {
       "relation": "contains",
@@ -6598,9 +6893,9 @@
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0002_wayland_pipewire",
-      "target": "decisions_0002_wayland_pipewire_adr_0002_use_wayland_and_pipewire_by_default",
-      "confidence_score": 1.0
+      "target": "decisions_0002_wayland_pipewire_adr_0002_use_wayland_and_pipewire_by_default"
     },
     {
       "relation": "contains",
@@ -6648,9 +6943,9 @@
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0003_uki_rollback",
-      "target": "decisions_0003_uki_rollback_adr_0003_use_uki_first_boot_with_rollback",
-      "confidence_score": 1.0
+      "target": "decisions_0003_uki_rollback_adr_0003_use_uki_first_boot_with_rollback"
     },
     {
       "relation": "contains",
@@ -6698,9 +6993,9 @@
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0004_adaptive_optid",
-      "target": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner",
-      "confidence_score": 1.0
+      "target": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner"
     },
     {
       "relation": "contains",
@@ -6748,9 +7043,9 @@
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0005_avoid_obsolete_defaults",
-      "target": "decisions_0005_avoid_obsolete_defaults_adr_0005_avoid_obsolete_defaults",
-      "confidence_score": 1.0
+      "target": "decisions_0005_avoid_obsolete_defaults_adr_0005_avoid_obsolete_defaults"
     },
     {
       "relation": "contains",
@@ -6798,9 +7093,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks"
     },
     {
       "relation": "contains",
@@ -6808,9 +7103,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_consequences"
     },
     {
       "relation": "contains",
@@ -6818,9 +7113,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_context",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_context"
     },
     {
       "relation": "contains",
@@ -6828,9 +7123,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_decision",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_decision"
     },
     {
       "relation": "contains",
@@ -6838,9 +7133,9 @@
       "source_file": "docs/documentation-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_documentation_policy",
-      "target": "docs_documentation_policy_documentation_policy",
-      "confidence_score": 1.0
+      "target": "docs_documentation_policy_documentation_policy"
     },
     {
       "relation": "contains",
@@ -6898,9 +7193,9 @@
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_graphify_knowledge_graph",
-      "target": "docs_graphify_knowledge_graph_graphify_knowledge_graph",
-      "confidence_score": 1.0
+      "target": "docs_graphify_knowledge_graph_graphify_knowledge_graph"
     },
     {
       "relation": "contains",
@@ -7018,9 +7313,9 @@
       "source_file": "docs/hardware-support.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_hardware_support",
-      "target": "docs_hardware_support_hardware_support",
-      "confidence_score": 1.0
+      "target": "docs_hardware_support_hardware_support"
     },
     {
       "relation": "contains",
@@ -7088,9 +7383,9 @@
       "source_file": "docs/kernel-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_kernel_policy",
-      "target": "docs_kernel_policy_kernel_policy",
-      "confidence_score": 1.0
+      "target": "docs_kernel_policy_kernel_policy"
     },
     {
       "relation": "contains",
@@ -7148,9 +7443,9 @@
       "source_file": "docs/non-goals.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_non_goals",
-      "target": "docs_non_goals_non_goals",
-      "confidence_score": 1.0
+      "target": "docs_non_goals_non_goals"
     },
     {
       "relation": "contains",
@@ -7188,9 +7483,9 @@
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_packaging_and_builds",
-      "target": "docs_packaging_and_builds_packaging_and_builds",
-      "confidence_score": 1.0
+      "target": "docs_packaging_and_builds_packaging_and_builds"
     },
     {
       "relation": "contains",
@@ -7248,9 +7543,9 @@
       "source_file": "docs/release-checklist.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_checklist",
-      "target": "docs_release_checklist_release_checklist",
-      "confidence_score": 1.0
+      "target": "docs_release_checklist_release_checklist"
     },
     {
       "relation": "contains",
@@ -7318,9 +7613,9 @@
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_plan_v1",
-      "target": "docs_release_plan_v1_release_plan_to_v1_0_0",
-      "confidence_score": 1.0
+      "target": "docs_release_plan_v1_release_plan_to_v1_0_0"
     },
     {
       "relation": "contains",
@@ -7438,9 +7733,9 @@
       "source_file": "docs/release-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_policy",
-      "target": "docs_release_policy_release_policy",
-      "confidence_score": 1.0
+      "target": "docs_release_policy_release_policy"
     },
     {
       "relation": "contains",
@@ -7508,9 +7803,9 @@
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_testing_and_benchmarks",
-      "target": "docs_testing_and_benchmarks_testing_and_benchmarks",
-      "confidence_score": 1.0
+      "target": "docs_testing_and_benchmarks_testing_and_benchmarks"
     },
     {
       "relation": "contains",
@@ -7568,9 +7863,9 @@
       "source_file": "docs/validation.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_validation",
-      "target": "docs_validation_validation",
-      "confidence_score": 1.0
+      "target": "docs_validation_validation"
     },
     {
       "relation": "contains",
@@ -7588,9 +7883,9 @@
       "source_file": "docs/versioning.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_versioning",
-      "target": "docs_versioning_versioning",
-      "confidence_score": 1.0
+      "target": "docs_versioning_versioning"
     },
     {
       "relation": "contains",
@@ -8274,5 +8569,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "551d859d17d86d7dcef68f790adaf0142e6bd712"
+  "built_at_commit": "9dce2cc860aebb19e9c6af8194854e38abf09420"
 }

@@ -10,3 +10,6 @@ rust-version.workspace = true
 name = "optid"
 path = "src/main.rs"
 
+[dependencies]
+zbus = { version = "3.14.1", features = ["blocking"] }
+

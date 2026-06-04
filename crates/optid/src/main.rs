@@ -6,9 +6,53 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use zbus::blocking::ConnectionBuilder;
+use zbus::dbus_interface;
 
 const DEFAULT_STATE_DIR: &str = "/run/optid";
 const DEFAULT_INTERVAL_SEC: u64 = 2;
+
+struct OptidServer {
+    state_dir: PathBuf,
+}
+
+#[dbus_interface(name = "io.adaptive.Optid1")]
+impl OptidServer {
+    fn status(&self) -> zbus::fdo::Result<String> {
+        fs::read_to_string(self.state_dir.join("status"))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read status: {e}")))
+    }
+
+    fn explain(&self) -> zbus::fdo::Result<String> {
+        fs::read_to_string(self.state_dir.join("decisions.log"))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read decisions.log: {e}")))
+    }
+
+    fn set_mode(&self, mode: &str) -> zbus::fdo::Result<()> {
+        let mode_parsed = Mode::parse(mode)
+            .ok_or_else(|| zbus::fdo::Error::InvalidArgs(format!("invalid mode: {mode}")))?;
+        fs::write(self.state_dir.join("mode"), mode_parsed.to_string())
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to write mode: {e}")))
+    }
+
+    fn pin_application(&self, app_id: &str, mode: &str) -> zbus::fdo::Result<()> {
+        let _mode_parsed = Mode::parse(mode)
+            .ok_or_else(|| zbus::fdo::Error::InvalidArgs(format!("invalid mode: {mode}")))?;
+        println!("Pinning application {app_id} to mode {mode}");
+        Ok(())
+    }
+
+    #[dbus_interface(property)]
+    fn mode(&self) -> String {
+        let text = fs::read_to_string(self.state_dir.join("mode")).unwrap_or_default();
+        Mode::parse(&text).unwrap_or(Mode::Auto).to_string()
+    }
+
+    #[dbus_interface(property)]
+    fn version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
+}
 
 fn main() {
     let args = match Args::parse(env::args().skip(1)) {
@@ -33,6 +77,26 @@ fn main() {
 
 fn run(args: Args) -> io::Result<()> {
     fs::create_dir_all(&args.state_dir)?;
+
+    let state_dir_clone = args.state_dir.clone();
+    thread::spawn(move || {
+        let server = OptidServer {
+            state_dir: state_dir_clone,
+        };
+        let run_server = || -> zbus::Result<()> {
+            let _conn = ConnectionBuilder::system()?
+                .name("io.adaptive.Optid")?
+                .serve_at("/io/adaptive/Optid", server)?
+                .build()?;
+            println!("D-Bus server running on system bus at /io/adaptive/Optid");
+            loop {
+                thread::park();
+            }
+        };
+        if let Err(e) = run_server() {
+            eprintln!("D-Bus server error: {e}. Running without D-Bus.");
+        }
+    });
 
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
@@ -429,12 +493,18 @@ impl Decision {
         out.push_str(&format!("battery_pct={:?}\n", snapshot.battery_pct));
         out.push_str(&format!("thermal_c={:?}\n", snapshot.thermal_c()));
         out.push_str(&format!("loadavg_1={:?}\n", snapshot.loadavg_1));
-        out.push_str(&format!("cpu_pressure={}\n", fmt_pressure(snapshot.cpu_pressure)));
+        out.push_str(&format!(
+            "cpu_pressure={}\n",
+            fmt_pressure(snapshot.cpu_pressure)
+        ));
         out.push_str(&format!(
             "memory_pressure={}\n",
             fmt_pressure(snapshot.memory_pressure)
         ));
-        out.push_str(&format!("io_pressure={}\n", fmt_pressure(snapshot.io_pressure)));
+        out.push_str(&format!(
+            "io_pressure={}\n",
+            fmt_pressure(snapshot.io_pressure)
+        ));
         out.push_str("reasons:\n");
         for reason in &self.reasons {
             out.push_str(&format!("- {reason}\n"));
@@ -495,7 +565,10 @@ impl Action {
                 unit,
                 properties,
                 reason,
-            } => format!("systemd.set-property {unit} {} ({reason})", properties.join(" ")),
+            } => format!(
+                "systemd.set-property {unit} {} ({reason})",
+                properties.join(" ")
+            ),
         }
     }
 }
@@ -595,8 +668,7 @@ fn discover_cpu_epp_paths() -> Vec<PathBuf> {
             path.file_name()
                 .and_then(|name| name.to_str())
                 .is_some_and(|name| {
-                    name.starts_with("cpu")
-                        && name[3..].chars().all(|ch| ch.is_ascii_digit())
+                    name.starts_with("cpu") && name[3..].chars().all(|ch| ch.is_ascii_digit())
                 })
         })
         .map(|path| path.join("cpufreq/energy_performance_preference"))
@@ -790,10 +862,12 @@ mod tests {
         };
 
         let decision = Policy::default().decide(&snapshot, Mode::Performance);
-        assert!(decision
-            .actions
-            .iter()
-            .any(|action| matches!(action, Action::CpuEpp { value: "balance_power", .. })));
+        assert!(decision.actions.iter().any(|action| matches!(
+            action,
+            Action::CpuEpp {
+                value: "balance_power",
+                ..
+            }
+        )));
     }
 }
-

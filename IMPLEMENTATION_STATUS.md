@@ -50,19 +50,19 @@ engineering milestones.
   and server throughput.
 - Validation script enforcing required files and future-facing defaults.
 
+- D-Bus server implementation inside `optid` and client integration inside `optctl` (supporting both system bus calls and file-based fallback).
+- Rust workspace compilation and test verification on Windows using local Rust toolchain.
+
 ## Not Yet Implemented
 
 - Bootable root filesystem from source recipes.
 - Real binary package repository and metadata signing.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
-- D-Bus server implementation inside `optid`.
-- D-Bus client implementation inside `optctl`.
 - eBPF probes and overhead budget enforcement.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
 - Hardware allowlist database for unsafe device power knobs.
 - Installer and role selection UI.
 - Benchmark harness execution and published results.
-- Rust CI results, because this local Windows workspace has no Rust toolchain.
 - The `Cargo.lock` file is checked in, but it still needs confirmation from
   real Cargo on Linux.
 

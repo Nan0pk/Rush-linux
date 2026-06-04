@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-04)
 
 ## Corpus Check
-- 37 files · ~12,900 words
+- 37 files · ~13,325 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 378 nodes · 469 edges · 48 communities (42 shown, 6 thin omitted)
+- 386 nodes · 490 edges · 48 communities (42 shown, 6 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `551d859d`
+- Built from commit: `9dce2cc8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -67,12 +67,12 @@
 2. `Roadmap` - 12 edges
 3. `Release Plan To v1.0.0` - 12 edges
 4. `Roadmap` - 12 edges
-5. `Option` - 11 edges
-6. `run()` - 9 edges
-7. `Self` - 9 edges
-8. `Mode` - 9 edges
-9. `Snapshot` - 9 edges
-10. `AI Continuation` - 9 edges
+5. `Result` - 11 edges
+6. `Option` - 11 edges
+7. `run()` - 9 edges
+8. `String` - 9 edges
+9. `Self` - 9 edges
+10. `Mode` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
 - None detected - all connections are within the same source files.
@@ -88,8 +88,8 @@ Cohesion: 0.15
 Nodes (12): Phase 0: Repository Foundation, Roadmap, v0.1.0-alpha.1: Compile-Clean Core, v0.2.0-alpha.1: Real Control Plane, v0.3.0-alpha.1: Rootfs And Package Builder MVP, v0.4.0-alpha.1: UKI, Boot, Rollback, Updates, v0.5.0-beta.1: Minimal Installable System, v0.6.0-beta.1: Hardware-Aware optid (+4 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.10
-Nodes (40): Action, Args, Option, Path, Result, main(), print_usage(), run() (+32 more)
+Cohesion: 0.09
+Nodes (41): Action, Args, Option, Path, Result, main(), print_usage(), run() (+33 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.15
@@ -104,8 +104,8 @@ Cohesion: 0.15
 Nodes (11): Release Plan To v1.0.0, v0.1.0-alpha.1: Compile-Clean Core, v0.2.0-alpha.1: Real Control Plane, v0.3.0-alpha.1: Rootfs And Package Builder MVP, v0.4.0-alpha.1: UKI, Boot, Rollback, Updates, v0.5.0-beta.1: Minimal Installable System, v0.6.0-beta.1: Hardware-Aware optid, v0.7.0-beta.1: Desktop, Laptop, Realtime, Server Editions (+3 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.38
-Nodes (10): Option, Path, Result, main(), print_usage(), run(), String, Vec (+2 more)
+Cohesion: 0.33
+Nodes (11): Option, Path, Result, main(), print_usage(), run(), String, Vec (+3 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.20
@@ -244,14 +244,14 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ## Knowledge Gaps
-- **198 isolated node(s):** `Vec`, `String`, `Option`, `Args`, `I` (+193 more)
+- **199 isolated node(s):** `Optid`, `Vec`, `String`, `Option`, `Args` (+194 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What connects `Vec`, `String`, `Option` to the rest of the system?**
-  _198 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Optid`, `Vec`, `String` to the rest of the system?**
+  _199 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.10286382232612508 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09137529137529138 - nodes in this community are weakly interconnected._
