@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-04)
 
 ## Corpus Check
-- 38 files · ~15,740 words
+- 39 files · ~16,039 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 402 nodes · 529 edges · 48 communities (44 shown, 4 thin omitted)
+- 404 nodes · 530 edges · 49 communities (45 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `10ca650a`
+- Built from commit: `ad520cac`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -82,7 +82,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (48 total, 4 thin omitted)
+## Communities (49 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15

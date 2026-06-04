@@ -941,6 +941,24 @@
       "norm_label": "main()"
     },
     {
+      "label": "test-builder.py",
+      "file_type": "code",
+      "source_file": "tools/test-builder.py",
+      "source_location": "L1",
+      "id": "tools_test_builder",
+      "community": 48,
+      "norm_label": "test-builder.py"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/test-builder.py",
+      "source_location": "L7",
+      "id": "tools_test_builder_main",
+      "community": 48,
+      "norm_label": "main()"
+    },
+    {
       "label": "validate-repo.ps1",
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
@@ -1196,7 +1214,7 @@
       "label": "Not Yet Implemented",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L58",
+      "source_location": "L62",
       "id": "implementation_status_not_yet_implemented",
       "community": 40,
       "norm_label": "not yet implemented"
@@ -1205,7 +1223,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L71",
+      "source_location": "L73",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
       "norm_label": "known local constraints"
@@ -1214,7 +1232,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L77",
+      "source_location": "L79",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
       "norm_label": "acceptance rule"
@@ -6468,9 +6486,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_cmd_build",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_build"
     },
     {
       "relation": "contains",
@@ -6478,9 +6496,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L127",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_cmd_repo_init",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_repo_init"
     },
     {
       "relation": "contains",
@@ -6488,9 +6506,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L171",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_cmd_rootfs_create",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_rootfs_create"
     },
     {
       "relation": "contains",
@@ -6498,9 +6516,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L247",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_cmd_vm_image",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_vm_image"
     },
     {
       "relation": "contains",
@@ -6508,9 +6526,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L294",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_main",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_main"
     },
     {
       "relation": "calls",
@@ -6519,9 +6537,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L320",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
-      "target": "tools_rush_builder_cmd_build",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_build"
     },
     {
       "relation": "calls",
@@ -6530,9 +6548,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L322",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
-      "target": "tools_rush_builder_cmd_repo_init",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_repo_init"
     },
     {
       "relation": "calls",
@@ -6541,9 +6559,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L324",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
-      "target": "tools_rush_builder_cmd_rootfs_create",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_rootfs_create"
     },
     {
       "relation": "calls",
@@ -6552,8 +6570,18 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L326",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
-      "target": "tools_rush_builder_cmd_vm_image",
+      "target": "tools_rush_builder_cmd_vm_image"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-builder.py",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "tools_test_builder",
+      "target": "tools_test_builder_main",
       "confidence_score": 1.0
     },
     {
@@ -9128,5 +9156,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "10ca650a1bbcf10fc8074eb20e7f3bb765b2aff4"
+  "built_at_commit": "ad520cac764f25d4b863a1e1a9c66768b29e8e52"
 }
