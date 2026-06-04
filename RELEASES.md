@@ -1,18 +1,17 @@
 # Releases
 
-Current project version: `0.1.0-alpha.0`
+Current project version: `0.3.0-alpha.1`
 
-This version is a pre-release planning and scaffold state. It is not an
-installable Rush Linux release.
+This version implements the minimal rootfs builder and package repository system.
 
 ## Release Ledger
 
 | Version | Channel | Status | Purpose |
 | --- | --- | --- | --- |
-| `0.1.0-alpha.0` | `unstable` | current | Repository scaffold, release governance, docs, CI policy, optimizer MVP source. |
-| `0.1.0-alpha.1` | `alpha` | planned | Compile-clean Rust core and fixture tests. |
-| `0.2.0-alpha.1` | `alpha` | planned | D-Bus control plane and config parsing. |
-| `0.3.0-alpha.1` | `alpha` | planned | Minimal rootfs and package builder MVP. |
+| `0.1.0-alpha.0` | `unstable` | complete | Repository scaffold, release governance, docs, CI policy, optimizer MVP source. |
+| `0.1.0-alpha.1` | `alpha` | complete | Compile-clean Rust core and fixture tests. |
+| `0.2.0-alpha.1` | `alpha` | complete | D-Bus control plane and config parsing. |
+| `0.3.0-alpha.1` | `alpha` | current | Minimal rootfs and package builder MVP. |
 | `0.4.0-alpha.1` | `alpha` | planned | UKI boot, rollback, and local update flow. |
 | `0.5.0-beta.1` | `beta` | planned | First minimal installable server image. |
 | `0.6.0-beta.1` | `beta` | planned | Hardware-aware optimizer policy. |

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import subprocess
 import shutil
 from pathlib import Path
@@ -52,5 +53,4 @@ def main():
     print("\nAll integration tests for rush-builder passed successfully!")
 
 if __name__ == "__main__":
-    import os
     main()
