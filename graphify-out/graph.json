@@ -634,7 +634,7 @@
         "kind": "file"
       },
       "id": "tools_build_rootfs",
-      "community": 46,
+      "community": 35,
       "norm_label": "build-rootfs.sh"
     },
     {
@@ -646,8 +646,8 @@
         "language": "bash",
         "kind": "bash_entrypoint"
       },
-      "id": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry",
-      "community": 46,
+      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry",
+      "community": 35,
       "norm_label": "build-rootfs.sh script"
     },
     {
@@ -672,7 +672,7 @@
         "language": "bash",
         "kind": "bash_entrypoint"
       },
-      "id": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
       "community": 28,
       "norm_label": "graphify-refresh.sh script"
     },
@@ -2570,6 +2570,32 @@
       "norm_label": "tagging rules"
     },
     {
+      "label": "build-rootfs.sh script",
+      "file_type": "code",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 35,
+      "norm_label": "build-rootfs.sh script",
+      "id": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "label": "graphify-refresh.sh script",
+      "file_type": "code",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 28,
+      "norm_label": "graphify-refresh.sh script",
+      "id": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
       "label": "publish-github.ps1",
       "file_type": "code",
       "source_file": "tools/publish-github.ps1",
@@ -2592,19 +2618,6 @@
       "id": "tools_build_rootfs_sh"
     },
     {
-      "label": "build-rootfs.sh script",
-      "file_type": "code",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 35,
-      "norm_label": "build-rootfs.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
       "label": "validate-repo.ps1",
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
@@ -2625,19 +2638,6 @@
       "community": 28,
       "norm_label": "graphify-refresh.sh",
       "id": "tools_graphify_refresh_sh"
-    },
-    {
-      "label": "graphify-refresh.sh script",
-      "file_type": "code",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 28,
-      "norm_label": "graphify-refresh.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "label": "main.rs",
@@ -3466,9 +3466,9 @@
       "source_location": "L4",
       "weight": 1.0,
       "context": "import",
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_path",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_path"
     },
     {
       "relation": "contains",
@@ -3476,9 +3476,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_main",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_main"
     },
     {
       "relation": "contains",
@@ -3486,9 +3486,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L99",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_print_usage",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_print_usage"
     },
     {
       "relation": "contains",
@@ -3496,9 +3496,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "crates_optctl_src_main_rs_src_main_run",
-      "confidence_score": 1.0
+      "target": "crates_optctl_src_main_rs_src_main_run"
     },
     {
       "relation": "contains",
@@ -3506,9 +3506,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_mode_command",
-      "confidence_score": 1.0
+      "target": "src_main_mode_command"
     },
     {
       "relation": "contains",
@@ -3516,9 +3516,9 @@
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optctl_src_main_rs_src_main",
-      "target": "src_main_print_file_or_hint",
-      "confidence_score": 1.0
+      "target": "src_main_print_file_or_hint"
     },
     {
       "relation": "contains",
@@ -3731,9 +3731,9 @@
       "source_location": "L5",
       "weight": 1.0,
       "context": "import",
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_path",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_path"
     },
     {
       "relation": "contains",
@@ -3741,9 +3741,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_main",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_main"
     },
     {
       "relation": "contains",
@@ -3751,9 +3751,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L113",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_print_usage",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_print_usage"
     },
     {
       "relation": "contains",
@@ -3761,9 +3761,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L34",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "crates_optid_src_main_rs_src_main_run",
-      "confidence_score": 1.0
+      "target": "crates_optid_src_main_rs_src_main_run"
     },
     {
       "relation": "contains",
@@ -3771,9 +3771,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L757",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_ac_cpu_pressure_prefers_performance",
-      "confidence_score": 1.0
+      "target": "src_main_ac_cpu_pressure_prefers_performance"
     },
     {
       "relation": "contains",
@@ -3781,9 +3781,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L451",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_action",
-      "confidence_score": 1.0
+      "target": "src_main_action"
     },
     {
       "relation": "contains",
@@ -3791,9 +3791,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L503",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_actuator",
-      "confidence_score": 1.0
+      "target": "src_main_actuator"
     },
     {
       "relation": "contains",
@@ -3801,9 +3801,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L702",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_append_log",
-      "confidence_score": 1.0
+      "target": "src_main_append_log"
     },
     {
       "relation": "contains",
@@ -3811,9 +3811,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_args",
-      "confidence_score": 1.0
+      "target": "src_main_args"
     },
     {
       "relation": "contains",
@@ -3821,9 +3821,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L740",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_battery_auto_mode_prefers_battery",
-      "confidence_score": 1.0
+      "target": "src_main_battery_auto_mode_prefers_battery"
     },
     {
       "relation": "contains",
@@ -3831,9 +3831,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L777",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_critical_thermal_overrides_performance_bias",
-      "confidence_score": 1.0
+      "target": "src_main_critical_thermal_overrides_performance_bias"
     },
     {
       "relation": "contains",
@@ -3841,9 +3841,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L417",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_decision",
-      "confidence_score": 1.0
+      "target": "src_main_decision"
     },
     {
       "relation": "contains",
@@ -3851,9 +3851,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L585",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_discover_cpu_epp_paths",
-      "confidence_score": 1.0
+      "target": "src_main_discover_cpu_epp_paths"
     },
     {
       "relation": "contains",
@@ -3861,9 +3861,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L692",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_fmt_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_fmt_pressure"
     },
     {
       "relation": "contains",
@@ -3871,9 +3871,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L571",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_guarded_write",
-      "confidence_score": 1.0
+      "target": "src_main_guarded_write"
     },
     {
       "relation": "contains",
@@ -3881,9 +3881,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L122",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_mode",
-      "confidence_score": 1.0
+      "target": "src_main_mode"
     },
     {
       "relation": "contains",
@@ -3891,9 +3891,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L716",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_now_unix",
-      "confidence_score": 1.0
+      "target": "src_main_now_unix"
     },
     {
       "relation": "contains",
@@ -3901,9 +3901,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L672",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_parse_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_parse_pressure"
     },
     {
       "relation": "contains",
@@ -3911,9 +3911,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L728",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_parses_psi_some_line",
-      "confidence_score": 1.0
+      "target": "src_main_parses_psi_some_line"
     },
     {
       "relation": "contains",
@@ -3921,9 +3921,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L203",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_policy",
-      "confidence_score": 1.0
+      "target": "src_main_policy"
     },
     {
       "relation": "contains",
@@ -3931,9 +3931,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L157",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_pressure",
-      "confidence_score": 1.0
+      "target": "src_main_pressure"
     },
     {
       "relation": "contains",
@@ -3941,9 +3941,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L639",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_battery_pct",
-      "confidence_score": 1.0
+      "target": "src_main_read_battery_pct"
     },
     {
       "relation": "contains",
@@ -3951,9 +3951,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L667",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_loadavg_1",
-      "confidence_score": 1.0
+      "target": "src_main_read_loadavg_1"
     },
     {
       "relation": "contains",
@@ -3961,9 +3961,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L652",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_max_thermal_millic",
-      "confidence_score": 1.0
+      "target": "src_main_read_max_thermal_millic"
     },
     {
       "relation": "contains",
@@ -3971,9 +3971,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L607",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_mode_override",
-      "confidence_score": 1.0
+      "target": "src_main_read_mode_override"
     },
     {
       "relation": "contains",
@@ -3981,9 +3981,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L612",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_read_on_ac",
-      "confidence_score": 1.0
+      "target": "src_main_read_on_ac"
     },
     {
       "relation": "contains",
@@ -3991,9 +3991,9 @@
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L172",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "crates_optid_src_main_rs_src_main",
-      "target": "src_main_snapshot",
-      "confidence_score": 1.0
+      "target": "src_main_snapshot"
     },
     {
       "relation": "contains",
@@ -5595,9 +5595,39 @@
       "source_file": "tools/build-rootfs.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_build_rootfs",
-      "target": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry",
+      "target": "c_users_ttt_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_build_rootfs",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_build_rootfs_sh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_graphify_refresh",
+      "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "contains",
@@ -5606,7 +5636,7 @@
       "source_location": "L1",
       "weight": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -5615,9 +5645,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_find_graphify",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_find_graphify"
     },
     {
       "relation": "defines",
@@ -5625,9 +5655,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_pythonhashseed",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_pythonhashseed"
     },
     {
       "relation": "defines",
@@ -5635,9 +5665,9 @@
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
-      "target": "tools_graphify_refresh_run_graphify",
-      "confidence_score": 1.0
+      "target": "tools_graphify_refresh_run_graphify"
     },
     {
       "relation": "calls",
@@ -5646,9 +5676,19 @@
       "source_location": "L50",
       "weight": 1.0,
       "context": "call",
-      "source": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
-      "target": "tools_graphify_refresh_run_graphify",
-      "confidence_score": 1.0
+      "confidence_score": 1.0,
+      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
+      "target": "tools_graphify_refresh_run_graphify"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_graphify_refresh_sh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "defines",
@@ -5678,7 +5718,7 @@
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
-      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
+      "source": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry",
       "target": "tools_graphify_refresh_run_graphify"
     },
     {
@@ -5708,9 +5748,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_contains",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_contains"
     },
     {
       "relation": "contains",
@@ -5718,9 +5758,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_file"
     },
     {
       "relation": "contains",
@@ -5728,9 +5768,9 @@
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_repo",
-      "target": "tools_validate_repo_assert_notcontains",
-      "confidence_score": 1.0
+      "target": "tools_validate_repo_assert_notcontains"
     },
     {
       "relation": "contains",
@@ -5768,9 +5808,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents",
-      "target": "agents_agent_instructions",
-      "confidence_score": 1.0
+      "target": "agents_agent_instructions"
     },
     {
       "relation": "contains",
@@ -5778,9 +5818,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agent_instructions",
-      "target": "agents_graphify",
-      "confidence_score": 1.0
+      "target": "agents_graphify"
     },
     {
       "relation": "contains",
@@ -5788,9 +5828,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation",
-      "target": "ai_continuation_ai_continuation",
-      "confidence_score": 1.0
+      "target": "ai_continuation_ai_continuation"
     },
     {
       "relation": "contains",
@@ -5798,9 +5838,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L128",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_commands_and_checks",
-      "confidence_score": 1.0
+      "target": "ai_continuation_commands_and_checks"
     },
     {
       "relation": "contains",
@@ -5808,9 +5848,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_current_status",
-      "confidence_score": 1.0
+      "target": "ai_continuation_current_status"
     },
     {
       "relation": "contains",
@@ -5818,9 +5858,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_forbidden_shortcuts",
-      "confidence_score": 1.0
+      "target": "ai_continuation_forbidden_shortcuts"
     },
     {
       "relation": "contains",
@@ -5828,9 +5868,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_graphify_continuation_workflow",
-      "confidence_score": 1.0
+      "target": "ai_continuation_graphify_continuation_workflow"
     },
     {
       "relation": "contains",
@@ -5838,9 +5878,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_mission",
-      "confidence_score": 1.0
+      "target": "ai_continuation_mission"
     },
     {
       "relation": "contains",
@@ -5848,9 +5888,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L152",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_next_task",
-      "confidence_score": 1.0
+      "target": "ai_continuation_next_task"
     },
     {
       "relation": "contains",
@@ -5858,9 +5898,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L80",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_repo_layout",
-      "confidence_score": 1.0
+      "target": "ai_continuation_repo_layout"
     },
     {
       "relation": "contains",
@@ -5868,9 +5908,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_safe_assumptions",
-      "confidence_score": 1.0
+      "target": "ai_continuation_safe_assumptions"
     },
     {
       "relation": "contains",
@@ -5878,9 +5918,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing",
-      "target": "contributing_contributing",
-      "confidence_score": 1.0
+      "target": "contributing_contributing"
     },
     {
       "relation": "contains",
@@ -5888,9 +5928,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_before_you_change_code",
-      "confidence_score": 1.0
+      "target": "contributing_before_you_change_code"
     },
     {
       "relation": "contains",
@@ -5898,9 +5938,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_commit_quality",
-      "confidence_score": 1.0
+      "target": "contributing_commit_quality"
     },
     {
       "relation": "contains",
@@ -5908,9 +5948,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_defaults_policy",
-      "confidence_score": 1.0
+      "target": "contributing_defaults_policy"
     },
     {
       "relation": "contains",
@@ -5918,9 +5958,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_documentation_is_required",
-      "confidence_score": 1.0
+      "target": "contributing_documentation_is_required"
     },
     {
       "relation": "contains",
@@ -5928,9 +5968,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing",
-      "target": "contributing_required_checks",
-      "confidence_score": 1.0
+      "target": "contributing_required_checks"
     },
     {
       "relation": "contains",
@@ -5938,9 +5978,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status",
-      "target": "implementation_status_implementation_status",
-      "confidence_score": 1.0
+      "target": "implementation_status_implementation_status"
     },
     {
       "relation": "contains",
@@ -5948,9 +5988,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_acceptance_rule",
-      "confidence_score": 1.0
+      "target": "implementation_status_acceptance_rule"
     },
     {
       "relation": "contains",
@@ -5958,9 +5998,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L12",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_implemented",
-      "confidence_score": 1.0
+      "target": "implementation_status_implemented"
     },
     {
       "relation": "contains",
@@ -5968,9 +6008,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L69",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_known_local_constraints",
-      "confidence_score": 1.0
+      "target": "implementation_status_known_local_constraints"
     },
     {
       "relation": "contains",
@@ -5978,9 +6018,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_not_yet_implemented",
-      "confidence_score": 1.0
+      "target": "implementation_status_not_yet_implemented"
     },
     {
       "relation": "contains",
@@ -5988,9 +6028,9 @@
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "implementation_status_implementation_status",
-      "target": "implementation_status_overall_state",
-      "confidence_score": 1.0
+      "target": "implementation_status_overall_state"
     },
     {
       "relation": "contains",
@@ -5998,9 +6038,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief",
-      "target": "project_brief_project_brief",
-      "confidence_score": 1.0
+      "target": "project_brief_project_brief"
     },
     {
       "relation": "contains",
@@ -6008,9 +6048,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_current_product_shape",
-      "confidence_score": 1.0
+      "target": "project_brief_current_product_shape"
     },
     {
       "relation": "contains",
@@ -6018,9 +6058,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_engineering_principles",
-      "confidence_score": 1.0
+      "target": "project_brief_engineering_principles"
     },
     {
       "relation": "contains",
@@ -6028,9 +6068,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_mission",
-      "confidence_score": 1.0
+      "target": "project_brief_mission"
     },
     {
       "relation": "contains",
@@ -6038,9 +6078,9 @@
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "project_brief_project_brief",
-      "target": "project_brief_success_criteria",
-      "confidence_score": 1.0
+      "target": "project_brief_success_criteria"
     },
     {
       "relation": "contains",
@@ -6048,9 +6088,9 @@
       "source_file": "README.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme",
-      "target": "readme_rush_linux",
-      "confidence_score": 1.0
+      "target": "readme_rush_linux"
     },
     {
       "relation": "contains",
@@ -6058,9 +6098,9 @@
       "source_file": "README.md",
       "source_location": "L114",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_build",
-      "confidence_score": 1.0
+      "target": "readme_build"
     },
     {
       "relation": "contains",
@@ -6068,9 +6108,9 @@
       "source_file": "README.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_current_implementation_status",
-      "confidence_score": 1.0
+      "target": "readme_current_implementation_status"
     },
     {
       "relation": "contains",
@@ -6078,9 +6118,9 @@
       "source_file": "README.md",
       "source_location": "L156",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_design_rules",
-      "confidence_score": 1.0
+      "target": "readme_design_rules"
     },
     {
       "relation": "contains",
@@ -6088,9 +6128,9 @@
       "source_file": "README.md",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_first_class_documentation",
-      "confidence_score": 1.0
+      "target": "readme_first_class_documentation"
     },
     {
       "relation": "contains",
@@ -6098,9 +6138,9 @@
       "source_file": "README.md",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_github_ci",
-      "confidence_score": 1.0
+      "target": "readme_github_ci"
     },
     {
       "relation": "contains",
@@ -6108,9 +6148,9 @@
       "source_file": "README.md",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_knowledge_graph_for_continuation",
-      "confidence_score": 1.0
+      "target": "readme_knowledge_graph_for_continuation"
     },
     {
       "relation": "contains",
@@ -6118,9 +6158,9 @@
       "source_file": "README.md",
       "source_location": "L140",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_publishing",
-      "confidence_score": 1.0
+      "target": "readme_publishing"
     },
     {
       "relation": "contains",
@@ -6128,9 +6168,9 @@
       "source_file": "README.md",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_repository_layout",
-      "confidence_score": 1.0
+      "target": "readme_repository_layout"
     },
     {
       "relation": "contains",
@@ -6138,9 +6178,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases",
-      "target": "releases_releases",
-      "confidence_score": 1.0
+      "target": "releases_releases"
     },
     {
       "relation": "contains",
@@ -6148,9 +6188,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases_releases",
-      "target": "releases_release_ledger",
-      "confidence_score": 1.0
+      "target": "releases_release_ledger"
     },
     {
       "relation": "contains",
@@ -6158,9 +6198,9 @@
       "source_file": "RELEASES.md",
       "source_location": "L24",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "releases_releases",
-      "target": "releases_release_rule",
-      "confidence_score": 1.0
+      "target": "releases_release_rule"
     },
     {
       "relation": "contains",
@@ -6168,9 +6208,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap",
-      "target": "roadmap_roadmap",
-      "confidence_score": 1.0
+      "target": "roadmap_roadmap"
     },
     {
       "relation": "contains",
@@ -6178,9 +6218,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_phase_0_repository_foundation",
-      "confidence_score": 1.0
+      "target": "roadmap_phase_0_repository_foundation"
     },
     {
       "relation": "contains",
@@ -6188,9 +6228,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_1_0_alpha_1_compile_clean_core",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_1_0_alpha_1_compile_clean_core"
     },
     {
       "relation": "contains",
@@ -6198,9 +6238,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_2_0_alpha_1_real_control_plane",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_2_0_alpha_1_real_control_plane"
     },
     {
       "relation": "contains",
@@ -6208,9 +6248,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_3_0_alpha_1_rootfs_and_package_builder_mvp",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_3_0_alpha_1_rootfs_and_package_builder_mvp"
     },
     {
       "relation": "contains",
@@ -6218,9 +6258,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_4_0_alpha_1_uki_boot_rollback_updates",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_4_0_alpha_1_uki_boot_rollback_updates"
     },
     {
       "relation": "contains",
@@ -6228,9 +6268,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_5_0_beta_1_minimal_installable_system",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_5_0_beta_1_minimal_installable_system"
     },
     {
       "relation": "contains",
@@ -6238,9 +6278,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_6_0_beta_1_hardware_aware_optid",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_6_0_beta_1_hardware_aware_optid"
     },
     {
       "relation": "contains",
@@ -6248,9 +6288,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L124",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_7_0_beta_1_editions",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_7_0_beta_1_editions"
     },
     {
       "relation": "contains",
@@ -6258,9 +6298,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L141",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_8_0_beta_1_benchmark_lab",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_8_0_beta_1_benchmark_lab"
     },
     {
       "relation": "contains",
@@ -6268,9 +6308,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L158",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v0_9_0_rc_1_release_candidate_hardening",
-      "confidence_score": 1.0
+      "target": "roadmap_v0_9_0_rc_1_release_candidate_hardening"
     },
     {
       "relation": "contains",
@@ -6278,9 +6318,9 @@
       "source_file": "ROADMAP.md",
       "source_location": "L175",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "roadmap_roadmap",
-      "target": "roadmap_v1_0_0_stable",
-      "confidence_score": 1.0
+      "target": "roadmap_v1_0_0_stable"
     },
     {
       "relation": "contains",
@@ -6288,9 +6328,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security",
-      "target": "security_security_policy",
-      "confidence_score": 1.0
+      "target": "security_security_policy"
     },
     {
       "relation": "contains",
@@ -6298,9 +6338,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_reporting",
-      "confidence_score": 1.0
+      "target": "security_reporting"
     },
     {
       "relation": "contains",
@@ -6308,9 +6348,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L29",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_security_requirements",
-      "confidence_score": 1.0
+      "target": "security_security_requirements"
     },
     {
       "relation": "contains",
@@ -6318,9 +6358,9 @@
       "source_file": "SECURITY.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "security_security_policy",
-      "target": "security_supported_versions",
-      "confidence_score": 1.0
+      "target": "security_supported_versions"
     },
     {
       "relation": "contains",
@@ -6328,9 +6368,9 @@
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_adaptive_engine",
-      "target": "docs_adaptive_engine_adaptive_engine",
-      "confidence_score": 1.0
+      "target": "docs_adaptive_engine_adaptive_engine"
     },
     {
       "relation": "contains",
@@ -6398,9 +6438,9 @@
       "source_file": "docs/architecture.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_architecture",
-      "target": "docs_architecture_architecture",
-      "confidence_score": 1.0
+      "target": "docs_architecture_architecture"
     },
     {
       "relation": "contains",
@@ -6458,9 +6498,9 @@
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_boot_and_updates",
-      "target": "docs_boot_and_updates_boot_and_updates",
-      "confidence_score": 1.0
+      "target": "docs_boot_and_updates_boot_and_updates"
     },
     {
       "relation": "contains",
@@ -6518,9 +6558,9 @@
       "source_file": "docs/build-system.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_build_system",
-      "target": "docs_build_system_build_system_direction",
-      "confidence_score": 1.0
+      "target": "docs_build_system_build_system_direction"
     },
     {
       "relation": "contains",
@@ -6548,9 +6588,9 @@
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0001_systemd_cgroup_v2",
-      "target": "decisions_0001_systemd_cgroup_v2_adr_0001_use_systemd_with_unified_cgroup_v2",
-      "confidence_score": 1.0
+      "target": "decisions_0001_systemd_cgroup_v2_adr_0001_use_systemd_with_unified_cgroup_v2"
     },
     {
       "relation": "contains",
@@ -6598,9 +6638,9 @@
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0002_wayland_pipewire",
-      "target": "decisions_0002_wayland_pipewire_adr_0002_use_wayland_and_pipewire_by_default",
-      "confidence_score": 1.0
+      "target": "decisions_0002_wayland_pipewire_adr_0002_use_wayland_and_pipewire_by_default"
     },
     {
       "relation": "contains",
@@ -6648,9 +6688,9 @@
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0003_uki_rollback",
-      "target": "decisions_0003_uki_rollback_adr_0003_use_uki_first_boot_with_rollback",
-      "confidence_score": 1.0
+      "target": "decisions_0003_uki_rollback_adr_0003_use_uki_first_boot_with_rollback"
     },
     {
       "relation": "contains",
@@ -6698,9 +6738,9 @@
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0004_adaptive_optid",
-      "target": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner",
-      "confidence_score": 1.0
+      "target": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner"
     },
     {
       "relation": "contains",
@@ -6748,9 +6788,9 @@
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0005_avoid_obsolete_defaults",
-      "target": "decisions_0005_avoid_obsolete_defaults_adr_0005_avoid_obsolete_defaults",
-      "confidence_score": 1.0
+      "target": "decisions_0005_avoid_obsolete_defaults_adr_0005_avoid_obsolete_defaults"
     },
     {
       "relation": "contains",
@@ -6798,9 +6838,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks"
     },
     {
       "relation": "contains",
@@ -6808,9 +6848,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_consequences"
     },
     {
       "relation": "contains",
@@ -6818,9 +6858,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_context",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_context"
     },
     {
       "relation": "contains",
@@ -6828,9 +6868,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_decision",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_decision"
     },
     {
       "relation": "contains",
@@ -6838,9 +6878,9 @@
       "source_file": "docs/documentation-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_documentation_policy",
-      "target": "docs_documentation_policy_documentation_policy",
-      "confidence_score": 1.0
+      "target": "docs_documentation_policy_documentation_policy"
     },
     {
       "relation": "contains",
@@ -6898,9 +6938,9 @@
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_graphify_knowledge_graph",
-      "target": "docs_graphify_knowledge_graph_graphify_knowledge_graph",
-      "confidence_score": 1.0
+      "target": "docs_graphify_knowledge_graph_graphify_knowledge_graph"
     },
     {
       "relation": "contains",
@@ -7018,9 +7058,9 @@
       "source_file": "docs/hardware-support.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_hardware_support",
-      "target": "docs_hardware_support_hardware_support",
-      "confidence_score": 1.0
+      "target": "docs_hardware_support_hardware_support"
     },
     {
       "relation": "contains",
@@ -7088,9 +7128,9 @@
       "source_file": "docs/kernel-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_kernel_policy",
-      "target": "docs_kernel_policy_kernel_policy",
-      "confidence_score": 1.0
+      "target": "docs_kernel_policy_kernel_policy"
     },
     {
       "relation": "contains",
@@ -7148,9 +7188,9 @@
       "source_file": "docs/non-goals.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_non_goals",
-      "target": "docs_non_goals_non_goals",
-      "confidence_score": 1.0
+      "target": "docs_non_goals_non_goals"
     },
     {
       "relation": "contains",
@@ -7188,9 +7228,9 @@
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_packaging_and_builds",
-      "target": "docs_packaging_and_builds_packaging_and_builds",
-      "confidence_score": 1.0
+      "target": "docs_packaging_and_builds_packaging_and_builds"
     },
     {
       "relation": "contains",
@@ -7248,9 +7288,9 @@
       "source_file": "docs/release-checklist.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_checklist",
-      "target": "docs_release_checklist_release_checklist",
-      "confidence_score": 1.0
+      "target": "docs_release_checklist_release_checklist"
     },
     {
       "relation": "contains",
@@ -7318,9 +7358,9 @@
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_plan_v1",
-      "target": "docs_release_plan_v1_release_plan_to_v1_0_0",
-      "confidence_score": 1.0
+      "target": "docs_release_plan_v1_release_plan_to_v1_0_0"
     },
     {
       "relation": "contains",
@@ -7438,9 +7478,9 @@
       "source_file": "docs/release-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_release_policy",
-      "target": "docs_release_policy_release_policy",
-      "confidence_score": 1.0
+      "target": "docs_release_policy_release_policy"
     },
     {
       "relation": "contains",
@@ -7508,9 +7548,9 @@
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_testing_and_benchmarks",
-      "target": "docs_testing_and_benchmarks_testing_and_benchmarks",
-      "confidence_score": 1.0
+      "target": "docs_testing_and_benchmarks_testing_and_benchmarks"
     },
     {
       "relation": "contains",
@@ -7568,9 +7608,9 @@
       "source_file": "docs/validation.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_validation",
-      "target": "docs_validation_validation",
-      "confidence_score": 1.0
+      "target": "docs_validation_validation"
     },
     {
       "relation": "contains",
@@ -7588,9 +7628,9 @@
       "source_file": "docs/versioning.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_versioning",
-      "target": "docs_versioning_versioning",
-      "confidence_score": 1.0
+      "target": "docs_versioning_versioning"
     },
     {
       "relation": "contains",
@@ -7680,27 +7720,7 @@
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_build_rootfs_sh",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_build_rootfs_sh",
       "target": "home_user_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_graphify_refresh_sh",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "contains",
@@ -8274,5 +8294,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "551d859d17d86d7dcef68f790adaf0142e6bd712"
+  "built_at_commit": "9dce2cc860aebb19e9c6af8194854e38abf09420"
 }

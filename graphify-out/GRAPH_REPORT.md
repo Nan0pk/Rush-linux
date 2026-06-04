@@ -5,12 +5,12 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 378 nodes · 469 edges · 48 communities (42 shown, 6 thin omitted)
+- 378 nodes · 471 edges · 47 communities (43 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `551d859d`
+- Built from commit: `9dce2cc8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -60,7 +60,6 @@
 - [[_COMMUNITY_Community 43|Community 43]]
 - [[_COMMUNITY_Community 44|Community 44]]
 - [[_COMMUNITY_Community 45|Community 45]]
-- [[_COMMUNITY_Community 46|Community 46]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 13 edges
@@ -81,7 +80,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (48 total, 6 thin omitted)
+## Communities (47 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -196,7 +195,7 @@ Cohesion: 0.40
 Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 
 ### Community 28 - "Community 28"
-Cohesion: 0.43
+Cohesion: 0.46
 Nodes (6): graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, find_graphify(), PYTHONHASHSEED, run_graphify()
 
 ### Community 29 - "Community 29"
@@ -210,6 +209,10 @@ Nodes (3): Release Ledger, Release Rule, Releases
 ### Community 31 - "Community 31"
 Cohesion: 0.60
 Nodes (3): Assert-Contains(), Assert-File(), Assert-NotContains()
+
+### Community 35 - "Community 35"
+Cohesion: 0.40
+Nodes (3): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
 
 ### Community 37 - "Community 37"
 Cohesion: 0.20
@@ -244,14 +247,14 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ## Knowledge Gaps
-- **198 isolated node(s):** `Vec`, `String`, `Option`, `Args`, `I` (+193 more)
+- **197 isolated node(s):** `Vec`, `String`, `Option`, `Args`, `I` (+192 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **What connects `Vec`, `String`, `Option` to the rest of the system?**
-  _198 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _197 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.10286382232612508 - nodes in this community are weakly interconnected._
