@@ -44,26 +44,24 @@ Implemented:
   `.agents/skills/graphify/`, `.codex/hooks.json`,
   `docs/graphify-knowledge-graph.md`, and `tools/graphify-refresh.sh`.
 - Rust workspace with `crates/optid` and `crates/optctl`.
+- `optid` D-Bus server/client integration implemented, supporting both system bus calls and file-based fallback.
 - `optid` MVP reads PSI, AC/battery, thermal, and load signals.
 - `optid` emits explainable decisions and applies guarded actions only with
   `--apply`.
-- `optid.service` is intentionally dry-run by default; use
-  `optid-apply.service` only for explicit mutating tests.
-- `optctl` supports status, explain, mode, trace, and benchmark placeholders
-  through the state directory.
-- systemd service, D-Bus contract, nftables baseline, kernel fragments, UKI and
-  sysupdate descriptors, edition profiles, source recipe skeletons, CI, and
-  validation script.
+- `optctl` supports status, explain, mode, trace, benchmark, and has `--json` output option for telemetry.
+- Package builder (`tools/rush-builder.py`) implemented, supporting TOML recipe builds, dependency resolution, local metadata DB initialization with signatures, and partition image formatting using `systemd-repart`.
+- Pre-compiled base assets downloaded and unpacked locally into `build/tmp_downloads/` for offline/no-root compilation of VM image:
+  - Debian `systemd-boot-efi` package (`systemd-boot-efi_252.39-1~deb12u2_amd64.deb`) -> extracts `linuxx64.efi.stub` and `systemd-bootx64.efi`.
+  - Debian kernel package (`linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb`) -> extracts `vmlinuz-6.1.0-49-amd64` and kernel modules.
+  - Debian static rescue shell (`busybox-static_1.35.0-4+deb12u1+b1_amd64.deb`) -> extracts static busybox.
+  - Ubuntu Base rootfs tarball (`ubuntu-base-24.04.4-base-amd64.tar.gz`) cached in `build/tmp_downloads/`.
 
 Not implemented yet:
 
-- Real D-Bus server/client integration.
-- Rust compilation verification in this Windows workspace.
-- Rootfs/package builder.
-- Bootable ISO or installer.
-- Hardware benchmark harness.
+- Bootable VM disk image (`disk.raw`) with actual UEFI UKI boot flow.
+- Minimal ISO installer.
+- Hardware benchmark harness execution.
 - eBPF probes.
-- Signed packages, repo metadata, and real update server.
 
 ## Safe Assumptions
 
@@ -151,14 +149,20 @@ https://github.com/Nan0pk/Rush-linux
 
 ## Next Task
 
-Current project version is `0.1.0-alpha.0`. The next milestone is
-`0.1.0-alpha.1`, Compile-Clean Core.
+Current project version is `0.3.0-alpha.1`. The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates), but we must first resolve the boot validation gap from `v0.3.0`.
 
-First, install or provide a Rust toolchain and make CI pass:
+To resume work on another machine:
 
-1. Run `cargo fmt`, `cargo test`, and `cargo clippy`.
-2. Fix any Rust compile or lint errors without weakening policy.
-3. Replace the file-based `optctl` control path with the D-Bus API defined in
-   `packaging/dbus/io.adaptive.Optid.xml`.
-4. Keep `IMPLEMENTATION_STATUS.md`, `ROADMAP.md`, and the relevant docs updated
-   in the same commit.
+1. **Extract Base Rootfs**:
+   Extract `build/tmp_downloads/ubuntu-base-24.04.4-base-amd64.tar.gz` into `build/rootfs` inside WSL.
+2. **Build and Stage `optid`**:
+   Run `python3 tools/rush-builder.py build recipes/core/optid.toml` and populate the `build/rootfs` using `rootfs-create`.
+3. **Assemble Initrd & UKI**:
+   - Construct a minimal `initrd.img` using the static `busybox` binary found in `build/tmp_downloads/busybox-static/bin/busybox` and a simple `/init` mounting script.
+   - Run `objcopy` or systemd `ukify` to combine `linuxx64.efi.stub`, kernel `vmlinuz-6.1.0-49-amd64`, kernel cmdline, and the built `initrd.img` into a single Unified Kernel Image (UKI) binary (e.g. `build/rootfs/boot/EFI/Linux/rush-linux.efi`).
+4. **Generate GPT VM Image**:
+   - Write a definition for `systemd-repart` to create a dual-partition disk layout (EFI ESP FAT32 partition containing the UKI, and ext4 partition containing rootfs).
+   - Generate `build/disk.raw` using `systemd-repart`.
+5. **Boot in QEMU**:
+   - Validate boot to login prompt with `optid` running:
+     `qemu-system-x86_64 -drive file=build/disk.raw,format=raw -m 1G`
