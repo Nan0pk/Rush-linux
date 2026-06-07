@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-07)
 
 ## Corpus Check
-- 40 files · ~17,125 words
+- 52 files · ~22,212 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 413 nodes · 544 edges · 51 communities (46 shown, 5 thin omitted)
+- 480 nodes · 600 edges · 62 communities (58 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7d6df0ec`
+- Built from commit: `9698596c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -63,6 +63,17 @@
 - [[_COMMUNITY_Community 46|Community 46]]
 - [[_COMMUNITY_Community 49|Community 49]]
 - [[_COMMUNITY_Community 50|Community 50]]
+- [[_COMMUNITY_Community 51|Community 51]]
+- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
+- [[_COMMUNITY_Community 55|Community 55]]
+- [[_COMMUNITY_Community 56|Community 56]]
+- [[_COMMUNITY_Community 57|Community 57]]
+- [[_COMMUNITY_Community 58|Community 58]]
+- [[_COMMUNITY_Community 59|Community 59]]
+- [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Community 61|Community 61]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -84,15 +95,15 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (51 total, 5 thin omitted)
+## Communities (62 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
 Nodes (12): Phase 0: Repository Foundation, Roadmap, v0.1.0-alpha.1: Compile-Clean Core, v0.2.0-alpha.1: Real Control Plane, v0.3.0-alpha.1: Rootfs And Package Builder MVP, v0.4.0-alpha.1: UKI, Boot, Rollback, Updates, v0.5.0-beta.1: Minimal Installable System, v0.6.0-beta.1: Hardware-Aware optid (+4 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.09
-Nodes (45): Action, Args, Option, Path, Result, main(), print_usage(), run() (+37 more)
+Cohesion: 0.08
+Nodes (47): Action, Args, Option, Path, Result, main(), print_usage(), run() (+39 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.15
@@ -163,8 +174,8 @@ Cohesion: 0.29
 Nodes (5): Acceptance Criteria, Default Kernel, Experimental Scheduler Work, Kernel Policy, Realtime Kernel
 
 ### Community 19 - "Community 19"
-Cohesion: 0.29
-Nodes (5): Build Acceptance Criteria, Current State, Model, Package Backend Direction, Packaging And Builds
+Cohesion: 0.25
+Nodes (6): Build Acceptance Criteria, Current State, Model, Package Backend Direction, Packaging And Builds, Recipe Schema Versioning
 
 ### Community 20 - "Community 20"
 Cohesion: 0.29
@@ -187,8 +198,8 @@ Cohesion: 0.33
 Nodes (4): ADR 0003: Use UKI-First Boot With Rollback, Consequences, Context, Decision
 
 ### Community 25 - "Community 25"
-Cohesion: 0.33
-Nodes (4): ADR 0004: Make optid The Adaptive Policy Owner, Consequences, Context, Decision
+Cohesion: 0.29
+Nodes (5): ADR 0004: Make optid The Adaptive Policy Owner, Boundary clarification (2026-06), Consequences, Context, Decision
 
 ### Community 26 - "Community 26"
 Cohesion: 0.33
@@ -199,8 +210,8 @@ Cohesion: 0.40
 Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 
 ### Community 28 - "Community 28"
-Cohesion: 0.42
-Nodes (7): graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, find_graphify(), PYTHONHASHSEED, run_graphify()
+Cohesion: 0.46
+Nodes (6): graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, find_graphify(), PYTHONHASHSEED, run_graphify()
 
 ### Community 29 - "Community 29"
 Cohesion: 0.40
@@ -215,8 +226,8 @@ Cohesion: 0.60
 Nodes (3): Assert-Contains(), Assert-File(), Assert-NotContains()
 
 ### Community 35 - "Community 35"
-Cohesion: 0.33
-Nodes (4): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
+Cohesion: 0.40
+Nodes (3): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
 
 ### Community 37 - "Community 37"
 Cohesion: 0.20
@@ -239,8 +250,8 @@ Cohesion: 0.33
 Nodes (5): Current Product Shape, Engineering Principles, Mission, Project Brief, Success Criteria
 
 ### Community 42 - "Community 42"
-Cohesion: 0.40
-Nodes (4): ADR 0006: Integrate Latency-Focused Performance Tweaks, Consequences, Context, Decision
+Cohesion: 0.33
+Nodes (5): ADR 0006: Integrate Latency-Focused Performance Tweaks, Amendment 2026-06: Resolve ADR 0004 conflict, Consequences, Context, Decision
 
 ### Community 43 - "Community 43"
 Cohesion: 0.40
@@ -251,26 +262,74 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ### Community 46 - "Community 46"
-Cohesion: 0.42
-Nodes (8): cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb(), main(), write_cpio_newc()
+Cohesion: 0.35
+Nodes (10): check_schema_version(), cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb(), main() (+2 more)
 
 ### Community 49 - "Community 49"
 Cohesion: 0.83
 Nodes (3): download_with_progress(), get_sha256(), main()
 
+### Community 50 - "Community 50"
+Cohesion: 0.29
+Nodes (6): ADR 0009: optid Security Boundary And Threat Model, Consequences, Context, Decision (proposed), Follow-ups, Threat model
+
+### Community 51 - "Community 51"
+Cohesion: 0.29
+Nodes (6): Adding a new ADR, Architecture Decision Records, Current proposed ADRs awaiting ratification, Lifecycle and states, Ratifying a proposed ADR, Who ratifies
+
+### Community 52 - "Community 52"
+Cohesion: 0.33
+Nodes (5): ADR 0008: Software Delivery And Packaging Strategy, Alternatives considered, Consequences, Context, Decision (proposed)
+
+### Community 53 - "Community 53"
+Cohesion: 0.33
+Nodes (5): C1 — Contributor model, governance, community, C2 — Canonical development environment is Linux, C8 — Hardware test lab (required for beta, T3), Cross-reference, Project Sustainability
+
+### Community 54 - "Community 54"
+Cohesion: 0.40
+Nodes (4): AD-0001: Expert-review remediation, batch 1, Changes, Decisions, Follow-ups
+
+### Community 55 - "Community 55"
+Cohesion: 0.40
+Nodes (4): ADR 0007: Project And D-Bus Naming, Consequences, Context, Decision
+
+### Community 56 - "Community 56"
+Cohesion: 0.40
+Nodes (4): ADR 0010: Realtime Edition Kernel Policy, Consequences, Context, Decision (proposed)
+
+### Community 57 - "Community 57"
+Cohesion: 0.40
+Nodes (4): ADR 0011: Benchmark Methodology And Baselines, Consequences, Context, Decision (proposed)
+
+### Community 58 - "Community 58"
+Cohesion: 0.40
+Nodes (4): ADR 0012: Reproducible Build Discipline, Consequences, Context, Decision (proposed)
+
+### Community 59 - "Community 59"
+Cohesion: 0.40
+Nodes (4): ADR 0013: Workload Detection And The ML Boundary, Consequences, Context, Decision (proposed)
+
+### Community 60 - "Community 60"
+Cohesion: 0.50
+Nodes (3): Agent Decision Log, Format, When to add an entry
+
+### Community 61 - "Community 61"
+Cohesion: 0.50
+Nodes (3): Code of Conduct, Enforcement, Our pledge
+
 ## Knowledge Gaps
-- **202 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+197 more)
+- **243 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+238 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.014) - this node is a cross-community bridge._
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _202 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _244 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.08571428571428572 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._

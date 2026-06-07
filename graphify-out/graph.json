@@ -500,7 +500,7 @@
       "source_location": "L292",
       "_origin": "ast",
       "id": "src_main_modes",
-      "community": 50,
+      "community": 1,
       "norm_label": "modes"
     },
     {
@@ -510,7 +510,7 @@
       "source_location": "L293",
       "_origin": "ast",
       "id": "modeconfig",
-      "community": 50,
+      "community": 1,
       "norm_label": "modeconfig"
     },
     {
@@ -897,7 +897,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "id": "c_users_victus_rush_linux_tools_build_rootfs_sh__entry",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry",
       "community": 35,
       "norm_label": "build-rootfs.sh script"
     },
@@ -965,7 +965,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "id": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
       "community": 28,
       "norm_label": "graphify-refresh.sh script"
     },
@@ -1032,10 +1032,20 @@
       "norm_label": "rush-builder.py"
     },
     {
+      "label": "check_schema_version()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L20",
+      "_origin": "ast",
+      "id": "tools_rush_builder_check_schema_version",
+      "community": 46,
+      "norm_label": "check_schema_version()"
+    },
+    {
       "label": "cmd_build()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L15",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_build",
       "community": 46,
@@ -1045,7 +1055,7 @@
       "label": "cmd_repo_init()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L129",
+      "source_location": "L156",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_repo_init",
       "community": 46,
@@ -1055,7 +1065,7 @@
       "label": "cmd_rootfs_create()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L173",
+      "source_location": "L200",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_rootfs_create",
       "community": 46,
@@ -1065,7 +1075,7 @@
       "label": "write_cpio_newc()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L249",
+      "source_location": "L277",
       "_origin": "ast",
       "id": "tools_rush_builder_write_cpio_newc",
       "community": 46,
@@ -1075,7 +1085,7 @@
       "label": "helper_extract_from_deb()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L284",
+      "source_location": "L312",
       "_origin": "ast",
       "id": "tools_rush_builder_helper_extract_from_deb",
       "community": 46,
@@ -1085,7 +1095,7 @@
       "label": "cmd_build_uki()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L313",
+      "source_location": "L341",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_build_uki",
       "community": 46,
@@ -1095,7 +1105,7 @@
       "label": "cmd_vm_image()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L463",
+      "source_location": "L491",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_vm_image",
       "community": 46,
@@ -1105,11 +1115,21 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L521",
+      "source_location": "L549",
       "_origin": "ast",
       "id": "tools_rush_builder_main",
       "community": 46,
       "norm_label": "main()"
+    },
+    {
+      "label": "Validate the recipe's declared schema_version. Returns the version int.",
+      "file_type": "rationale",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "tools_rush_builder_rationale_21",
+      "community": 46,
+      "norm_label": "validate the recipe's declared schema_version. returns the version int."
     },
     {
       "label": "test-builder.py",
@@ -1302,6 +1322,46 @@
       "norm_label": "next task"
     },
     {
+      "label": "CODE_OF_CONDUCT.md",
+      "file_type": "document",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "code_of_conduct",
+      "community": 61,
+      "norm_label": "code_of_conduct.md"
+    },
+    {
+      "label": "Code of Conduct",
+      "file_type": "document",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "code_of_conduct_code_of_conduct",
+      "community": 61,
+      "norm_label": "code of conduct"
+    },
+    {
+      "label": "Our pledge",
+      "file_type": "document",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "code_of_conduct_our_pledge",
+      "community": 61,
+      "norm_label": "our pledge"
+    },
+    {
+      "label": "Enforcement",
+      "file_type": "document",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "code_of_conduct_enforcement",
+      "community": 61,
+      "norm_label": "enforcement"
+    },
+    {
       "label": "CONTRIBUTING.md",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
@@ -1425,7 +1485,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L73",
+      "source_location": "L82",
       "_origin": "ast",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
@@ -1435,7 +1495,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L79",
+      "source_location": "L88",
       "_origin": "ast",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
@@ -1575,7 +1635,7 @@
       "label": "GitHub CI",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L130",
+      "source_location": "L138",
       "_origin": "ast",
       "id": "readme_github_ci",
       "community": 38,
@@ -1585,7 +1645,7 @@
       "label": "Publishing",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L140",
+      "source_location": "L148",
       "_origin": "ast",
       "id": "readme_publishing",
       "community": 38,
@@ -1595,7 +1655,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L156",
+      "source_location": "L164",
       "_origin": "ast",
       "id": "readme_design_rules",
       "community": 38,
@@ -1625,7 +1685,7 @@
       "label": "Release Ledger",
       "file_type": "document",
       "source_file": "RELEASES.md",
-      "source_location": "L7",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "releases_release_ledger",
       "community": 44,
@@ -1635,7 +1695,7 @@
       "label": "Release Rule",
       "file_type": "document",
       "source_file": "RELEASES.md",
-      "source_location": "L23",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "releases_release_rule",
       "community": 44,
@@ -1795,7 +1855,7 @@
       "label": "Supported Versions",
       "file_type": "document",
       "source_file": "SECURITY.md",
-      "source_location": "L9",
+      "source_location": "L10",
       "_origin": "ast",
       "id": "security_supported_versions",
       "community": 43,
@@ -1805,7 +1865,7 @@
       "label": "Reporting",
       "file_type": "document",
       "source_file": "SECURITY.md",
-      "source_location": "L14",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "security_reporting",
       "community": 43,
@@ -1815,7 +1875,7 @@
       "label": "Security Requirements",
       "file_type": "document",
       "source_file": "SECURITY.md",
-      "source_location": "L29",
+      "source_location": "L42",
       "_origin": "ast",
       "id": "security_security_requirements",
       "community": 43,
@@ -1890,6 +1950,96 @@
       "id": "docs_adaptive_engine_guardrails",
       "community": 9,
       "norm_label": "guardrails"
+    },
+    {
+      "label": "0001-review-remediation-batch-1.md",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "agent_decisions_0001_review_remediation_batch_1",
+      "community": 54,
+      "norm_label": "0001-review-remediation-batch-1.md"
+    },
+    {
+      "label": "AD-0001: Expert-review remediation, batch 1",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
+      "community": 54,
+      "norm_label": "ad-0001: expert-review remediation, batch 1"
+    },
+    {
+      "label": "Decisions",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "agent_decisions_0001_review_remediation_batch_1_decisions",
+      "community": 54,
+      "norm_label": "decisions"
+    },
+    {
+      "label": "Changes",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "agent_decisions_0001_review_remediation_batch_1_changes",
+      "community": 54,
+      "norm_label": "changes"
+    },
+    {
+      "label": "Follow-ups",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L41",
+      "_origin": "ast",
+      "id": "agent_decisions_0001_review_remediation_batch_1_follow_ups",
+      "community": 54,
+      "norm_label": "follow-ups"
+    },
+    {
+      "label": "README.md",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "agent_decisions_readme",
+      "community": 60,
+      "norm_label": "readme.md"
+    },
+    {
+      "label": "Agent Decision Log",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "agent_decisions_readme_agent_decision_log",
+      "community": 60,
+      "norm_label": "agent decision log"
+    },
+    {
+      "label": "When to add an entry",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "agent_decisions_readme_when_to_add_an_entry",
+      "community": 60,
+      "norm_label": "when to add an entry"
+    },
+    {
+      "label": "Format",
+      "file_type": "document",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "agent_decisions_readme_format",
+      "community": 60,
+      "norm_label": "format"
     },
     {
       "label": "architecture.md",
@@ -1985,7 +2135,7 @@
       "label": "Update Direction",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L16",
+      "source_location": "L20",
       "_origin": "ast",
       "id": "docs_boot_and_updates_update_direction",
       "community": 16,
@@ -1995,7 +2145,7 @@
       "label": "Rollback Requirements",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L27",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "docs_boot_and_updates_rollback_requirements",
       "community": 16,
@@ -2005,7 +2155,7 @@
       "label": "Acceptance Criteria",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L37",
+      "source_location": "L41",
       "_origin": "ast",
       "id": "docs_boot_and_updates_acceptance_criteria",
       "community": 16,
@@ -2242,6 +2392,16 @@
       "norm_label": "consequences"
     },
     {
+      "label": "Boundary clarification (2026-06)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0004-adaptive-optid.md",
+      "source_location": "L24",
+      "_origin": "ast",
+      "id": "decisions_0004_adaptive_optid_boundary_clarification_2026_06",
+      "community": 25,
+      "norm_label": "boundary clarification (2026-06)"
+    },
+    {
       "label": "0005-avoid-obsolete-defaults.md",
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
@@ -2340,6 +2500,466 @@
       "id": "decisions_0006_performance_tweaks_consequences",
       "community": 42,
       "norm_label": "consequences"
+    },
+    {
+      "label": "Amendment 2026-06: Resolve ADR 0004 conflict",
+      "file_type": "document",
+      "source_file": "docs/decisions/0006-performance-tweaks.md",
+      "source_location": "L25",
+      "_origin": "ast",
+      "id": "decisions_0006_performance_tweaks_amendment_2026_06_resolve_adr_0004_conflict",
+      "community": 42,
+      "norm_label": "amendment 2026-06: resolve adr 0004 conflict"
+    },
+    {
+      "label": "0007-project-and-dbus-naming.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0007_project_and_dbus_naming",
+      "community": 55,
+      "norm_label": "0007-project-and-dbus-naming.md"
+    },
+    {
+      "label": "ADR 0007: Project And D-Bus Naming",
+      "file_type": "document",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
+      "community": 55,
+      "norm_label": "adr 0007: project and d-bus naming"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L5",
+      "_origin": "ast",
+      "id": "decisions_0007_project_and_dbus_naming_context",
+      "community": 55,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision",
+      "file_type": "document",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "decisions_0007_project_and_dbus_naming_decision",
+      "community": 55,
+      "norm_label": "decision"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L27",
+      "_origin": "ast",
+      "id": "decisions_0007_project_and_dbus_naming_consequences",
+      "community": 55,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "0008-software-delivery-and-packaging.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging",
+      "community": 52,
+      "norm_label": "0008-software-delivery-and-packaging.md"
+    },
+    {
+      "label": "ADR 0008: Software Delivery And Packaging Strategy",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "community": 52,
+      "norm_label": "adr 0008: software delivery and packaging strategy"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging_context",
+      "community": 52,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L32",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging_decision_proposed",
+      "community": 52,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L55",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging_consequences",
+      "community": 52,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "Alternatives considered",
+      "file_type": "document",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L66",
+      "_origin": "ast",
+      "id": "decisions_0008_software_delivery_and_packaging_alternatives_considered",
+      "community": 52,
+      "norm_label": "alternatives considered"
+    },
+    {
+      "label": "0009-optid-security-boundary.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary",
+      "community": 50,
+      "norm_label": "0009-optid-security-boundary.md"
+    },
+    {
+      "label": "ADR 0009: optid Security Boundary And Threat Model",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "community": 50,
+      "norm_label": "adr 0009: optid security boundary and threat model"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_context",
+      "community": 50,
+      "norm_label": "context"
+    },
+    {
+      "label": "Threat model",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_threat_model",
+      "community": 50,
+      "norm_label": "threat model"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L33",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_decision_proposed",
+      "community": 50,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L60",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_consequences",
+      "community": 50,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "Follow-ups",
+      "file_type": "document",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L67",
+      "_origin": "ast",
+      "id": "decisions_0009_optid_security_boundary_follow_ups",
+      "community": 50,
+      "norm_label": "follow-ups"
+    },
+    {
+      "label": "0010-realtime-edition-kernel-policy.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0010_realtime_edition_kernel_policy",
+      "community": 56,
+      "norm_label": "0010-realtime-edition-kernel-policy.md"
+    },
+    {
+      "label": "ADR 0010: Realtime Edition Kernel Policy",
+      "file_type": "document",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
+      "community": 56,
+      "norm_label": "adr 0010: realtime edition kernel policy"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "decisions_0010_realtime_edition_kernel_policy_context",
+      "community": 56,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "decisions_0010_realtime_edition_kernel_policy_decision_proposed",
+      "community": 56,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "decisions_0010_realtime_edition_kernel_policy_consequences",
+      "community": 56,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "0011-benchmark-methodology.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0011_benchmark_methodology",
+      "community": 57,
+      "norm_label": "0011-benchmark-methodology.md"
+    },
+    {
+      "label": "ADR 0011: Benchmark Methodology And Baselines",
+      "file_type": "document",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
+      "community": 57,
+      "norm_label": "adr 0011: benchmark methodology and baselines"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "decisions_0011_benchmark_methodology_context",
+      "community": 57,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "decisions_0011_benchmark_methodology_decision_proposed",
+      "community": 57,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L39",
+      "_origin": "ast",
+      "id": "decisions_0011_benchmark_methodology_consequences",
+      "community": 57,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "0012-reproducible-build-discipline.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0012_reproducible_build_discipline",
+      "community": 58,
+      "norm_label": "0012-reproducible-build-discipline.md"
+    },
+    {
+      "label": "ADR 0012: Reproducible Build Discipline",
+      "file_type": "document",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
+      "community": 58,
+      "norm_label": "adr 0012: reproducible build discipline"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "decisions_0012_reproducible_build_discipline_context",
+      "community": 58,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "decisions_0012_reproducible_build_discipline_decision_proposed",
+      "community": 58,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L33",
+      "_origin": "ast",
+      "id": "decisions_0012_reproducible_build_discipline_consequences",
+      "community": 58,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "0013-detection-and-ml-boundary.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0013_detection_and_ml_boundary",
+      "community": 59,
+      "norm_label": "0013-detection-and-ml-boundary.md"
+    },
+    {
+      "label": "ADR 0013: Workload Detection And The ML Boundary",
+      "file_type": "document",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
+      "community": 59,
+      "norm_label": "adr 0013: workload detection and the ml boundary"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "decisions_0013_detection_and_ml_boundary_context",
+      "community": 59,
+      "norm_label": "context"
+    },
+    {
+      "label": "Decision (proposed)",
+      "file_type": "document",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "decisions_0013_detection_and_ml_boundary_decision_proposed",
+      "community": 59,
+      "norm_label": "decision (proposed)"
+    },
+    {
+      "label": "Consequences",
+      "file_type": "document",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L41",
+      "_origin": "ast",
+      "id": "decisions_0013_detection_and_ml_boundary_consequences",
+      "community": 59,
+      "norm_label": "consequences"
+    },
+    {
+      "label": "README.md",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_readme",
+      "community": 51,
+      "norm_label": "readme.md"
+    },
+    {
+      "label": "Architecture Decision Records",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "decisions_readme_architecture_decision_records",
+      "community": 51,
+      "norm_label": "architecture decision records"
+    },
+    {
+      "label": "Lifecycle and states",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L8",
+      "_origin": "ast",
+      "id": "decisions_readme_lifecycle_and_states",
+      "community": 51,
+      "norm_label": "lifecycle and states"
+    },
+    {
+      "label": "Who ratifies",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "decisions_readme_who_ratifies",
+      "community": 51,
+      "norm_label": "who ratifies"
+    },
+    {
+      "label": "Ratifying a proposed ADR",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L36",
+      "_origin": "ast",
+      "id": "decisions_readme_ratifying_a_proposed_adr",
+      "community": 51,
+      "norm_label": "ratifying a proposed adr"
+    },
+    {
+      "label": "Current proposed ADRs awaiting ratification",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L49",
+      "_origin": "ast",
+      "id": "decisions_readme_current_proposed_adrs_awaiting_ratification",
+      "community": 51,
+      "norm_label": "current proposed adrs awaiting ratification"
+    },
+    {
+      "label": "Adding a new ADR",
+      "file_type": "document",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L54",
+      "_origin": "ast",
+      "id": "decisions_readme_adding_a_new_adr",
+      "community": 51,
+      "norm_label": "adding a new adr"
     },
     {
       "label": "documentation-policy.md",
@@ -2685,7 +3305,7 @@
       "label": "Compatibility Is Not Default",
       "file_type": "document",
       "source_file": "docs/non-goals.md",
-      "source_location": "L24",
+      "source_location": "L26",
       "_origin": "ast",
       "id": "docs_non_goals_compatibility_is_not_default",
       "community": 29,
@@ -2732,10 +3352,20 @@
       "norm_label": "current state"
     },
     {
-      "label": "Package Backend Direction",
+      "label": "Recipe Schema Versioning",
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L30",
+      "_origin": "ast",
+      "id": "docs_packaging_and_builds_recipe_schema_versioning",
+      "community": 19,
+      "norm_label": "recipe schema versioning"
+    },
+    {
+      "label": "Package Backend Direction",
+      "file_type": "document",
+      "source_file": "docs/packaging-and-builds.md",
+      "source_location": "L53",
       "_origin": "ast",
       "id": "docs_packaging_and_builds_package_backend_direction",
       "community": 19,
@@ -2745,11 +3375,71 @@
       "label": "Build Acceptance Criteria",
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
-      "source_location": "L36",
+      "source_location": "L61",
       "_origin": "ast",
       "id": "docs_packaging_and_builds_build_acceptance_criteria",
       "community": 19,
       "norm_label": "build acceptance criteria"
+    },
+    {
+      "label": "project-sustainability.md",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_project_sustainability",
+      "community": 53,
+      "norm_label": "project-sustainability.md"
+    },
+    {
+      "label": "Project Sustainability",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_project_sustainability_project_sustainability",
+      "community": 53,
+      "norm_label": "project sustainability"
+    },
+    {
+      "label": "C1 \u2014 Contributor model, governance, community",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "docs_project_sustainability_c1_contributor_model_governance_community",
+      "community": 53,
+      "norm_label": "c1 \u2014 contributor model, governance, community"
+    },
+    {
+      "label": "C2 \u2014 Canonical development environment is Linux",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L33",
+      "_origin": "ast",
+      "id": "docs_project_sustainability_c2_canonical_development_environment_is_linux",
+      "community": 53,
+      "norm_label": "c2 \u2014 canonical development environment is linux"
+    },
+    {
+      "label": "C8 \u2014 Hardware test lab (required for beta, T3)",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L50",
+      "_origin": "ast",
+      "id": "docs_project_sustainability_c8_hardware_test_lab_required_for_beta_t3",
+      "community": 53,
+      "norm_label": "c8 \u2014 hardware test lab (required for beta, t3)"
+    },
+    {
+      "label": "Cross-reference",
+      "file_type": "document",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L71",
+      "_origin": "ast",
+      "id": "docs_project_sustainability_cross_reference",
+      "community": 53,
+      "norm_label": "cross-reference"
     },
     {
       "label": "release-checklist.md",
@@ -3180,32 +3870,6 @@
       "id": "docs_versioning_tagging_rules",
       "community": 8,
       "norm_label": "tagging rules"
-    },
-    {
-      "label": "build-rootfs.sh script",
-      "file_type": "code",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 35,
-      "norm_label": "build-rootfs.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
-      "label": "graphify-refresh.sh script",
-      "file_type": "code",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "community": 28,
-      "norm_label": "graphify-refresh.sh script",
-      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "label": "build-rootfs.sh script",
@@ -6767,9 +7431,9 @@
       "source_file": "tools/build-rootfs.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_build_rootfs",
-      "target": "c_users_victus_rush_linux_tools_build_rootfs_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
     },
     {
       "relation": "contains",
@@ -6778,7 +7442,7 @@
       "source_location": "L1",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "tools_build_rootfs",
+      "source": "tools_build_rootfs_sh",
       "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
     },
     {
@@ -6787,9 +7451,9 @@
       "source_file": "tools/download-assets.py",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_download_assets",
-      "target": "tools_download_assets_download_with_progress",
-      "confidence_score": 1.0
+      "target": "tools_download_assets_download_with_progress"
     },
     {
       "relation": "contains",
@@ -6797,9 +7461,9 @@
       "source_file": "tools/download-assets.py",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_download_assets",
-      "target": "tools_download_assets_get_sha256",
-      "confidence_score": 1.0
+      "target": "tools_download_assets_get_sha256"
     },
     {
       "relation": "contains",
@@ -6807,9 +7471,9 @@
       "source_file": "tools/download-assets.py",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_download_assets",
-      "target": "tools_download_assets_main",
-      "confidence_score": 1.0
+      "target": "tools_download_assets_main"
     },
     {
       "relation": "calls",
@@ -6818,9 +7482,9 @@
       "source_file": "tools/download-assets.py",
       "source_location": "L58",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_download_assets_main",
-      "target": "tools_download_assets_get_sha256",
-      "confidence_score": 1.0
+      "target": "tools_download_assets_get_sha256"
     },
     {
       "relation": "calls",
@@ -6829,9 +7493,9 @@
       "source_file": "tools/download-assets.py",
       "source_location": "L67",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_download_assets_main",
-      "target": "tools_download_assets_download_with_progress",
-      "confidence_score": 1.0
+      "target": "tools_download_assets_download_with_progress"
     },
     {
       "relation": "contains",
@@ -6842,16 +7506,6 @@
       "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
       "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "tools_graphify_refresh",
-      "target": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
-      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -6900,9 +7554,19 @@
       "source_location": "L50",
       "weight": 1.0,
       "context": "call",
-      "source": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
-      "target": "tools_graphify_refresh_run_graphify",
-      "confidence_score": 1.0
+      "confidence_score": 1.0,
+      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
+      "target": "tools_graphify_refresh_run_graphify"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_graphify_refresh_sh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "defines",
@@ -6943,17 +7607,6 @@
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
-      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
-      "target": "tools_graphify_refresh_run_graphify"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L50",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
       "source": "home_user_rush_linux_tools_graphify_refresh_sh__entry",
       "target": "tools_graphify_refresh_run_graphify"
     },
@@ -6971,6 +7624,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "tools/rush-builder.py",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_check_schema_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
       "source_location": "L13",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -6983,9 +7646,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L313",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_cmd_build_uki",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_build_uki"
     },
     {
       "relation": "contains",
@@ -7023,9 +7686,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L284",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_helper_extract_from_deb",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_helper_extract_from_deb"
     },
     {
       "relation": "contains",
@@ -7043,8 +7706,40 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L249",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_write_cpio_newc",
+      "target": "tools_rush_builder_write_cpio_newc"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_build",
+      "target": "tools_rush_builder_check_schema_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L224",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_rootfs_create",
+      "target": "tools_rush_builder_check_schema_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "tools_rush_builder_rationale_21",
+      "target": "tools_rush_builder_check_schema_version",
       "confidence_score": 1.0
     },
     {
@@ -7087,9 +7782,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L393",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build_uki",
-      "target": "tools_rush_builder_write_cpio_newc",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_write_cpio_newc"
     },
     {
       "relation": "calls",
@@ -7098,9 +7793,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L321",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build_uki",
-      "target": "tools_rush_builder_helper_extract_from_deb",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_helper_extract_from_deb"
     },
     {
       "relation": "calls",
@@ -7109,9 +7804,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L559",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
-      "target": "tools_rush_builder_cmd_build_uki",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_cmd_build_uki"
     },
     {
       "relation": "calls",
@@ -7303,6 +7998,36 @@
       "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
       "target": "ai_continuation_safe_assumptions"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "code_of_conduct",
+      "target": "code_of_conduct_code_of_conduct",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "code_of_conduct_code_of_conduct",
+      "target": "code_of_conduct_enforcement",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CODE_OF_CONDUCT.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "code_of_conduct_code_of_conduct",
+      "target": "code_of_conduct_our_pledge",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -7827,6 +8552,76 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "agent_decisions_0001_review_remediation_batch_1",
+      "target": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
+      "target": "agent_decisions_0001_review_remediation_batch_1_changes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
+      "target": "agent_decisions_0001_review_remediation_batch_1_decisions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
+      "target": "agent_decisions_0001_review_remediation_batch_1_follow_ups",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "agent_decisions_readme",
+      "target": "agent_decisions_readme_agent_decision_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "agent_decisions_readme_agent_decision_log",
+      "target": "agent_decisions_readme_format",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/agent-decisions/README.md",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "agent_decisions_readme_agent_decision_log",
+      "target": "agent_decisions_readme_when_to_add_an_entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "docs/architecture.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -8138,6 +8933,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner",
+      "target": "decisions_0004_adaptive_optid_boundary_clarification_2026_06",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L16",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -8238,6 +9043,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
+      "target": "decisions_0006_performance_tweaks_amendment_2026_06_resolve_adr_0004_conflict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L18",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -8263,6 +9078,376 @@
       "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
       "target": "decisions_0006_performance_tweaks_decision"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0007_project_and_dbus_naming",
+      "target": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
+      "target": "decisions_0007_project_and_dbus_naming_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
+      "target": "decisions_0007_project_and_dbus_naming_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
+      "target": "decisions_0007_project_and_dbus_naming_decision",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0008_software_delivery_and_packaging",
+      "target": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "target": "decisions_0008_software_delivery_and_packaging_alternatives_considered",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "target": "decisions_0008_software_delivery_and_packaging_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "target": "decisions_0008_software_delivery_and_packaging_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
+      "target": "decisions_0008_software_delivery_and_packaging_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary",
+      "target": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L60",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "target": "decisions_0009_optid_security_boundary_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "target": "decisions_0009_optid_security_boundary_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "target": "decisions_0009_optid_security_boundary_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L67",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "target": "decisions_0009_optid_security_boundary_follow_ups",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0009-optid-security-boundary.md",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
+      "target": "decisions_0009_optid_security_boundary_threat_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0010_realtime_edition_kernel_policy",
+      "target": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
+      "target": "decisions_0010_realtime_edition_kernel_policy_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
+      "target": "decisions_0010_realtime_edition_kernel_policy_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
+      "target": "decisions_0010_realtime_edition_kernel_policy_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0011_benchmark_methodology",
+      "target": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L39",
+      "weight": 1.0,
+      "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
+      "target": "decisions_0011_benchmark_methodology_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
+      "target": "decisions_0011_benchmark_methodology_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0011-benchmark-methodology.md",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
+      "target": "decisions_0011_benchmark_methodology_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0012_reproducible_build_discipline",
+      "target": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
+      "target": "decisions_0012_reproducible_build_discipline_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
+      "target": "decisions_0012_reproducible_build_discipline_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
+      "target": "decisions_0012_reproducible_build_discipline_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_0013_detection_and_ml_boundary",
+      "target": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
+      "target": "decisions_0013_detection_and_ml_boundary_consequences",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
+      "target": "decisions_0013_detection_and_ml_boundary_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
+      "target": "decisions_0013_detection_and_ml_boundary_decision_proposed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "decisions_readme",
+      "target": "decisions_readme_architecture_decision_records",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "decisions_readme_architecture_decision_records",
+      "target": "decisions_readme_adding_a_new_adr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "decisions_readme_architecture_decision_records",
+      "target": "decisions_readme_current_proposed_adrs_awaiting_ratification",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "decisions_readme_architecture_decision_records",
+      "target": "decisions_readme_lifecycle_and_states",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "decisions_readme_architecture_decision_records",
+      "target": "decisions_readme_who_ratifies",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/decisions/README.md",
+      "source_location": "L36",
+      "weight": 1.0,
+      "source": "decisions_readme_who_ratifies",
+      "target": "decisions_readme_ratifying_a_proposed_adr",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -8673,6 +9858,66 @@
       "confidence_score": 1.0,
       "source": "docs_packaging_and_builds_packaging_and_builds",
       "target": "docs_packaging_and_builds_package_backend_direction"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/packaging-and-builds.md",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "docs_packaging_and_builds_packaging_and_builds",
+      "target": "docs_packaging_and_builds_recipe_schema_versioning",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "docs_project_sustainability",
+      "target": "docs_project_sustainability_project_sustainability",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "docs_project_sustainability_project_sustainability",
+      "target": "docs_project_sustainability_c1_contributor_model_governance_community",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "docs_project_sustainability_project_sustainability",
+      "target": "docs_project_sustainability_c2_canonical_development_environment_is_linux",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "docs_project_sustainability_project_sustainability",
+      "target": "docs_project_sustainability_c8_hardware_test_lab_required_for_beta_t3",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/project-sustainability.md",
+      "source_location": "L71",
+      "weight": 1.0,
+      "source": "docs_project_sustainability_project_sustainability",
+      "target": "docs_project_sustainability_cross_reference",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -9103,26 +10348,6 @@
       "confidence_score": 1.0,
       "source": "docs_versioning_versioning",
       "target": "docs_versioning_tagging_rules"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/build-rootfs.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_build_rootfs_sh",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_graphify_refresh_sh",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "relation": "contains",
@@ -9706,5 +10931,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "7d6df0ecb2890ee7e0d561bf94dad0301a3c88e6"
+  "built_at_commit": "9698596c24ac6611698f27456d7f0f480bd9b8a5"
 }
