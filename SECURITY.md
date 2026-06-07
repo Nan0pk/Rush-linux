@@ -1,6 +1,6 @@
 # Security Policy
 
-Adaptive Linux is an early-stage operating system project. Do not deploy it on
+Rush Linux is an early-stage operating system project. Do not deploy it on
 production systems yet.
 
 Report security issues privately through the GitHub repository owner until a

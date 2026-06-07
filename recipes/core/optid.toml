@@ -1,4 +1,5 @@
 [package]
+schema_version = 0
 name = "optid"
 version = "0.1.0"
 kind = "rust"
@@ -21,5 +22,7 @@ systemd_units = [
 ]
 config = [
   ["config/optid/policy.toml", "/usr/lib/optid/policy.toml"],
-  ["distro/systemd/99-adaptive-performance.conf", "/usr/lib/sysctl.d/99-adaptive-performance.conf"],
+  ["distro/systemd/99-rush-network.conf", "/usr/lib/sysctl.d/99-rush-network.conf"],
+  ["packaging/dbus/io.rushlinux.Optid.xml", "/usr/share/dbus-1/interfaces/io.rushlinux.Optid.xml"],
+  ["packaging/dbus/io.rushlinux.Optid.service", "/usr/share/dbus-1/system-services/io.rushlinux.Optid.service"],
 ]

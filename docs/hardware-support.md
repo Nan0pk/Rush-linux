@@ -1,6 +1,6 @@
 # Hardware Support
 
-Adaptive Linux targets mainstream upstream-supported x86_64 and ARM64 hardware
+Rush Linux targets mainstream upstream-supported x86_64 and ARM64 hardware
 first. "Any system" means practical coverage through upstream Linux support and
 hardware-specific policy layers, not one unsafe universal tuning profile.
 

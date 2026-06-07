@@ -1,6 +1,6 @@
 # Adaptive Engine
 
-`optid` is the central feature of Adaptive Linux. It is a privileged daemon that
+`optid` is the central feature of Rush Linux. It is a privileged daemon that
 observes workload and hardware state, then applies guarded policy changes to
 improve responsiveness, battery behavior, thermals, and resource utilization.
 
@@ -16,7 +16,7 @@ The current Rust implementation:
 - writes status and decision logs under `/run/optid`;
 - applies guarded actions only when `--apply` is passed.
 
-`optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.adaptive.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
+`optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.rushlinux.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
 
 The packaged default `optid.service` runs in dry-run mode. Mutating policy is
 split into `optid-apply.service` so early releases cannot silently change CPU,

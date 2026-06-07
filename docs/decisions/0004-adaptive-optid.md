@@ -21,3 +21,14 @@ components may provide inputs, compatibility APIs, or explicit user intent.
 - Privileged writes require guardrails and allowlists.
 - Compatibility APIs must route intent to `optid`, not bypass it.
 
+## Boundary clarification (2026-06)
+
+"Runtime optimization policy" means knobs whose correct value depends on
+workload, hardware, power source, or mode — CPU EPP, platform profile, cgroup
+CPU/IO/memory weights, and **memory/VM/swap tuning** (`vm.swappiness`,
+`vm.dirty_*`). These are owned by optid and must not be set by static drop-ins.
+
+Static system defaults that optid does **not** adapt per-mode (for example the
+network congestion-control / qdisc choice in `99-rush-network.conf`) are not
+"runtime optimization policy" and may be shipped statically. This boundary was
+established when resolving the ADR 0006 conflict; see ADR 0006's amendment.

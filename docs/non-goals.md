@@ -13,6 +13,8 @@ ideas.
   sufficient.
 - Running multiple competing power/performance daemons by default.
 - Using opaque ML policy before deterministic policy and benchmarks exist.
+  (This is a sequencing rule, not a permanent ban — see ADR 0013 for how
+  app/game/call detection is handled within it.)
 - Optimizing for unsupported proprietary hardware at the expense of system
   stability.
 - Maximizing synthetic benchmark scores while hurting foreground behavior,

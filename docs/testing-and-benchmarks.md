@@ -1,6 +1,6 @@
 # Testing And Benchmarks
 
-Adaptive Linux must prove optimization claims with repeatable tests. Benchmarks
+Rush Linux must prove optimization claims with repeatable tests. Benchmarks
 are not optional marketing material; they are release gates.
 
 ## Current Validation

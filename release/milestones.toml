@@ -32,6 +32,7 @@ exit_criteria = [
 version = "0.3.0-alpha.1"
 channel = "alpha"
 name = "Rootfs And Package Builder MVP"
+status = "in-progress"
 required_tiers = ["T0", "T1", "T2-smoke"]
 exit_criteria = [
   "minimal VM boots to multi-user.target",
@@ -39,6 +40,22 @@ exit_criteria = [
   "optid.service starts",
   "nftables.conf loads",
 ]
+# Per-criterion verification state. A milestone is only "complete" when every
+# criterion is verified = true. Do not flip the milestone to complete while any
+# criterion below remains unverified (see Release Rule in RELEASES.md).
+[[milestone.criteria_status]]
+criterion = "minimal VM boots to multi-user.target"
+verified = false
+note = "No bootable disk.raw / UEFI UKI flow yet (see AI_CONTINUATION.md). Blocks completion."
+[[milestone.criteria_status]]
+criterion = "cgroup v2 and PSI are active"
+verified = true
+[[milestone.criteria_status]]
+criterion = "optid.service starts"
+verified = true
+[[milestone.criteria_status]]
+criterion = "nftables.conf loads"
+verified = true
 
 [[milestone]]
 version = "0.4.0-alpha.1"

@@ -1,6 +1,6 @@
 # Contributing
 
-Adaptive Linux is early-stage OS engineering. Contributions must preserve the
+Rush Linux is early-stage OS engineering. Contributions must preserve the
 project direction: modern Linux defaults, one adaptive policy owner, and
 explainable performance behavior.
 
@@ -26,19 +26,19 @@ graphify query "what files are related to the change I am about to make?" --grap
 
 ## Required Checks
 
-On Windows:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1
-```
-
-On Linux with Rust:
+Linux (native or container) is the canonical development environment. Run the
+full set on Linux:
 
 ```sh
 cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
+pwsh ./tools/validate-repo.ps1   # cross-platform repository-policy check
 ```
+
+On Windows, `tools/validate-repo.ps1` can run via
+`powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`, but code
+must still be built and tested on Linux (CI is Linux-only).
 
 After code or supported config changes, refresh the local Graphify graph without
 LLM/API token use:

@@ -4,7 +4,7 @@ Status: accepted
 
 ## Context
 
-Adaptive Linux needs hierarchical CPU, memory, I/O, task, and OOM control for
+Rush Linux needs hierarchical CPU, memory, I/O, task, and OOM control for
 applications, services, user sessions, and background work. The optimizer must
 be able to observe and adjust policy without inventing a separate service model.
 

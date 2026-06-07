@@ -1,5 +1,5 @@
 [Unit]
-Description=Adaptive Linux background workload slice
+Description=Rush Linux background workload slice
 Documentation=man:systemd.slice(5)
 
 [Slice]

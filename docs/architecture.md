@@ -1,6 +1,6 @@
 # Architecture
 
-Adaptive Linux has four layers:
+Rush Linux has four layers:
 
 1. Source recipes that produce signed binary packages.
 2. A modern base OS with systemd, cgroup v2, PSI, UKI boot, nftables, PipeWire,

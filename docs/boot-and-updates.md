@@ -1,6 +1,6 @@
 # Boot And Updates
 
-Adaptive Linux uses a UKI-first boot and update model with rollback as a core
+Rush Linux uses a UKI-first boot and update model with rollback as a core
 safety requirement.
 
 ## Boot Direction
@@ -9,7 +9,9 @@ Default direction:
 
 - UEFI systems use Unified Kernel Images.
 - systemd-boot is preferred where supported.
-- GRUB remains a compatibility fallback.
+- GRUB remains a compatibility fallback, built from `recipes/boot/grub.toml`.
+  It is never the default bootloader; it is opt-in for firmware that cannot do
+  UKI cleanly. The v0.4 milestone wires this recipe into the boot/rollback flow.
 - Kernel command line defaults live in `distro/boot/cmdline.d/adaptive.conf`.
 - UKI policy lives in `distro/boot/uki.toml`.
 

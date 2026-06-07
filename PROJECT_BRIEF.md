@@ -1,6 +1,6 @@
 # Project Brief
 
-Adaptive Linux is a long-term operating system project for a source-built Linux
+Rush Linux is a long-term operating system project for a source-built Linux
 distribution whose main product feature is fast, preemptive, automatic runtime
 optimization across mainstream hardware and workloads.
 

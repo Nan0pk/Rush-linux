@@ -39,7 +39,7 @@ Exit criteria:
  
 Status: complete.
  
-- Implement `io.adaptive.Optid1` D-Bus server in `optid`.
+- Implement `io.rushlinux.Optid1` D-Bus server in `optid`.
 - Implement D-Bus client calls in `optctl`.
 - Keep `/run/optid` files as diagnostics and recovery state.
 - Parse `config/optid/policy.toml`.

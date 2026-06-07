@@ -66,8 +66,8 @@ $required = @(
     'recipes/core/systemd.toml',
     'recipes/desktop/plasma-wayland.toml',
     'recipes/server/minimal.toml',
-    'packaging/dbus/io.adaptive.Optid.xml',
-    'packaging/dbus/io.adaptive.Optid.service',
+    'packaging/dbus/io.rushlinux.Optid.xml',
+    'packaging/dbus/io.rushlinux.Optid.service',
     'distro/sysupdate/base.conf',
     'distro/sysupdate/uki.conf',
     'distro/editions/desktop.toml',
@@ -115,12 +115,14 @@ Assert-Contains 'distro/network/nftables.conf' 'table inet adaptive_filter'
 Assert-Contains 'packaging/systemd/optid.service' 'Conflicts=tlp.service power-profiles-daemon.service tuned.service'
 Assert-NotContains 'packaging/systemd/optid.service' '--apply'
 Assert-Contains 'packaging/systemd/optid-apply.service' '--apply'
-Assert-Contains 'packaging/dbus/io.adaptive.Optid.xml' 'io.adaptive.Optid1'
+Assert-Contains 'packaging/dbus/io.rushlinux.Optid.xml' 'io.rushlinux.Optid1'
 Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
 Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'
 Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
-$versionText = (Get-Content -LiteralPath (Join-Path $Root 'VERSION') -Raw).Trim()
-Assert-Contains 'VERSION' "^$([regex]::Escape($versionText))\s*$"
+# Validate VERSION format (not a pinned value) so this gate does not silently
+# drift out of date at every release; RELEASES.md and release/milestones.toml are
+# the source of truth for the current version value.
+Assert-Contains 'VERSION' '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?\s*$'
 Assert-Contains 'RELEASES.md' '0\.1\.0-alpha\.1'
 Assert-Contains 'AI_CONTINUATION.md' 'Forbidden Shortcuts'
 Assert-Contains 'AI_CONTINUATION.md' 'Next Task'

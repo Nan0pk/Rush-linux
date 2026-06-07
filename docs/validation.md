@@ -10,8 +10,11 @@ Validation is split into three layers:
 - Hardware lab benchmarks: compare against Fedora, Ubuntu, Arch, and a minimal
   tuned baseline.
 
-The first layer is implemented in `tools/validate-repo.ps1` so the project can
-be checked even on the current Windows workspace without a Rust toolchain.
+The first layer is implemented in `tools/validate-repo.ps1`, a cross-platform
+policy check that runs under PowerShell Core (`pwsh`) on Linux in CI as well as
+on Windows. Linux is the canonical development and build environment (see the
+README and `docs/project-sustainability.md`); the script is a convenience layer,
+not a Windows-only substitute for building and testing on Linux.
 
 The validation script must fail when the core documentation layer is missing:
 

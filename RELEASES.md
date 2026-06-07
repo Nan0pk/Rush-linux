@@ -4,6 +4,14 @@ Current project version: `0.3.0-alpha.1`
 
 This version implements the minimal rootfs builder and package repository system.
 
+> **Status note (governance):** `0.3.0-alpha.1` is **in progress, not complete.**
+> Its primary exit criterion — *"minimal VM boots to `multi-user.target`"* — has
+> **not yet been verified**. The bootable disk image (`disk.raw`) and the UEFI
+> UKI boot flow are not implemented (see `AI_CONTINUATION.md`). Per the Release
+> Rule below, this version must not be treated as a passed milestone until that
+> criterion is demonstrated. See `release/milestones.toml` for the per-criterion
+> verification state.
+
 ## Release Ledger
 
 | Version | Channel | Status | Purpose |
@@ -11,7 +19,7 @@ This version implements the minimal rootfs builder and package repository system
 | `0.1.0-alpha.0` | `unstable` | complete | Repository scaffold, release governance, docs, CI policy, optimizer MVP source. |
 | `0.1.0-alpha.1` | `alpha` | complete | Compile-clean Rust core and fixture tests. |
 | `0.2.0-alpha.1` | `alpha` | complete | D-Bus control plane and config parsing. |
-| `0.3.0-alpha.1` | `alpha` | current | Minimal rootfs and package builder MVP. |
+| `0.3.0-alpha.1` | `alpha` | in progress | Minimal rootfs and package builder MVP. Boot-to-`multi-user.target` criterion not yet verified. |
 | `0.4.0-alpha.1` | `alpha` | planned | UKI boot, rollback, and local update flow. |
 | `0.5.0-beta.1` | `beta` | planned | First minimal installable server image. |
 | `0.6.0-beta.1` | `beta` | planned | Hardware-aware optimizer policy. |

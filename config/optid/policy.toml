@@ -1,4 +1,4 @@
-# Default Adaptive Linux optimizer policy.
+# Default Rush Linux optimizer policy.
 # The Rust MVP currently embeds these defaults; this file is the package
 # interface that the daemon will parse once the D-Bus/config layer lands.
 
@@ -18,23 +18,47 @@ hot_temp_c = 82.0
 critical_temp_c = 92.0
 low_battery_pct = 20
 
+# Memory / VM tuning is owned by optid (ADR 0004), NOT by a static sysctl
+# drop-in, so the values can adapt to mode and hardware instead of being baked
+# in unconditionally at boot. In particular vm.swappiness is only safe at high
+# values when ZRAM is the active swap device, so it is gated on detected swap.
+# NOTE: the Rust MVP does not yet actuate these keys (it ignores unknown keys);
+# sysctl actuation in optid is a tracked follow-up. Until then no aggressive
+# swappiness/dirty value is applied unconditionally (the previous static file
+# that did so was removed to resolve the ADR 0004 contradiction).
+[memory]
+owner = "optid"
+# Apply high swappiness only when ZRAM-backed swap is active.
+high_swappiness_requires_zram = true
+
 [modes.battery]
 cpu_epp = "power"
 platform_profile = "low-power"
 background_cpu_weight = 25
 background_io_weight = 25
+# Conservative on battery: avoid aggressive swap churn that costs power.
+vm_swappiness = 60
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
 
 [modes.balanced]
 cpu_epp = "balance_performance"
 platform_profile = "balanced"
 user_cpu_weight = 150
 user_io_weight = 150
+vm_swappiness = 100
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
 
 [modes.performance]
 cpu_epp = "performance"
 platform_profile = "performance"
 user_cpu_weight = 200
 user_io_weight = 200
+# High swappiness only meaningful with ZRAM (see high_swappiness_requires_zram).
+vm_swappiness = 150
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
 
 [modes.realtime]
 cpu_epp = "performance"
@@ -42,4 +66,5 @@ platform_profile = "performance"
 user_cpu_weight = 250
 user_io_weight = 200
 requires_controlled_rt_access = true
+vm_swappiness = 10
 

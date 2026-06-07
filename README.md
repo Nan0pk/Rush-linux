@@ -120,12 +120,20 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-This Windows workspace does not currently have Rust installed, so validation is
-provided through PowerShell:
+Linux (native or a container) is the canonical development and build
+environment: the rootfs builder, UKI generation, `systemd-repart`, and QEMU
+boot all require Linux, and CI builds and tests on Linux. Develop and verify on
+Linux.
 
-```powershell
-.\tools\validate-repo.ps1
+The repository-policy check is cross-platform and runs under PowerShell Core
+(`pwsh`), including in CI on Linux:
+
+```sh
+pwsh ./tools/validate-repo.ps1
 ```
+
+It is a convenience for contributors on Windows, not a substitute for building
+and testing on Linux.
 
 ## GitHub CI
 

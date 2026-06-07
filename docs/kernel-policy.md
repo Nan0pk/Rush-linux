@@ -1,6 +1,6 @@
 # Kernel Policy
 
-Adaptive Linux uses upstream kernel capabilities first. Kernel policy must
+Rush Linux uses upstream kernel capabilities first. Kernel policy must
 support low latency, adaptive control, power management, observability, and
 rollback without forcing specialist realtime behavior on every system.
 

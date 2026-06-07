@@ -6,9 +6,9 @@ use zbus::blocking::Connection;
 use zbus::dbus_proxy;
 
 #[dbus_proxy(
-    interface = "io.adaptive.Optid1",
-    default_service = "io.adaptive.Optid",
-    default_path = "/io/adaptive/Optid"
+    interface = "io.rushlinux.Optid1",
+    default_service = "io.rushlinux.Optid",
+    default_path = "/io/rushlinux/Optid"
 )]
 trait Optid {
     fn status(&self) -> zbus::Result<String>;

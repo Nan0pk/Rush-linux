@@ -5,7 +5,7 @@ Read it before making changes.
 
 ## Mission
 
-Continue building Adaptive Linux: a future-aligned, source-built Linux
+Continue building Rush Linux: a future-aligned, source-built Linux
 distribution centered on `optid`, a fast and explainable runtime optimizer for
 responsiveness, battery life, thermals, and resource utilization.
 
@@ -125,21 +125,21 @@ If hooks are not installed in the current clone, install them once:
 
 ## Commands And Checks
 
-On this Windows workspace:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1
-git status --short
-```
-
-On Linux with Rust installed:
+Canonical environment is Linux (native or container). The rootfs builder, UKI
+generation, `systemd-repart`, and QEMU boot require Linux, and CI is Linux-only:
 
 ```sh
 cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
+pwsh ./tools/validate-repo.ps1   # cross-platform repository-policy check
 ./tools/build-rootfs.sh
+git status --short
 ```
+
+On Windows the policy check also runs via
+`powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`, but build
+and test on Linux.
 
 Publishing target:
 

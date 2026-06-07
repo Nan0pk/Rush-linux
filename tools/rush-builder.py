@@ -12,6 +12,31 @@ import gzip
 import io
 from pathlib import Path
 
+# Highest recipe schema version this builder understands. Recipes declare
+# `schema_version` under [package]; see docs/packaging-and-builds.md for the
+# versioning and migration policy.
+SUPPORTED_SCHEMA_VERSION = 0
+
+def check_schema_version(pkg, recipe_path):
+    """Validate the recipe's declared schema_version. Returns the version int."""
+    schema_version = pkg.get("schema_version")
+    if schema_version is None:
+        print(
+            f"Warning: {recipe_path} has no [package].schema_version; "
+            f"assuming {SUPPORTED_SCHEMA_VERSION}. Add 'schema_version = "
+            f"{SUPPORTED_SCHEMA_VERSION}' to make this explicit.",
+            file=sys.stderr,
+        )
+        return SUPPORTED_SCHEMA_VERSION
+    if not isinstance(schema_version, int) or schema_version > SUPPORTED_SCHEMA_VERSION:
+        print(
+            f"Error: {recipe_path} declares schema_version {schema_version!r}, "
+            f"but this builder only supports up to {SUPPORTED_SCHEMA_VERSION}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return schema_version
+
 def cmd_build(args):
     recipe_path = Path(args.recipe)
     if not recipe_path.exists():
@@ -22,10 +47,11 @@ def cmd_build(args):
         recipe = tomllib.load(f)
         
     pkg = recipe.get("package", {})
+    schema_version = check_schema_version(pkg, recipe_path)
     name = pkg.get("name")
     version = pkg.get("version", "0.1.0")
     kind = pkg.get("kind")
-    
+
     if not name:
         print("Error: package name is missing in recipe", file=sys.stderr)
         sys.exit(1)
@@ -108,6 +134,7 @@ def cmd_build(args):
     required_deps = depends_cfg.get("required", [])
     
     metadata = {
+        "schema_version": schema_version,
         "name": name,
         "version": version,
         "kind": kind,
@@ -194,6 +221,7 @@ def cmd_rootfs_create(args):
         edition_recipe = tomllib.load(f)
         
     edition_pkg = edition_recipe.get("package", {})
+    check_schema_version(edition_pkg, edition_path)
     edition_name = edition_pkg.get("name")
     print(f"Creating rootfs for edition: {edition_name}")
     

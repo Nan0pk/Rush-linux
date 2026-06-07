@@ -1,6 +1,6 @@
 # Packaging And Builds
 
-Adaptive Linux is source-built by the project, but users should install signed
+Rush Linux is source-built by the project, but users should install signed
 binary packages. Compiling the world locally is not the default user experience.
 
 ## Model
@@ -27,11 +27,36 @@ Implemented helper:
 - `tools/build-rootfs.sh` creates a Linux rootfs skeleton from checked-in
   config files. It is not yet a package builder.
 
+## Recipe Schema Versioning
+
+Every recipe declares its schema version explicitly:
+
+```toml
+[package]
+schema_version = 0
+name = "..."
+```
+
+Rules:
+
+- `tools/rush-builder.py` records the highest version it understands in
+  `SUPPORTED_SCHEMA_VERSION`. It **rejects** a recipe whose `schema_version`
+  is newer than it supports, and **warns** when the field is missing.
+- The version is propagated into per-package metadata (and therefore
+  `repodata.json`) so consumers can tell which schema produced a package.
+- When the schema changes incompatibly, bump `SUPPORTED_SCHEMA_VERSION`, keep
+  the builder able to read the previous version for at least one release, and
+  ship a migration note (and, if churn is large, a `recipe-migrate`
+  subcommand) so existing recipes can be upgraded mechanically rather than by
+  hand. This is the migration path the v0.9 schema freeze depends on.
+
 ## Package Backend Direction
 
 Do not build a custom dependency solver early. Use a mature signed metadata
 backend such as a DNF5/libdnf5-style stack or an equivalent modern package
-backend once package production begins.
+backend once package production begins. The `deps`-list resolution in
+`tools/rush-builder.py` is an MVP bootstrap aid, not the long-term solver; the
+binding decision is recorded in ADR 0007.
 
 ## Build Acceptance Criteria
 

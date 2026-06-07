@@ -17,7 +17,7 @@ struct OptidServer {
     state_dir: PathBuf,
 }
 
-#[dbus_interface(name = "io.adaptive.Optid1")]
+#[dbus_interface(name = "io.rushlinux.Optid1")]
 impl OptidServer {
     fn status(&self) -> zbus::fdo::Result<String> {
         fs::read_to_string(self.state_dir.join("status"))
@@ -86,10 +86,10 @@ fn run(args: Args) -> io::Result<()> {
         };
         let run_server = || -> zbus::Result<()> {
             let _conn = ConnectionBuilder::system()?
-                .name("io.adaptive.Optid")?
-                .serve_at("/io/adaptive/Optid", server)?
+                .name("io.rushlinux.Optid")?
+                .serve_at("/io/rushlinux/Optid", server)?
                 .build()?;
-            println!("D-Bus server running on system bus at /io/adaptive/Optid");
+            println!("D-Bus server running on system bus at /io/rushlinux/Optid");
             loop {
                 thread::park();
             }
@@ -187,7 +187,7 @@ fn print_usage() {
     println!(
         "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
          \n\
-         Default mode is dry-run. Use --apply only on Adaptive Linux or a test host."
+         Default mode is dry-run. Use --apply only on Rush Linux or a test host."
     );
 }
 

@@ -1,7 +1,7 @@
 <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
  "https://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
-<node name="/io/adaptive/Optid">
-  <interface name="io.adaptive.Optid1">
+<node name="/io/rushlinux/Optid">
+  <interface name="io.rushlinux.Optid1">
     <method name="Status">
       <arg name="status" type="s" direction="out"/>
     </method>

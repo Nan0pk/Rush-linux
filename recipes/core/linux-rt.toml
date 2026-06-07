@@ -1,4 +1,5 @@
 [package]
+schema_version = 0
 name = "linux-adaptive-rt"
 version = "stable-rt-tracked"
 kind = "kernel"
