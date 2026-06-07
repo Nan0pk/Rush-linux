@@ -3,8 +3,9 @@
 Rush Linux is an early-stage operating system project. Do not deploy it on
 production systems yet.
 
-Report security issues privately through the GitHub repository owner until a
-dedicated advisory process is published.
+Report security issues privately. The current contact of record is the project
+maintainer, **GitHub [@Nan0pk](https://github.com/Nan0pk)**, until a dedicated
+security team is formed.
 
 ## Supported Versions
 
@@ -13,10 +14,22 @@ scaffold.
 
 ## Reporting
 
-Until GitHub Security Advisories are enabled for the repository, report issues
-privately to the repository owner. Do not open public issues for vulnerabilities
-that allow privilege escalation, unsafe sysfs writes, update compromise, or
-signature bypass.
+Preferred channel: use GitHub's private vulnerability reporting on this
+repository — **Security → Advisories → "Report a vulnerability"**
+(`https://github.com/Nan0pk/Rush-linux/security/advisories/new`). This opens a
+private advisory visible only to you and the maintainer; no public issue is
+created.
+
+If private advisories are not yet enabled, contact the maintainer of record
+([@Nan0pk](https://github.com/Nan0pk)) directly and ask them to enable it rather
+than disclosing details in a public issue.
+
+Do not open public issues for vulnerabilities that allow privilege escalation,
+unsafe sysfs writes, update compromise, or signature bypass.
+
+You can expect an initial acknowledgement within a best-effort window while the
+project is pre-1.0; response-time commitments will be formalised alongside the
+governance plan in `docs/project-sustainability.md` (item C1).
 
 Security-sensitive areas:
 

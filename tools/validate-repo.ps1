@@ -89,6 +89,7 @@ $required = @(
     'docs/release-checklist.md',
     'docs/release-plan-v1.md',
     'docs/documentation-policy.md',
+    'docs/decisions/README.md',
     'docs/decisions/0001-systemd-cgroup-v2.md',
     'docs/decisions/0002-wayland-pipewire.md',
     'docs/decisions/0003-uki-rollback.md',
@@ -140,6 +141,25 @@ Assert-Contains 'release/milestones.toml' 'version = "1\.0\.0"'
 Assert-Contains 'release/test-tiers.toml' '\[tier\.T5\]'
 Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'
 Assert-Contains 'docs/decisions/0004-adaptive-optid.md' 'only default runtime optimization policy owner'
+
+# ADR ratification gate (see docs/decisions/README.md): agent-era ADRs (0008+)
+# may only be marked "accepted" once a human maintainer has ratified them, which
+# is recorded with a "Ratified-by:" line. This stops a future agent from
+# silently promoting its own proposed decision to binding. Every ADR must also
+# declare a valid Status.
+$decisionsDir = Join-Path $Root 'docs/decisions'
+foreach ($adr in Get-ChildItem -LiteralPath $decisionsDir -Filter '*.md') {
+    if ($adr.Name -eq 'README.md') { continue }
+    if ($adr.BaseName -notmatch '^(?<num>\d{4})') { continue }
+    $num = [int]$Matches['num']
+    $adrText = Get-Content -LiteralPath $adr.FullName -Raw
+    if ($adrText -notmatch '(?m)^Status:\s*(proposed|accepted|superseded|rejected)\b') {
+        throw "ADR $($adr.Name) must declare a valid 'Status:' (proposed|accepted|superseded|rejected)."
+    }
+    if ($num -ge 8 -and $adrText -match '(?m)^Status:\s*accepted\b' -and $adrText -notmatch '(?m)^Ratified-by:\s*\S') {
+        throw "ADR $($adr.Name) is marked 'accepted' but has no 'Ratified-by:' line; agent-era ADRs (0008+) require recorded human ratification (see docs/decisions/README.md)."
+    }
+}
 
 $legacyChecks = @{
     'recipes/desktop/plasma-wayland.toml' = @('pulseaudio_default = true', 'legacy_x11_default = true')

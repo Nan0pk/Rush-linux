@@ -9,9 +9,11 @@ Default direction:
 
 - UEFI systems use Unified Kernel Images.
 - systemd-boot is preferred where supported.
-- GRUB remains a compatibility fallback, built from `recipes/boot/grub.toml`.
-  It is never the default bootloader; it is opt-in for firmware that cannot do
-  UKI cleanly. The v0.4 milestone wires this recipe into the boot/rollback flow.
+- GRUB remains a compatibility fallback, described by `recipes/boot/grub.toml`.
+  That recipe is currently a **skeleton — not yet buildable**; it records intent
+  and structure only. GRUB is never the default bootloader; it is opt-in for
+  firmware that cannot do UKI cleanly. The v0.4 milestone makes the recipe
+  buildable and wires it into the boot/rollback flow.
 - Kernel command line defaults live in `distro/boot/cmdline.d/adaptive.conf`.
 - UKI policy lives in `distro/boot/uki.toml`.
 

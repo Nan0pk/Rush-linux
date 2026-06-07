@@ -5,6 +5,7 @@ checks = [
   "required docs and ADRs exist",
   "no obsolete defaults",
   "required recipes and configs exist",
+  "agent-era ADRs (0008+) are not 'accepted' without a Ratified-by line",
   "tools/validate-repo.ps1 passes",
 ]
 
