@@ -31,8 +31,9 @@ The first implementation slice is a GitHub-ready scaffold:
 - Edition profiles for desktop, laptop, server, and realtime audio.
 - Documentation and ADRs that define accepted architecture.
 
-This is not yet a bootable distribution. The next milestone is to make the
-Rust workspace compile in CI, then build a minimal Linux rootfs from recipes.
+This is not yet a bootable distribution. The next milestone is to build
+and validate a bootable VM disk image (`disk.raw`) with actual UEFI UKI boot
+flow.
 
 ## Success Criteria
 

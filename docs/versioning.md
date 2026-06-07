@@ -38,8 +38,8 @@ Examples:
 ## Current Version
 
 `VERSION` is the source of truth for the repository version. The current value
-is `0.1.0-alpha.0`, which means the repository is preparing for the first alpha
-but has not yet passed the `0.1.0-alpha.1` gates.
+is `0.3.0-alpha.1`, which means the repository has implemented the rootfs
+and package builder MVP, and is preparing for the `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates) gates.
 
 ## Package Versions
 

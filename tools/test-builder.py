@@ -36,6 +36,12 @@ def main():
     ], cwd=repo_root)
     assert res.returncode == 0, "Rootfs-create failed"
     
+    print("--- 3.5. Building UKI and Initrd ---")
+    res = subprocess.run([
+        "python3", "tools/rush-builder.py", "build-uki", "build/rootfs"
+    ], cwd=repo_root)
+    assert res.returncode == 0, "Build-uki failed"
+    
     print("--- 4. Creating VM image ---")
     res = subprocess.run([
         "python3", "tools/rush-builder.py", "vm-image", "build/rootfs", "build/disk.raw"
@@ -48,6 +54,9 @@ def main():
     assert (build_dir / "packages" / "repodata.json.sig").exists(), "repodata.json.sig not found"
     assert (build_dir / "rootfs" / "usr" / "bin" / "optctl").exists(), "optctl binary not found in rootfs"
     assert (build_dir / "rootfs" / "usr" / "libexec" / "optid").exists(), "optid binary not found in rootfs"
+    assert (build_dir / "initrd.img").exists(), "initrd.img not found"
+    assert (build_dir / "rootfs" / "boot" / "EFI" / "Linux" / "rush-linux.efi").exists(), "rush-linux.efi UKI not found"
+    assert (build_dir / "rootfs" / "boot" / "EFI" / "BOOT" / "BOOTX64.EFI").exists(), "BOOTX64.EFI fallback bootloader not found"
     assert (build_dir / "disk.raw").exists(), "disk.raw VM image not found"
     
     print("\nAll integration tests for rush-builder passed successfully!")

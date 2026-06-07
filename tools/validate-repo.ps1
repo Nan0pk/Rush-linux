@@ -119,7 +119,8 @@ Assert-Contains 'packaging/dbus/io.adaptive.Optid.xml' 'io.adaptive.Optid1'
 Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
 Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'
 Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
-Assert-Contains 'VERSION' '^0\.1\.0-alpha\.0\s*$'
+$versionText = (Get-Content -LiteralPath (Join-Path $Root 'VERSION') -Raw).Trim()
+Assert-Contains 'VERSION' "^$([regex]::Escape($versionText))\s*$"
 Assert-Contains 'RELEASES.md' '0\.1\.0-alpha\.1'
 Assert-Contains 'AI_CONTINUATION.md' 'Forbidden Shortcuts'
 Assert-Contains 'AI_CONTINUATION.md' 'Next Task'

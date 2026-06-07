@@ -8,6 +8,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_src_main",
       "community": 5,
       "norm_label": "main.rs"
@@ -17,6 +18,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L13",
+      "_origin": "ast",
       "id": "src_main_optid",
       "community": 5,
       "norm_label": "optid"
@@ -26,6 +28,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_src_main_main",
       "community": 5,
       "norm_label": "main()"
@@ -35,6 +38,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L34",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_src_main_run",
       "community": 5,
       "norm_label": "run()"
@@ -44,6 +48,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L34",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_vec",
       "community": 5,
       "norm_label": "vec"
@@ -53,6 +58,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L34",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_string",
       "community": 5,
       "norm_label": "string"
@@ -62,6 +68,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L34",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_result",
       "community": 5,
       "norm_label": "result"
@@ -71,6 +78,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L194",
+      "_origin": "ast",
       "id": "src_main_mode_command",
       "community": 5,
       "norm_label": "mode_command()"
@@ -80,6 +88,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L194",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_path",
       "community": 5,
       "norm_label": "path"
@@ -89,6 +98,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L194",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_option",
       "community": 5,
       "norm_label": "option"
@@ -98,6 +108,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L211",
+      "_origin": "ast",
       "id": "src_main_print_file_or_hint",
       "community": 5,
       "norm_label": "print_file_or_hint()"
@@ -107,6 +118,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L225",
+      "_origin": "ast",
       "id": "crates_optctl_src_main_rs_src_main_print_usage",
       "community": 5,
       "norm_label": "print_usage()"
@@ -116,6 +128,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L237",
+      "_origin": "ast",
       "id": "src_main_format_status_as_json",
       "community": 5,
       "norm_label": "format_status_as_json()"
@@ -125,6 +138,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L444",
+      "_origin": "ast",
       "id": "src_main_test_format_status_as_json_all_values",
       "community": 5,
       "norm_label": "test_format_status_as_json_all_values()"
@@ -134,6 +148,7 @@
       "file_type": "code",
       "source_file": "crates/optctl/src/main.rs",
       "source_location": "L483",
+      "_origin": "ast",
       "id": "src_main_test_format_status_as_json_none_values",
       "community": 5,
       "norm_label": "test_format_status_as_json_none_values()"
@@ -143,6 +158,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_src_main",
       "community": 1,
       "norm_label": "main.rs"
@@ -152,6 +168,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L16",
+      "_origin": "ast",
       "id": "src_main_optidserver",
       "community": 1,
       "norm_label": "optidserver"
@@ -161,6 +178,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L17",
+      "_origin": "ast",
       "id": "pathbuf",
       "community": 1,
       "norm_label": "pathbuf"
@@ -170,6 +188,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "src_main_optidserver_status",
       "community": 1,
       "norm_label": ".status()"
@@ -179,6 +198,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_result",
       "community": 1,
       "norm_label": "result"
@@ -188,6 +208,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_string",
       "community": 1,
       "norm_label": "string"
@@ -197,6 +218,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "src_main_optidserver_explain",
       "community": 1,
       "norm_label": ".explain()"
@@ -206,6 +228,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L32",
+      "_origin": "ast",
       "id": "src_main_optidserver_set_mode",
       "community": 1,
       "norm_label": ".set_mode()"
@@ -215,6 +238,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L39",
+      "_origin": "ast",
       "id": "src_main_optidserver_pin_application",
       "community": 1,
       "norm_label": ".pin_application()"
@@ -224,6 +248,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L47",
+      "_origin": "ast",
       "id": "src_main_optidserver_mode",
       "community": 1,
       "norm_label": ".mode()"
@@ -233,6 +258,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L53",
+      "_origin": "ast",
       "id": "src_main_optidserver_version",
       "community": 1,
       "norm_label": ".version()"
@@ -242,6 +268,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L58",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_src_main_main",
       "community": 1,
       "norm_label": "main()"
@@ -251,6 +278,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L79",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_src_main_run",
       "community": 1,
       "norm_label": "run()"
@@ -260,6 +288,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L79",
+      "_origin": "ast",
       "id": "args",
       "community": 1,
       "norm_label": "args"
@@ -269,6 +298,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L129",
+      "_origin": "ast",
       "id": "src_main_args",
       "community": 1,
       "norm_label": "args"
@@ -278,6 +308,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L139",
+      "_origin": "ast",
       "id": "src_main_args_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -287,6 +318,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L139",
+      "_origin": "ast",
       "id": "i",
       "community": 1,
       "norm_label": "i"
@@ -296,6 +328,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L139",
+      "_origin": "ast",
       "id": "self",
       "community": 1,
       "norm_label": "self"
@@ -305,6 +338,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L186",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_src_main_print_usage",
       "community": 1,
       "norm_label": "print_usage()"
@@ -314,6 +348,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L195",
+      "_origin": "ast",
       "id": "src_main_mode",
       "community": 1,
       "norm_label": "mode"
@@ -323,6 +358,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L204",
+      "_origin": "ast",
       "id": "src_main_mode_parse",
       "community": 1,
       "norm_label": ".parse()"
@@ -332,6 +368,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L204",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_option",
       "community": 1,
       "norm_label": "option"
@@ -341,6 +378,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L216",
+      "_origin": "ast",
       "id": "display",
       "community": 1,
       "norm_label": "display"
@@ -350,6 +388,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L217",
+      "_origin": "ast",
       "id": "src_main_mode_fmt",
       "community": 1,
       "norm_label": ".fmt()"
@@ -359,6 +398,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L217",
+      "_origin": "ast",
       "id": "formatter",
       "community": 1,
       "norm_label": "formatter"
@@ -368,6 +408,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L230",
+      "_origin": "ast",
       "id": "src_main_pressure",
       "community": 1,
       "norm_label": "pressure"
@@ -377,6 +418,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L238",
+      "_origin": "ast",
       "id": "src_main_pressure_read",
       "community": 1,
       "norm_label": ".read()"
@@ -386,6 +428,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L245",
+      "_origin": "ast",
       "id": "src_main_snapshot",
       "community": 1,
       "norm_label": "snapshot"
@@ -395,6 +438,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L257",
+      "_origin": "ast",
       "id": "src_main_snapshot_collect",
       "community": 1,
       "norm_label": ".collect()"
@@ -404,6 +448,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L270",
+      "_origin": "ast",
       "id": "src_main_snapshot_thermal_c",
       "community": 1,
       "norm_label": ".thermal_c()"
@@ -413,6 +458,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L276",
+      "_origin": "ast",
       "id": "src_main_policy",
       "community": 1,
       "norm_label": "policy"
@@ -422,6 +468,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L277",
+      "_origin": "ast",
       "id": "thresholds",
       "community": 1,
       "norm_label": "thresholds"
@@ -431,6 +478,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L278",
+      "_origin": "ast",
       "id": "modes",
       "community": 1,
       "norm_label": "modes"
@@ -440,6 +488,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L282",
+      "_origin": "ast",
       "id": "src_main_thresholds",
       "community": 1,
       "norm_label": "thresholds"
@@ -449,8 +498,9 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L292",
+      "_origin": "ast",
       "id": "src_main_modes",
-      "community": 1,
+      "community": 50,
       "norm_label": "modes"
     },
     {
@@ -458,8 +508,9 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L293",
+      "_origin": "ast",
       "id": "modeconfig",
-      "community": 1,
+      "community": 50,
       "norm_label": "modeconfig"
     },
     {
@@ -467,6 +518,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L300",
+      "_origin": "ast",
       "id": "src_main_modeconfig",
       "community": 1,
       "norm_label": "modeconfig"
@@ -476,6 +528,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L315",
+      "_origin": "ast",
       "id": "default",
       "community": 1,
       "norm_label": "default"
@@ -485,6 +538,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L316",
+      "_origin": "ast",
       "id": "src_main_policy_default",
       "community": 1,
       "norm_label": ".default()"
@@ -494,6 +548,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L369",
+      "_origin": "ast",
       "id": "src_main_policy_load",
       "community": 1,
       "norm_label": ".load()"
@@ -503,6 +558,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L369",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_path",
       "community": 1,
       "norm_label": "path"
@@ -512,6 +568,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L514",
+      "_origin": "ast",
       "id": "src_main_policy_decide",
       "community": 1,
       "norm_label": ".decide()"
@@ -521,6 +578,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L514",
+      "_origin": "ast",
       "id": "decision",
       "community": 1,
       "norm_label": "decision"
@@ -530,6 +588,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L672",
+      "_origin": "ast",
       "id": "src_main_policy_auto_mode",
       "community": 1,
       "norm_label": ".auto_mode()"
@@ -539,6 +598,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L710",
+      "_origin": "ast",
       "id": "src_main_decision",
       "community": 1,
       "norm_label": "decision"
@@ -548,6 +608,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L712",
+      "_origin": "ast",
       "id": "crates_optid_src_main_rs_vec",
       "community": 1,
       "norm_label": "vec"
@@ -557,6 +618,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L713",
+      "_origin": "ast",
       "id": "action",
       "community": 1,
       "norm_label": "action"
@@ -566,6 +628,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L717",
+      "_origin": "ast",
       "id": "src_main_decision_render",
       "community": 1,
       "norm_label": ".render()"
@@ -575,6 +638,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L750",
+      "_origin": "ast",
       "id": "src_main_action",
       "community": 1,
       "norm_label": "action"
@@ -584,6 +648,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L767",
+      "_origin": "ast",
       "id": "src_main_action_cpu_epp",
       "community": 1,
       "norm_label": ".cpu_epp()"
@@ -593,6 +658,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L771",
+      "_origin": "ast",
       "id": "src_main_action_platform_profile",
       "community": 1,
       "norm_label": ".platform_profile()"
@@ -602,6 +668,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L775",
+      "_origin": "ast",
       "id": "src_main_action_systemd_set_property",
       "community": 1,
       "norm_label": ".systemd_set_property()"
@@ -611,6 +678,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L787",
+      "_origin": "ast",
       "id": "src_main_action_describe",
       "community": 1,
       "norm_label": ".describe()"
@@ -620,6 +688,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L805",
+      "_origin": "ast",
       "id": "src_main_actuator",
       "community": 1,
       "norm_label": "actuator"
@@ -629,6 +698,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L810",
+      "_origin": "ast",
       "id": "src_main_actuator_new",
       "community": 1,
       "norm_label": ".new()"
@@ -638,6 +708,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L814",
+      "_origin": "ast",
       "id": "src_main_actuator_apply",
       "community": 1,
       "norm_label": ".apply()"
@@ -647,6 +718,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L868",
+      "_origin": "ast",
       "id": "src_main_actuator_log",
       "community": 1,
       "norm_label": ".log()"
@@ -656,6 +728,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L873",
+      "_origin": "ast",
       "id": "src_main_guarded_write",
       "community": 1,
       "norm_label": "guarded_write()"
@@ -665,6 +738,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L887",
+      "_origin": "ast",
       "id": "src_main_discover_cpu_epp_paths",
       "community": 1,
       "norm_label": "discover_cpu_epp_paths()"
@@ -674,6 +748,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L908",
+      "_origin": "ast",
       "id": "src_main_read_mode_override",
       "community": 1,
       "norm_label": "read_mode_override()"
@@ -683,6 +758,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L913",
+      "_origin": "ast",
       "id": "src_main_read_on_ac",
       "community": 1,
       "norm_label": "read_on_ac()"
@@ -692,6 +768,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L940",
+      "_origin": "ast",
       "id": "src_main_read_battery_pct",
       "community": 1,
       "norm_label": "read_battery_pct()"
@@ -701,6 +778,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L953",
+      "_origin": "ast",
       "id": "src_main_read_max_thermal_millic",
       "community": 1,
       "norm_label": "read_max_thermal_millic()"
@@ -710,6 +788,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L968",
+      "_origin": "ast",
       "id": "src_main_read_loadavg_1",
       "community": 1,
       "norm_label": "read_loadavg_1()"
@@ -719,6 +798,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L973",
+      "_origin": "ast",
       "id": "src_main_parse_pressure",
       "community": 1,
       "norm_label": "parse_pressure()"
@@ -728,6 +808,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L993",
+      "_origin": "ast",
       "id": "src_main_fmt_pressure",
       "community": 1,
       "norm_label": "fmt_pressure()"
@@ -737,6 +818,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1003",
+      "_origin": "ast",
       "id": "src_main_append_log",
       "community": 1,
       "norm_label": "append_log()"
@@ -746,6 +828,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1017",
+      "_origin": "ast",
       "id": "src_main_now_unix",
       "community": 1,
       "norm_label": "now_unix()"
@@ -755,6 +838,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1029",
+      "_origin": "ast",
       "id": "src_main_parses_psi_some_line",
       "community": 1,
       "norm_label": "parses_psi_some_line()"
@@ -764,6 +848,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1041",
+      "_origin": "ast",
       "id": "src_main_battery_auto_mode_prefers_battery",
       "community": 1,
       "norm_label": "battery_auto_mode_prefers_battery()"
@@ -773,6 +858,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1058",
+      "_origin": "ast",
       "id": "src_main_ac_cpu_pressure_prefers_performance",
       "community": 1,
       "norm_label": "ac_cpu_pressure_prefers_performance()"
@@ -782,6 +868,7 @@
       "file_type": "code",
       "source_file": "crates/optid/src/main.rs",
       "source_location": "L1078",
+      "_origin": "ast",
       "id": "src_main_critical_thermal_overrides_performance_bias",
       "community": 1,
       "norm_label": "critical_thermal_overrides_performance_bias()"
@@ -795,6 +882,7 @@
         "language": "bash",
         "kind": "file"
       },
+      "_origin": "ast",
       "id": "tools_build_rootfs",
       "community": 35,
       "norm_label": "build-rootfs.sh"
@@ -808,9 +896,50 @@
         "language": "bash",
         "kind": "bash_entrypoint"
       },
-      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry",
+      "_origin": "ast",
+      "id": "c_users_victus_rush_linux_tools_build_rootfs_sh__entry",
       "community": 35,
       "norm_label": "build-rootfs.sh script"
+    },
+    {
+      "label": "download-assets.py",
+      "file_type": "code",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_download_assets",
+      "community": 49,
+      "norm_label": "download-assets.py"
+    },
+    {
+      "label": "get_sha256()",
+      "file_type": "code",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L28",
+      "_origin": "ast",
+      "id": "tools_download_assets_get_sha256",
+      "community": 49,
+      "norm_label": "get_sha256()"
+    },
+    {
+      "label": "download_with_progress()",
+      "file_type": "code",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L35",
+      "_origin": "ast",
+      "id": "tools_download_assets_download_with_progress",
+      "community": 49,
+      "norm_label": "download_with_progress()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "tools_download_assets_main",
+      "community": 49,
+      "norm_label": "main()"
     },
     {
       "label": "graphify-refresh.sh",
@@ -821,6 +950,7 @@
         "language": "bash",
         "kind": "file"
       },
+      "_origin": "ast",
       "id": "tools_graphify_refresh",
       "community": 28,
       "norm_label": "graphify-refresh.sh"
@@ -834,7 +964,8 @@
         "language": "bash",
         "kind": "bash_entrypoint"
       },
-      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
+      "_origin": "ast",
+      "id": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
       "community": 28,
       "norm_label": "graphify-refresh.sh script"
     },
@@ -847,6 +978,7 @@
         "language": "bash",
         "kind": "bash_function"
       },
+      "_origin": "ast",
       "id": "tools_graphify_refresh_find_graphify",
       "community": 28,
       "norm_label": "find_graphify()"
@@ -860,6 +992,7 @@
         "language": "bash",
         "kind": "code"
       },
+      "_origin": "ast",
       "id": "tools_graphify_refresh_pythonhashseed",
       "community": 28,
       "norm_label": "pythonhashseed"
@@ -873,6 +1006,7 @@
         "language": "bash",
         "kind": "bash_function"
       },
+      "_origin": "ast",
       "id": "tools_graphify_refresh_run_graphify",
       "community": 28,
       "norm_label": "run_graphify()"
@@ -882,6 +1016,7 @@
       "file_type": "code",
       "source_file": "tools/publish-github.ps1",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "tools_publish_github",
       "community": 47,
       "norm_label": "publish-github.ps1"
@@ -891,6 +1026,7 @@
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "tools_rush_builder",
       "community": 46,
       "norm_label": "rush-builder.py"
@@ -899,7 +1035,8 @@
       "label": "cmd_build()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L13",
+      "source_location": "L15",
+      "_origin": "ast",
       "id": "tools_rush_builder_cmd_build",
       "community": 46,
       "norm_label": "cmd_build()"
@@ -908,7 +1045,8 @@
       "label": "cmd_repo_init()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L127",
+      "source_location": "L129",
+      "_origin": "ast",
       "id": "tools_rush_builder_cmd_repo_init",
       "community": 46,
       "norm_label": "cmd_repo_init()"
@@ -917,16 +1055,48 @@
       "label": "cmd_rootfs_create()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L171",
+      "source_location": "L173",
+      "_origin": "ast",
       "id": "tools_rush_builder_cmd_rootfs_create",
       "community": 46,
       "norm_label": "cmd_rootfs_create()"
     },
     {
+      "label": "write_cpio_newc()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L249",
+      "_origin": "ast",
+      "id": "tools_rush_builder_write_cpio_newc",
+      "community": 46,
+      "norm_label": "write_cpio_newc()"
+    },
+    {
+      "label": "helper_extract_from_deb()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L284",
+      "_origin": "ast",
+      "id": "tools_rush_builder_helper_extract_from_deb",
+      "community": 46,
+      "norm_label": "helper_extract_from_deb()"
+    },
+    {
+      "label": "cmd_build_uki()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L313",
+      "_origin": "ast",
+      "id": "tools_rush_builder_cmd_build_uki",
+      "community": 46,
+      "norm_label": "cmd_build_uki()"
+    },
+    {
       "label": "cmd_vm_image()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L247",
+      "source_location": "L463",
+      "_origin": "ast",
       "id": "tools_rush_builder_cmd_vm_image",
       "community": 46,
       "norm_label": "cmd_vm_image()"
@@ -935,7 +1105,8 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L294",
+      "source_location": "L521",
+      "_origin": "ast",
       "id": "tools_rush_builder_main",
       "community": 46,
       "norm_label": "main()"
@@ -945,6 +1116,7 @@
       "file_type": "code",
       "source_file": "tools/test-builder.py",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "tools_test_builder",
       "community": 48,
       "norm_label": "test-builder.py"
@@ -954,6 +1126,7 @@
       "file_type": "code",
       "source_file": "tools/test-builder.py",
       "source_location": "L8",
+      "_origin": "ast",
       "id": "tools_test_builder_main",
       "community": 48,
       "norm_label": "main()"
@@ -963,6 +1136,7 @@
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "tools_validate_repo",
       "community": 31,
       "norm_label": "validate-repo.ps1"
@@ -972,6 +1146,7 @@
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "tools_validate_repo_assert_file",
       "community": 31,
       "norm_label": "assert-file()"
@@ -981,6 +1156,7 @@
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L15",
+      "_origin": "ast",
       "id": "tools_validate_repo_assert_contains",
       "community": 31,
       "norm_label": "assert-contains()"
@@ -990,6 +1166,7 @@
       "file_type": "code",
       "source_file": "tools/validate-repo.ps1",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "tools_validate_repo_assert_notcontains",
       "community": 31,
       "norm_label": "assert-notcontains()"
@@ -999,6 +1176,7 @@
       "file_type": "document",
       "source_file": "AGENTS.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "agents",
       "community": 45,
       "norm_label": "agents.md"
@@ -1008,6 +1186,7 @@
       "file_type": "document",
       "source_file": "AGENTS.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "agents_agent_instructions",
       "community": 45,
       "norm_label": "agent instructions"
@@ -1017,6 +1196,7 @@
       "file_type": "document",
       "source_file": "AGENTS.md",
       "source_location": "L8",
+      "_origin": "ast",
       "id": "agents_graphify",
       "community": 45,
       "norm_label": "graphify"
@@ -1026,6 +1206,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "ai_continuation",
       "community": 37,
       "norm_label": "ai_continuation.md"
@@ -1035,6 +1216,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "ai_continuation_ai_continuation",
       "community": 37,
       "norm_label": "ai continuation"
@@ -1044,6 +1226,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "ai_continuation_mission",
       "community": 37,
       "norm_label": "mission"
@@ -1053,6 +1236,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L14",
+      "_origin": "ast",
       "id": "ai_continuation_forbidden_shortcuts",
       "community": 37,
       "norm_label": "forbidden shortcuts"
@@ -1062,6 +1246,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L33",
+      "_origin": "ast",
       "id": "ai_continuation_current_status",
       "community": 37,
       "norm_label": "current status"
@@ -1071,6 +1256,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L66",
+      "_origin": "ast",
       "id": "ai_continuation_safe_assumptions",
       "community": 37,
       "norm_label": "safe assumptions"
@@ -1080,6 +1266,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L78",
+      "_origin": "ast",
       "id": "ai_continuation_repo_layout",
       "community": 37,
       "norm_label": "repo layout"
@@ -1089,6 +1276,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L98",
+      "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
       "norm_label": "graphify continuation workflow"
@@ -1098,6 +1286,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L126",
+      "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
       "norm_label": "commands and checks"
@@ -1107,6 +1296,7 @@
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L150",
+      "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
       "norm_label": "next task"
@@ -1116,6 +1306,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "contributing",
       "community": 39,
       "norm_label": "contributing.md"
@@ -1125,6 +1316,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "contributing_contributing",
       "community": 39,
       "norm_label": "contributing"
@@ -1134,6 +1326,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "contributing_before_you_change_code",
       "community": 39,
       "norm_label": "before you change code"
@@ -1143,6 +1336,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "contributing_required_checks",
       "community": 39,
       "norm_label": "required checks"
@@ -1152,6 +1346,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L53",
+      "_origin": "ast",
       "id": "contributing_documentation_is_required",
       "community": 39,
       "norm_label": "documentation is required"
@@ -1161,6 +1356,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L72",
+      "_origin": "ast",
       "id": "contributing_defaults_policy",
       "community": 39,
       "norm_label": "defaults policy"
@@ -1170,6 +1366,7 @@
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L77",
+      "_origin": "ast",
       "id": "contributing_commit_quality",
       "community": 39,
       "norm_label": "commit quality"
@@ -1179,6 +1376,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "implementation_status",
       "community": 40,
       "norm_label": "implementation_status.md"
@@ -1188,6 +1386,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "implementation_status_implementation_status",
       "community": 40,
       "norm_label": "implementation status"
@@ -1197,6 +1396,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "implementation_status_overall_state",
       "community": 40,
       "norm_label": "overall state"
@@ -1206,6 +1406,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L12",
+      "_origin": "ast",
       "id": "implementation_status_implemented",
       "community": 40,
       "norm_label": "implemented"
@@ -1215,6 +1416,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L62",
+      "_origin": "ast",
       "id": "implementation_status_not_yet_implemented",
       "community": 40,
       "norm_label": "not yet implemented"
@@ -1224,6 +1426,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L73",
+      "_origin": "ast",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
       "norm_label": "known local constraints"
@@ -1233,6 +1436,7 @@
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
       "source_location": "L79",
+      "_origin": "ast",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
       "norm_label": "acceptance rule"
@@ -1242,6 +1446,7 @@
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "project_brief",
       "community": 41,
       "norm_label": "project_brief.md"
@@ -1251,6 +1456,7 @@
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "project_brief_project_brief",
       "community": 41,
       "norm_label": "project brief"
@@ -1260,6 +1466,7 @@
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L11",
+      "_origin": "ast",
       "id": "project_brief_mission",
       "community": 41,
       "norm_label": "mission"
@@ -1269,6 +1476,7 @@
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
       "source_location": "L23",
+      "_origin": "ast",
       "id": "project_brief_current_product_shape",
       "community": 41,
       "norm_label": "current product shape"
@@ -1277,7 +1485,8 @@
       "label": "Success Criteria",
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
-      "source_location": "L37",
+      "source_location": "L38",
+      "_origin": "ast",
       "id": "project_brief_success_criteria",
       "community": 41,
       "norm_label": "success criteria"
@@ -1286,7 +1495,8 @@
       "label": "Engineering Principles",
       "file_type": "document",
       "source_file": "PROJECT_BRIEF.md",
-      "source_location": "L47",
+      "source_location": "L48",
+      "_origin": "ast",
       "id": "project_brief_engineering_principles",
       "community": 41,
       "norm_label": "engineering principles"
@@ -1296,6 +1506,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "readme",
       "community": 38,
       "norm_label": "readme.md"
@@ -1305,6 +1516,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "readme_rush_linux",
       "community": 38,
       "norm_label": "rush linux"
@@ -1314,6 +1526,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L23",
+      "_origin": "ast",
       "id": "readme_repository_layout",
       "community": 38,
       "norm_label": "repository layout"
@@ -1323,6 +1536,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L39",
+      "_origin": "ast",
       "id": "readme_first_class_documentation",
       "community": 38,
       "norm_label": "first-class documentation"
@@ -1332,6 +1546,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L68",
+      "_origin": "ast",
       "id": "readme_knowledge_graph_for_continuation",
       "community": 38,
       "norm_label": "knowledge graph for continuation"
@@ -1341,6 +1556,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L88",
+      "_origin": "ast",
       "id": "readme_current_implementation_status",
       "community": 38,
       "norm_label": "current implementation status"
@@ -1350,6 +1566,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L114",
+      "_origin": "ast",
       "id": "readme_build",
       "community": 38,
       "norm_label": "build"
@@ -1359,6 +1576,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L130",
+      "_origin": "ast",
       "id": "readme_github_ci",
       "community": 38,
       "norm_label": "github ci"
@@ -1368,6 +1586,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L140",
+      "_origin": "ast",
       "id": "readme_publishing",
       "community": 38,
       "norm_label": "publishing"
@@ -1377,6 +1596,7 @@
       "file_type": "document",
       "source_file": "README.md",
       "source_location": "L156",
+      "_origin": "ast",
       "id": "readme_design_rules",
       "community": 38,
       "norm_label": "design rules"
@@ -1386,6 +1606,7 @@
       "file_type": "document",
       "source_file": "RELEASES.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "releases",
       "community": 44,
       "norm_label": "releases.md"
@@ -1395,6 +1616,7 @@
       "file_type": "document",
       "source_file": "RELEASES.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "releases_releases",
       "community": 44,
       "norm_label": "releases"
@@ -1404,6 +1626,7 @@
       "file_type": "document",
       "source_file": "RELEASES.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "releases_release_ledger",
       "community": 44,
       "norm_label": "release ledger"
@@ -1413,6 +1636,7 @@
       "file_type": "document",
       "source_file": "RELEASES.md",
       "source_location": "L23",
+      "_origin": "ast",
       "id": "releases_release_rule",
       "community": 44,
       "norm_label": "release rule"
@@ -1422,6 +1646,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "roadmap",
       "community": 0,
       "norm_label": "roadmap.md"
@@ -1431,6 +1656,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "roadmap_roadmap",
       "community": 0,
       "norm_label": "roadmap"
@@ -1440,6 +1666,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L8",
+      "_origin": "ast",
       "id": "roadmap_phase_0_repository_foundation",
       "community": 0,
       "norm_label": "phase 0: repository foundation"
@@ -1449,6 +1676,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "roadmap_v0_1_0_alpha_1_compile_clean_core",
       "community": 0,
       "norm_label": "v0.1.0-alpha.1: compile-clean core"
@@ -1458,6 +1686,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L38",
+      "_origin": "ast",
       "id": "roadmap_v0_2_0_alpha_1_real_control_plane",
       "community": 0,
       "norm_label": "v0.2.0-alpha.1: real control plane"
@@ -1467,6 +1696,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L55",
+      "_origin": "ast",
       "id": "roadmap_v0_3_0_alpha_1_rootfs_and_package_builder_mvp",
       "community": 0,
       "norm_label": "v0.3.0-alpha.1: rootfs and package builder mvp"
@@ -1476,6 +1706,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L72",
+      "_origin": "ast",
       "id": "roadmap_v0_4_0_alpha_1_uki_boot_rollback_updates",
       "community": 0,
       "norm_label": "v0.4.0-alpha.1: uki, boot, rollback, updates"
@@ -1485,6 +1716,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L88",
+      "_origin": "ast",
       "id": "roadmap_v0_5_0_beta_1_minimal_installable_system",
       "community": 0,
       "norm_label": "v0.5.0-beta.1: minimal installable system"
@@ -1494,6 +1726,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L105",
+      "_origin": "ast",
       "id": "roadmap_v0_6_0_beta_1_hardware_aware_optid",
       "community": 0,
       "norm_label": "v0.6.0-beta.1: hardware-aware optid"
@@ -1503,6 +1736,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L124",
+      "_origin": "ast",
       "id": "roadmap_v0_7_0_beta_1_editions",
       "community": 0,
       "norm_label": "v0.7.0-beta.1: editions"
@@ -1512,6 +1746,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L141",
+      "_origin": "ast",
       "id": "roadmap_v0_8_0_beta_1_benchmark_lab",
       "community": 0,
       "norm_label": "v0.8.0-beta.1: benchmark lab"
@@ -1521,6 +1756,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L158",
+      "_origin": "ast",
       "id": "roadmap_v0_9_0_rc_1_release_candidate_hardening",
       "community": 0,
       "norm_label": "v0.9.0-rc.1: release candidate hardening"
@@ -1530,6 +1766,7 @@
       "file_type": "document",
       "source_file": "ROADMAP.md",
       "source_location": "L175",
+      "_origin": "ast",
       "id": "roadmap_v1_0_0_stable",
       "community": 0,
       "norm_label": "v1.0.0: stable"
@@ -1539,6 +1776,7 @@
       "file_type": "document",
       "source_file": "SECURITY.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "security",
       "community": 43,
       "norm_label": "security.md"
@@ -1548,6 +1786,7 @@
       "file_type": "document",
       "source_file": "SECURITY.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "security_security_policy",
       "community": 43,
       "norm_label": "security policy"
@@ -1557,6 +1796,7 @@
       "file_type": "document",
       "source_file": "SECURITY.md",
       "source_location": "L9",
+      "_origin": "ast",
       "id": "security_supported_versions",
       "community": 43,
       "norm_label": "supported versions"
@@ -1566,6 +1806,7 @@
       "file_type": "document",
       "source_file": "SECURITY.md",
       "source_location": "L14",
+      "_origin": "ast",
       "id": "security_reporting",
       "community": 43,
       "norm_label": "reporting"
@@ -1575,6 +1816,7 @@
       "file_type": "document",
       "source_file": "SECURITY.md",
       "source_location": "L29",
+      "_origin": "ast",
       "id": "security_security_requirements",
       "community": 43,
       "norm_label": "security requirements"
@@ -1584,6 +1826,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_adaptive_engine",
       "community": 9,
       "norm_label": "adaptive-engine.md"
@@ -1593,6 +1836,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_adaptive_engine",
       "community": 9,
       "norm_label": "adaptive engine"
@@ -1602,6 +1846,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_current_mvp",
       "community": 9,
       "norm_label": "current mvp"
@@ -1611,6 +1856,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L25",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_policy_ownership",
       "community": 9,
       "norm_label": "policy ownership"
@@ -1620,6 +1866,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L34",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_inputs",
       "community": 9,
       "norm_label": "inputs"
@@ -1629,6 +1876,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L48",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_actions",
       "community": 9,
       "norm_label": "actions"
@@ -1638,6 +1886,7 @@
       "file_type": "document",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L60",
+      "_origin": "ast",
       "id": "docs_adaptive_engine_guardrails",
       "community": 9,
       "norm_label": "guardrails"
@@ -1647,6 +1896,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_architecture",
       "community": 15,
       "norm_label": "architecture.md"
@@ -1656,6 +1906,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_architecture_architecture",
       "community": 15,
       "norm_label": "architecture"
@@ -1665,6 +1916,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L14",
+      "_origin": "ast",
       "id": "docs_architecture_system_boundaries",
       "community": 15,
       "norm_label": "system boundaries"
@@ -1674,6 +1926,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "docs_architecture_subsystems",
       "community": 15,
       "norm_label": "subsystems"
@@ -1683,6 +1936,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L37",
+      "_origin": "ast",
       "id": "docs_architecture_compatibility_position",
       "community": 15,
       "norm_label": "compatibility position"
@@ -1692,6 +1946,7 @@
       "file_type": "document",
       "source_file": "docs/architecture.md",
       "source_location": "L44",
+      "_origin": "ast",
       "id": "docs_architecture_documentation_rule",
       "community": 15,
       "norm_label": "documentation rule"
@@ -1701,6 +1956,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_boot_and_updates",
       "community": 16,
       "norm_label": "boot-and-updates.md"
@@ -1710,6 +1966,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_boot_and_updates_boot_and_updates",
       "community": 16,
       "norm_label": "boot and updates"
@@ -1719,6 +1976,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "docs_boot_and_updates_boot_direction",
       "community": 16,
       "norm_label": "boot direction"
@@ -1728,6 +1986,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L16",
+      "_origin": "ast",
       "id": "docs_boot_and_updates_update_direction",
       "community": 16,
       "norm_label": "update direction"
@@ -1737,6 +1996,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "docs_boot_and_updates_rollback_requirements",
       "community": 16,
       "norm_label": "rollback requirements"
@@ -1746,6 +2006,7 @@
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L37",
+      "_origin": "ast",
       "id": "docs_boot_and_updates_acceptance_criteria",
       "community": 16,
       "norm_label": "acceptance criteria"
@@ -1755,6 +2016,7 @@
       "file_type": "document",
       "source_file": "docs/build-system.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_build_system",
       "community": 32,
       "norm_label": "build-system.md"
@@ -1764,6 +2026,7 @@
       "file_type": "document",
       "source_file": "docs/build-system.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_build_system_build_system_direction",
       "community": 32,
       "norm_label": "build system direction"
@@ -1773,6 +2036,7 @@
       "file_type": "document",
       "source_file": "docs/build-system.md",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "docs_build_system_publishing_source",
       "community": 32,
       "norm_label": "publishing source"
@@ -1782,6 +2046,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0001_systemd_cgroup_v2",
       "community": 22,
       "norm_label": "0001-systemd-cgroup-v2.md"
@@ -1791,6 +2056,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0001_systemd_cgroup_v2_adr_0001_use_systemd_with_unified_cgroup_v2",
       "community": 22,
       "norm_label": "adr 0001: use systemd with unified cgroup v2"
@@ -1800,6 +2066,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0001_systemd_cgroup_v2_context",
       "community": 22,
       "norm_label": "context"
@@ -1809,6 +2076,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L11",
+      "_origin": "ast",
       "id": "decisions_0001_systemd_cgroup_v2_decision",
       "community": 22,
       "norm_label": "decision"
@@ -1818,6 +2086,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0001-systemd-cgroup-v2.md",
       "source_location": "L16",
+      "_origin": "ast",
       "id": "decisions_0001_systemd_cgroup_v2_consequences",
       "community": 22,
       "norm_label": "consequences"
@@ -1827,6 +2096,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0002_wayland_pipewire",
       "community": 23,
       "norm_label": "0002-wayland-pipewire.md"
@@ -1836,6 +2106,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0002_wayland_pipewire_adr_0002_use_wayland_and_pipewire_by_default",
       "community": 23,
       "norm_label": "adr 0002: use wayland and pipewire by default"
@@ -1845,6 +2116,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0002_wayland_pipewire_context",
       "community": 23,
       "norm_label": "context"
@@ -1854,6 +2126,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L10",
+      "_origin": "ast",
       "id": "decisions_0002_wayland_pipewire_decision",
       "community": 23,
       "norm_label": "decision"
@@ -1863,6 +2136,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0002-wayland-pipewire.md",
       "source_location": "L15",
+      "_origin": "ast",
       "id": "decisions_0002_wayland_pipewire_consequences",
       "community": 23,
       "norm_label": "consequences"
@@ -1872,6 +2146,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0003_uki_rollback",
       "community": 24,
       "norm_label": "0003-uki-rollback.md"
@@ -1881,6 +2156,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0003_uki_rollback_adr_0003_use_uki_first_boot_with_rollback",
       "community": 24,
       "norm_label": "adr 0003: use uki-first boot with rollback"
@@ -1890,6 +2166,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0003_uki_rollback_context",
       "community": 24,
       "norm_label": "context"
@@ -1899,6 +2176,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L11",
+      "_origin": "ast",
       "id": "decisions_0003_uki_rollback_decision",
       "community": 24,
       "norm_label": "decision"
@@ -1908,6 +2186,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0003-uki-rollback.md",
       "source_location": "L16",
+      "_origin": "ast",
       "id": "decisions_0003_uki_rollback_consequences",
       "community": 24,
       "norm_label": "consequences"
@@ -1917,6 +2196,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0004_adaptive_optid",
       "community": 25,
       "norm_label": "0004-adaptive-optid.md"
@@ -1926,6 +2206,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner",
       "community": 25,
       "norm_label": "adr 0004: make optid the adaptive policy owner"
@@ -1935,6 +2216,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0004_adaptive_optid_context",
       "community": 25,
       "norm_label": "context"
@@ -1944,6 +2226,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L11",
+      "_origin": "ast",
       "id": "decisions_0004_adaptive_optid_decision",
       "community": 25,
       "norm_label": "decision"
@@ -1953,6 +2236,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L16",
+      "_origin": "ast",
       "id": "decisions_0004_adaptive_optid_consequences",
       "community": 25,
       "norm_label": "consequences"
@@ -1962,6 +2246,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0005_avoid_obsolete_defaults",
       "community": 26,
       "norm_label": "0005-avoid-obsolete-defaults.md"
@@ -1971,6 +2256,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0005_avoid_obsolete_defaults_adr_0005_avoid_obsolete_defaults",
       "community": 26,
       "norm_label": "adr 0005: avoid obsolete defaults"
@@ -1980,6 +2266,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0005_avoid_obsolete_defaults_context",
       "community": 26,
       "norm_label": "context"
@@ -1989,6 +2276,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L11",
+      "_origin": "ast",
       "id": "decisions_0005_avoid_obsolete_defaults_decision",
       "community": 26,
       "norm_label": "decision"
@@ -1998,6 +2286,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0005-avoid-obsolete-defaults.md",
       "source_location": "L25",
+      "_origin": "ast",
       "id": "decisions_0005_avoid_obsolete_defaults_consequences",
       "community": 26,
       "norm_label": "consequences"
@@ -2007,6 +2296,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0006_performance_tweaks",
       "community": 42,
       "norm_label": "0006-performance-tweaks.md"
@@ -2016,6 +2306,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
       "community": 42,
       "norm_label": "adr 0006: integrate latency-focused performance tweaks"
@@ -2025,6 +2316,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "decisions_0006_performance_tweaks_context",
       "community": 42,
       "norm_label": "context"
@@ -2034,6 +2326,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L9",
+      "_origin": "ast",
       "id": "decisions_0006_performance_tweaks_decision",
       "community": 42,
       "norm_label": "decision"
@@ -2043,6 +2336,7 @@
       "file_type": "document",
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L18",
+      "_origin": "ast",
       "id": "decisions_0006_performance_tweaks_consequences",
       "community": 42,
       "norm_label": "consequences"
@@ -2052,6 +2346,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_documentation_policy",
       "community": 17,
       "norm_label": "documentation-policy.md"
@@ -2061,6 +2356,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_documentation_policy_documentation_policy",
       "community": 17,
       "norm_label": "documentation policy"
@@ -2070,6 +2366,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "docs_documentation_policy_required_for_every_change",
       "community": 17,
       "norm_label": "required for every change"
@@ -2079,6 +2376,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L17",
+      "_origin": "ast",
       "id": "docs_documentation_policy_required_docs_by_change_type",
       "community": 17,
       "norm_label": "required docs by change type"
@@ -2088,6 +2386,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L35",
+      "_origin": "ast",
       "id": "docs_documentation_policy_minimum_commit_standard",
       "community": 17,
       "norm_label": "minimum commit standard"
@@ -2097,6 +2396,7 @@
       "file_type": "document",
       "source_file": "docs/documentation-policy.md",
       "source_location": "L44",
+      "_origin": "ast",
       "id": "docs_documentation_policy_forbidden",
       "community": 17,
       "norm_label": "forbidden"
@@ -2106,6 +2406,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph",
       "community": 3,
       "norm_label": "graphify-knowledge-graph.md"
@@ -2115,6 +2416,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_graphify_knowledge_graph",
       "community": 3,
       "norm_label": "graphify knowledge graph"
@@ -2124,6 +2426,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_purpose",
       "community": 3,
       "norm_label": "purpose"
@@ -2133,6 +2436,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_committed_artifacts",
       "community": 3,
       "norm_label": "committed artifacts"
@@ -2142,6 +2446,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L37",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_install_graphify",
       "community": 3,
       "norm_label": "install graphify"
@@ -2151,6 +2456,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L54",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_agent_workflow",
       "community": 3,
       "norm_label": "agent workflow"
@@ -2160,6 +2466,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L67",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_refresh_modes",
       "community": 3,
       "norm_label": "refresh modes"
@@ -2169,6 +2476,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L71",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_code_only_refresh_no_api_tokens",
       "community": 3,
       "norm_label": "code-only refresh: no api tokens"
@@ -2178,6 +2486,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L81",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_full_semantic_refresh_may_use_backend_tokens",
       "community": 3,
       "norm_label": "full semantic refresh: may use backend tokens"
@@ -2187,6 +2496,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L93",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_local_automatic_refresh_hooks",
       "community": 3,
       "norm_label": "local automatic refresh hooks"
@@ -2196,6 +2506,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L106",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_github_automation",
       "community": 3,
       "norm_label": "github automation"
@@ -2205,6 +2516,7 @@
       "file_type": "document",
       "source_file": "docs/graphify-knowledge-graph.md",
       "source_location": "L112",
+      "_origin": "ast",
       "id": "docs_graphify_knowledge_graph_acceptance_rules",
       "community": 3,
       "norm_label": "acceptance rules"
@@ -2214,6 +2526,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_hardware_support",
       "community": 10,
       "norm_label": "hardware-support.md"
@@ -2223,6 +2536,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_hardware_support_hardware_support",
       "community": 10,
       "norm_label": "hardware support"
@@ -2232,6 +2546,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "docs_hardware_support_initial_hardware_classes",
       "community": 10,
       "norm_label": "initial hardware classes"
@@ -2241,6 +2556,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L18",
+      "_origin": "ast",
       "id": "docs_hardware_support_firmware_and_drivers",
       "community": 10,
       "norm_label": "firmware and drivers"
@@ -2250,6 +2566,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L24",
+      "_origin": "ast",
       "id": "docs_hardware_support_hardware_policy",
       "community": 10,
       "norm_label": "hardware policy"
@@ -2259,6 +2576,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L36",
+      "_origin": "ast",
       "id": "docs_hardware_support_degraded_operation",
       "community": 10,
       "norm_label": "degraded operation"
@@ -2268,6 +2586,7 @@
       "file_type": "document",
       "source_file": "docs/hardware-support.md",
       "source_location": "L41",
+      "_origin": "ast",
       "id": "docs_hardware_support_acceptance_criteria",
       "community": 10,
       "norm_label": "acceptance criteria"
@@ -2277,6 +2596,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_kernel_policy",
       "community": 18,
       "norm_label": "kernel-policy.md"
@@ -2286,6 +2606,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_kernel_policy_kernel_policy",
       "community": 18,
       "norm_label": "kernel policy"
@@ -2295,6 +2616,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L7",
+      "_origin": "ast",
       "id": "docs_kernel_policy_default_kernel",
       "community": 18,
       "norm_label": "default kernel"
@@ -2304,6 +2626,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L25",
+      "_origin": "ast",
       "id": "docs_kernel_policy_realtime_kernel",
       "community": 18,
       "norm_label": "realtime kernel"
@@ -2313,6 +2636,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L33",
+      "_origin": "ast",
       "id": "docs_kernel_policy_experimental_scheduler_work",
       "community": 18,
       "norm_label": "experimental scheduler work"
@@ -2322,6 +2646,7 @@
       "file_type": "document",
       "source_file": "docs/kernel-policy.md",
       "source_location": "L38",
+      "_origin": "ast",
       "id": "docs_kernel_policy_acceptance_criteria",
       "community": 18,
       "norm_label": "acceptance criteria"
@@ -2331,6 +2656,7 @@
       "file_type": "document",
       "source_file": "docs/non-goals.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_non_goals",
       "community": 29,
       "norm_label": "non-goals.md"
@@ -2340,6 +2666,7 @@
       "file_type": "document",
       "source_file": "docs/non-goals.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_non_goals_non_goals",
       "community": 29,
       "norm_label": "non-goals"
@@ -2349,6 +2676,7 @@
       "file_type": "document",
       "source_file": "docs/non-goals.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "docs_non_goals_not_goals",
       "community": 29,
       "norm_label": "not goals"
@@ -2358,6 +2686,7 @@
       "file_type": "document",
       "source_file": "docs/non-goals.md",
       "source_location": "L24",
+      "_origin": "ast",
       "id": "docs_non_goals_compatibility_is_not_default",
       "community": 29,
       "norm_label": "compatibility is not default"
@@ -2367,6 +2696,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds",
       "community": 19,
       "norm_label": "packaging-and-builds.md"
@@ -2376,6 +2706,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds_packaging_and_builds",
       "community": 19,
       "norm_label": "packaging and builds"
@@ -2385,6 +2716,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds_model",
       "community": 19,
       "norm_label": "model"
@@ -2394,6 +2726,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L14",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds_current_state",
       "community": 19,
       "norm_label": "current state"
@@ -2403,6 +2736,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L30",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds_package_backend_direction",
       "community": 19,
       "norm_label": "package backend direction"
@@ -2412,6 +2746,7 @@
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L36",
+      "_origin": "ast",
       "id": "docs_packaging_and_builds_build_acceptance_criteria",
       "community": 19,
       "norm_label": "build acceptance criteria"
@@ -2421,6 +2756,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_checklist",
       "community": 11,
       "norm_label": "release-checklist.md"
@@ -2430,6 +2766,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_checklist_release_checklist",
       "community": 11,
       "norm_label": "release checklist"
@@ -2439,6 +2776,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "docs_release_checklist_all_releases",
       "community": 11,
       "norm_label": "all releases"
@@ -2448,6 +2786,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L18",
+      "_origin": "ast",
       "id": "docs_release_checklist_alpha_releases",
       "community": 11,
       "norm_label": "alpha releases"
@@ -2457,6 +2796,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L27",
+      "_origin": "ast",
       "id": "docs_release_checklist_beta_releases",
       "community": 11,
       "norm_label": "beta releases"
@@ -2466,6 +2806,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L35",
+      "_origin": "ast",
       "id": "docs_release_checklist_rc_releases",
       "community": 11,
       "norm_label": "rc releases"
@@ -2475,6 +2816,7 @@
       "file_type": "document",
       "source_file": "docs/release-checklist.md",
       "source_location": "L44",
+      "_origin": "ast",
       "id": "docs_release_checklist_stable_release",
       "community": 11,
       "norm_label": "stable release"
@@ -2484,6 +2826,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_plan_v1",
       "community": 4,
       "norm_label": "release-plan-v1.md"
@@ -2493,6 +2836,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_release_plan_to_v1_0_0",
       "community": 4,
       "norm_label": "release plan to v1.0.0"
@@ -2502,6 +2846,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L10",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_1_0_alpha_1_compile_clean_core",
       "community": 4,
       "norm_label": "v0.1.0-alpha.1: compile-clean core"
@@ -2511,6 +2856,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L29",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_2_0_alpha_1_real_control_plane",
       "community": 4,
       "norm_label": "v0.2.0-alpha.1: real control plane"
@@ -2520,6 +2866,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L48",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_3_0_alpha_1_rootfs_and_package_builder_mvp",
       "community": 4,
       "norm_label": "v0.3.0-alpha.1: rootfs and package builder mvp"
@@ -2529,6 +2876,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L69",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_4_0_alpha_1_uki_boot_rollback_updates",
       "community": 4,
       "norm_label": "v0.4.0-alpha.1: uki, boot, rollback, updates"
@@ -2538,6 +2886,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L90",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_5_0_beta_1_minimal_installable_system",
       "community": 4,
       "norm_label": "v0.5.0-beta.1: minimal installable system"
@@ -2547,6 +2896,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L109",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_6_0_beta_1_hardware_aware_optid",
       "community": 4,
       "norm_label": "v0.6.0-beta.1: hardware-aware optid"
@@ -2556,6 +2906,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L130",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_7_0_beta_1_desktop_laptop_realtime_server_editions",
       "community": 4,
       "norm_label": "v0.7.0-beta.1: desktop, laptop, realtime, server editions"
@@ -2565,6 +2916,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L150",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_8_0_beta_1_benchmark_lab",
       "community": 4,
       "norm_label": "v0.8.0-beta.1: benchmark lab"
@@ -2574,6 +2926,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L169",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v0_9_0_rc_1_release_candidate_hardening",
       "community": 4,
       "norm_label": "v0.9.0-rc.1: release candidate hardening"
@@ -2583,6 +2936,7 @@
       "file_type": "document",
       "source_file": "docs/release-plan-v1.md",
       "source_location": "L189",
+      "_origin": "ast",
       "id": "docs_release_plan_v1_v1_0_0_final_stable_release",
       "community": 4,
       "norm_label": "v1.0.0: final stable release"
@@ -2592,6 +2946,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_policy",
       "community": 12,
       "norm_label": "release-policy.md"
@@ -2601,6 +2956,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_release_policy_release_policy",
       "community": 12,
       "norm_label": "release policy"
@@ -2610,6 +2966,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L5",
+      "_origin": "ast",
       "id": "docs_release_policy_release_channels",
       "community": 12,
       "norm_label": "release channels"
@@ -2619,6 +2976,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L14",
+      "_origin": "ast",
       "id": "docs_release_policy_required_gates_by_channel",
       "community": 12,
       "norm_label": "required gates by channel"
@@ -2628,6 +2986,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L25",
+      "_origin": "ast",
       "id": "docs_release_policy_test_tiers",
       "community": 12,
       "norm_label": "test tiers"
@@ -2637,6 +2996,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L36",
+      "_origin": "ast",
       "id": "docs_release_policy_release_blockers",
       "community": 12,
       "norm_label": "release blockers"
@@ -2646,6 +3006,7 @@
       "file_type": "document",
       "source_file": "docs/release-policy.md",
       "source_location": "L51",
+      "_origin": "ast",
       "id": "docs_release_policy_signing_and_provenance",
       "community": 12,
       "norm_label": "signing and provenance"
@@ -2655,6 +3016,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks",
       "community": 20,
       "norm_label": "testing-and-benchmarks.md"
@@ -2664,6 +3026,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks_testing_and_benchmarks",
       "community": 20,
       "norm_label": "testing and benchmarks"
@@ -2673,6 +3036,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks_current_validation",
       "community": 20,
       "norm_label": "current validation"
@@ -2682,6 +3046,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks_benchmark_manifest",
       "community": 20,
       "norm_label": "benchmark manifest"
@@ -2691,6 +3056,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L41",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks_release_gates",
       "community": 20,
       "norm_label": "release gates"
@@ -2700,6 +3066,7 @@
       "file_type": "document",
       "source_file": "docs/testing-and-benchmarks.md",
       "source_location": "L71",
+      "_origin": "ast",
       "id": "docs_testing_and_benchmarks_documentation_gate",
       "community": 20,
       "norm_label": "documentation gate"
@@ -2709,6 +3076,7 @@
       "file_type": "document",
       "source_file": "docs/validation.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_validation",
       "community": 34,
       "norm_label": "validation.md"
@@ -2718,6 +3086,7 @@
       "file_type": "document",
       "source_file": "docs/validation.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_validation_validation",
       "community": 34,
       "norm_label": "validation"
@@ -2727,6 +3096,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_versioning",
       "community": 8,
       "norm_label": "versioning.md"
@@ -2736,6 +3106,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L1",
+      "_origin": "ast",
       "id": "docs_versioning_versioning",
       "community": 8,
       "norm_label": "versioning"
@@ -2745,6 +3116,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L6",
+      "_origin": "ast",
       "id": "docs_versioning_project_versions",
       "community": 8,
       "norm_label": "project versions"
@@ -2754,6 +3126,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L22",
+      "_origin": "ast",
       "id": "docs_versioning_meaning",
       "community": 8,
       "norm_label": "meaning"
@@ -2763,6 +3136,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L31",
+      "_origin": "ast",
       "id": "docs_versioning_pre_release_labels",
       "community": 8,
       "norm_label": "pre-release labels"
@@ -2772,6 +3146,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L38",
+      "_origin": "ast",
       "id": "docs_versioning_current_version",
       "community": 8,
       "norm_label": "current version"
@@ -2781,6 +3156,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L44",
+      "_origin": "ast",
       "id": "docs_versioning_package_versions",
       "community": 8,
       "norm_label": "package versions"
@@ -2790,6 +3166,7 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L57",
+      "_origin": "ast",
       "id": "docs_versioning_channels",
       "community": 8,
       "norm_label": "channels"
@@ -2799,9 +3176,36 @@
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L68",
+      "_origin": "ast",
       "id": "docs_versioning_tagging_rules",
       "community": 8,
       "norm_label": "tagging rules"
+    },
+    {
+      "label": "build-rootfs.sh script",
+      "file_type": "code",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 35,
+      "norm_label": "build-rootfs.sh script",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "label": "graphify-refresh.sh script",
+      "file_type": "code",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "community": 28,
+      "norm_label": "graphify-refresh.sh script",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
     },
     {
       "label": "build-rootfs.sh script",
@@ -6363,9 +6767,9 @@
       "source_file": "tools/build-rootfs.sh",
       "source_location": "L1",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "tools_build_rootfs",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+      "target": "c_users_victus_rush_linux_tools_build_rootfs_sh__entry",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -6374,8 +6778,60 @@
       "source_location": "L1",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "tools_build_rootfs_sh",
+      "source": "tools_build_rootfs",
       "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "tools_download_assets",
+      "target": "tools_download_assets_download_with_progress",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "tools_download_assets",
+      "target": "tools_download_assets_get_sha256",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "tools_download_assets",
+      "target": "tools_download_assets_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "tools_download_assets_main",
+      "target": "tools_download_assets_get_sha256",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/download-assets.py",
+      "source_location": "L67",
+      "weight": 1.0,
+      "source": "tools_download_assets_main",
+      "target": "tools_download_assets_download_with_progress",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -6386,6 +6842,16 @@
       "confidence_score": 1.0,
       "source": "tools_graphify_refresh",
       "target": "c_users_ttt_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_graphify_refresh",
+      "target": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -6434,19 +6900,9 @@
       "source_location": "L50",
       "weight": 1.0,
       "context": "call",
-      "confidence_score": 1.0,
-      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
-      "target": "tools_graphify_refresh_run_graphify"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tools/graphify-refresh.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_graphify_refresh_sh",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
+      "source": "c_users_victus_rush_linux_tools_graphify_refresh_sh__entry",
+      "target": "tools_graphify_refresh_run_graphify",
+      "confidence_score": 1.0
     },
     {
       "relation": "defines",
@@ -6487,6 +6943,17 @@
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
+      "source": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry",
+      "target": "tools_graphify_refresh_run_graphify"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L50",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
       "source": "home_user_rush_linux_tools_graphify_refresh_sh__entry",
       "target": "tools_graphify_refresh_run_graphify"
     },
@@ -6509,6 +6976,16 @@
       "confidence_score": 1.0,
       "source": "tools_rush_builder",
       "target": "tools_rush_builder_cmd_build"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L313",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_cmd_build_uki",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -6544,11 +7021,31 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "tools/rush-builder.py",
+      "source_location": "L284",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_helper_extract_from_deb",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
       "source_location": "L294",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_rush_builder",
       "target": "tools_rush_builder_main"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L249",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_write_cpio_newc",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -6582,6 +7079,39 @@
       "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
       "target": "tools_rush_builder_cmd_rootfs_create"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L393",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_build_uki",
+      "target": "tools_rush_builder_write_cpio_newc",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L321",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_build_uki",
+      "target": "tools_rush_builder_helper_extract_from_deb",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L559",
+      "weight": 1.0,
+      "source": "tools_rush_builder_main",
+      "target": "tools_rush_builder_cmd_build_uki",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -8582,6 +9112,26 @@
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_build_rootfs_sh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_rootfs_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/graphify-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_graphify_refresh_sh",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_graphify_refresh_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/build-rootfs.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "tools_build_rootfs_sh",
       "target": "home_user_rush_linux_tools_build_rootfs_sh__entry"
     },
     {
@@ -9156,5 +9706,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "8bfd831b346826840f989b4ac9b0b38424ee8991"
+  "built_at_commit": "7d6df0ecb2890ee7e0d561bf94dad0301a3c88e6"
 }

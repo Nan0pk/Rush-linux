@@ -8,6 +8,8 @@ import subprocess
 import shutil
 import hashlib
 import tarfile
+import gzip
+import io
 from pathlib import Path
 
 def cmd_build(args):
@@ -244,6 +246,220 @@ def cmd_rootfs_create(args):
             
     print(f"Rootfs populated successfully at {rootfs_dir}!\n")
 
+def write_cpio_newc(entries, out_file):
+    for entry in entries:
+        name = entry['name'].encode('utf-8')
+        content = entry['content']
+        mode = entry['mode']
+        
+        namesize = len(name) + 1  # include null byte
+        filesize = len(content)
+        
+        header = f"070701{0:08x}{mode:08x}{0:08x}{0:08x}{1:08x}{0:08x}{filesize:08x}{0:08x}{0:08x}{0:08x}{0:08x}{namesize:08x}{0:08x}"
+        out_file.write(header.encode('ascii'))
+        out_file.write(name + b'\x00')
+        
+        header_len = 110 + namesize
+        pad_name = (4 - (header_len % 4)) % 4
+        if pad_name:
+            out_file.write(b'\x00' * pad_name)
+            
+        out_file.write(content)
+        
+        pad_content = (4 - (filesize % 4)) % 4
+        if pad_content:
+            out_file.write(b'\x00' * pad_content)
+            
+    # Write trailer
+    trailer_name = b"TRAILER!!!"
+    namesize = len(trailer_name) + 1
+    header = f"070701{0:08x}{0:08x}{0:08x}{0:08x}{1:08x}{0:08x}{0:08x}{0:08x}{0:08x}{0:08x}{0:08x}{namesize:08x}{0:08x}"
+    out_file.write(header.encode('ascii'))
+    out_file.write(trailer_name + b'\x00')
+    header_len = 110 + namesize
+    pad_name = (4 - (header_len % 4)) % 4
+    if pad_name:
+        out_file.write(b'\x00' * pad_name)
+
+def helper_extract_from_deb(downloads_dir, deb_name, file_path_in_tar):
+    deb_path = downloads_dir / deb_name
+    if not deb_path.exists():
+        raise FileNotFoundError(f"Required base package {deb_name} not found in {downloads_dir}. Run download-assets.py first.")
+        
+    with open(deb_path, "rb") as f:
+        magic = f.read(8)
+        if magic != b"!<arch>\n":
+            raise ValueError(f"Invalid ar archive {deb_name}")
+            
+        while True:
+            header = f.read(60)
+            if len(header) < 60:
+                break
+            name = header[0:16].strip().decode('ascii')
+            size = int(header[48:58].strip())
+            
+            if name == "data.tar.xz":
+                data = f.read(size)
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r:xz") as tar:
+                    for member in tar.getmembers():
+                        m_name = member.name.lstrip("./")
+                        t_name = file_path_in_tar.lstrip("./")
+                        if m_name == t_name:
+                            return tar.extractfile(member).read()
+            else:
+                f.seek(size + (size % 2), 1)
+    raise FileNotFoundError(f"File {file_path_in_tar} not found in {deb_name}")
+
+def cmd_build_uki(args):
+    rootfs_dir = Path(args.rootfs_dir)
+    
+    repo_root = Path(__file__).resolve().parent.parent
+    downloads_dir = repo_root / "build" / "tmp_downloads"
+    
+    print("Extracting base binaries from cached debian packages...")
+    
+    busybox_bytes = helper_extract_from_deb(
+        downloads_dir, 
+        "busybox-static_1.35.0-4+deb12u1+b1_amd64.deb", 
+        "bin/busybox"
+    )
+    
+    stub_bytes = helper_extract_from_deb(
+        downloads_dir,
+        "systemd-boot-efi_252.39-1~deb12u2_amd64.deb",
+        "usr/lib/systemd/boot/efi/linuxx64.efi.stub"
+    )
+    
+    bootloader_bytes = helper_extract_from_deb(
+        downloads_dir,
+        "systemd-boot-efi_252.39-1~deb12u2_amd64.deb",
+        "usr/lib/systemd/boot/efi/systemd-bootx64.efi"
+    )
+    
+    vmlinuz_bytes = helper_extract_from_deb(
+        downloads_dir,
+        "linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb",
+        "boot/vmlinuz-6.1.0-49-amd64"
+    )
+    
+    print("Assembling minimal initrd...")
+    
+    init_script = """#!/bin/sh
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+ROOT_DEV=""
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in
+        root=*) ROOT_DEV="${arg#root=}" ;;
+    esac
+done
+
+if [ -z "$ROOT_DEV" ]; then
+    echo "Error: root= parameter not found in kernel cmdline!"
+    exec /bin/sh
+fi
+
+echo "Mounting root filesystem $ROOT_DEV..."
+mkdir -p /mnt/root
+mount "$ROOT_DEV" /mnt/root
+
+if [ ! -x /mnt/root/sbin/init ]; then
+    echo "Error: /sbin/init not found on root device!"
+    exec /bin/sh
+fi
+
+echo "Switching root..."
+exec switch_root /mnt/root /sbin/init
+"""
+    
+    entries = [
+        {'name': 'bin', 'mode': 0o040755, 'content': b''},
+        {'name': 'sbin', 'mode': 0o040755, 'content': b''},
+        {'name': 'proc', 'mode': 0o040755, 'content': b''},
+        {'name': 'sys', 'mode': 0o040755, 'content': b''},
+        {'name': 'dev', 'mode': 0o040755, 'content': b''},
+        {'name': 'mnt', 'mode': 0o040755, 'content': b''},
+        {'name': 'init', 'mode': 0o100755, 'content': init_script.encode('utf-8')},
+        {'name': 'bin/busybox', 'mode': 0o100755, 'content': busybox_bytes},
+    ]
+    
+    for applet in ['sh', 'mount', 'cat', 'mkdir', 'echo']:
+        entries.append({'name': f'bin/{applet}', 'mode': 0o120777, 'content': b'busybox'})
+    entries.append({'name': 'sbin/switch_root', 'mode': 0o120777, 'content': b'../bin/busybox'})
+    
+    initrd_buffer = io.BytesIO()
+    write_cpio_newc(entries, initrd_buffer)
+    initrd_cpio = initrd_buffer.getvalue()
+    initrd_gz = gzip.compress(initrd_cpio)
+    
+    build_dir = repo_root / "build"
+    build_dir.mkdir(exist_ok=True)
+    
+    initrd_path = build_dir / "initrd.img"
+    with open(initrd_path, "wb") as f:
+        f.write(initrd_gz)
+    print(f"Initrd built: {initrd_path}")
+    
+    cmdline_path = repo_root / "distro" / "boot" / "cmdline.d" / "adaptive.conf"
+    if not cmdline_path.exists():
+        raise FileNotFoundError(f"Kernel command line configuration not found at {cmdline_path}")
+    cmdline_text = cmdline_path.read_text().strip()
+    
+    temp_cmdline_path = build_dir / "cmdline.txt"
+    temp_cmdline_path.write_text(cmdline_text)
+    
+    temp_stub_path = build_dir / "linuxx64.efi.stub"
+    temp_stub_path.write_bytes(stub_bytes)
+    
+    temp_vmlinuz_path = build_dir / "vmlinuz"
+    temp_vmlinuz_path.write_bytes(vmlinuz_bytes)
+    
+    esp_linux_dir = rootfs_dir / "boot" / "EFI" / "Linux"
+    esp_boot_dir = rootfs_dir / "boot" / "EFI" / "BOOT"
+    esp_linux_dir.mkdir(parents=True, exist_ok=True)
+    esp_boot_dir.mkdir(parents=True, exist_ok=True)
+    
+    uki_output_path = esp_linux_dir / "rush-linux.efi"
+    
+    print("Compiling Unified Kernel Image (UKI)...")
+    
+    ukify_cmd = [
+        "ukify", "build",
+        f"--stub={temp_stub_path}",
+        f"--kernel={temp_vmlinuz_path}",
+        f"--cmdline=@{temp_cmdline_path}",
+        f"--initrd={initrd_path}",
+        f"--output={uki_output_path}"
+    ]
+    
+    objcopy_cmd = [
+        "objcopy",
+        "--add-section", f".cmdline={temp_cmdline_path}", "--change-section-vma", ".cmdline=0x30000",
+        "--add-section", f".linux={temp_vmlinuz_path}", "--change-section-vma", ".linux=0x2000000",
+        "--add-section", f".initrd={initrd_path}", "--change-section-vma", ".initrd=0x3000000",
+        str(temp_stub_path), str(uki_output_path)
+    ]
+    
+    res = subprocess.run(ukify_cmd, capture_output=True)
+    if res.returncode == 0:
+        print("UKI compiled successfully using systemd-ukify.")
+    else:
+        res_obj = subprocess.run(objcopy_cmd, capture_output=True)
+        if res_obj.returncode == 0:
+            print("UKI compiled successfully using objcopy.")
+        else:
+            print(f"Error: failed to compile UKI. Both ukify and objcopy failed.", file=sys.stderr)
+            print(f"ukify stderr: {res.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+            print(f"objcopy stderr: {res_obj.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+            sys.exit(1)
+            
+    bootloader_path = esp_boot_dir / "BOOTX64.EFI"
+    bootloader_path.write_bytes(bootloader_bytes)
+    print(f"Staged fallback bootloader to {bootloader_path}")
+    print("UKI assembly completed successfully!\n")
+
 def cmd_vm_image(args):
     rootfs_dir = Path(args.rootfs_dir)
     output_raw = Path(args.output)
@@ -260,20 +476,31 @@ def cmd_vm_image(args):
         shutil.rmtree(repart_defs)
     repart_defs.mkdir(parents=True)
     
+    esp_part_def = """
+[Partition]
+Type=esp
+Format=vfat
+CopyFiles=/boot
+Label=RushLinuxESP
+"""
+    
     root_part_def = """
 [Partition]
 Type=root-x86-64
 Format=ext4
 CopyFiles=/
+ExcludeFiles=/boot
 Label=RushLinuxRoot
 """
+    with open(repart_defs / "35-esp.conf", "w") as f:
+        f.write(esp_part_def)
     with open(repart_defs / "50-root.conf", "w") as f:
         f.write(root_part_def)
         
     repart_cmd = [
         "systemd-repart",
         "--empty=create",
-        "--size=100M",
+        "--size=200M",
         "--dry-run=no",
         f"--definitions={repart_defs}",
         f"--root={rootfs_dir}",
@@ -314,7 +541,11 @@ def main():
     parser_vm.add_argument("rootfs_dir", help="Path to input rootfs directory")
     parser_vm.add_argument("output", help="Path to output raw disk image file")
     
-    args = parser.parse_parse_args = parser.parse_args()
+    # build-uki parser
+    parser_uki = subparsers.add_parser("build-uki", help="Assemble initrd and compile Unified Kernel Image (UKI)")
+    parser_uki.add_argument("rootfs_dir", help="Path to rootfs directory containing staged files")
+    
+    args = parser.parse_args()
     
     if args.command == "build":
         cmd_build(args)
@@ -324,6 +555,8 @@ def main():
         cmd_rootfs_create(args)
     elif args.command == "vm-image":
         cmd_vm_image(args)
+    elif args.command == "build-uki":
+        cmd_build_uki(args)
 
 if __name__ == "__main__":
     main()

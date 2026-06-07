@@ -1,16 +1,16 @@
-# Graph Report - Rush-linux  (2026-06-04)
+# Graph Report - Rush-linux  (2026-06-07)
 
 ## Corpus Check
-- 39 files · ~16,168 words
+- 40 files · ~17,125 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 404 nodes · 530 edges · 49 communities (45 shown, 4 thin omitted)
+- 413 nodes · 544 edges · 51 communities (46 shown, 5 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8bfd831b`
+- Built from commit: `7d6df0ec`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -61,6 +61,8 @@
 - [[_COMMUNITY_Community 44|Community 44]]
 - [[_COMMUNITY_Community 45|Community 45]]
 - [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 49|Community 49]]
+- [[_COMMUNITY_Community 50|Community 50]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -82,15 +84,15 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (49 total, 4 thin omitted)
+## Communities (51 total, 5 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
 Nodes (12): Phase 0: Repository Foundation, Roadmap, v0.1.0-alpha.1: Compile-Clean Core, v0.2.0-alpha.1: Real Control Plane, v0.3.0-alpha.1: Rootfs And Package Builder MVP, v0.4.0-alpha.1: UKI, Boot, Rollback, Updates, v0.5.0-beta.1: Minimal Installable System, v0.6.0-beta.1: Hardware-Aware optid (+4 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.08
-Nodes (47): Action, Args, Option, Path, Result, main(), print_usage(), run() (+39 more)
+Cohesion: 0.09
+Nodes (45): Action, Args, Option, Path, Result, main(), print_usage(), run() (+37 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.15
@@ -197,8 +199,8 @@ Cohesion: 0.40
 Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 
 ### Community 28 - "Community 28"
-Cohesion: 0.46
-Nodes (6): graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, find_graphify(), PYTHONHASHSEED, run_graphify()
+Cohesion: 0.42
+Nodes (7): graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, graphify-refresh.sh script, find_graphify(), PYTHONHASHSEED, run_graphify()
 
 ### Community 29 - "Community 29"
 Cohesion: 0.40
@@ -213,8 +215,8 @@ Cohesion: 0.60
 Nodes (3): Assert-Contains(), Assert-File(), Assert-NotContains()
 
 ### Community 35 - "Community 35"
-Cohesion: 0.40
-Nodes (3): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
+Cohesion: 0.33
+Nodes (4): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
 
 ### Community 37 - "Community 37"
 Cohesion: 0.20
@@ -249,22 +251,26 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ### Community 46 - "Community 46"
-Cohesion: 0.60
-Nodes (5): cmd_build(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), main()
+Cohesion: 0.42
+Nodes (8): cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb(), main(), write_cpio_newc()
+
+### Community 49 - "Community 49"
+Cohesion: 0.83
+Nodes (3): download_with_progress(), get_sha256(), main()
 
 ## Knowledge Gaps
-- **201 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+196 more)
+- **202 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+197 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
-- **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.014) - this node is a cross-community bridge._
+- **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
+  _High betweenness centrality (0.013) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _201 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _202 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08571428571428572 - nodes in this community are weakly interconnected._

@@ -11,7 +11,7 @@ engineering milestones.
 
 ## Implemented
 
-- Current project version recorded in `VERSION` as `0.1.0-alpha.0`.
+- Current project version recorded in `VERSION` as `0.3.0-alpha.1`.
 - Release plan, versioning rules, release policy, release checklist, and
   machine-readable milestone/test-tier manifests.
 - Documentation policy requiring future changes to document purpose, impact,
