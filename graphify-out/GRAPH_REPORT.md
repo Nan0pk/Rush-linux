@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 67 files · ~33,841 words
+- 74 files · ~39,057 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 616 nodes · 762 edges · 77 communities (70 shown, 7 thin omitted)
+- 660 nodes · 821 edges · 82 communities (74 shown, 8 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f7ae1484`
+- Built from commit: `7f2b256d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -85,6 +85,11 @@
 - [[_COMMUNITY_Community 71|Community 71]]
 - [[_COMMUNITY_Community 74|Community 74]]
 - [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Community 79|Community 79]]
+- [[_COMMUNITY_Community 80|Community 80]]
+- [[_COMMUNITY_Community 81|Community 81]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -101,12 +106,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `format_status_as_json()` --calls--> `parse_pressure()`  [INFERRED]
   crates/optctl/src/main.rs → crates/optid/src/main.rs
+- `cmd_repo_init()` --calls--> `sign_repodata()`  [EXTRACTED]
+  tools/rush-builder.py → tools/sign_updates.py
 
 ## Import Cycles
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (77 total, 7 thin omitted)
+## Communities (82 total, 8 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -173,8 +180,8 @@ Cohesion: 0.29
 Nodes (5): Architecture, Compatibility Position, Documentation Rule, Subsystems, System Boundaries
 
 ### Community 16 - "Community 16"
-Cohesion: 0.29
-Nodes (5): Acceptance Criteria, Boot And Updates, Boot Direction, Rollback Requirements, Update Direction
+Cohesion: 0.22
+Nodes (7): Acceptance Criteria, Boot And Updates, Boot Direction, Implemented Rollback Infrastructure (v0.4), Rollback Requirements, Update Direction, Update Signing (v0.4)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.25
@@ -277,8 +284,8 @@ Cohesion: 0.22
 Nodes (8): 1. Start: `bash tools/start-work.sh "what you're about to do"`, 2. Work: Make your changes, 3. Finish: `bash tools/finish-work.sh "commit message"`, Agent Instructions, Doc Management (REQUIRED), graphify, If you must leave mid-work, Session Lifecycle (MANDATORY)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.27
-Nodes (14): build_vm_kernel_cmdline(), check_schema_version(), cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb() (+6 more)
+Cohesion: 0.14
+Nodes (26): build_vm_kernel_cmdline(), check_schema_version(), cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb() (+18 more)
 
 ### Community 49 - "Community 49"
 Cohesion: 0.83
@@ -360,25 +367,41 @@ Nodes (24): check_adr_status(), check_all_docs_exist(), check_deps_exist(), chec
 Cohesion: 0.12
 Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `tools/validate-doc-sync.py`, 3. CI Integration, Adding a new ADR, Adding a new doc, Bumping the version, Changing kernel config, Changing `optid` behavior (+7 more)
 
+### Community 77 - "Community 77"
+Cohesion: 0.29
+Nodes (5): test-rollback.sh script, boot_and_log(), die(), log_has(), pass()
+
+### Community 78 - "Community 78"
+Cohesion: 0.25
+Nodes (7): Exit Criteria Status, How to Validate, Modified Files, New Files, Next Steps After v0.4, v0.4.0-alpha.1 Changes Summary, What was implemented
+
+### Community 79 - "Community 79"
+Cohesion: 0.70
+Nodes (4): sign-updates.sh script, cmd_init_keys(), cmd_sign(), cmd_verify()
+
+### Community 80 - "Community 80"
+Cohesion: 0.83
+Nodes (3): test-sign-updates.sh script, die(), pass()
+
 ## Knowledge Gaps
-- **313 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+308 more)
+- **320 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+315 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+  _High betweenness centrality (0.005) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+  _High betweenness centrality (0.005) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _323 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _335 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
   _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
+- **Should `Community 46` be split into smaller, more focused modules?**
+  _Cohesion score 0.13756613756613756 - nodes in this community are weakly interconnected._
 - **Should `Community 62` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
-- **Should `Community 69` be split into smaller, more focused modules?**
-  _Cohesion score 0.125 - nodes in this community are weakly interconnected._
