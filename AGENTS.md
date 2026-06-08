@@ -5,6 +5,45 @@ links. Preserve the project guardrails: modern Linux defaults, one adaptive
 policy owner (`optid`), explainable behavior, and documentation updates in the
 same change.
 
+## Session Lifecycle (MANDATORY)
+
+Every work session — whether by an AI agent or a human — must follow this
+lifecycle:
+
+### 1. Start: `bash tools/start-work.sh "what you're about to do"`
+
+This script:
+- Pulls the latest changes
+- Validates the repo is in a good starting state (compiles, tests pass, docs synced)
+- Checks for `DIRTY_STATE.md` (if present, previous session left work incomplete)
+- Creates `DIRTY_STATE.md` to mark the repo as mid-work
+- **Fails fast** if the repo is broken, so you don't build on a broken foundation
+
+### 2. Work: Make your changes
+
+Follow the doc management system:
+- Read `docs/docmap.toml` to find which docs cover the code you're changing
+- Update every affected doc
+- Run `python3 tools/validate-doc-sync.py` periodically to catch drift
+
+### 3. Finish: `bash tools/finish-work.sh "commit message"`
+
+This script:
+- Updates `last_verified` dates in `docs/docmap.toml` for changed docs
+- Runs ALL validators (fmt, test, clippy, policy, doc-sync)
+- Removes `DIRTY_STATE.md`
+- Commits and pushes
+- **Fails if anything is broken** — you must fix before it completes
+
+### If you must leave mid-work
+
+Edit `DIRTY_STATE.md` to fill in all fields:
+- **What's done so far** — describe what you completed
+- **What's left** — describe what remains
+- **Known issues** — any broken tests, uncommitted changes, etc.
+
+The next agent will read this file when they run `start-work.sh`.
+
 ## Doc Management (REQUIRED)
 
 This project uses a documentation sync system. Before AND after making changes:

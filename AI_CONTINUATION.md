@@ -30,6 +30,19 @@ Do not:
   release, benchmark, or safety change must update the relevant docs in the
   same commit.
 
+## Session Lifecycle
+
+Every work session must follow this cycle:
+
+1. **Start:** `bash tools/start-work.sh "what you are about to do"`
+   - Validates repo state, checks for leftover DIRTY_STATE.md, creates dirty flag.
+2. **Work:** Make changes, update docs per docmap.toml, run validators.
+3. **Finish:** `bash tools/finish-work.sh "commit message"`
+   - Runs all validators, updates docmap dates, removes dirty flag, commits, pushes.
+
+If you must leave mid-work, edit DIRTY_STATE.md to note what is done and what
+remains. The next agent will pick up from there.
+
 ## Current Status
 
 Implemented:

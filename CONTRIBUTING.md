@@ -38,7 +38,16 @@ git clone https://github.com/Nan0pk/Rush-linux.git
 cd Rush-linux
 ```
 
-### 2. Build
+### 2. Start a work session
+
+```sh
+bash tools/start-work.sh "fix typo in adaptive-engine.md"
+```
+
+This validates the repo is in a good state and sets a dirty flag so
+others know you're working.
+
+### 3. Build
 
 You need a current Rust toolchain and a Linux environment (native or container).
 
@@ -47,24 +56,22 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-### 3. Make a change
+### 4. Make a change
 
 See **[Your First Contribution](docs/contributing/first-pr.md)** for a
 step-by-step walkthrough.
 
-### 4. Validate
-
-Before opening a PR, run:
+### 5. Validate and finish
 
 ```sh
-cargo fmt --all -- --check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-pwsh ./tools/validate-repo.ps1
-python3 tools/validate-doc-sync.py
+bash tools/finish-work.sh "docs: fix typo in adaptive-engine"
 ```
 
-All five must pass. CI runs the same checks.
+This runs all validators, syncs docs, removes the dirty flag, commits, and pushes.
+See the manual validation commands below if you prefer to run checks individually.
+
+If you need to leave mid-work, edit `DIRTY_STATE.md` to describe what's
+done and what's left. The next contributor will see it.
 
 ---
 

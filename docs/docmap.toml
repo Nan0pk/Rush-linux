@@ -393,3 +393,12 @@ covers_code = ["crates/optid/src/main.rs"]
 deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = []
 last_verified = "2026-06-08"
+
+[docs."DIRTY_STATE.md"]
+purpose = "Work-in-progress flag. Present only when the repo is mid-work. Contains session notes for the next agent."
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+validator = "optional_file"

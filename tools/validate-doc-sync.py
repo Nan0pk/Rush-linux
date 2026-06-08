@@ -79,11 +79,17 @@ def check_docmap_loads():
 
 
 def check_all_docs_exist(entries):
-    """Every registered doc must exist on disk."""
+    """Every registered doc must exist on disk (except optional files)."""
     print("\n── Check: All registered docs exist ──")
+    optional = {"DIRTY_STATE.md"}  # exists only during active work
     for path in sorted(entries.keys()):
         full = ROOT / path
-        if full.exists():
+        if path in optional:
+            if full.exists():
+                ok(f"{path} (present — work in progress)")
+            else:
+                print(f"  ℹ️  {path} (absent — no active work session)")
+        elif full.exists():
             ok(f"{path}")
         else:
             err(f"Registered doc does not exist: {path}")
