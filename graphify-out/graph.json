@@ -1666,6 +1666,48 @@
       "norm_label": "assert-notcontains()"
     },
     {
+      "label": "validate-uefi-boot.sh",
+      "file_type": "code",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_validate_uefi_boot",
+      "community": 76,
+      "norm_label": "validate-uefi-boot.sh"
+    },
+    {
+      "label": "validate-uefi-boot.sh script",
+      "file_type": "code",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry",
+      "community": 76,
+      "norm_label": "validate-uefi-boot.sh script"
+    },
+    {
+      "label": "require_log()",
+      "file_type": "code",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L74",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_validate_uefi_boot_require_log",
+      "community": 76,
+      "norm_label": "require_log()"
+    },
+    {
       "label": "bug_report.md",
       "file_type": "document",
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
@@ -2089,7 +2131,7 @@
       "label": "Safe Assumptions",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L83",
+      "source_location": "L82",
       "_origin": "ast",
       "id": "ai_continuation_safe_assumptions",
       "community": 37,
@@ -2099,7 +2141,7 @@
       "label": "Repo Layout",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L95",
+      "source_location": "L94",
       "_origin": "ast",
       "id": "ai_continuation_repo_layout",
       "community": 37,
@@ -2109,7 +2151,7 @@
       "label": "Graphify Continuation Workflow",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L119",
+      "source_location": "L118",
       "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
@@ -2119,7 +2161,7 @@
       "label": "Commands And Checks",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L147",
+      "source_location": "L146",
       "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
@@ -2129,7 +2171,7 @@
       "label": "Next Task",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L181",
+      "source_location": "L180",
       "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
@@ -2139,7 +2181,7 @@
       "label": "Before making any changes",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L205",
+      "source_location": "L206",
       "_origin": "ast",
       "id": "ai_continuation_before_making_any_changes",
       "community": 37,
@@ -2429,7 +2471,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L91",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
@@ -2439,7 +2481,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L97",
+      "source_location": "L98",
       "_origin": "ast",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
@@ -2569,7 +2611,7 @@
       "label": "Build",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L117",
+      "source_location": "L121",
       "_origin": "ast",
       "id": "readme_build",
       "community": 38,
@@ -2579,7 +2621,7 @@
       "label": "GitHub CI",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L141",
+      "source_location": "L145",
       "_origin": "ast",
       "id": "readme_github_ci",
       "community": 38,
@@ -2589,7 +2631,7 @@
       "label": "Publishing",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L151",
+      "source_location": "L155",
       "_origin": "ast",
       "id": "readme_publishing",
       "community": 38,
@@ -2599,7 +2641,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L167",
+      "source_location": "L171",
       "_origin": "ast",
       "id": "readme_design_rules",
       "community": 38,
@@ -2609,7 +2651,7 @@
       "label": "Community",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L178",
+      "source_location": "L182",
       "_origin": "ast",
       "id": "readme_community",
       "community": 38,
@@ -2729,7 +2771,7 @@
       "label": "v0.5.0-beta.1: Minimal Installable System",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L91",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "roadmap_v0_5_0_beta_1_minimal_installable_system",
       "community": 0,
@@ -2739,7 +2781,7 @@
       "label": "v0.6.0-beta.1: Hardware-Aware optid",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L108",
+      "source_location": "L109",
       "_origin": "ast",
       "id": "roadmap_v0_6_0_beta_1_hardware_aware_optid",
       "community": 0,
@@ -2749,7 +2791,7 @@
       "label": "v0.7.0-beta.1: Editions",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L127",
+      "source_location": "L128",
       "_origin": "ast",
       "id": "roadmap_v0_7_0_beta_1_editions",
       "community": 0,
@@ -2759,7 +2801,7 @@
       "label": "v0.8.0-beta.1: Benchmark Lab",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L144",
+      "source_location": "L145",
       "_origin": "ast",
       "id": "roadmap_v0_8_0_beta_1_benchmark_lab",
       "community": 0,
@@ -2769,7 +2811,7 @@
       "label": "v0.9.0-rc.1: Release Candidate Hardening",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L161",
+      "source_location": "L162",
       "_origin": "ast",
       "id": "roadmap_v0_9_0_rc_1_release_candidate_hardening",
       "community": 0,
@@ -2779,7 +2821,7 @@
       "label": "v1.0.0: Stable",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L178",
+      "source_location": "L179",
       "_origin": "ast",
       "id": "roadmap_v1_0_0_stable",
       "community": 0,
@@ -3089,7 +3131,7 @@
       "label": "Update Direction",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L31",
+      "source_location": "L35",
       "_origin": "ast",
       "id": "docs_boot_and_updates_update_direction",
       "community": 16,
@@ -3099,7 +3141,7 @@
       "label": "Rollback Requirements",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L42",
+      "source_location": "L46",
       "_origin": "ast",
       "id": "docs_boot_and_updates_rollback_requirements",
       "community": 16,
@@ -3109,7 +3151,7 @@
       "label": "Acceptance Criteria",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
-      "source_location": "L52",
+      "source_location": "L56",
       "_origin": "ast",
       "id": "docs_boot_and_updates_acceptance_criteria",
       "community": 16,
@@ -4709,7 +4751,7 @@
       "label": "Recipe Schema Versioning",
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
-      "source_location": "L38",
+      "source_location": "L44",
       "_origin": "ast",
       "id": "docs_packaging_and_builds_recipe_schema_versioning",
       "community": 19,
@@ -4719,7 +4761,7 @@
       "label": "Package Backend Direction",
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
-      "source_location": "L61",
+      "source_location": "L67",
       "_origin": "ast",
       "id": "docs_packaging_and_builds_package_backend_direction",
       "community": 19,
@@ -4729,7 +4771,7 @@
       "label": "Build Acceptance Criteria",
       "file_type": "document",
       "source_file": "docs/packaging-and-builds.md",
-      "source_location": "L69",
+      "source_location": "L75",
       "_origin": "ast",
       "id": "docs_packaging_and_builds_build_acceptance_criteria",
       "community": 19,
@@ -9010,9 +9052,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L393",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_build_vm_kernel_cmdline",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_build_vm_kernel_cmdline"
     },
     {
       "relation": "contains",
@@ -9090,9 +9132,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L382",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_helper_extract_many_from_deb",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_helper_extract_many_from_deb"
     },
     {
       "relation": "contains",
@@ -9100,9 +9142,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L340",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_iter_deb_data_members",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_iter_deb_data_members"
     },
     {
       "relation": "contains",
@@ -9120,9 +9162,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L404",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_stage_systemd_boot_layout",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_stage_systemd_boot_layout"
     },
     {
       "relation": "contains",
@@ -9162,9 +9204,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L49",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_rationale_49",
-      "target": "tools_rush_builder_check_schema_version",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_check_schema_version"
     },
     {
       "relation": "calls",
@@ -9217,9 +9259,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L376",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_helper_extract_from_deb",
-      "target": "tools_rush_builder_iter_deb_data_members",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_iter_deb_data_members"
     },
     {
       "relation": "calls",
@@ -9228,9 +9270,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L385",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_helper_extract_many_from_deb",
-      "target": "tools_rush_builder_iter_deb_data_members",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_iter_deb_data_members"
     },
     {
       "relation": "calls",
@@ -9250,9 +9292,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L451",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build_uki",
-      "target": "tools_rush_builder_helper_extract_many_from_deb",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_helper_extract_many_from_deb"
     },
     {
       "relation": "calls",
@@ -9261,9 +9303,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L561",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build_uki",
-      "target": "tools_rush_builder_build_vm_kernel_cmdline",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_build_vm_kernel_cmdline"
     },
     {
       "relation": "calls",
@@ -9272,9 +9314,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L617",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build_uki",
-      "target": "tools_rush_builder_stage_systemd_boot_layout",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_stage_systemd_boot_layout"
     },
     {
       "relation": "calls",
@@ -9324,9 +9366,9 @@
       "source_file": "tools/test-rush-builder-unit.py",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rush_builder_unit",
-      "target": "tools_test_rush_builder_unit_test_build_vm_kernel_cmdline_adds_vm_boot_args",
-      "confidence_score": 1.0
+      "target": "tools_test_rush_builder_unit_test_build_vm_kernel_cmdline_adds_vm_boot_args"
     },
     {
       "relation": "contains",
@@ -9334,9 +9376,9 @@
       "source_file": "tools/test-rush-builder-unit.py",
       "source_location": "L30",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rush_builder_unit",
-      "target": "tools_test_rush_builder_unit_test_build_vm_kernel_cmdline_preserves_existing_root_mode_and_console",
-      "confidence_score": 1.0
+      "target": "tools_test_rush_builder_unit_test_build_vm_kernel_cmdline_preserves_existing_root_mode_and_console"
     },
     {
       "relation": "contains",
@@ -9344,9 +9386,9 @@
       "source_file": "tools/test-rush-builder-unit.py",
       "source_location": "L43",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rush_builder_unit",
-      "target": "tools_test_rush_builder_unit_test_stage_systemd_boot_layout",
-      "confidence_score": 1.0
+      "target": "tools_test_rush_builder_unit_test_stage_systemd_boot_layout"
     },
     {
       "relation": "contains",
@@ -10052,6 +10094,37 @@
       "confidence_score": 1.0,
       "source": "tools_validate_repo_ps1",
       "target": "tools_validate_repo_assert_notcontains"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_validate_uefi_boot",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L74",
+      "weight": 1.0,
+      "source": "tools_validate_uefi_boot",
+      "target": "tools_validate_uefi_boot_require_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-uefi-boot.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry",
+      "target": "tools_validate_uefi_boot_require_log",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -13915,5 +13988,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "96cd78760f8531eb296a51a06544b694ff473fdf"
+  "built_at_commit": "f7ae1484d8d591de3dd546a2d4d8991d35b8cc5d"
 }

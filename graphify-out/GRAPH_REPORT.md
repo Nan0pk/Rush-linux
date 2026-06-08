@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 66 files · ~33,202 words
+- 67 files · ~33,841 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 613 nodes · 759 edges · 76 communities (70 shown, 6 thin omitted)
+- 616 nodes · 762 edges · 77 communities (70 shown, 7 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `96cd7876`
+- Built from commit: `f7ae1484`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -84,6 +84,7 @@
 - [[_COMMUNITY_Community 70|Community 70]]
 - [[_COMMUNITY_Community 71|Community 71]]
 - [[_COMMUNITY_Community 74|Community 74]]
+- [[_COMMUNITY_Community 76|Community 76]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -105,7 +106,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (76 total, 6 thin omitted)
+## Communities (77 total, 7 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -362,7 +363,7 @@ Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `t
 ## Knowledge Gaps
 - **313 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+308 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
