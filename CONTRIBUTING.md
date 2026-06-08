@@ -112,6 +112,13 @@ Before making significant changes, read these to understand the architecture:
 5. **Open the PR.** Fill out the PR template completely.
 6. **Respond to review.** We aim for initial review within 7 days.
 
+### Documentation Is Required
+
+Docs are part of acceptance criteria. Changes to behavior, defaults, policy,
+boot/update flow, kernel fragments, recipes, or tests **must** update the
+relevant docs in the same change. See [documentation-policy.md](docs/documentation-policy.md)
+for the full list of what must be documented per change type.
+
 ### Review Criteria
 
 We look for:
