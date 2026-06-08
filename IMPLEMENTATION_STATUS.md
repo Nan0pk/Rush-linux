@@ -78,6 +78,10 @@ engineering milestones.
   `vm.*` actuation in `optid` — high `vm.swappiness` must remain conditional on
   ZRAM-backed swap (`high_swappiness_requires_zram`), and every write must go
   through the explainable allowlist per ADR 0009.
+- Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
+  Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
+  with `optid.service` active. UEFI UKI boot (without `-kernel` flag) is a
+  v0.4.0 follow-up.
 
 ## Known Local Constraints
 

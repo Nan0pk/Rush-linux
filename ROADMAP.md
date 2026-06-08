@@ -53,8 +53,8 @@ Exit criteria:
 - D-Bus docs match implementation.
  
 ## v0.3.0-alpha.1: Rootfs And Package Builder MVP
- 
-Status: complete.
+
+Status: complete. (Verified 2026-06-08: VM boots to multi-user.target with optid.service active.)
  
 - Define recipe schema v0.
 - Build a minimal rootfs from recipes.

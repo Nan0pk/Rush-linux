@@ -71,7 +71,10 @@ Implemented:
 
 Not implemented yet:
 
-- Bootable VM disk image (`disk.raw`) with actual UEFI UKI boot flow.
+- UEFI UKI boot (without `-kernel` flag). The UKI is built and staged in the ESP,
+  but OVMF does not yet boot it automatically — needs systemd-boot BLS
+  configuration or a boot entry. This is the v0.4.0 milestone.
+- Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - Minimal ISO installer.
 - Hardware benchmark harness execution.
 - eBPF probes.
@@ -176,7 +179,7 @@ https://github.com/Nan0pk/Rush-linux
 
 ## Next Task
 
-Current project version is `0.3.0-alpha.1`. The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates), but we must first resolve the boot validation gap from `v0.3.0`.
+Current project version is `0.3.0-alpha.1` (complete). The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates). The boot validation gap from `v0.3.0` has been resolved: the VM boots to `multi-user.target` via QEMU direct-kernel boot.
 
 To resume work on a Linux machine (native or container):
 
