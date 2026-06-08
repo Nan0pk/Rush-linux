@@ -78,21 +78,25 @@ Not implemented yet:
 ## Repo Layout
 
 ```text
-crates/optid/             Optimization daemon MVP
-crates/optctl/            CLI MVP
-config/optid/             Optimizer policy defaults
-distro/boot/              UKI and kernel command line defaults
-distro/editions/          Install-time role profiles
-distro/kernel/            Kernel config fragments
+crates/optid/             Optimization daemon
+crates/optctl/            CLI (status, explain, mode, pin, trace, benchmark)
+config/optid/             Default optimizer policy (policy.toml)
+distro/boot/              UKI-first boot defaults and kernel command line
+distro/editions/          Install-time role profiles (desktop, laptop, server, RT)
+distro/kernel/            Kernel config fragments (adaptive, RT, sched_ext)
 distro/network/           nftables baseline
 distro/systemd/           cgroup and slice defaults
 distro/sysupdate/         systemd-sysupdate descriptors
-packaging/dbus/           D-Bus API contract
+docs/                     Architecture docs, ADRs, contributor guides
+docs/docmap.toml          Doc registry (read this before changing docs)
+docs/contributing/        Onboarding and doc-sync guides
+docs/decisions/           Architecture Decision Records (ADRs)
+graphify-out/             Knowledge graph for codebase navigation
+packaging/dbus/           D-Bus API contract (io.rushlinux.Optid1)
 packaging/systemd/        optid unit and tmpfiles
-recipes/                  Source recipe skeletons
-benchmarks/               Benchmark manifest
-docs/                     Architecture docs and ADRs
-tools/                    Validation and publishing helpers
+recipes/                  Source package recipe skeletons
+release/                  Version milestones and test-tier gates
+tools/                    Build, validate, test, and publish scripts
 ```
 
 ## Graphify Continuation Workflow
@@ -141,6 +145,16 @@ On Windows the policy check also runs via
 `powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`, but build
 and test on Linux.
 
+Documentation sync check (run before committing):
+
+```sh
+python3 tools/validate-doc-sync.py
+```
+
+This validates doc consistency, version matching, link resolution, and
+freshness. See `docs/docmap.toml` for the doc registry and
+`docs/contributing/keeping-docs-synced.md` for the update guide.
+
 Publishing target:
 
 ```text
@@ -151,18 +165,27 @@ https://github.com/Nan0pk/Rush-linux
 
 Current project version is `0.3.0-alpha.1`. The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates), but we must first resolve the boot validation gap from `v0.3.0`.
 
-To resume work on another machine:
+To resume work on a Linux machine (native or container):
 
-1. **Extract Base Rootfs**:
-   Extract `build/tmp_downloads/ubuntu-base-24.04.4-base-amd64.tar.gz` into `build/rootfs` inside WSL.
-2. **Build and Stage `optid`**:
-   Run `python3 tools/rush-builder.py build recipes/core/optid.toml` and populate the `build/rootfs` using `rootfs-create`.
-3. **Assemble Initrd & UKI**:
-   - Construct a minimal `initrd.img` using the static `busybox` binary found in `build/tmp_downloads/busybox-static/bin/busybox` and a simple `/init` mounting script.
-   - Run `objcopy` or systemd `ukify` to combine `linuxx64.efi.stub`, kernel `vmlinuz-6.1.0-49-amd64`, kernel cmdline, and the built `initrd.img` into a single Unified Kernel Image (UKI) binary (e.g. `build/rootfs/boot/EFI/Linux/rush-linux.efi`).
-4. **Generate GPT VM Image**:
-   - Write a definition for `systemd-repart` to create a dual-partition disk layout (EFI ESP FAT32 partition containing the UKI, and ext4 partition containing rootfs).
-   - Generate `build/disk.raw` using `systemd-repart`.
-5. **Boot in QEMU**:
-   - Validate boot to login prompt with `optid` running:
-     `qemu-system-x86_64 -drive file=build/disk.raw,format=raw -m 1G`
+1. **Download build assets:**
+   Run `python3 tools/download-assets.py` to fetch the kernel, BusyBox,
+   systemd-boot EFI stub, and Ubuntu Base rootfs into `build/tmp_downloads/`.
+2. **Build and Stage `optid`:**
+   Run `python3 tools/rush-builder.py build recipes/core/optid.toml` and
+   populate `build/rootfs` using `rootfs-create`.
+3. **Assemble Initrd and UKI:**
+   Run `python3 tools/rush-builder.py build-uki build/rootfs` to construct
+   the initrd and compile the Unified Kernel Image.
+4. **Generate GPT VM Image:**
+   Run `python3 tools/rush-builder.py vm-image build/rootfs build/disk.raw`
+   to generate a bootable raw disk image using `systemd-repart`.
+5. **Boot in QEMU:**
+   Validate boot to login prompt with `optid` running:
+   `qemu-system-x86_64 -drive file=build/disk.raw,format=raw -m 1G`
+
+### Before making any changes
+
+Read `docs/docmap.toml` to find which docs cover the code you are about to
+change. After changes, update affected docs and run
+`python3 tools/validate-doc-sync.py` before committing. See
+`docs/contributing/keeping-docs-synced.md` for the full guide.

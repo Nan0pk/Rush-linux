@@ -61,6 +61,8 @@ Start with:
 - [Hardware support](docs/hardware-support.md)
 - [Testing and benchmarks](docs/testing-and-benchmarks.md)
 - [Non-goals](docs/non-goals.md)
+- [Doc registry](docs/docmap.toml) — maps every doc to its purpose, code coverage, and dependencies
+- [Keeping docs in sync](docs/contributing/keeping-docs-synced.md) — how to update docs without drift
 - [ADRs](docs/decisions/)
 
 Documentation is part of acceptance criteria. Changes to behavior, defaults,

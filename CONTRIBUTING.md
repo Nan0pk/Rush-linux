@@ -61,9 +61,10 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 pwsh ./tools/validate-repo.ps1
+python3 tools/validate-doc-sync.py
 ```
 
-All four must pass. CI runs the same checks.
+All five must pass. CI runs the same checks.
 
 ---
 
@@ -107,8 +108,8 @@ Before making significant changes, read these to understand the architecture:
 3. **Update documentation.** If your change affects behavior, defaults, policy,
    boot flow, kernel config, recipes, or services — update the relevant docs
    in the same PR. See [docs/documentation-policy.md](docs/documentation-policy.md).
-4. **Run all checks.** `cargo fmt`, `cargo test`, `cargo clippy`, and
-   `validate-repo.ps1` must all pass.
+4. **Run all checks.** `cargo fmt`, `cargo test`, `cargo clippy`,
+   `validate-repo.ps1`, and `validate-doc-sync.py` must all pass.
 5. **Open the PR.** Fill out the PR template completely.
 6. **Respond to review.** We aim for initial review within 7 days.
 
@@ -116,7 +117,9 @@ Before making significant changes, read these to understand the architecture:
 
 Docs are part of acceptance criteria. Changes to behavior, defaults, policy,
 boot/update flow, kernel fragments, recipes, or tests **must** update the
-relevant docs in the same change. See [documentation-policy.md](docs/documentation-policy.md)
+relevant docs in the same change. The doc registry (`docs/docmap.toml`) maps
+every doc to its purpose and dependencies — check it to find which docs cover
+the code you're changing. See [documentation-policy.md](docs/documentation-policy.md)
 for the full list of what must be documented per change type.
 
 ### Review Criteria
