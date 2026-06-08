@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 65 files · ~32,174 words
+- 66 files · ~33,202 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 605 nodes · 747 edges · 75 communities (69 shown, 6 thin omitted)
+- 613 nodes · 759 edges · 76 communities (70 shown, 6 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `99971322`
+- Built from commit: `96cd7876`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -105,7 +105,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (75 total, 6 thin omitted)
+## Communities (76 total, 6 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -276,8 +276,8 @@ Cohesion: 0.22
 Nodes (8): 1. Start: `bash tools/start-work.sh "what you're about to do"`, 2. Work: Make your changes, 3. Finish: `bash tools/finish-work.sh "commit message"`, Agent Instructions, Doc Management (REQUIRED), graphify, If you must leave mid-work, Session Lifecycle (MANDATORY)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.35
-Nodes (10): check_schema_version(), cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb(), main() (+2 more)
+Cohesion: 0.27
+Nodes (14): build_vm_kernel_cmdline(), check_schema_version(), cmd_build(), cmd_build_uki(), cmd_repo_init(), cmd_rootfs_create(), cmd_vm_image(), helper_extract_from_deb() (+6 more)
 
 ### Community 49 - "Community 49"
 Cohesion: 0.83
@@ -368,7 +368,7 @@ Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `t
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.007) - this node is a cross-community bridge._
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
