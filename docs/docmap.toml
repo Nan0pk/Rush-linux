@@ -1,0 +1,395 @@
+# Rush Linux Documentation Map
+#
+# This is the single source of truth for doc ownership, coverage, and
+# cross-references. When any doc changes, check the deps and freshens lists
+# to find what else needs updating.
+#
+# Schema:
+#   [docs.<path>]
+#   purpose       = "one-line description"
+#   owner_area    = "area tag" (matches GitHub labels)
+#   covers_code   = ["paths that this doc describes"]
+#   deps          = ["other docs whose content this doc depends on"]
+#   freshens      = ["other docs that should be refreshed when this doc changes"]
+#   last_verified = "YYYY-MM-DD" (set when a human or agent confirms accuracy)
+#   validator     = "hint" for the sync checker (version_match, status_match, etc.)
+#
+# Guidelines:
+# - When you add a new doc, add an entry here.
+# - When you change a doc, update its last_verified date.
+# - When you change code, check covers_code to find affected docs.
+# - When you change a doc, check freshens to find dependent docs.
+
+[docs."README.md"]
+purpose = "Project overview, repo layout, build instructions, design rules"
+owner_area = "area:docs"
+covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
+deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+freshens = []
+last_verified = "2026-06-08"
+validator = "no_stale_next_step"
+
+[docs."CONTRIBUTING.md"]
+purpose = "Contributor onboarding: how to build, test, and submit changes"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/documentation-policy.md", "docs/architecture.md"]
+freshens = []
+last_verified = "2026-06-08"
+validator = "contains_heading:Documentation Is Required"
+
+[docs."PROJECT_BRIEF.md"]
+purpose = "Mission statement, success criteria, engineering principles"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["README.md", "docs/architecture.md"]
+last_verified = "2026-06-08"
+
+[docs."IMPLEMENTATION_STATUS.md"]
+purpose = "Authoritative list of what is implemented and what is not"
+owner_area = "area:docs"
+covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py"]
+deps = ["VERSION", "ROADMAP.md"]
+freshens = ["README.md", "AI_CONTINUATION.md"]
+last_verified = "2026-06-08"
+validator = "version_matches:VERSION"
+
+[docs."AI_CONTINUATION.md"]
+purpose = "Handoff document for AI agents or new maintainers continuing the project"
+owner_area = "area:docs"
+covers_code = []
+deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
+freshens = []
+last_verified = "2026-06-08"
+validator = "version_matches:VERSION"
+
+[docs."ROADMAP.md"]
+purpose = "Phase and version milestones with exit criteria"
+owner_area = "area:docs"
+covers_code = []
+deps = ["VERSION", "RELEASES.md"]
+freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
+last_verified = "2026-06-08"
+validator = "version_matches:VERSION"
+
+[docs."RELEASES.md"]
+purpose = "Release ledger with version history"
+owner_area = "area:docs"
+covers_code = []
+deps = ["VERSION"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."VERSION"]
+purpose = "Single file holding the current project version string"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md", "RELEASES.md"]
+last_verified = "2026-06-08"
+validator = "semver"
+
+[docs."SECURITY.md"]
+purpose = "Security policy, reporting channels, supported versions, security requirements"
+owner_area = "area:security"
+covers_code = ["crates/optid/src/main.rs"]
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."CODE_OF_CONDUCT.md"]
+purpose = "Contributor Covenant v2.1 with enforcement contact"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."AUTHORS"]
+purpose = "Contributor recognition list"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/architecture.md"]
+purpose = "Four-layer system architecture and subsystem boundaries"
+owner_area = "area:docs"
+covers_code = []
+deps = ["PROJECT_BRIEF.md"]
+freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
+last_verified = "2026-06-08"
+
+[docs."docs/adaptive-engine.md"]
+purpose = "optid design: inputs, actions, guardrails, current MVP scope"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
+deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = ["README.md", "IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-06-08"
+validator = "covers_optid_features"
+
+[docs."docs/kernel-policy.md"]
+purpose = "Kernel config fragment rationale and edition kernel rules"
+owner_area = "area:kernel"
+covers_code = ["distro/kernel/"]
+deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/packaging-and-builds.md"]
+purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py", "recipes/"]
+deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/boot-and-updates.md"]
+purpose = "UKI boot flow, systemd-sysupdate, rollback policy"
+owner_area = "area:boot"
+covers_code = ["distro/boot/", "distro/sysupdate/"]
+deps = ["docs/decisions/0003-uki-rollback.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/hardware-support.md"]
+purpose = "Hardware enablement strategy, allowlist database, device policy"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/testing-and-benchmarks.md"]
+purpose = "Test tiers, benchmark methodology, acceptance gates"
+owner_area = "area:docs"
+covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml"]
+deps = ["docs/decisions/0011-benchmark-methodology.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/non-goals.md"]
+purpose = "Explicit list of what Rush Linux does NOT aim to do"
+owner_area = "area:docs"
+covers_code = []
+deps = ["PROJECT_BRIEF.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/validation.md"]
+purpose = "How to validate the repository, role of validate-repo.ps1"
+owner_area = "area:docs"
+covers_code = ["tools/validate-repo.ps1"]
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/versioning.md"]
+purpose = "Semantic versioning rules, channel naming, bump policy"
+owner_area = "area:docs"
+covers_code = ["VERSION"]
+deps = []
+freshens = ["ROADMAP.md", "RELEASES.md"]
+last_verified = "2026-06-08"
+
+[docs."docs/release-policy.md"]
+purpose = "Release cadence, blocker criteria, cherry-pick rules"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/versioning.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/release-checklist.md"]
+purpose = "Step-by-step checklist for cutting a release"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/release-policy.md", "docs/versioning.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/release-plan-v1.md"]
+purpose = "Detailed milestone gates and test-tier requirements for v1.0"
+owner_area = "area:docs"
+covers_code = []
+deps = ["ROADMAP.md", "docs/release-policy.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/documentation-policy.md"]
+purpose = "Required documentation surface per change type, minimum commit standard"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["CONTRIBUTING.md"]
+last_verified = "2026-06-08"
+
+[docs."docs/graphify-knowledge-graph.md"]
+purpose = "How the Graphify knowledge graph works, refresh procedures"
+owner_area = "area:docs"
+covers_code = ["graphify-out/"]
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/project-sustainability.md"]
+purpose = "People/infrastructure plan: contributor model, governance, hardware lab"
+owner_area = "area:docs"
+covers_code = []
+deps = ["CONTRIBUTING.md", "CODE_OF_CONDUCT.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/decisions/README.md"]
+purpose = "ADR lifecycle, ratification rules, numbering policy"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/decisions/0001-systemd-cgroup-v2.md"]
+purpose = "ADR: use systemd with unified cgroup v2"
+owner_area = "area:docs"
+covers_code = ["distro/systemd/"]
+deps = []
+freshens = ["docs/architecture.md"]
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0002-wayland-pipewire.md"]
+purpose = "ADR: Wayland-first desktop with PipeWire audio"
+owner_area = "area:docs"
+covers_code = ["distro/editions/desktop.toml"]
+deps = []
+freshens = ["docs/architecture.md"]
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0003-uki-rollback.md"]
+purpose = "ADR: UKI-first boot with rollback entries"
+owner_area = "area:boot"
+covers_code = ["distro/boot/", "distro/sysupdate/"]
+deps = []
+freshens = ["docs/boot-and-updates.md"]
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0004-adaptive-optid.md"]
+purpose = "ADR: optid is the sole adaptive policy owner"
+owner_area = "area:optid"
+covers_code = ["crates/optid/", "config/optid/policy.toml", "packaging/systemd/optid.service"]
+deps = []
+freshens = ["docs/adaptive-engine.md", "docs/architecture.md"]
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0005-avoid-obsolete-defaults.md"]
+purpose = "ADR: avoid legacy defaults unless no modern alternative"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0006-performance-tweaks.md"]
+purpose = "ADR: latency-focused sysctl baseline"
+owner_area = "area:kernel"
+covers_code = ["config/optid/policy.toml"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0007-project-and-dbus-naming.md"]
+purpose = "ADR: io.rushlinux.* D-Bus namespace and project naming"
+owner_area = "area:optid"
+covers_code = ["packaging/dbus/"]
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+validator = "status:accepted"
+
+[docs."docs/decisions/0008-software-delivery-and-packaging.md"]
+purpose = "ADR: recipe-based source builds with signed metadata"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py", "recipes/"]
+deps = []
+freshens = ["docs/packaging-and-builds.md"]
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/decisions/0009-optid-security-boundary.md"]
+purpose = "ADR: threat model, polkit, write allowlist, sandbox hardening"
+owner_area = "area:security"
+covers_code = ["crates/optid/src/main.rs", "packaging/systemd/optid.service"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = ["SECURITY.md"]
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/decisions/0010-realtime-edition-kernel-policy.md"]
+purpose = "ADR: PREEMPT_RT is opt-in, not universal default"
+owner_area = "area:kernel"
+covers_code = ["distro/kernel/realtime.config", "distro/editions/realtime-audio.toml"]
+deps = []
+freshens = ["docs/kernel-policy.md"]
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/decisions/0011-benchmark-methodology.md"]
+purpose = "ADR: benchmark harness design and comparison baselines"
+owner_area = "area:docs"
+covers_code = ["benchmarks/manifest.toml"]
+deps = []
+freshens = ["docs/testing-and-benchmarks.md"]
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/decisions/0012-reproducible-build-discipline.md"]
+purpose = "ADR: reproducible build goals for v1"
+owner_area = "area:packaging"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/decisions/0013-detection-and-ml-boundary.md"]
+purpose = "ADR: rule-based now, ML later with constraints"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-08"
+validator = "status:proposed"
+
+[docs."docs/contributing/first-pr.md"]
+purpose = "Step-by-step guide for making your first contribution"
+owner_area = "area:docs"
+covers_code = []
+deps = ["CONTRIBUTING.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+[docs."docs/agent-decisions/README.md"]
+purpose = "Index of agent-authored decisions and review notes"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/decisions/README.md"]
+freshens = []
+last_verified = "2026-06-08"
+
+# ── Configuration files that also serve as documentation ──
+
+[docs."config/optid/policy.toml"]
+purpose = "Default optimizer policy: thresholds, per-mode configs, competing daemons"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs"]
+deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-08"

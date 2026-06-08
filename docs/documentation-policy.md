@@ -4,6 +4,19 @@ Rush Linux treats documentation as part of the implementation. A change is not
 complete until the docs explain what changed, why it changed, how to verify it,
 and what future maintainers must not break.
 
+## Doc Management System
+
+The project uses `docs/docmap.toml` as a **doc registry** that tracks every
+documentation file, its purpose, the code it covers, its dependencies on other
+docs, and when it was last verified against the codebase.
+
+The automated sync validator (`tools/validate-doc-sync.py`) runs in CI and
+catches drift, broken links, version mismatches, stale patterns, and
+contradictions between docs.
+
+See [docs/contributing/keeping-docs-synced.md](contributing/keeping-docs-synced.md)
+for the full guide on updating docs and using the docmap.
+
 ## Required For Every Change
 
 Every non-trivial change must document:

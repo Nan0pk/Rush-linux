@@ -102,16 +102,15 @@ a configured backend. See [Graphify knowledge graph](docs/graphify-knowledge-gra
 The packaged default service is dry-run. `optid-apply.service` exists for
 explicit mutating tests only.
 
-`optctl` currently talks through the state directory:
+`optctl` communicates with `optid` via D-Bus (system bus) with automatic
+fallback to the state directory when D-Bus is offline:
 
-- `optctl status`
-- `optctl explain`
-- `optctl mode [auto|battery|balanced|performance|realtime]`
-- `optctl trace`
-- `optctl benchmark`
-
-The next implementation step is replacing file-based control with a D-Bus API
-while keeping the file state as a recovery/debug path.
+- `optctl status` — show current optimizer state (`--json` for machine-readable output)
+- `optctl explain` — show decision history with reasons
+- `optctl mode [auto|battery|balanced|performance|realtime]` — get or set optimizer mode
+- `optctl pin <app_id> <mode>` — pin an application to a specific mode
+- `optctl trace` — show applied action log
+- `optctl benchmark` — benchmark suite placeholder
 
 ## Build
 
