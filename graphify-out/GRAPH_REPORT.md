@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 58 files · ~26,305 words
+- 58 files · ~26,377 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 543 nodes · 657 edges · 68 communities (64 shown, 4 thin omitted)
+- 544 nodes · 658 edges · 68 communities (64 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4bcdac6a`
+- Built from commit: `20df2aaa`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -243,8 +243,8 @@ Cohesion: 0.18
 Nodes (10): Build, Community, Current Implementation Status, Design Rules, First-Class Documentation, GitHub CI, Knowledge Graph For Continuation, Publishing (+2 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.12
-Nodes (16): 1. Get the code, 2. Build, 3. Make a change, 4. Validate, Code of Conduct, Communication, Contributing to Rush Linux, Design Rules (+8 more)
+Cohesion: 0.11
+Nodes (17): 1. Get the code, 2. Build, 3. Make a change, 4. Validate, Code of Conduct, Communication, Contributing to Rush Linux, Design Rules (+9 more)
 
 ### Community 40 - "Community 40"
 Cohesion: 0.29
@@ -343,7 +343,7 @@ Cohesion: 0.50
 Nodes (3): Context, Question, Related Documentation
 
 ## Knowledge Gaps
-- **290 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+285 more)
+- **291 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+286 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -355,10 +355,10 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _291 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _292 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
-  _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._
 - **Should `Community 62` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._

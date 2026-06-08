@@ -1762,10 +1762,20 @@
       "norm_label": "pull request process"
     },
     {
-      "label": "Review Criteria",
+      "label": "Documentation Is Required",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L115",
+      "_origin": "ast",
+      "id": "contributing_documentation_is_required",
+      "community": 39,
+      "norm_label": "documentation is required"
+    },
+    {
+      "label": "Review Criteria",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L122",
       "_origin": "ast",
       "id": "contributing_review_criteria",
       "community": 39,
@@ -1775,7 +1785,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L127",
+      "source_location": "L134",
       "_origin": "ast",
       "id": "contributing_design_rules",
       "community": 39,
@@ -1785,7 +1795,7 @@
       "label": "Communication",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L147",
+      "source_location": "L154",
       "_origin": "ast",
       "id": "contributing_communication",
       "community": 39,
@@ -1795,7 +1805,7 @@
       "label": "Code of Conduct",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L155",
+      "source_location": "L162",
       "_origin": "ast",
       "id": "contributing_code_of_conduct",
       "community": 39,
@@ -1805,7 +1815,7 @@
       "label": "Recognition",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L160",
+      "source_location": "L167",
       "_origin": "ast",
       "id": "contributing_recognition",
       "community": 39,
@@ -1815,7 +1825,7 @@
       "label": "Get Help",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L167",
+      "source_location": "L174",
       "_origin": "ast",
       "id": "contributing_get_help",
       "community": 39,
@@ -8081,9 +8091,9 @@
       "source_file": "tools/create-starter-issues.py",
       "source_location": "L348",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_create_starter_issues",
-      "target": "tools_create_starter_issues_main",
-      "confidence_score": 1.0
+      "target": "tools_create_starter_issues_main"
     },
     {
       "relation": "contains",
@@ -8535,9 +8545,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_actual_behavior",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_actual_behavior"
     },
     {
       "relation": "contains",
@@ -8545,9 +8555,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_additional_context",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_additional_context"
     },
     {
       "relation": "contains",
@@ -8555,9 +8565,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_describe_the_bug",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_describe_the_bug"
     },
     {
       "relation": "contains",
@@ -8565,9 +8575,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_environment",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_environment"
     },
     {
       "relation": "contains",
@@ -8575,9 +8585,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_expected_behavior",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_expected_behavior"
     },
     {
       "relation": "contains",
@@ -8585,9 +8595,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_relevant_logs",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_relevant_logs"
     },
     {
       "relation": "contains",
@@ -8595,9 +8605,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_bug_report",
-      "target": "issue_template_bug_report_steps_to_reproduce",
-      "confidence_score": 1.0
+      "target": "issue_template_bug_report_steps_to_reproduce"
     },
     {
       "relation": "contains",
@@ -8605,9 +8615,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L36",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_acceptance_criteria",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_acceptance_criteria"
     },
     {
       "relation": "contains",
@@ -8615,9 +8625,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_affected_subsystems",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_affected_subsystems"
     },
     {
       "relation": "contains",
@@ -8625,9 +8635,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_alternatives_considered",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_alternatives_considered"
     },
     {
       "relation": "contains",
@@ -8635,9 +8645,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_problem_statement",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_problem_statement"
     },
     {
       "relation": "contains",
@@ -8645,9 +8655,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_proposed_solution",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_proposed_solution"
     },
     {
       "relation": "contains",
@@ -8655,9 +8665,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_feature_request",
-      "target": "issue_template_feature_request_related",
-      "confidence_score": 1.0
+      "target": "issue_template_feature_request_related"
     },
     {
       "relation": "contains",
@@ -8665,9 +8675,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/question.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_question",
-      "target": "issue_template_question_context",
-      "confidence_score": 1.0
+      "target": "issue_template_question_context"
     },
     {
       "relation": "contains",
@@ -8675,9 +8685,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/question.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_question",
-      "target": "issue_template_question_question",
-      "confidence_score": 1.0
+      "target": "issue_template_question_question"
     },
     {
       "relation": "contains",
@@ -8685,9 +8695,9 @@
       "source_file": ".github/ISSUE_TEMPLATE/question.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "issue_template_question",
-      "target": "issue_template_question_related_documentation",
-      "confidence_score": 1.0
+      "target": "issue_template_question_related_documentation"
     },
     {
       "relation": "contains",
@@ -8695,9 +8705,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L44",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_checklist",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_checklist"
     },
     {
       "relation": "contains",
@@ -8705,9 +8715,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L29",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_documentation",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_documentation"
     },
     {
       "relation": "contains",
@@ -8715,9 +8725,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_motivation",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_motivation"
     },
     {
       "relation": "contains",
@@ -8725,9 +8735,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_testing",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_testing"
     },
     {
       "relation": "contains",
@@ -8735,9 +8745,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_type_of_change",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_type_of_change"
     },
     {
       "relation": "contains",
@@ -8745,9 +8755,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template",
-      "target": "github_pull_request_template_what_does_this_change",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_what_does_this_change"
     },
     {
       "relation": "contains",
@@ -8755,9 +8765,9 @@
       "source_file": ".github/pull_request_template.md",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "github_pull_request_template_documentation",
-      "target": "github_pull_request_template_if_no_doc_update_is_needed_explain_why",
-      "confidence_score": 1.0
+      "target": "github_pull_request_template_if_no_doc_update_is_needed_explain_why"
     },
     {
       "relation": "contains",
@@ -8905,9 +8915,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing",
-      "target": "contributing_contributing_to_rush_linux",
-      "confidence_score": 1.0
+      "target": "contributing_contributing_to_rush_linux"
     },
     {
       "relation": "contains",
@@ -8915,9 +8925,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L155",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_code_of_conduct",
-      "confidence_score": 1.0
+      "target": "contributing_code_of_conduct"
     },
     {
       "relation": "contains",
@@ -8925,9 +8935,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L147",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_communication",
-      "confidence_score": 1.0
+      "target": "contributing_communication"
     },
     {
       "relation": "contains",
@@ -8935,9 +8945,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L127",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_design_rules",
-      "confidence_score": 1.0
+      "target": "contributing_design_rules"
     },
     {
       "relation": "contains",
@@ -8945,9 +8955,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L167",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_get_help",
-      "confidence_score": 1.0
+      "target": "contributing_get_help"
     },
     {
       "relation": "contains",
@@ -8955,9 +8965,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L103",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_pull_request_process",
-      "confidence_score": 1.0
+      "target": "contributing_pull_request_process"
     },
     {
       "relation": "contains",
@@ -8965,9 +8975,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_quick_start",
-      "confidence_score": 1.0
+      "target": "contributing_quick_start"
     },
     {
       "relation": "contains",
@@ -8975,9 +8985,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_recognition",
-      "confidence_score": 1.0
+      "target": "contributing_recognition"
     },
     {
       "relation": "contains",
@@ -8985,9 +8995,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L83",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_understanding_the_project",
-      "confidence_score": 1.0
+      "target": "contributing_understanding_the_project"
     },
     {
       "relation": "contains",
@@ -8995,9 +9005,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_ways_to_contribute",
-      "confidence_score": 1.0
+      "target": "contributing_ways_to_contribute"
     },
     {
       "relation": "contains",
@@ -9005,9 +9015,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L70",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_contributing_to_rush_linux",
-      "target": "contributing_your_first_contribution",
-      "confidence_score": 1.0
+      "target": "contributing_your_first_contribution"
     },
     {
       "relation": "contains",
@@ -9015,9 +9025,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L34",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_1_get_the_code",
-      "confidence_score": 1.0
+      "target": "contributing_1_get_the_code"
     },
     {
       "relation": "contains",
@@ -9025,9 +9035,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_2_build",
-      "confidence_score": 1.0
+      "target": "contributing_2_build"
     },
     {
       "relation": "contains",
@@ -9035,9 +9045,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_3_make_a_change",
-      "confidence_score": 1.0
+      "target": "contributing_3_make_a_change"
     },
     {
       "relation": "contains",
@@ -9045,9 +9055,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_4_validate",
-      "confidence_score": 1.0
+      "target": "contributing_4_validate"
     },
     {
       "relation": "contains",
@@ -9056,8 +9066,18 @@
       "source_location": "L115",
       "weight": 1.0,
       "source": "contributing_pull_request_process",
-      "target": "contributing_review_criteria",
+      "target": "contributing_documentation_is_required",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L115",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "contributing_pull_request_process",
+      "target": "contributing_review_criteria"
     },
     {
       "relation": "contains",
@@ -9195,9 +9215,9 @@
       "source_file": "README.md",
       "source_location": "L177",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_rush_linux",
-      "target": "readme_community",
-      "confidence_score": 1.0
+      "target": "readme_community"
     },
     {
       "relation": "contains",
@@ -9755,9 +9775,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr",
-      "target": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_your_first_contribution_to_rush_linux"
     },
     {
       "relation": "contains",
@@ -9765,9 +9785,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_1_set_up_your_environment",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_1_set_up_your_environment"
     },
     {
       "relation": "contains",
@@ -9775,9 +9795,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L42",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_2_find_something_to_work_on",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_2_find_something_to_work_on"
     },
     {
       "relation": "contains",
@@ -9785,9 +9805,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_3_understand_the_codebase",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_3_understand_the_codebase"
     },
     {
       "relation": "contains",
@@ -9795,9 +9815,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L108",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_4_make_your_change",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_4_make_your_change"
     },
     {
       "relation": "contains",
@@ -9805,9 +9825,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L143",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_5_open_a_pull_request",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_5_open_a_pull_request"
     },
     {
       "relation": "contains",
@@ -9815,9 +9835,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L164",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_6_celebrate",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_6_celebrate"
     },
     {
       "relation": "contains",
@@ -9825,9 +9845,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L175",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
-      "target": "contributing_first_pr_getting_unstuck",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_getting_unstuck"
     },
     {
       "relation": "contains",
@@ -9835,9 +9855,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_1_set_up_your_environment",
-      "target": "contributing_first_pr_clone_and_build",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_clone_and_build"
     },
     {
       "relation": "contains",
@@ -9845,9 +9865,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_1_set_up_your_environment",
-      "target": "contributing_first_pr_prerequisites",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_prerequisites"
     },
     {
       "relation": "contains",
@@ -9855,9 +9875,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_1_set_up_your_environment",
-      "target": "contributing_first_pr_run_tests",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_run_tests"
     },
     {
       "relation": "contains",
@@ -9865,9 +9885,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_2_find_something_to_work_on",
-      "target": "contributing_first_pr_common_starter_tasks",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_common_starter_tasks"
     },
     {
       "relation": "contains",
@@ -9875,9 +9895,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L44",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_2_find_something_to_work_on",
-      "target": "contributing_first_pr_good_first_issues",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_good_first_issues"
     },
     {
       "relation": "contains",
@@ -9885,9 +9905,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L60",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_2_find_something_to_work_on",
-      "target": "contributing_first_pr_not_sure_where_to_start",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_not_sure_where_to_start"
     },
     {
       "relation": "contains",
@@ -9895,9 +9915,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_3_understand_the_codebase",
-      "target": "contributing_first_pr_build_system",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_build_system"
     },
     {
       "relation": "contains",
@@ -9905,9 +9925,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_3_understand_the_codebase",
-      "target": "contributing_first_pr_optctl_the_cli_tool",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_optctl_the_cli_tool"
     },
     {
       "relation": "contains",
@@ -9915,9 +9935,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_3_understand_the_codebase",
-      "target": "contributing_first_pr_optid_the_adaptive_optimizer_daemon",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_optid_the_adaptive_optimizer_daemon"
     },
     {
       "relation": "contains",
@@ -9925,9 +9945,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L131",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_4_make_your_change",
-      "target": "contributing_first_pr_commit",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_commit"
     },
     {
       "relation": "contains",
@@ -9935,9 +9955,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_4_make_your_change",
-      "target": "contributing_first_pr_create_a_branch",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_create_a_branch"
     },
     {
       "relation": "contains",
@@ -9945,9 +9965,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L116",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_4_make_your_change",
-      "target": "contributing_first_pr_make_the_change",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_make_the_change"
     },
     {
       "relation": "contains",
@@ -9955,9 +9975,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L123",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_4_make_your_change",
-      "target": "contributing_first_pr_test_locally",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_test_locally"
     },
     {
       "relation": "contains",
@@ -9965,9 +9985,9 @@
       "source_file": "docs/contributing/first-pr.md",
       "source_location": "L151",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_first_pr_5_open_a_pull_request",
-      "target": "contributing_first_pr_what_happens_in_review",
-      "confidence_score": 1.0
+      "target": "contributing_first_pr_what_happens_in_review"
     },
     {
       "relation": "contains",
@@ -12131,5 +12151,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "4bcdac6a7197b63c1dab7d7ddc5e345f6a4f9372"
+  "built_at_commit": "20df2aaa3f032d8ac4f906644b9d208763b7dff4"
 }
