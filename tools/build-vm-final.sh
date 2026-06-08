@@ -8,9 +8,12 @@
 # Prerequisites (Debian/Ubuntu host):
 #   sudo apt-get install -y cpio e2fsprogs dosfstools gdisk mtools qemu-system-x86_64 ovmf rsync
 #   python3 >= 3.11 (for tomllib)
+#   cargo/rustc available to build optid and optctl, or prebuilt release
+#   binaries at target/release/{optid,optctl}
 #
 # Usage:
 #   python3 tools/download-assets.py   # once, to cache base assets
+#   cargo build --workspace --release  # builds optid and optctl
 #   sudo bash tools/build-vm-final.sh  # builds build/disk.raw
 #
 # Direct-kernel test (v0.3 gate):
@@ -21,8 +24,11 @@
 #     -m 1G -nographic
 #
 # UEFI UKI test (v0.4 gate):
+#   tools/validate-uefi-boot.sh build/disk.raw
+#
+# Manual equivalent on Debian hosts:
 #   qemu-system-x86_64 \
-#     -bios /usr/share/OVMF/OVMF_CODE.fd \
+#     -bios /usr/share/ovmf/OVMF.fd \
 #     -drive file=build/disk.raw,format=raw,if=virtio \
 #     -m 1G -nographic
 #
@@ -41,17 +47,35 @@ echo "[1/8] Extracting Ubuntu Base rootfs..."
 rm -rf "${ROOTFS}"
 mkdir -p "${ROOTFS}"
 tar -xzf "${DL}/ubuntu-base-24.04.4-base-amd64.tar.gz" -C "${ROOTFS}"
+# Ubuntu Base tarballs may contain placeholder regular files under /dev when
+# extracted without device-node preservation. apt/gpgv needs a writable
+# character-device /dev/null inside the chroot.
+rm -f "${ROOTFS}/dev/null" "${ROOTFS}/dev/zero" "${ROOTFS}/dev/random" "${ROOTFS}/dev/urandom"
+mknod -m 666 "${ROOTFS}/dev/null" c 1 3
+mknod -m 666 "${ROOTFS}/dev/zero" c 1 5
+mknod -m 666 "${ROOTFS}/dev/random" c 1 8
+mknod -m 666 "${ROOTFS}/dev/urandom" c 1 9
 
 # ── Step 2: Install systemd via chroot ──────────────────────────
 echo "[2/8] Installing systemd (chroot)..."
 cp /etc/resolv.conf "${ROOTFS}/etc/resolv.conf"
 chroot "${ROOTFS}" /bin/bash -c "
   apt-get update -qq 2>/dev/null
-  apt-get install -y -qq systemd systemd-sysv 2>/dev/null
+  apt-get install -y -qq systemd systemd-sysv udev 2>/dev/null
 " 2>&1 | tail -3
 
 # ── Step 3: Install Rush Linux components ────────────────────────
-echo "[3/8] Installing Rush Linux components..."
+echo "[3/8] Building and installing Rush Linux components..."
+if [ ! -x "${REPO_ROOT}/target/release/optid" ] || [ ! -x "${REPO_ROOT}/target/release/optctl" ]; then
+    if command -v cargo >/dev/null 2>&1; then
+        (cd "${REPO_ROOT}" && cargo build --workspace --release)
+    else
+        echo "Error: target/release/optid and target/release/optctl are missing, and cargo is not in PATH." >&2
+        echo "Run 'cargo build --workspace --release' before invoking this script with sudo." >&2
+        exit 1
+    fi
+fi
+mkdir -p "${ROOTFS}/usr/bin"
 mkdir -p "${ROOTFS}/usr/lib/optid"
 mkdir -p "${ROOTFS}/usr/lib/systemd/system"
 mkdir -p "${ROOTFS}/usr/lib/sysctl.d"
@@ -63,6 +87,8 @@ mkdir -p "${ROOTFS}/usr/lib/kernel/cmdline.d"
 mkdir -p "${ROOTFS}/usr/share/dbus-1/system-services"
 mkdir -p "${ROOTFS}/usr/share/dbus-1/interfaces"
 
+install -m0755 "${REPO_ROOT}/target/release/optid" "${ROOTFS}/usr/libexec/optid"
+install -m0755 "${REPO_ROOT}/target/release/optctl" "${ROOTFS}/usr/bin/optctl"
 install -m0644 "${REPO_ROOT}/config/optid/policy.toml" "${ROOTFS}/usr/lib/optid/policy.toml"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid.service" "${ROOTFS}/usr/lib/systemd/system/optid.service"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${ROOTFS}/usr/lib/systemd/system/optid-apply.service"
@@ -166,7 +192,7 @@ MODS=(
     drivers/virtio/virtio_pci_legacy_dev.ko drivers/virtio/virtio_pci_modern_dev.ko
     drivers/virtio/virtio_pci.ko drivers/block/virtio_blk.ko
     crypto/crc32c_generic.ko lib/libcrc32c.ko lib/crc16.ko
-    fs/jbd2/jbd2.ko fs/mbcache.ko fs/ext4.ko
+    fs/jbd2/jbd2.ko fs/mbcache.ko fs/ext4/ext4.ko
 )
 IDIR="${INITRD}/lib/modules/${KVER}"
 for m in "${MODS[@]}"; do
@@ -194,7 +220,8 @@ echo "Root: $R"
 i=0; while [ ! -e "$R" ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done
 [ ! -e "$R" ] && { echo "$R not found!"; ls /dev/vd* /dev/sd* 2>/dev/null; exec /bin/sh; }
 echo "Mounting $R..."
-mkdir -p /mnt/root; mount -o ro "$R" /mnt/root
+mkdir -p /mnt/root
+mount -o ro "$R" /mnt/root || { echo "Mount failed"; ls /dev/vd* /dev/sd* 2>/dev/null || true; exec /bin/sh; }
 [ ! -e /mnt/root/sbin/init ] && { echo "No /sbin/init"; ls /mnt/root/; exec /bin/sh; }
 echo "switch_root -> systemd"
 exec switch_root /mnt/root /sbin/init
@@ -296,8 +323,11 @@ echo "    -drive file=build/disk.raw,format=raw,if=virtio \\"
 echo "    -m 1G -nographic"
 echo ""
 echo "UEFI UKI boot test (v0.4 path):"
+echo "  tools/validate-uefi-boot.sh build/disk.raw"
+echo ""
+echo "Manual equivalent on Debian hosts:"
 echo "  qemu-system-x86_64 \\"
-echo "    -bios /usr/share/OVMF/OVMF_CODE.fd \\"
+echo "    -bios /usr/share/ovmf/OVMF.fd \\"
 echo "    -drive file=build/disk.raw,format=raw,if=virtio \\"
 echo "    -m 1G -nographic"
 echo ""

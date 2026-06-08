@@ -61,9 +61,8 @@ engineering milestones.
 
 ## Not Yet Implemented
 
-- QEMU/OVMF validation of the systemd-boot UKI path (booting `disk.raw`
-  without `-kernel`/`-initrd` direct-boot arguments), plus boot assessment and
-  rollback retention behavior.
+- Boot assessment and rollback retention behavior for the validated UKI boot
+  path, including simulated bad-kernel rollback.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - eBPF probes and overhead budget enforcement.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
@@ -83,10 +82,12 @@ engineering milestones.
   through the explainable allowlist per ADR 0009.
 - Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
   Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
-  with `optid.service` active. v0.4 groundwork now stages systemd-boot loader
-  configuration and a UKI entry for `/EFI/Linux/rush-linux.efi`, and the Python
-  UKI builder includes the virtio/ext4 modules needed by the cached Debian
-  kernel asset.
+  with `optid.service` active.
+- UEFI UKI VM boot validation through OVMF/systemd-boot is now implemented via
+  `tools/validate-uefi-boot.sh` and verified 2026-06-08: OVMF loads
+  `EFI/BOOT/BOOTX64.EFI`, systemd-boot selects the Rush Linux entry, the UKI
+  loads its embedded initrd, the root filesystem mounts from `/dev/vda2`,
+  systemd reaches `multi-user.target`, and `optid.service` starts.
 
 ## Known Local Constraints
 

@@ -9,12 +9,16 @@ Default direction:
 
 - UEFI systems use Unified Kernel Images.
 - systemd-boot is preferred where supported.
-- The builder now stages the fallback UEFI path (`EFI/BOOT/BOOTX64.EFI`) plus
-  a systemd-boot loader configuration (`loader/loader.conf`) and entry
+- The builder stages the fallback UEFI path (`EFI/BOOT/BOOTX64.EFI`) plus a
+  systemd-boot loader configuration (`loader/loader.conf`) and entry
   (`loader/entries/rush-linux.conf`) that boots `/EFI/Linux/rush-linux.efi`.
   This closes the earlier "UKI exists on the ESP but no boot menu entry points
-  at it" gap; QEMU/OVMF validation is still required before marking the v0.4
-  boot gate complete.
+  at it" gap.
+- `tools/validate-uefi-boot.sh` validates the v0.4 VM boot path under
+  QEMU/OVMF. Verified 2026-06-08: OVMF starts the fallback bootloader,
+  systemd-boot displays the Rush Linux entry, the UKI loads its embedded
+  initrd, `/dev/vda2` mounts as root, systemd reaches `multi-user.target`, and
+  `optid.service` starts.
 - GRUB remains a compatibility fallback, described by `recipes/boot/grub.toml`.
   That recipe is currently a **skeleton — not yet buildable**; it records intent
   and structure only. GRUB is never the default bootloader; it is opt-in for

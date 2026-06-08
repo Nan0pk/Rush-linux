@@ -104,6 +104,10 @@ a configured backend. See [Graphify knowledge graph](docs/graphify-knowledge-gra
 The packaged default service is dry-run. `optid-apply.service` exists for
 explicit mutating tests only.
 
+The v0.3 VM path boots to `multi-user.target`, and the v0.4 UKI path is now
+validated under QEMU/OVMF with systemd-boot loading `/EFI/Linux/rush-linux.efi`
+and `optid.service` starting.
+
 `optctl` communicates with `optid` via D-Bus (system bus) with automatic
 fallback to the state directory when D-Bus is offline:
 

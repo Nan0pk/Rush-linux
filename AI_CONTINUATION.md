@@ -63,6 +63,7 @@ Implemented:
   `--apply`.
 - `optctl` supports status, explain, mode, trace, benchmark, and has `--json` output option for telemetry.
 - Package builder (`tools/rush-builder.py`) implemented, supporting TOML recipe builds, dependency resolution, local metadata DB initialization with signatures, UKI/initrd assembly with required virtio/ext4 modules for the cached VM kernel, systemd-boot loader entry staging, and partition image formatting using `systemd-repart`.
+- UEFI UKI VM boot path validated through OVMF/systemd-boot using `tools/validate-uefi-boot.sh`; verified 2026-06-08 to reach `multi-user.target` and start `optid.service` without QEMU `-kernel`/`-initrd` direct-boot arguments.
 - Pre-compiled base assets downloaded and unpacked locally into `build/tmp_downloads/` for offline/no-root compilation of VM image:
   - Debian `systemd-boot-efi` package (`systemd-boot-efi_252.39-1~deb12u2_amd64.deb`) -> extracts `linuxx64.efi.stub` and `systemd-bootx64.efi`.
   - Debian kernel package (`linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb`) -> extracts `vmlinuz-6.1.0-49-amd64` and kernel modules.
@@ -71,10 +72,8 @@ Implemented:
 
 Not implemented yet:
 
-- QEMU/OVMF validation of UEFI UKI boot (without `-kernel` flag). The UKI,
-  systemd-boot fallback loader, and default UKI menu entry are now staged in the
-  ESP layout; the remaining v0.4 work is to boot that path, add boot assessment,
-  retain rollback entries, and prove simulated bad-kernel rollback.
+- Boot assessment, rollback entry retention, signed test update metadata, and
+  simulated bad-kernel rollback for the now-validated UEFI UKI boot path.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - Minimal ISO installer.
 - Hardware benchmark harness execution.
@@ -180,7 +179,7 @@ https://github.com/Nan0pk/Rush-linux
 
 ## Next Task
 
-Current project version is `0.3.0-alpha.1` (complete). The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates). The boot validation gap from `v0.3.0` has been resolved: the VM boots to `multi-user.target` via QEMU direct-kernel boot.
+Current project version is `0.3.0-alpha.1` (complete). The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates). The direct-kernel v0.3 boot gate and the UEFI UKI/systemd-boot validation path are both verified on 2026-06-08; remaining v0.4 work is rollback/update behavior.
 
 To resume work on a Linux machine (native or container):
 
@@ -200,7 +199,9 @@ To resume work on a Linux machine (native or container):
 5. **Boot in QEMU via UEFI:**
    Validate boot to login prompt with `optid` running, without `-kernel` or
    `-initrd` direct-boot arguments:
-   `qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=build/disk.raw,format=raw,if=virtio -m 1G -nographic`
+   `tools/validate-uefi-boot.sh build/disk.raw`
+   On Debian hosts the manual equivalent uses
+   `qemu-system-x86_64 -bios /usr/share/ovmf/OVMF.fd -drive file=build/disk.raw,format=raw,if=virtio -m 1G -nographic`.
 
 ### Before making any changes
 

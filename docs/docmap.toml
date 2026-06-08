@@ -49,7 +49,7 @@ last_verified = "2026-06-08"
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
 owner_area = "area:docs"
-covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py"]
+covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
 last_verified = "2026-06-08"
@@ -142,7 +142,7 @@ last_verified = "2026-06-08"
 [docs."docs/packaging-and-builds.md"]
 purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
 owner_area = "area:packaging"
-covers_code = ["tools/rush-builder.py", "recipes/"]
+covers_code = ["tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh", "recipes/"]
 deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
 freshens = []
 last_verified = "2026-06-08"
@@ -150,7 +150,7 @@ last_verified = "2026-06-08"
 [docs."docs/boot-and-updates.md"]
 purpose = "UKI boot flow, systemd-sysupdate, rollback policy"
 owner_area = "area:boot"
-covers_code = ["distro/boot/", "distro/sysupdate/"]
+covers_code = ["distro/boot/", "distro/sysupdate/", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["docs/decisions/0003-uki-rollback.md"]
 freshens = []
 last_verified = "2026-06-08"

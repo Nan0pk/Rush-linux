@@ -32,8 +32,14 @@ Implemented helpers:
   cached base assets, stage the systemd-boot fallback loader and UKI menu entry,
   and ask `systemd-repart` to produce a GPT VM disk image.
 - `tools/build-vm-final.sh` is the current Linux-host integration path for the
-  v0.3/v0.4 VM image. It now writes the same systemd-boot loader files into the
-  ESP staging tree used by the UKI boot path.
+  v0.3/v0.4 VM image. It installs release-built `optid`/`optctl` binaries,
+  installs `udev` so generated serial/device units are satisfied, repairs
+  Ubuntu Base `/dev` nodes after extraction, writes the same systemd-boot loader
+  files into the ESP staging tree used by the UKI boot path, and includes the
+  ext4 module in the initrd.
+- `tools/validate-uefi-boot.sh` runs the generated `disk.raw` under QEMU/OVMF
+  and checks the boot log for the fallback UEFI boot path, UKI initrd load,
+  VM root command line, `multi-user.target`, and `optid.service`.
 
 ## Recipe Schema Versioning
 
