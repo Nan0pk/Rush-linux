@@ -962,6 +962,34 @@
       "norm_label": "main()"
     },
     {
+      "label": "finish-work.sh",
+      "file_type": "code",
+      "source_file": "tools/finish-work.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_finish_work",
+      "community": 70,
+      "norm_label": "finish-work.sh"
+    },
+    {
+      "label": "finish-work.sh script",
+      "file_type": "code",
+      "source_file": "tools/finish-work.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_finish_work_sh__entry",
+      "community": 70,
+      "norm_label": "finish-work.sh script"
+    },
+    {
       "label": "graphify-refresh.sh",
       "file_type": "code",
       "source_file": "tools/graphify-refresh.sh",
@@ -1152,6 +1180,34 @@
       "norm_label": "validate the recipe's declared schema_version. returns the version int."
     },
     {
+      "label": "start-work.sh",
+      "file_type": "code",
+      "source_file": "tools/start-work.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_start_work",
+      "community": 71,
+      "norm_label": "start-work.sh"
+    },
+    {
+      "label": "start-work.sh script",
+      "file_type": "code",
+      "source_file": "tools/start-work.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_start_work_sh__entry",
+      "community": 71,
+      "norm_label": "start-work.sh script"
+    },
+    {
       "label": "test-builder.py",
       "file_type": "code",
       "source_file": "tools/test-builder.py",
@@ -1169,6 +1225,46 @@
       "_origin": "ast",
       "id": "tools_test_builder_main",
       "community": 48,
+      "norm_label": "main()"
+    },
+    {
+      "label": "update-docmap-dates.py",
+      "file_type": "code",
+      "source_file": "tools/update-docmap-dates.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_update_docmap_dates",
+      "community": 72,
+      "norm_label": "update-docmap-dates.py"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/update-docmap-dates.py",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "tools_update_docmap_dates_main",
+      "community": 72,
+      "norm_label": "main()"
+    },
+    {
+      "label": "validate-dirty-state.py",
+      "file_type": "code",
+      "source_file": "tools/validate-dirty-state.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_validate_dirty_state",
+      "community": 73,
+      "norm_label": "validate-dirty-state.py"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/validate-dirty-state.py",
+      "source_location": "L20",
+      "_origin": "ast",
+      "id": "tools_validate_dirty_state_main",
+      "community": 73,
       "norm_label": "main()"
     },
     {
@@ -1255,7 +1351,7 @@
       "label": "check_deps_exist()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L92",
+      "source_location": "L98",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_deps_exist",
       "community": 68,
@@ -1265,7 +1361,7 @@
       "label": "check_version_consistency()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L107",
+      "source_location": "L113",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_version_consistency",
       "community": 68,
@@ -1275,7 +1371,7 @@
       "label": "check_adr_status()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L135",
+      "source_location": "L141",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_adr_status",
       "community": 68,
@@ -1285,7 +1381,7 @@
       "label": "check_stale_patterns()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L159",
+      "source_location": "L165",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_stale_patterns",
       "community": 68,
@@ -1295,7 +1391,7 @@
       "label": "check_markdown_links()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L179",
+      "source_location": "L185",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_markdown_links",
       "community": 68,
@@ -1305,7 +1401,7 @@
       "label": "check_optid_doc_sync()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L211",
+      "source_location": "L217",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_optid_doc_sync",
       "community": 68,
@@ -1315,7 +1411,7 @@
       "label": "check_last_verified()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L239",
+      "source_location": "L245",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_check_last_verified",
       "community": 68,
@@ -1325,7 +1421,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L266",
+      "source_location": "L272",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_main",
       "community": 68,
@@ -1342,22 +1438,22 @@
       "norm_label": "check that docmap.toml is valid and loadable."
     },
     {
-      "label": "Every registered doc must exist on disk.",
+      "label": "Every registered doc must exist on disk (except optional files).",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L82",
       "_origin": "ast",
       "id": "tools_validate_doc_sync_rationale_82",
       "community": 68,
-      "norm_label": "every registered doc must exist on disk."
+      "norm_label": "every registered doc must exist on disk (except optional files)."
     },
     {
       "label": "Every dep must reference a registered doc.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L93",
+      "source_location": "L99",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_93",
+      "id": "tools_validate_doc_sync_rationale_99",
       "community": 68,
       "norm_label": "every dep must reference a registered doc."
     },
@@ -1365,9 +1461,9 @@
       "label": "Key docs must reference the same version as the VERSION file.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L108",
+      "source_location": "L114",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_108",
+      "id": "tools_validate_doc_sync_rationale_114",
       "community": 68,
       "norm_label": "key docs must reference the same version as the version file."
     },
@@ -1375,9 +1471,9 @@
       "label": "ADR entries should have valid status values.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L136",
+      "source_location": "L142",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_136",
+      "id": "tools_validate_doc_sync_rationale_142",
       "community": 68,
       "norm_label": "adr entries should have valid status values."
     },
@@ -1385,9 +1481,9 @@
       "label": "Check for known stale patterns in key docs.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L160",
+      "source_location": "L166",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_160",
+      "id": "tools_validate_doc_sync_rationale_166",
       "community": 68,
       "norm_label": "check for known stale patterns in key docs."
     },
@@ -1395,9 +1491,9 @@
       "label": "Check that internal markdown links in key docs resolve.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L180",
+      "source_location": "L186",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_180",
+      "id": "tools_validate_doc_sync_rationale_186",
       "community": 68,
       "norm_label": "check that internal markdown links in key docs resolve."
     },
@@ -1405,9 +1501,9 @@
       "label": "Check that docs describing optid features match the actual code.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L212",
+      "source_location": "L218",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_212",
+      "id": "tools_validate_doc_sync_rationale_218",
       "community": 68,
       "norm_label": "check that docs describing optid features match the actual code."
     },
@@ -1415,9 +1511,9 @@
       "label": "Warn if last_verified is older than max_age_days.",
       "file_type": "rationale",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L240",
+      "source_location": "L246",
       "_origin": "ast",
-      "id": "tools_validate_doc_sync_rationale_240",
+      "id": "tools_validate_doc_sync_rationale_246",
       "community": 68,
       "norm_label": "warn if last_verified is older than max_age_days."
     },
@@ -1752,10 +1848,60 @@
       "norm_label": "agent instructions"
     },
     {
-      "label": "Doc Management (REQUIRED)",
+      "label": "Session Lifecycle (MANDATORY)",
       "file_type": "document",
       "source_file": "AGENTS.md",
       "source_location": "L8",
+      "_origin": "ast",
+      "id": "agents_session_lifecycle_mandatory",
+      "community": 45,
+      "norm_label": "session lifecycle (mandatory)"
+    },
+    {
+      "label": "1. Start: `bash tools/start-work.sh \"what you're about to do\"`",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "agents_1_start_bash_tools_start_work_sh_what_you_re_about_to_do",
+      "community": 45,
+      "norm_label": "1. start: `bash tools/start-work.sh \"what you're about to do\"`"
+    },
+    {
+      "label": "2. Work: Make your changes",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "agents_2_work_make_your_changes",
+      "community": 45,
+      "norm_label": "2. work: make your changes"
+    },
+    {
+      "label": "3. Finish: `bash tools/finish-work.sh \"commit message\"`",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L29",
+      "_origin": "ast",
+      "id": "agents_3_finish_bash_tools_finish_work_sh_commit_message",
+      "community": 45,
+      "norm_label": "3. finish: `bash tools/finish-work.sh \"commit message\"`"
+    },
+    {
+      "label": "If you must leave mid-work",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L38",
+      "_origin": "ast",
+      "id": "agents_if_you_must_leave_mid_work",
+      "community": 45,
+      "norm_label": "if you must leave mid-work"
+    },
+    {
+      "label": "Doc Management (REQUIRED)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L47",
       "_origin": "ast",
       "id": "agents_doc_management_required",
       "community": 45,
@@ -1765,7 +1911,7 @@
       "label": "graphify",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L21",
+      "source_location": "L60",
       "_origin": "ast",
       "id": "agents_graphify",
       "community": 45,
@@ -1812,10 +1958,20 @@
       "norm_label": "forbidden shortcuts"
     },
     {
-      "label": "Current Status",
+      "label": "Session Lifecycle",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L33",
+      "_origin": "ast",
+      "id": "ai_continuation_session_lifecycle",
+      "community": 37,
+      "norm_label": "session lifecycle"
+    },
+    {
+      "label": "Current Status",
+      "file_type": "document",
+      "source_file": "AI_CONTINUATION.md",
+      "source_location": "L46",
       "_origin": "ast",
       "id": "ai_continuation_current_status",
       "community": 37,
@@ -1825,7 +1981,7 @@
       "label": "Safe Assumptions",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L66",
+      "source_location": "L79",
       "_origin": "ast",
       "id": "ai_continuation_safe_assumptions",
       "community": 37,
@@ -1835,7 +1991,7 @@
       "label": "Repo Layout",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L78",
+      "source_location": "L91",
       "_origin": "ast",
       "id": "ai_continuation_repo_layout",
       "community": 37,
@@ -1845,7 +2001,7 @@
       "label": "Graphify Continuation Workflow",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L102",
+      "source_location": "L115",
       "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
@@ -1855,7 +2011,7 @@
       "label": "Commands And Checks",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L130",
+      "source_location": "L143",
       "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
@@ -1865,7 +2021,7 @@
       "label": "Next Task",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L164",
+      "source_location": "L177",
       "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
@@ -1875,7 +2031,7 @@
       "label": "Before making any changes",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L186",
+      "source_location": "L199",
       "_origin": "ast",
       "id": "ai_continuation_before_making_any_changes",
       "community": 37,
@@ -1972,40 +2128,50 @@
       "norm_label": "1. get the code"
     },
     {
-      "label": "2. Build",
+      "label": "2. Start a work session",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L41",
       "_origin": "ast",
-      "id": "contributing_2_build",
+      "id": "contributing_2_start_a_work_session",
       "community": 39,
-      "norm_label": "2. build"
+      "norm_label": "2. start a work session"
     },
     {
-      "label": "3. Make a change",
+      "label": "3. Build",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L50",
       "_origin": "ast",
-      "id": "contributing_3_make_a_change",
+      "id": "contributing_3_build",
       "community": 39,
-      "norm_label": "3. make a change"
+      "norm_label": "3. build"
     },
     {
-      "label": "4. Validate",
+      "label": "4. Make a change",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L55",
+      "source_location": "L59",
       "_origin": "ast",
-      "id": "contributing_4_validate",
+      "id": "contributing_4_make_a_change",
       "community": 39,
-      "norm_label": "4. validate"
+      "norm_label": "4. make a change"
+    },
+    {
+      "label": "5. Validate and finish",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L64",
+      "_origin": "ast",
+      "id": "contributing_5_validate_and_finish",
+      "community": 39,
+      "norm_label": "5. validate and finish"
     },
     {
       "label": "Your First Contribution",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L71",
+      "source_location": "L78",
       "_origin": "ast",
       "id": "contributing_your_first_contribution",
       "community": 39,
@@ -2015,7 +2181,7 @@
       "label": "Understanding the Project",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L84",
+      "source_location": "L91",
       "_origin": "ast",
       "id": "contributing_understanding_the_project",
       "community": 39,
@@ -2025,7 +2191,7 @@
       "label": "Pull Request Process",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L104",
+      "source_location": "L111",
       "_origin": "ast",
       "id": "contributing_pull_request_process",
       "community": 39,
@@ -2035,7 +2201,7 @@
       "label": "Documentation Is Required",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L116",
+      "source_location": "L123",
       "_origin": "ast",
       "id": "contributing_documentation_is_required",
       "community": 39,
@@ -2045,7 +2211,7 @@
       "label": "Review Criteria",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L125",
+      "source_location": "L132",
       "_origin": "ast",
       "id": "contributing_review_criteria",
       "community": 39,
@@ -2055,7 +2221,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L137",
+      "source_location": "L144",
       "_origin": "ast",
       "id": "contributing_design_rules",
       "community": 39,
@@ -2065,7 +2231,7 @@
       "label": "Communication",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L157",
+      "source_location": "L164",
       "_origin": "ast",
       "id": "contributing_communication",
       "community": 39,
@@ -2075,7 +2241,7 @@
       "label": "Code of Conduct",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L165",
+      "source_location": "L172",
       "_origin": "ast",
       "id": "contributing_code_of_conduct",
       "community": 39,
@@ -2085,7 +2251,7 @@
       "label": "Recognition",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L170",
+      "source_location": "L177",
       "_origin": "ast",
       "id": "contributing_recognition",
       "community": 39,
@@ -2095,7 +2261,7 @@
       "label": "Get Help",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L177",
+      "source_location": "L184",
       "_origin": "ast",
       "id": "contributing_get_help",
       "community": 39,
@@ -8590,6 +8756,16 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/finish-work.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_finish_work",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_finish_work_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/graphify-refresh.sh",
       "source_location": "L1",
       "weight": 1.0,
@@ -8912,12 +9088,42 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/start-work.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_start_work",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_start_work_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/test-builder.py",
       "source_location": "L7",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_test_builder",
       "target": "tools_test_builder_main"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/update-docmap-dates.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "tools_update_docmap_dates",
+      "target": "tools_update_docmap_dates_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-dirty-state.py",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "tools_validate_dirty_state",
+      "target": "tools_validate_dirty_state_main",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -9412,11 +9618,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L93",
+      "source_location": "L99",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_93",
-      "target": "tools_validate_doc_sync_check_deps_exist"
+      "source": "tools_validate_doc_sync_rationale_99",
+      "target": "tools_validate_doc_sync_check_deps_exist",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9433,11 +9639,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L108",
+      "source_location": "L114",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_108",
-      "target": "tools_validate_doc_sync_check_version_consistency"
+      "source": "tools_validate_doc_sync_rationale_114",
+      "target": "tools_validate_doc_sync_check_version_consistency",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9454,11 +9660,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L136",
+      "source_location": "L142",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_136",
-      "target": "tools_validate_doc_sync_check_adr_status"
+      "source": "tools_validate_doc_sync_rationale_142",
+      "target": "tools_validate_doc_sync_check_adr_status",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9475,11 +9681,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L160",
+      "source_location": "L166",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_160",
-      "target": "tools_validate_doc_sync_check_stale_patterns"
+      "source": "tools_validate_doc_sync_rationale_166",
+      "target": "tools_validate_doc_sync_check_stale_patterns",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9496,11 +9702,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L180",
+      "source_location": "L186",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_180",
-      "target": "tools_validate_doc_sync_check_markdown_links"
+      "source": "tools_validate_doc_sync_rationale_186",
+      "target": "tools_validate_doc_sync_check_markdown_links",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9517,11 +9723,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L212",
+      "source_location": "L218",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_212",
-      "target": "tools_validate_doc_sync_check_optid_doc_sync"
+      "source": "tools_validate_doc_sync_rationale_218",
+      "target": "tools_validate_doc_sync_check_optid_doc_sync",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9538,11 +9744,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tools/validate-doc-sync.py",
-      "source_location": "L240",
+      "source_location": "L246",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "tools_validate_doc_sync_rationale_240",
-      "target": "tools_validate_doc_sync_check_last_verified"
+      "source": "tools_validate_doc_sync_rationale_246",
+      "target": "tools_validate_doc_sync_check_last_verified",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -9850,9 +10056,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agent_instructions",
-      "target": "agents_doc_management_required",
-      "confidence_score": 1.0
+      "target": "agents_doc_management_required"
     },
     {
       "relation": "contains",
@@ -9863,6 +10069,56 @@
       "confidence_score": 1.0,
       "source": "agents_agent_instructions",
       "target": "agents_graphify"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "agents_agent_instructions",
+      "target": "agents_session_lifecycle_mandatory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "agents_session_lifecycle_mandatory",
+      "target": "agents_1_start_bash_tools_start_work_sh_what_you_re_about_to_do",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "agents_session_lifecycle_mandatory",
+      "target": "agents_2_work_make_your_changes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "agents_session_lifecycle_mandatory",
+      "target": "agents_3_finish_bash_tools_finish_work_sh_commit_message",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "agents_session_lifecycle_mandatory",
+      "target": "agents_if_you_must_leave_mid_work",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -9958,11 +10214,21 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AI_CONTINUATION.md",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "ai_continuation_ai_continuation",
+      "target": "ai_continuation_session_lifecycle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AI_CONTINUATION.md",
       "source_location": "L186",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_next_task",
-      "target": "ai_continuation_before_making_any_changes",
-      "confidence_score": 1.0
+      "target": "ai_continuation_before_making_any_changes"
     },
     {
       "relation": "contains",
@@ -10120,9 +10386,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L41",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_2_build"
+      "target": "contributing_2_start_a_work_session",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -10130,19 +10396,29 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L50",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_3_make_a_change"
+      "target": "contributing_3_build",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L55",
+      "source_location": "L59",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_4_validate"
+      "target": "contributing_4_make_a_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "contributing_quick_start",
+      "target": "contributing_5_validate_and_finish",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -13396,5 +13672,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f01075d2660839546ca563f69124896b6b25988b"
+  "built_at_commit": "68306517c36eccd1b4646f687818f3c32264bdd1"
 }

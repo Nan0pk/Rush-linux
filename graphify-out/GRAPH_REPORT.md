@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 60 files · ~28,543 words
+- 64 files · ~30,905 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 588 nodes · 735 edges · 70 communities (67 shown, 3 thin omitted)
+- 603 nodes · 746 edges · 74 communities (69 shown, 5 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f01075d2`
+- Built from commit: `68306517`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -81,6 +81,8 @@
 - [[_COMMUNITY_Community 66|Community 66]]
 - [[_COMMUNITY_Community 68|Community 68]]
 - [[_COMMUNITY_Community 69|Community 69]]
+- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Community 71|Community 71]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -102,7 +104,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (70 total, 3 thin omitted)
+## Communities (74 total, 5 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -237,8 +239,8 @@ Cohesion: 0.40
 Nodes (3): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
 
 ### Community 37 - "Community 37"
-Cohesion: 0.18
-Nodes (10): AI Continuation, Before making any changes, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task (+2 more)
+Cohesion: 0.17
+Nodes (11): AI Continuation, Before making any changes, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task (+3 more)
 
 ### Community 38 - "Community 38"
 Cohesion: 0.18
@@ -246,7 +248,7 @@ Nodes (10): Build, Community, Current Implementation Status, Design Rules, First
 
 ### Community 39 - "Community 39"
 Cohesion: 0.11
-Nodes (17): 1. Get the code, 2. Build, 3. Make a change, 4. Validate, Code of Conduct, Communication, Contributing to Rush Linux, Design Rules (+9 more)
+Nodes (18): 1. Get the code, 2. Start a work session, 3. Build, 4. Make a change, 5. Validate and finish, Code of Conduct, Communication, Contributing to Rush Linux (+10 more)
 
 ### Community 40 - "Community 40"
 Cohesion: 0.29
@@ -269,8 +271,8 @@ Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
 
 ### Community 45 - "Community 45"
-Cohesion: 0.50
-Nodes (3): Agent Instructions, Doc Management (REQUIRED), graphify
+Cohesion: 0.22
+Nodes (8): 1. Start: `bash tools/start-work.sh "what you're about to do"`, 2. Work: Make your changes, 3. Finish: `bash tools/finish-work.sh "commit message"`, Agent Instructions, Doc Management (REQUIRED), graphify, If you must leave mid-work, Session Lifecycle (MANDATORY)
 
 ### Community 46 - "Community 46"
 Cohesion: 0.35
@@ -357,9 +359,9 @@ Cohesion: 0.12
 Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `tools/validate-doc-sync.py`, 3. CI Integration, Adding a new ADR, Adding a new doc, Bumping the version, Changing kernel config, Changing `optid` behavior (+7 more)
 
 ## Knowledge Gaps
-- **304 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+299 more)
+- **312 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+307 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -369,11 +371,11 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _314 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _322 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
-  _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
 - **Should `Community 62` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
 - **Should `Community 69` be split into smaller, more focused modules?**
