@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 60 files · ~28,265 words
+- 60 files · ~28,543 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 586 nodes · 733 edges · 70 communities (66 shown, 4 thin omitted)
+- 588 nodes · 735 edges · 70 communities (67 shown, 3 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `363e32da`
+- Built from commit: `f01075d2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -102,7 +102,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (70 total, 4 thin omitted)
+## Communities (70 total, 3 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -237,8 +237,8 @@ Cohesion: 0.40
 Nodes (3): build-rootfs.sh script, build-rootfs.sh script, build-rootfs.sh script
 
 ### Community 37 - "Community 37"
-Cohesion: 0.20
-Nodes (9): AI Continuation, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task, Repo Layout (+1 more)
+Cohesion: 0.18
+Nodes (10): AI Continuation, Before making any changes, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task (+2 more)
 
 ### Community 38 - "Community 38"
 Cohesion: 0.18
@@ -267,6 +267,10 @@ Nodes (4): Reporting, Security Policy, Security Requirements, Supported Versions
 ### Community 44 - "Community 44"
 Cohesion: 0.50
 Nodes (3): Release Ledger, Release Rule, Releases
+
+### Community 45 - "Community 45"
+Cohesion: 0.50
+Nodes (3): Agent Instructions, Doc Management (REQUIRED), graphify
 
 ### Community 46 - "Community 46"
 Cohesion: 0.35
@@ -353,9 +357,9 @@ Cohesion: 0.12
 Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `tools/validate-doc-sync.py`, 3. CI Integration, Adding a new ADR, Adding a new doc, Bumping the version, Changing kernel config, Changing `optid` behavior (+7 more)
 
 ## Knowledge Gaps
-- **303 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+298 more)
+- **304 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+299 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -365,7 +369,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _313 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _314 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**

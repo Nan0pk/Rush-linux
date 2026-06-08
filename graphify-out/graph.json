@@ -1752,10 +1752,20 @@
       "norm_label": "agent instructions"
     },
     {
-      "label": "graphify",
+      "label": "Doc Management (REQUIRED)",
       "file_type": "document",
       "source_file": "AGENTS.md",
       "source_location": "L8",
+      "_origin": "ast",
+      "id": "agents_doc_management_required",
+      "community": 45,
+      "norm_label": "doc management (required)"
+    },
+    {
+      "label": "graphify",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L21",
       "_origin": "ast",
       "id": "agents_graphify",
       "community": 45,
@@ -1835,7 +1845,7 @@
       "label": "Graphify Continuation Workflow",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L98",
+      "source_location": "L102",
       "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
@@ -1845,7 +1855,7 @@
       "label": "Commands And Checks",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L126",
+      "source_location": "L130",
       "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
@@ -1855,11 +1865,21 @@
       "label": "Next Task",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L150",
+      "source_location": "L164",
       "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
       "norm_label": "next task"
+    },
+    {
+      "label": "Before making any changes",
+      "file_type": "document",
+      "source_file": "AI_CONTINUATION.md",
+      "source_location": "L186",
+      "_origin": "ast",
+      "id": "ai_continuation_before_making_any_changes",
+      "community": 37,
+      "norm_label": "before making any changes"
     },
     {
       "label": "CODE_OF_CONDUCT.md",
@@ -1985,7 +2005,7 @@
       "label": "Your First Contribution",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L70",
+      "source_location": "L71",
       "_origin": "ast",
       "id": "contributing_your_first_contribution",
       "community": 39,
@@ -1995,7 +2015,7 @@
       "label": "Understanding the Project",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L83",
+      "source_location": "L84",
       "_origin": "ast",
       "id": "contributing_understanding_the_project",
       "community": 39,
@@ -2005,7 +2025,7 @@
       "label": "Pull Request Process",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L103",
+      "source_location": "L104",
       "_origin": "ast",
       "id": "contributing_pull_request_process",
       "community": 39,
@@ -2015,7 +2035,7 @@
       "label": "Documentation Is Required",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L115",
+      "source_location": "L116",
       "_origin": "ast",
       "id": "contributing_documentation_is_required",
       "community": 39,
@@ -2025,7 +2045,7 @@
       "label": "Review Criteria",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L122",
+      "source_location": "L125",
       "_origin": "ast",
       "id": "contributing_review_criteria",
       "community": 39,
@@ -2035,7 +2055,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L134",
+      "source_location": "L137",
       "_origin": "ast",
       "id": "contributing_design_rules",
       "community": 39,
@@ -2045,7 +2065,7 @@
       "label": "Communication",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L154",
+      "source_location": "L157",
       "_origin": "ast",
       "id": "contributing_communication",
       "community": 39,
@@ -2055,7 +2075,7 @@
       "label": "Code of Conduct",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L162",
+      "source_location": "L165",
       "_origin": "ast",
       "id": "contributing_code_of_conduct",
       "community": 39,
@@ -2065,7 +2085,7 @@
       "label": "Recognition",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L167",
+      "source_location": "L170",
       "_origin": "ast",
       "id": "contributing_recognition",
       "community": 39,
@@ -2075,7 +2095,7 @@
       "label": "Get Help",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L174",
+      "source_location": "L177",
       "_origin": "ast",
       "id": "contributing_get_help",
       "community": 39,
@@ -2255,7 +2275,7 @@
       "label": "Knowledge Graph For Continuation",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L70",
+      "source_location": "L72",
       "_origin": "ast",
       "id": "readme_knowledge_graph_for_continuation",
       "community": 38,
@@ -2265,7 +2285,7 @@
       "label": "Current Implementation Status",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L90",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "readme_current_implementation_status",
       "community": 38,
@@ -2275,7 +2295,7 @@
       "label": "Build",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L115",
+      "source_location": "L117",
       "_origin": "ast",
       "id": "readme_build",
       "community": 38,
@@ -2285,7 +2305,7 @@
       "label": "GitHub CI",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L139",
+      "source_location": "L141",
       "_origin": "ast",
       "id": "readme_github_ci",
       "community": 38,
@@ -2295,7 +2315,7 @@
       "label": "Publishing",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L149",
+      "source_location": "L151",
       "_origin": "ast",
       "id": "readme_publishing",
       "community": 38,
@@ -2305,7 +2325,7 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L165",
+      "source_location": "L167",
       "_origin": "ast",
       "id": "readme_design_rules",
       "community": 38,
@@ -2315,7 +2335,7 @@
       "label": "Community",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L176",
+      "source_location": "L178",
       "_origin": "ast",
       "id": "readme_community",
       "community": 38,
@@ -8905,9 +8925,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L135",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_adr_status",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_adr_status"
     },
     {
       "relation": "contains",
@@ -8915,9 +8935,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L81",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_all_docs_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_all_docs_exist"
     },
     {
       "relation": "contains",
@@ -8925,9 +8945,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L92",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_deps_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_deps_exist"
     },
     {
       "relation": "contains",
@@ -8935,9 +8955,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L65",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_docmap_loads",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_docmap_loads"
     },
     {
       "relation": "contains",
@@ -8945,9 +8965,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L239",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_last_verified",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_last_verified"
     },
     {
       "relation": "contains",
@@ -8955,9 +8975,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L179",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_markdown_links",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_markdown_links"
     },
     {
       "relation": "contains",
@@ -8965,9 +8985,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L211",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_optid_doc_sync",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_optid_doc_sync"
     },
     {
       "relation": "contains",
@@ -8975,9 +8995,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L159",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_stale_patterns",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_stale_patterns"
     },
     {
       "relation": "contains",
@@ -8985,9 +9005,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L107",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_check_version_consistency",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_version_consistency"
     },
     {
       "relation": "contains",
@@ -8995,9 +9015,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "contains",
@@ -9005,9 +9025,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L59",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_get_version",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_get_version"
     },
     {
       "relation": "contains",
@@ -9015,9 +9035,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L266",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_main",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_main"
     },
     {
       "relation": "contains",
@@ -9025,9 +9045,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "contains",
@@ -9035,9 +9055,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "contains",
@@ -9045,9 +9065,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L43",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync",
-      "target": "tools_validate_doc_sync_warn",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_warn"
     },
     {
       "relation": "calls",
@@ -9056,9 +9076,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L149",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_adr_status",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9067,9 +9087,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L89",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_all_docs_exist",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9078,9 +9098,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_deps_exist",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9089,9 +9109,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_docmap_loads",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9100,9 +9120,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L258",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_last_verified",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9111,9 +9131,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L204",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_markdown_links",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9122,9 +9142,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L234",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_optid_doc_sync",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9133,9 +9153,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L174",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_stale_patterns",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9144,9 +9164,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L112",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_version_consistency",
-      "target": "tools_validate_doc_sync_err",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_err"
     },
     {
       "relation": "calls",
@@ -9155,9 +9175,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L140",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_adr_status",
-      "target": "tools_validate_doc_sync_warn",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_warn"
     },
     {
       "relation": "calls",
@@ -9166,9 +9186,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L249",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_last_verified",
-      "target": "tools_validate_doc_sync_warn",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_warn"
     },
     {
       "relation": "calls",
@@ -9177,9 +9197,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L217",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_optid_doc_sync",
-      "target": "tools_validate_doc_sync_warn",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_warn"
     },
     {
       "relation": "calls",
@@ -9188,9 +9208,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L156",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_adr_status",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9199,9 +9219,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_all_docs_exist",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9210,9 +9230,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L74",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_docmap_loads",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9221,9 +9241,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L261",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_last_verified",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9232,9 +9252,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L208",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_markdown_links",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9243,9 +9263,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L236",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_optid_doc_sync",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9254,9 +9274,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L176",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_stale_patterns",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9265,9 +9285,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L115",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_version_consistency",
-      "target": "tools_validate_doc_sync_ok",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_ok"
     },
     {
       "relation": "calls",
@@ -9276,9 +9296,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L189",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_markdown_links",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "calls",
@@ -9287,9 +9307,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L215",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_optid_doc_sync",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "calls",
@@ -9298,9 +9318,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L164",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_stale_patterns",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "calls",
@@ -9309,9 +9329,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L125",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_version_consistency",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "calls",
@@ -9320,9 +9340,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L60",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_get_version",
-      "target": "tools_validate_doc_sync_read_file",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_read_file"
     },
     {
       "relation": "calls",
@@ -9331,9 +9351,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_check_version_consistency",
-      "target": "tools_validate_doc_sync_get_version",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_get_version"
     },
     {
       "relation": "calls",
@@ -9342,9 +9362,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L278",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_docmap_loads",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_docmap_loads"
     },
     {
       "relation": "rationale_for",
@@ -9352,9 +9372,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_66",
-      "target": "tools_validate_doc_sync_check_docmap_loads",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_docmap_loads"
     },
     {
       "relation": "calls",
@@ -9363,9 +9383,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L283",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_all_docs_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_all_docs_exist"
     },
     {
       "relation": "rationale_for",
@@ -9373,9 +9393,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L82",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_82",
-      "target": "tools_validate_doc_sync_check_all_docs_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_all_docs_exist"
     },
     {
       "relation": "calls",
@@ -9384,9 +9404,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L284",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_deps_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_deps_exist"
     },
     {
       "relation": "rationale_for",
@@ -9394,9 +9414,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L93",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_93",
-      "target": "tools_validate_doc_sync_check_deps_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_deps_exist"
     },
     {
       "relation": "calls",
@@ -9405,9 +9425,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L285",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_version_consistency",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_version_consistency"
     },
     {
       "relation": "rationale_for",
@@ -9415,9 +9435,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L108",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_108",
-      "target": "tools_validate_doc_sync_check_version_consistency",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_version_consistency"
     },
     {
       "relation": "calls",
@@ -9426,9 +9446,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L286",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_adr_status",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_adr_status"
     },
     {
       "relation": "rationale_for",
@@ -9436,9 +9456,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L136",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_136",
-      "target": "tools_validate_doc_sync_check_adr_status",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_adr_status"
     },
     {
       "relation": "calls",
@@ -9447,9 +9467,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L287",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_stale_patterns",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_stale_patterns"
     },
     {
       "relation": "rationale_for",
@@ -9457,9 +9477,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_160",
-      "target": "tools_validate_doc_sync_check_stale_patterns",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_stale_patterns"
     },
     {
       "relation": "calls",
@@ -9468,9 +9488,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L288",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_markdown_links",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_markdown_links"
     },
     {
       "relation": "rationale_for",
@@ -9478,9 +9498,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L180",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_180",
-      "target": "tools_validate_doc_sync_check_markdown_links",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_markdown_links"
     },
     {
       "relation": "calls",
@@ -9489,9 +9509,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L289",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_optid_doc_sync",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_optid_doc_sync"
     },
     {
       "relation": "rationale_for",
@@ -9499,9 +9519,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L212",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_212",
-      "target": "tools_validate_doc_sync_check_optid_doc_sync",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_optid_doc_sync"
     },
     {
       "relation": "calls",
@@ -9510,9 +9530,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L290",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_main",
-      "target": "tools_validate_doc_sync_check_last_verified",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_last_verified"
     },
     {
       "relation": "rationale_for",
@@ -9520,9 +9540,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L240",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_240",
-      "target": "tools_validate_doc_sync_check_last_verified",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_last_verified"
     },
     {
       "relation": "contains",
@@ -9830,6 +9850,16 @@
       "source_file": "AGENTS.md",
       "source_location": "L8",
       "weight": 1.0,
+      "source": "agents_agent_instructions",
+      "target": "agents_doc_management_required",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L8",
+      "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agents_agent_instructions",
       "target": "agents_graphify"
@@ -9923,6 +9953,16 @@
       "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
       "target": "ai_continuation_safe_assumptions"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AI_CONTINUATION.md",
+      "source_location": "L186",
+      "weight": 1.0,
+      "source": "ai_continuation_next_task",
+      "target": "ai_continuation_before_making_any_changes",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -11040,9 +11080,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced",
-      "target": "contributing_keeping_docs_synced_keeping_documentation_in_sync",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_keeping_documentation_in_sync"
     },
     {
       "relation": "contains",
@@ -11050,9 +11090,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L102",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_keeping_documentation_in_sync",
-      "target": "contributing_keeping_docs_synced_for_ai_agents",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_for_ai_agents"
     },
     {
       "relation": "contains",
@@ -11060,9 +11100,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_keeping_documentation_in_sync",
-      "target": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes"
     },
     {
       "relation": "contains",
@@ -11070,9 +11110,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_keeping_documentation_in_sync",
-      "target": "contributing_keeping_docs_synced_the_doc_management_system",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_the_doc_management_system"
     },
     {
       "relation": "contains",
@@ -11080,9 +11120,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L127",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_keeping_documentation_in_sync",
-      "target": "contributing_keeping_docs_synced_troubleshooting",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_troubleshooting"
     },
     {
       "relation": "contains",
@@ -11090,9 +11130,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_the_doc_management_system",
-      "target": "contributing_keeping_docs_synced_1_doc_registry_docs_docmap_toml",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_1_doc_registry_docs_docmap_toml"
     },
     {
       "relation": "contains",
@@ -11100,9 +11140,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_the_doc_management_system",
-      "target": "contributing_keeping_docs_synced_2_automated_sync_validator_tools_validate_doc_sync_py",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_2_automated_sync_validator_tools_validate_doc_sync_py"
     },
     {
       "relation": "contains",
@@ -11110,9 +11150,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_the_doc_management_system",
-      "target": "contributing_keeping_docs_synced_3_ci_integration",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_3_ci_integration"
     },
     {
       "relation": "contains",
@@ -11120,9 +11160,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_adding_a_new_adr",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_adding_a_new_adr"
     },
     {
       "relation": "contains",
@@ -11130,9 +11170,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_adding_a_new_doc",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_adding_a_new_doc"
     },
     {
       "relation": "contains",
@@ -11140,9 +11180,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_bumping_the_version",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_bumping_the_version"
     },
     {
       "relation": "contains",
@@ -11150,9 +11190,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L70",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_changing_kernel_config",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_changing_kernel_config"
     },
     {
       "relation": "contains",
@@ -11160,9 +11200,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_changing_optid_behavior",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_changing_optid_behavior"
     },
     {
       "relation": "contains",
@@ -11170,9 +11210,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L63",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_how_to_update_docs_for_common_changes",
-      "target": "contributing_keeping_docs_synced_changing_optimizer_policy",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_changing_optimizer_policy"
     },
     {
       "relation": "contains",
@@ -11180,9 +11220,9 @@
       "source_file": "docs/contributing/keeping-docs-synced.md",
       "source_location": "L115",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_keeping_docs_synced_for_ai_agents",
-      "target": "contributing_keeping_docs_synced_quick_agent_workflow",
-      "confidence_score": 1.0
+      "target": "contributing_keeping_docs_synced_quick_agent_workflow"
     },
     {
       "relation": "contains",
@@ -11880,9 +11920,9 @@
       "source_file": "docs/documentation-policy.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_documentation_policy_documentation_policy",
-      "target": "docs_documentation_policy_doc_management_system",
-      "confidence_score": 1.0
+      "target": "docs_documentation_policy_doc_management_system"
     },
     {
       "relation": "contains",
@@ -13356,5 +13396,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "363e32daa598c62db5f63a43962c8fc78a7e6bbc"
+  "built_at_commit": "f01075d2660839546ca563f69124896b6b25988b"
 }
