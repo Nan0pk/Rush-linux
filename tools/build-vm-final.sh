@@ -13,10 +13,16 @@
 #   python3 tools/download-assets.py   # once, to cache base assets
 #   sudo bash tools/build-vm-final.sh  # builds build/disk.raw
 #
-# Test:
+# Direct-kernel test (v0.3 gate):
 #   qemu-system-x86_64 \
 #     -kernel build/vmlinuz -initrd build/initrd.img \
 #     -append "root=/dev/vda2 rw console=ttyS0,115200" \
+#     -drive file=build/disk.raw,format=raw,if=virtio \
+#     -m 1G -nographic
+#
+# UEFI UKI test (v0.4 gate):
+#   qemu-system-x86_64 \
+#     -bios /usr/share/OVMF/OVMF_CODE.fd \
 #     -drive file=build/disk.raw,format=raw,if=virtio \
 #     -m 1G -nographic
 #
@@ -214,21 +220,33 @@ cd "${REPO_ROOT}"; rm -rf "${EFI_W}"
 
 CMDLINE="systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=1 zswap.enabled=1 root=/dev/vda2 rw console=ttyS0,115200"
 echo -n "${CMDLINE}" > "${BUILD}/cmdline.txt"
-mkdir -p "${BUILD}/uki_staging/EFI/Linux"
+mkdir -p "${BUILD}/uki_staging/EFI/Linux" "${BUILD}/uki_staging/loader/entries"
 objcopy \
     --add-section ".cmdline=${BUILD}/cmdline.txt" --change-section-vma .cmdline=0x30000 \
     --add-section ".linux=${BUILD}/vmlinuz" --change-section-vma .linux=0x2000000 \
     --add-section ".initrd=${BUILD}/initrd.img" --change-section-vma .initrd=0x3000000 \
     "${BUILD}/linuxx64.efi.stub" "${BUILD}/uki_staging/EFI/Linux/rush-linux.efi"
+cat > "${BUILD}/uki_staging/loader/loader.conf" << EOF
+default rush-linux.conf
+timeout 3
+editor no
+EOF
+cat > "${BUILD}/uki_staging/loader/entries/rush-linux.conf" << EOF
+title Rush Linux
+version $(cat "${REPO_ROOT}/VERSION")
+efi /EFI/Linux/rush-linux.efi
+EOF
 echo "  UKI: $(du -sh "${BUILD}/uki_staging/EFI/Linux/rush-linux.efi" | cut -f1)"
 
 # ── Step 6: Build ESP image ─────────────────────────────────────
 echo "[6/8] Building ESP partition..."
 dd if=/dev/zero of="${BUILD}/esp.img" bs=1M count=64 status=none
 mkfs.vfat -F 32 -n RUSHESP "${BUILD}/esp.img" 2>&1 | tail -1
-mmd -i "${BUILD}/esp.img" ::EFI ::EFI/Linux ::EFI/BOOT
+mmd -i "${BUILD}/esp.img" ::EFI ::EFI/Linux ::EFI/BOOT ::loader ::loader/entries
 mcopy -i "${BUILD}/esp.img" "${BUILD}/uki_staging/EFI/Linux/rush-linux.efi" ::EFI/Linux/rush-linux.efi
 mcopy -i "${BUILD}/esp.img" "${BUILD}/systemd-bootx64.efi" ::EFI/BOOT/BOOTX64.EFI
+mcopy -i "${BUILD}/esp.img" "${BUILD}/uki_staging/loader/loader.conf" ::loader/loader.conf
+mcopy -i "${BUILD}/esp.img" "${BUILD}/uki_staging/loader/entries/rush-linux.conf" ::loader/entries/rush-linux.conf
 echo "  ESP: $(du -sh "${BUILD}/esp.img" | cut -f1)"
 
 # ── Step 7: Assemble disk image ─────────────────────────────────
@@ -256,7 +274,7 @@ dd if=/dev/zero of="${BUILD}/root.img" bs=1 count=0 seek=${R_BYTES} status=none
 LOOP=$(losetup --find --show "${BUILD}/root.img")
 mkfs.ext4 -F -L RushRoot "${LOOP}" 2>&1 | tail -3
 mkdir -p "${BUILD}/mnt_root"
-mount "${LOOP}" "${BUILD}/mnt_root}"
+mount "${LOOP}" "${BUILD}/mnt_root"
 rsync -a "${ROOTFS}/" "${BUILD}/mnt_root/"
 sync
 umount "${BUILD}/mnt_root"
@@ -274,6 +292,12 @@ echo "Test with:"
 echo "  qemu-system-x86_64 \\"
 echo "    -kernel build/vmlinuz -initrd build/initrd.img \\"
 echo "    -append 'root=/dev/vda2 rw console=ttyS0,115200' \\"
+echo "    -drive file=build/disk.raw,format=raw,if=virtio \\"
+echo "    -m 1G -nographic"
+echo ""
+echo "UEFI UKI boot test (v0.4 path):"
+echo "  qemu-system-x86_64 \\"
+echo "    -bios /usr/share/OVMF/OVMF_CODE.fd \\"
 echo "    -drive file=build/disk.raw,format=raw,if=virtio \\"
 echo "    -m 1G -nographic"
 echo ""

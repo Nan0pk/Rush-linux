@@ -22,10 +22,18 @@ Implemented recipe skeletons:
 - `recipes/desktop/plasma-wayland.toml`
 - `recipes/server/minimal.toml`
 
-Implemented helper:
+Implemented helpers:
 
 - `tools/build-rootfs.sh` creates a Linux rootfs skeleton from checked-in
-  config files. It is not yet a package builder.
+  config files. It remains a lightweight scaffold helper.
+- `tools/rush-builder.py` is the package/rootfs/VM bootstrap builder. It can
+  build recipe archives, initialize local package metadata and mock signatures,
+  populate a rootfs from recipe dependencies, assemble a UKI plus initrd from
+  cached base assets, stage the systemd-boot fallback loader and UKI menu entry,
+  and ask `systemd-repart` to produce a GPT VM disk image.
+- `tools/build-vm-final.sh` is the current Linux-host integration path for the
+  v0.3/v0.4 VM image. It now writes the same systemd-boot loader files into the
+  ESP staging tree used by the UKI boot path.
 
 ## Recipe Schema Versioning
 

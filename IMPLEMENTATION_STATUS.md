@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-05-25
+Last updated: 2026-06-08
 
 ## Overall State
 
@@ -61,6 +61,9 @@ engineering milestones.
 
 ## Not Yet Implemented
 
+- QEMU/OVMF validation of the systemd-boot UKI path (booting `disk.raw`
+  without `-kernel`/`-initrd` direct-boot arguments), plus boot assessment and
+  rollback retention behavior.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - eBPF probes and overhead budget enforcement.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
@@ -80,8 +83,10 @@ engineering milestones.
   through the explainable allowlist per ADR 0009.
 - Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
   Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
-  with `optid.service` active. UEFI UKI boot (without `-kernel` flag) is a
-  v0.4.0 follow-up.
+  with `optid.service` active. v0.4 groundwork now stages systemd-boot loader
+  configuration and a UKI entry for `/EFI/Linux/rush-linux.efi`, and the Python
+  UKI builder includes the virtio/ext4 modules needed by the cached Debian
+  kernel asset.
 
 ## Known Local Constraints
 

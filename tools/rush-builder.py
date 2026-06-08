@@ -17,6 +17,34 @@ from pathlib import Path
 # versioning and migration policy.
 SUPPORTED_SCHEMA_VERSION = 0
 
+KERNEL_VERSION = "6.1.0-49-amd64"
+KERNEL_DEB = "linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb"
+BUSYBOX_DEB = "busybox-static_1.35.0-4+deb12u1+b1_amd64.deb"
+SYSTEMD_BOOT_DEB = "systemd-boot-efi_252.39-1~deb12u2_amd64.deb"
+DEFAULT_VM_ROOT_DEVICE = "/dev/vda2"
+DEFAULT_VM_CONSOLE = "ttyS0,115200"
+UKI_ESP_PATH = "/EFI/Linux/rush-linux.efi"
+
+# Modules needed for the Debian kernel asset to see the virtio-backed ext4
+# root partition used by the v0.3/v0.4 QEMU image. The initrd loader treats
+# missing modules as non-fatal so the list can be narrowed later for kernels
+# with some drivers built in.
+ESSENTIAL_INITRD_MODULES = [
+    "kernel/drivers/virtio/virtio.ko",
+    "kernel/drivers/virtio/virtio_ring.ko",
+    "kernel/drivers/virtio/virtio_pci_legacy_dev.ko",
+    "kernel/drivers/virtio/virtio_pci_modern_dev.ko",
+    "kernel/drivers/virtio/virtio_pci.ko",
+    "kernel/drivers/block/virtio_blk.ko",
+    "kernel/crypto/crc32c_generic.ko",
+    "kernel/lib/libcrc32c.ko",
+    "kernel/lib/crc16.ko",
+    "kernel/fs/jbd2/jbd2.ko",
+    "kernel/fs/mbcache.ko",
+    "kernel/fs/ext4/ext4.ko",
+]
+
+
 def check_schema_version(pkg, recipe_path):
     """Validate the recipe's declared schema_version. Returns the version int."""
     schema_version = pkg.get("schema_version")
@@ -309,34 +337,87 @@ def write_cpio_newc(entries, out_file):
     if pad_name:
         out_file.write(b'\x00' * pad_name)
 
-def helper_extract_from_deb(downloads_dir, deb_name, file_path_in_tar):
+def iter_deb_data_members(downloads_dir, deb_name):
     deb_path = downloads_dir / deb_name
     if not deb_path.exists():
-        raise FileNotFoundError(f"Required base package {deb_name} not found in {downloads_dir}. Run download-assets.py first.")
-        
+        raise FileNotFoundError(
+            f"Required base package {deb_name} not found in {downloads_dir}. "
+            "Run download-assets.py first."
+        )
+
     with open(deb_path, "rb") as f:
         magic = f.read(8)
         if magic != b"!<arch>\n":
             raise ValueError(f"Invalid ar archive {deb_name}")
-            
+
         while True:
             header = f.read(60)
             if len(header) < 60:
                 break
-            name = header[0:16].strip().decode('ascii')
+
+            name = header[0:16].decode("ascii").strip().rstrip("/")
             size = int(header[48:58].strip())
-            
-            if name == "data.tar.xz":
-                data = f.read(size)
-                with tarfile.open(fileobj=io.BytesIO(data), mode="r:xz") as tar:
+            data = f.read(size)
+            if size % 2:
+                f.seek(1, 1)
+
+            if name.startswith("data.tar"):
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tar:
                     for member in tar.getmembers():
-                        m_name = member.name.lstrip("./")
-                        t_name = file_path_in_tar.lstrip("./")
-                        if m_name == t_name:
-                            return tar.extractfile(member).read()
-            else:
-                f.seek(size + (size % 2), 1)
+                        if member.isfile():
+                            extracted = tar.extractfile(member)
+                            if extracted is not None:
+                                yield member.name.lstrip("./"), extracted.read()
+                return
+
+
+def helper_extract_from_deb(downloads_dir, deb_name, file_path_in_tar):
+    target = file_path_in_tar.lstrip("./")
+    for member_name, member_bytes in iter_deb_data_members(downloads_dir, deb_name):
+        if member_name == target:
+            return member_bytes
     raise FileNotFoundError(f"File {file_path_in_tar} not found in {deb_name}")
+
+
+def helper_extract_many_from_deb(downloads_dir, deb_name, file_paths_in_tar):
+    wanted = {path.lstrip("./") for path in file_paths_in_tar}
+    found = {}
+    for member_name, member_bytes in iter_deb_data_members(downloads_dir, deb_name):
+        if member_name in wanted:
+            found[member_name] = member_bytes
+            if len(found) == len(wanted):
+                break
+    return found
+
+
+def build_vm_kernel_cmdline(base_cmdline_text, root_device=DEFAULT_VM_ROOT_DEVICE, console=DEFAULT_VM_CONSOLE):
+    tokens = base_cmdline_text.split()
+    if not any(token.startswith("root=") for token in tokens):
+        tokens.append(f"root={root_device}")
+    if "rw" not in tokens and "ro" not in tokens:
+        tokens.append("rw")
+    if console and not any(token.startswith("console=") for token in tokens):
+        tokens.append(f"console={console}")
+    return " ".join(tokens)
+
+
+def stage_systemd_boot_layout(rootfs_dir, version):
+    boot_dir = Path(rootfs_dir) / "boot"
+    loader_dir = boot_dir / "loader"
+    entries_dir = loader_dir / "entries"
+    entries_dir.mkdir(parents=True, exist_ok=True)
+
+    (loader_dir / "loader.conf").write_text(
+        "default rush-linux.conf\n"
+        "timeout 3\n"
+        "editor no\n"
+    )
+    (entries_dir / "rush-linux.conf").write_text(
+        "title Rush Linux\n"
+        f"version {version}\n"
+        f"efi {UKI_ESP_PATH}\n"
+    )
+
 
 def cmd_build_uki(args):
     rootfs_dir = Path(args.rootfs_dir)
@@ -346,55 +427,86 @@ def cmd_build_uki(args):
     
     print("Extracting base binaries from cached debian packages...")
     
-    busybox_bytes = helper_extract_from_deb(
-        downloads_dir, 
-        "busybox-static_1.35.0-4+deb12u1+b1_amd64.deb", 
-        "bin/busybox"
-    )
+    busybox_bytes = helper_extract_from_deb(downloads_dir, BUSYBOX_DEB, "bin/busybox")
     
     stub_bytes = helper_extract_from_deb(
         downloads_dir,
-        "systemd-boot-efi_252.39-1~deb12u2_amd64.deb",
+        SYSTEMD_BOOT_DEB,
         "usr/lib/systemd/boot/efi/linuxx64.efi.stub"
     )
     
     bootloader_bytes = helper_extract_from_deb(
         downloads_dir,
-        "systemd-boot-efi_252.39-1~deb12u2_amd64.deb",
+        SYSTEMD_BOOT_DEB,
         "usr/lib/systemd/boot/efi/systemd-bootx64.efi"
     )
     
     vmlinuz_bytes = helper_extract_from_deb(
         downloads_dir,
-        "linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb",
-        "boot/vmlinuz-6.1.0-49-amd64"
+        KERNEL_DEB,
+        f"boot/vmlinuz-{KERNEL_VERSION}"
     )
+    
+    module_paths = [f"lib/modules/{KERNEL_VERSION}/{path}" for path in ESSENTIAL_INITRD_MODULES]
+    module_bytes = helper_extract_many_from_deb(downloads_dir, KERNEL_DEB, module_paths)
+    missing_modules = sorted(set(module_paths) - set(module_bytes))
+    if missing_modules:
+        print("Warning: some expected initrd modules were not found in the kernel package:", file=sys.stderr)
+        for module in missing_modules:
+            print(f"  - {module}", file=sys.stderr)
     
     print("Assembling minimal initrd...")
     
-    init_script = """#!/bin/sh
+    init_script = f"""#!/bin/sh
+set -e
+PATH=/bin:/sbin
+export PATH
+echo "== Rush Linux initrd =="
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /run
+
+M="/lib/modules/{KERNEL_VERSION}"
+echo "Loading storage drivers..."
+for k in virtio virtio_ring virtio_pci_legacy_dev virtio_pci_modern_dev \
+         virtio_pci virtio_blk crc32c_generic libcrc32c crc16 jbd2 mbcache ext4; do
+    [ -e "$M/${{k}}.ko" ] && insmod "$M/${{k}}.ko" 2>/dev/null || true
+done
+sleep 1
 
 ROOT_DEV=""
 for arg in $(cat /proc/cmdline); do
     case "$arg" in
-        root=*) ROOT_DEV="${arg#root=}" ;;
+        root=*) ROOT_DEV="${{arg#root=}}" ;;
     esac
 done
 
 if [ -z "$ROOT_DEV" ]; then
     echo "Error: root= parameter not found in kernel cmdline!"
+    ls /dev/vd* /dev/sd* 2>/dev/null || true
+    exec /bin/sh
+fi
+
+i=0
+while [ ! -e "$ROOT_DEV" ] && [ $i -lt 50 ]; do
+    sleep 0.2
+    i=$((i + 1))
+done
+
+if [ ! -e "$ROOT_DEV" ]; then
+    echo "Error: root device $ROOT_DEV not found!"
+    ls /dev/vd* /dev/sd* 2>/dev/null || true
     exec /bin/sh
 fi
 
 echo "Mounting root filesystem $ROOT_DEV..."
 mkdir -p /mnt/root
-mount "$ROOT_DEV" /mnt/root
+mount -o ro "$ROOT_DEV" /mnt/root
 
 if [ ! -x /mnt/root/sbin/init ]; then
     echo "Error: /sbin/init not found on root device!"
+    ls /mnt/root
     exec /bin/sh
 fi
 
@@ -408,12 +520,25 @@ exec switch_root /mnt/root /sbin/init
         {'name': 'proc', 'mode': 0o040755, 'content': b''},
         {'name': 'sys', 'mode': 0o040755, 'content': b''},
         {'name': 'dev', 'mode': 0o040755, 'content': b''},
+        {'name': 'run', 'mode': 0o040755, 'content': b''},
         {'name': 'mnt', 'mode': 0o040755, 'content': b''},
+        {'name': 'mnt/root', 'mode': 0o040755, 'content': b''},
+        {'name': 'lib', 'mode': 0o040755, 'content': b''},
+        {'name': 'lib/modules', 'mode': 0o040755, 'content': b''},
+        {'name': f'lib/modules/{KERNEL_VERSION}', 'mode': 0o040755, 'content': b''},
         {'name': 'init', 'mode': 0o100755, 'content': init_script.encode('utf-8')},
         {'name': 'bin/busybox', 'mode': 0o100755, 'content': busybox_bytes},
     ]
     
-    for applet in ['sh', 'mount', 'cat', 'mkdir', 'echo']:
+    for module_path, contents in sorted(module_bytes.items()):
+        module_name = Path(module_path).name
+        entries.append({
+            'name': f'lib/modules/{KERNEL_VERSION}/{module_name}',
+            'mode': 0o100644,
+            'content': contents,
+        })
+    
+    for applet in ['sh', 'mount', 'cat', 'mkdir', 'echo', 'sleep', 'ls', 'insmod']:
         entries.append({'name': f'bin/{applet}', 'mode': 0o120777, 'content': b'busybox'})
     entries.append({'name': 'sbin/switch_root', 'mode': 0o120777, 'content': b'../bin/busybox'})
     
@@ -433,7 +558,7 @@ exec switch_root /mnt/root /sbin/init
     cmdline_path = repo_root / "distro" / "boot" / "cmdline.d" / "adaptive.conf"
     if not cmdline_path.exists():
         raise FileNotFoundError(f"Kernel command line configuration not found at {cmdline_path}")
-    cmdline_text = cmdline_path.read_text().strip()
+    cmdline_text = build_vm_kernel_cmdline(cmdline_path.read_text())
     
     temp_cmdline_path = build_dir / "cmdline.txt"
     temp_cmdline_path.write_text(cmdline_text)
@@ -486,6 +611,11 @@ exec switch_root /mnt/root /sbin/init
     bootloader_path = esp_boot_dir / "BOOTX64.EFI"
     bootloader_path.write_bytes(bootloader_bytes)
     print(f"Staged fallback bootloader to {bootloader_path}")
+
+    version_path = repo_root / "VERSION"
+    version = version_path.read_text().strip() if version_path.exists() else "unknown"
+    stage_systemd_boot_layout(rootfs_dir, version)
+    print("Staged systemd-boot loader.conf and Rush Linux UKI entry")
     print("UKI assembly completed successfully!\n")
 
 def cmd_vm_image(args):

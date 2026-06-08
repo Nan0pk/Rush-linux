@@ -62,7 +62,7 @@ Implemented:
 - `optid` emits explainable decisions and applies guarded actions only with
   `--apply`.
 - `optctl` supports status, explain, mode, trace, benchmark, and has `--json` output option for telemetry.
-- Package builder (`tools/rush-builder.py`) implemented, supporting TOML recipe builds, dependency resolution, local metadata DB initialization with signatures, and partition image formatting using `systemd-repart`.
+- Package builder (`tools/rush-builder.py`) implemented, supporting TOML recipe builds, dependency resolution, local metadata DB initialization with signatures, UKI/initrd assembly with required virtio/ext4 modules for the cached VM kernel, systemd-boot loader entry staging, and partition image formatting using `systemd-repart`.
 - Pre-compiled base assets downloaded and unpacked locally into `build/tmp_downloads/` for offline/no-root compilation of VM image:
   - Debian `systemd-boot-efi` package (`systemd-boot-efi_252.39-1~deb12u2_amd64.deb`) -> extracts `linuxx64.efi.stub` and `systemd-bootx64.efi`.
   - Debian kernel package (`linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb`) -> extracts `vmlinuz-6.1.0-49-amd64` and kernel modules.
@@ -71,9 +71,10 @@ Implemented:
 
 Not implemented yet:
 
-- UEFI UKI boot (without `-kernel` flag). The UKI is built and staged in the ESP,
-  but OVMF does not yet boot it automatically — needs systemd-boot BLS
-  configuration or a boot entry. This is the v0.4.0 milestone.
+- QEMU/OVMF validation of UEFI UKI boot (without `-kernel` flag). The UKI,
+  systemd-boot fallback loader, and default UKI menu entry are now staged in the
+  ESP layout; the remaining v0.4 work is to boot that path, add boot assessment,
+  retain rollback entries, and prove simulated bad-kernel rollback.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - Minimal ISO installer.
 - Hardware benchmark harness execution.
@@ -189,15 +190,17 @@ To resume work on a Linux machine (native or container):
 2. **Build and Stage `optid`:**
    Run `python3 tools/rush-builder.py build recipes/core/optid.toml` and
    populate `build/rootfs` using `rootfs-create`.
-3. **Assemble Initrd and UKI:**
+3. **Assemble Initrd, UKI, and Loader Entry:**
    Run `python3 tools/rush-builder.py build-uki build/rootfs` to construct
-   the initrd and compile the Unified Kernel Image.
+   the initrd, compile the Unified Kernel Image, and stage `loader/loader.conf`
+   plus `loader/entries/rush-linux.conf` for systemd-boot.
 4. **Generate GPT VM Image:**
    Run `python3 tools/rush-builder.py vm-image build/rootfs build/disk.raw`
    to generate a bootable raw disk image using `systemd-repart`.
-5. **Boot in QEMU:**
-   Validate boot to login prompt with `optid` running:
-   `qemu-system-x86_64 -drive file=build/disk.raw,format=raw -m 1G`
+5. **Boot in QEMU via UEFI:**
+   Validate boot to login prompt with `optid` running, without `-kernel` or
+   `-initrd` direct-boot arguments:
+   `qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=build/disk.raw,format=raw,if=virtio -m 1G -nographic`
 
 ### Before making any changes
 

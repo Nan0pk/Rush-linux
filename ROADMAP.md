@@ -71,7 +71,10 @@ Exit criteria:
  
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
  
-Status: next.
+Status: next. Initial groundwork is in place: the builder stages a UKI,
+required VM initrd modules, the systemd-boot fallback loader, and a default
+systemd-boot entry for `/EFI/Linux/rush-linux.efi`. QEMU/OVMF boot validation
+and rollback behavior remain open.
 
 - Generate UKIs from kernel package outputs.
 - Add systemd-boot path and GRUB fallback path.

@@ -57,6 +57,8 @@ def main():
     assert (build_dir / "initrd.img").exists(), "initrd.img not found"
     assert (build_dir / "rootfs" / "boot" / "EFI" / "Linux" / "rush-linux.efi").exists(), "rush-linux.efi UKI not found"
     assert (build_dir / "rootfs" / "boot" / "EFI" / "BOOT" / "BOOTX64.EFI").exists(), "BOOTX64.EFI fallback bootloader not found"
+    assert (build_dir / "rootfs" / "boot" / "loader" / "loader.conf").exists(), "systemd-boot loader.conf not found"
+    assert (build_dir / "rootfs" / "boot" / "loader" / "entries" / "rush-linux.conf").exists(), "Rush Linux systemd-boot entry not found"
     assert (build_dir / "disk.raw").exists(), "disk.raw VM image not found"
     
     print("\nAll integration tests for rush-builder passed successfully!")
