@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 58 files · ~26,377 words
+- 60 files · ~28,265 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 544 nodes · 658 edges · 68 communities (64 shown, 4 thin omitted)
+- 586 nodes · 733 edges · 70 communities (66 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `20df2aaa`
+- Built from commit: `363e32da`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -79,6 +79,8 @@
 - [[_COMMUNITY_Community 64|Community 64]]
 - [[_COMMUNITY_Community 65|Community 65]]
 - [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 68|Community 68]]
+- [[_COMMUNITY_Community 69|Community 69]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -100,7 +102,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (68 total, 4 thin omitted)
+## Communities (70 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -171,8 +173,8 @@ Cohesion: 0.29
 Nodes (5): Acceptance Criteria, Boot And Updates, Boot Direction, Rollback Requirements, Update Direction
 
 ### Community 17 - "Community 17"
-Cohesion: 0.29
-Nodes (5): Documentation Policy, Forbidden, Minimum Commit Standard, Required Docs By Change Type, Required For Every Change
+Cohesion: 0.25
+Nodes (6): Doc Management System, Documentation Policy, Forbidden, Minimum Commit Standard, Required Docs By Change Type, Required For Every Change
 
 ### Community 18 - "Community 18"
 Cohesion: 0.29
@@ -342,8 +344,16 @@ Nodes (6): Acceptance Criteria, Affected Subsystems, Alternatives Considered, Pr
 Cohesion: 0.50
 Nodes (3): Context, Question, Related Documentation
 
+### Community 68 - "Community 68"
+Cohesion: 0.20
+Nodes (24): check_adr_status(), check_all_docs_exist(), check_deps_exist(), check_docmap_loads(), check_last_verified(), check_markdown_links(), check_optid_doc_sync(), check_stale_patterns() (+16 more)
+
+### Community 69 - "Community 69"
+Cohesion: 0.12
+Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `tools/validate-doc-sync.py`, 3. CI Integration, Adding a new ADR, Adding a new doc, Bumping the version, Changing kernel config, Changing `optid` behavior (+7 more)
+
 ## Knowledge Gaps
-- **291 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+286 more)
+- **303 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+298 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -351,14 +361,16 @@ Nodes (3): Context, Question, Related Documentation
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _292 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _313 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
   _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._
 - **Should `Community 62` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
+- **Should `Community 69` be split into smaller, more focused modules?**
+  _Cohesion score 0.125 - nodes in this community are weakly interconnected._
