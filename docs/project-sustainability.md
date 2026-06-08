@@ -12,23 +12,38 @@ flagged (C1, C2, C8). It is a living plan, not a finished policy.
 
 ## C1 — Contributor model, governance, community
 
-Current gap: `CONTRIBUTING.md` describes rules but not how to get involved;
-there is no triage process, no review policy, no governance, no community space,
-no code of conduct.
+Current gap (partially resolved): `CONTRIBUTING.md` has been rewritten with a
+welcome-first structure. Issue/PR templates, `good first issue` labels, GitHub
+Discussions, an AUTHORS file, and an onboarding tutorial have been added.
 
-Plan:
+Remaining:
 
-- **Code of Conduct:** adopt the Contributor Covenant (see `CODE_OF_CONDUCT.md`).
-- **Governance (lightweight, now):** document who holds merge rights and how
-  architectural disagreements are resolved (ADRs are the mechanism; a named
-  maintainer ratifies). Record agent-authored decisions per
-  `docs/agent-decisions/`.
-- **Issue triage:** define labels (`type:bug`, `type:design`, `good-first-issue`,
-  `area:optid`, `area:packaging`, `area:boot`, `area:docs`) and a triage cadence.
-- **PR review policy:** state the review bar (builds, tests, clippy clean, docs
-  updated in the same change) and who reviews each area.
-- **Community space:** stand up one real channel (Matrix or Discord) and link it
-  from the README before the project acquires public presence.
+- **Community space:** stand up one real-time channel (Matrix or Discord) and
+  link it from the README before the project acquires public presence.
+- **Dev container:** publish a canonical dev container image (toolchain + Rust +
+  build deps) so contributors can click "Open in Codespaces" and have a working
+  build environment.
+
+Completed:
+
+- **Code of Conduct:** adopted Contributor Covenant v2.1 (`CODE_OF_CONDUCT.md`).
+- **CONTRIBUTING.md rewritten:** welcome-first structure with ways to contribute,
+  quick start guide, first-contribution walkthrough, review process, and
+  communication channels.
+- **Issue/PR templates:** `.github/ISSUE_TEMPLATE/` (bug report, feature request,
+  question) and `.github/pull_request_template.md` with testing and docs
+  checklists.
+- **Good first issues:** label set created (`good first issue`, `type:bug`,
+  `type:design`, `type:enhancement`, `type:question`, `area:optid`,
+  `area:packaging`, `area:boot`, `area:docs`, `needs-triage`); starter issues
+  seeded.
+- **PR review policy:** documented in CONTRIBUTING.md (7-day initial review target,
+  named criteria).
+- **Contributor recognition:** `AUTHORS` file created; contributors acknowledged
+  in release notes.
+- **Onboarding tutorial:** `docs/contributing/first-pr.md` — step-by-step guide.
+- **Governance:** ADR ratification documented (`docs/decisions/README.md`);
+  agent-authored decisions recorded per `docs/agent-decisions/`.
 
 ## C2 — Canonical development environment is Linux
 

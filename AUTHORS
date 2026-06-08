@@ -1,0 +1,23 @@
+# Rush Linux Contributors
+
+This file recognizes everyone who has contributed to Rush Linux. Contributions
+include code, documentation, testing, design, bug reports, community support,
+and more.
+
+## Maintainer
+
+- **@Nan0pk** — project founder, architecture, `optid`, `optctl`, build system,
+  documentation, kernel config, packaging, CI
+
+## Contributors
+
+*(This list will grow as the project welcomes new contributors. If you've
+contributed and your name is missing, please open a PR to add yourself.)*
+
+---
+
+Add yourself in alphabetical order by GitHub handle. Format:
+
+```
+- **@username** — brief description of contribution
+```

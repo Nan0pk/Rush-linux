@@ -7,6 +7,8 @@ for responsiveness, battery life, thermal behavior, and resource utilization.
 
 Repository: https://github.com/Nan0pk/Rush-linux
 
+**[Contributing](CONTRIBUTING.md)** · **[Code of Conduct](CODE_OF_CONDUCT.md)** · **[Security](SECURITY.md)** · **[Discussions](https://github.com/Nan0pk/Rush-linux/discussions)**
+
 This repository is the first implementation slice:
 
 - Rust workspace for `optid` and `optctl`.
@@ -171,3 +173,12 @@ $env:GH_TOKEN = '<token>'
 - Do not run TLP, power-profiles-daemon, or TuneD as active default policy
   daemons. Compatibility can exist, but `optid` owns the knobs.
 - Avoid legacy defaults unless no modern alternative works.
+
+## Community
+
+- **Issues:** [Report bugs or request features](https://github.com/Nan0pk/Rush-linux/issues)
+- **Discussions:** [Ask questions, share ideas](https://github.com/Nan0pk/Rush-linux/discussions)
+- **Good first issues:** [Starter tasks for new contributors](https://github.com/Nan0pk/Rush-linux/labels/good%20first%20issue)
+- **Security:** [Report vulnerabilities privately](https://github.com/Nan0pk/Rush-linux/security/advisories/new)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.

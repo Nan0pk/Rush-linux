@@ -1,82 +1,176 @@
-# Contributing
+# Contributing to Rush Linux
 
-Rush Linux is early-stage OS engineering. Contributions must preserve the
-project direction: modern Linux defaults, one adaptive policy owner, and
-explainable performance behavior.
+Welcome! We're glad you're here.
 
-## Before You Change Code
+Rush Linux is a source-built Linux distribution centered on `optid`, a runtime
+optimizer that makes adaptive, explainable policy decisions for responsiveness,
+battery life, thermals, and resource utilization.
 
-Read:
+This guide will help you make your first contribution — and many after that.
 
-- `PROJECT_BRIEF.md`
-- `AI_CONTINUATION.md`
-- `IMPLEMENTATION_STATUS.md`
-- `docs/versioning.md`
-- `docs/release-policy.md`
-- `docs/release-checklist.md`
-- `docs/architecture.md`
-- relevant ADRs under `docs/decisions/`
-- `docs/graphify-knowledge-graph.md`
+---
 
-For orientation, query the committed graph before broad source scans:
+## Ways to Contribute
+
+You don't have to write Rust to help. Here are all the ways you can contribute:
+
+| Area | Examples |
+|------|----------|
+| **Code** | Fix bugs in `optid`/`optctl`, add sensors, improve policy engine |
+| **Documentation** | Fix typos, write tutorials, improve architecture docs |
+| **Testing** | Write tests, run benchmarks, test on real hardware |
+| **Kernel config** | Tune config fragments, test on specific hardware |
+| **Packaging** | Write new recipes, improve the build system |
+| **Design review** | Comment on proposed ADRs, review architectural direction |
+| **Bug reports** | File detailed issues with logs and reproduction steps |
+| **Community** | Help others in Discussions, mentor new contributors |
+
+Every one of these is a real contribution. We celebrate all of them.
+
+---
+
+## Quick Start
+
+### 1. Get the code
 
 ```sh
-graphify query "what files are related to the change I am about to make?" --graph graphify-out/graph.json
+git clone https://github.com/Nan0pk/Rush-linux.git
+cd Rush-linux
 ```
 
-## Required Checks
+### 2. Build
 
-Linux (native or container) is the canonical development environment. Run the
-full set on Linux:
+You need a current Rust toolchain and a Linux environment (native or container).
+
+```sh
+cargo build --workspace
+cargo test --workspace
+```
+
+### 3. Make a change
+
+See **[Your First Contribution](docs/contributing/first-pr.md)** for a
+step-by-step walkthrough.
+
+### 4. Validate
+
+Before opening a PR, run:
 
 ```sh
 cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
-pwsh ./tools/validate-repo.ps1   # cross-platform repository-policy check
+pwsh ./tools/validate-repo.ps1
 ```
 
-On Windows, `tools/validate-repo.ps1` can run via
-`powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`, but code
-must still be built and tested on Linux (CI is Linux-only).
+All four must pass. CI runs the same checks.
 
-After code or supported config changes, refresh the local Graphify graph without
-LLM/API token use:
+---
 
-```sh
-./tools/graphify-refresh.sh code
-```
+## Your First Contribution
 
-Use `./tools/graphify-refresh.sh full --backend <backend>` only when semantic
-document extraction is needed and the backend credentials are available.
+Looking for something to work on? Check issues labeled
+[`good first issue`](https://github.com/Nan0pk/Rush-linux/labels/good%20first%20issue).
+These are specifically chosen to be approachable for newcomers.
 
-## Documentation Is Required
+For a full walkthrough, see **[docs/contributing/first-pr.md](docs/contributing/first-pr.md)**.
 
-Docs are part of acceptance criteria. Update docs in the same change when you
-modify:
+**Stuck?** Open a [Discussion](https://github.com/Nan0pk/Rush-linux/discussions)
+or comment on the issue — we're happy to help.
 
-- `optid` or `optctl` behavior;
-- optimizer policy;
-- systemd units, cgroups, or slices;
-- kernel fragments;
-- boot, UKI, update, or rollback flow;
-- package recipes or edition profiles;
-- hardware support policy;
-- benchmark scenarios or release criteria.
-- version, channel, milestone, or release-gate policy.
+---
 
-Follow `docs/documentation-policy.md` for the required documentation surface.
-Pull requests or commits that change behavior without matching docs should be
-treated as incomplete, even if tests pass.
+## Understanding the Project
 
-## Defaults Policy
+Before making significant changes, read these to understand the architecture:
 
-Do not add obsolete or near-obsolete components as defaults. Compatibility
-packages can exist later, but defaults must stay aligned with the accepted ADRs.
+**Essential (read first):**
+- [PROJECT_BRIEF.md](PROJECT_BRIEF.md) — what Rush Linux is and why it exists
+- [docs/architecture.md](docs/architecture.md) — the four-layer system design
 
-## Commit Quality
+**For your area:**
+- [docs/adaptive-engine.md](docs/adaptive-engine.md) — how `optid` works
+- [docs/kernel-policy.md](docs/kernel-policy.md) — kernel config decisions
+- [docs/packaging-and-builds.md](docs/packaging-and-builds.md) — build system
+- [docs/decisions/](docs/decisions/) — Architecture Decision Records (ADRs)
 
-- Keep changes scoped.
-- Prefer deterministic policy before ML or heuristic sprawl.
-- Include validation output in pull requests.
-- Do not weaken guardrails to make a benchmark look better.
+**For context:**
+- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — what's done and what's next
+- [ROADMAP.md](ROADMAP.md) — the path to v1.0
+
+---
+
+## Pull Request Process
+
+1. **Fork and branch.** Create a feature branch from `main`.
+2. **Make focused changes.** One logical change per PR. Keep it scoped.
+3. **Update documentation.** If your change affects behavior, defaults, policy,
+   boot flow, kernel config, recipes, or services — update the relevant docs
+   in the same PR. See [docs/documentation-policy.md](docs/documentation-policy.md).
+4. **Run all checks.** `cargo fmt`, `cargo test`, `cargo clippy`, and
+   `validate-repo.ps1` must all pass.
+5. **Open the PR.** Fill out the PR template completely.
+6. **Respond to review.** We aim for initial review within 7 days.
+
+### Review Criteria
+
+We look for:
+
+- Tests pass, clippy is clean, formatting is correct.
+- Documentation is updated in the same PR.
+- The change aligns with the project's modern-defaults direction.
+- No guardrails are weakened without justification.
+- Privileged actions have explainable reasons and are allowlisted.
+
+---
+
+## Design Rules
+
+These are the project's architectural guardrails. Changes that violate them
+will need a compelling justification:
+
+- **One policy owner.** `optid` owns runtime optimization. Don't add competing
+  daemons (TLP, power-profiles-daemon, TuneD) as active defaults.
+- **Modern defaults only.** No X11, PulseAudio, iptables, cgroup v1, or SysV
+  init as defaults. Wayland, PipeWire, nftables, cgroup v2, UKI.
+- **Explainable behavior.** Every `optid` action must have a reason visible
+  through `optctl explain`.
+- **No undocumented changes.** Behavior changes without matching docs are
+  incomplete, even if tests pass.
+- **Deterministic before ML.** Prefer explicit policy over heuristic or ML
+  tuning until deterministic policy has benchmarks and rollback.
+- **No weakened guardrails.** Don't loosen safety constraints to make a
+  benchmark look better.
+
+---
+
+## Communication
+
+| Channel | Purpose |
+|---------|---------|
+| [GitHub Issues](https://github.com/Nan0pk/Rush-linux/issues) | Bug reports, feature requests, tracked work |
+| [GitHub Discussions](https://github.com/Nan0pk/Rush-linux/discussions) | Questions, ideas, show & tell, announcements |
+| [Security Advisories](https://github.com/Nan0pk/Rush-linux/security/advisories/new) | Private vulnerability reports |
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant v2.1](CODE_OF_CONDUCT.md).
+Please be respectful and inclusive in all interactions.
+
+## Recognition
+
+Contributors are acknowledged in the [AUTHORS](AUTHORS) file and in release
+notes. We value all contributions — code, docs, testing, design, and community.
+
+---
+
+## Get Help
+
+If you're ever unsure about anything:
+
+- **Ask in [Discussions](https://github.com/Nan0pk/Rush-linux/discussions)**
+  — no question is too basic.
+- **Comment on the issue** you want to work on — we can scope it together.
+- **Open a draft PR** early — we'll give feedback before you polish.
+
+We'd rather help you succeed than have you struggle alone. Welcome aboard.
