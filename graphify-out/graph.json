@@ -902,6 +902,26 @@
       "norm_label": "build-rootfs.sh script"
     },
     {
+      "label": "create-starter-issues.py",
+      "file_type": "code",
+      "source_file": "tools/create-starter-issues.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_create_starter_issues",
+      "community": 67,
+      "norm_label": "create-starter-issues.py"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/create-starter-issues.py",
+      "source_location": "L348",
+      "_origin": "ast",
+      "id": "tools_create_starter_issues_main",
+      "community": 67,
+      "norm_label": "main()"
+    },
+    {
       "label": "download-assets.py",
       "file_type": "code",
       "source_file": "tools/download-assets.py",
@@ -1192,6 +1212,276 @@
       "norm_label": "assert-notcontains()"
     },
     {
+      "label": "bug_report.md",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "issue_template_bug_report",
+      "community": 64,
+      "norm_label": "bug_report.md"
+    },
+    {
+      "label": "Describe the Bug",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_describe_the_bug",
+      "community": 64,
+      "norm_label": "describe the bug"
+    },
+    {
+      "label": "Steps to Reproduce",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_steps_to_reproduce",
+      "community": 64,
+      "norm_label": "steps to reproduce"
+    },
+    {
+      "label": "Expected Behavior",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_expected_behavior",
+      "community": 64,
+      "norm_label": "expected behavior"
+    },
+    {
+      "label": "Actual Behavior",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L23",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_actual_behavior",
+      "community": 64,
+      "norm_label": "actual behavior"
+    },
+    {
+      "label": "Environment",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L27",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_environment",
+      "community": 64,
+      "norm_label": "environment"
+    },
+    {
+      "label": "Relevant Logs",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L35",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_relevant_logs",
+      "community": 64,
+      "norm_label": "relevant logs"
+    },
+    {
+      "label": "Additional Context",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L64",
+      "_origin": "ast",
+      "id": "issue_template_bug_report_additional_context",
+      "community": 64,
+      "norm_label": "additional context"
+    },
+    {
+      "label": "feature_request.md",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "issue_template_feature_request",
+      "community": 65,
+      "norm_label": "feature_request.md"
+    },
+    {
+      "label": "Problem Statement",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_problem_statement",
+      "community": 65,
+      "norm_label": "problem statement"
+    },
+    {
+      "label": "Proposed Solution",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L14",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_proposed_solution",
+      "community": 65,
+      "norm_label": "proposed solution"
+    },
+    {
+      "label": "Alternatives Considered",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L18",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_alternatives_considered",
+      "community": 65,
+      "norm_label": "alternatives considered"
+    },
+    {
+      "label": "Affected Subsystems",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_affected_subsystems",
+      "community": 65,
+      "norm_label": "affected subsystems"
+    },
+    {
+      "label": "Acceptance Criteria",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L36",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_acceptance_criteria",
+      "community": 65,
+      "norm_label": "acceptance criteria"
+    },
+    {
+      "label": "Related",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L40",
+      "_origin": "ast",
+      "id": "issue_template_feature_request_related",
+      "community": 65,
+      "norm_label": "related"
+    },
+    {
+      "label": "question.md",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "issue_template_question",
+      "community": 66,
+      "norm_label": "question.md"
+    },
+    {
+      "label": "Question",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "issue_template_question_question",
+      "community": 66,
+      "norm_label": "question"
+    },
+    {
+      "label": "Context",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "issue_template_question_context",
+      "community": 66,
+      "norm_label": "context"
+    },
+    {
+      "label": "Related Documentation",
+      "file_type": "document",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L18",
+      "_origin": "ast",
+      "id": "issue_template_question_related_documentation",
+      "community": 66,
+      "norm_label": "related documentation"
+    },
+    {
+      "label": "pull_request_template.md",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "github_pull_request_template",
+      "community": 63,
+      "norm_label": "pull_request_template.md"
+    },
+    {
+      "label": "What Does This Change?",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "github_pull_request_template_what_does_this_change",
+      "community": 63,
+      "norm_label": "what does this change?"
+    },
+    {
+      "label": "Motivation",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L5",
+      "_origin": "ast",
+      "id": "github_pull_request_template_motivation",
+      "community": 63,
+      "norm_label": "motivation"
+    },
+    {
+      "label": "Type of Change",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "github_pull_request_template_type_of_change",
+      "community": 63,
+      "norm_label": "type of change"
+    },
+    {
+      "label": "Testing",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "github_pull_request_template_testing",
+      "community": 63,
+      "norm_label": "testing"
+    },
+    {
+      "label": "Documentation",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L29",
+      "_origin": "ast",
+      "id": "github_pull_request_template_documentation",
+      "community": 63,
+      "norm_label": "documentation"
+    },
+    {
+      "label": "If no doc update is needed, explain why:",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L40",
+      "_origin": "ast",
+      "id": "github_pull_request_template_if_no_doc_update_is_needed_explain_why",
+      "community": 63,
+      "norm_label": "if no doc update is needed, explain why:"
+    },
+    {
+      "label": "Checklist",
+      "file_type": "document",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L44",
+      "_origin": "ast",
+      "id": "github_pull_request_template_checklist",
+      "community": 63,
+      "norm_label": "checklist"
+    },
+    {
       "label": "AGENTS.md",
       "file_type": "document",
       "source_file": "AGENTS.md",
@@ -1372,64 +1662,164 @@
       "norm_label": "contributing.md"
     },
     {
-      "label": "Contributing",
+      "label": "Contributing to Rush Linux",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "contributing_contributing",
+      "id": "contributing_contributing_to_rush_linux",
       "community": 39,
-      "norm_label": "contributing"
+      "norm_label": "contributing to rush linux"
     },
     {
-      "label": "Before You Change Code",
+      "label": "Ways to Contribute",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L7",
+      "source_location": "L13",
       "_origin": "ast",
-      "id": "contributing_before_you_change_code",
+      "id": "contributing_ways_to_contribute",
       "community": 39,
-      "norm_label": "before you change code"
+      "norm_label": "ways to contribute"
     },
     {
-      "label": "Required Checks",
+      "label": "Quick Start",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L27",
+      "source_location": "L32",
       "_origin": "ast",
-      "id": "contributing_required_checks",
+      "id": "contributing_quick_start",
       "community": 39,
-      "norm_label": "required checks"
+      "norm_label": "quick start"
     },
     {
-      "label": "Documentation Is Required",
+      "label": "1. Get the code",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L53",
+      "source_location": "L34",
       "_origin": "ast",
-      "id": "contributing_documentation_is_required",
+      "id": "contributing_1_get_the_code",
       "community": 39,
-      "norm_label": "documentation is required"
+      "norm_label": "1. get the code"
     },
     {
-      "label": "Defaults Policy",
+      "label": "2. Build",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L72",
+      "source_location": "L41",
       "_origin": "ast",
-      "id": "contributing_defaults_policy",
+      "id": "contributing_2_build",
       "community": 39,
-      "norm_label": "defaults policy"
+      "norm_label": "2. build"
     },
     {
-      "label": "Commit Quality",
+      "label": "3. Make a change",
       "file_type": "document",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L77",
+      "source_location": "L50",
       "_origin": "ast",
-      "id": "contributing_commit_quality",
+      "id": "contributing_3_make_a_change",
       "community": 39,
-      "norm_label": "commit quality"
+      "norm_label": "3. make a change"
+    },
+    {
+      "label": "4. Validate",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L55",
+      "_origin": "ast",
+      "id": "contributing_4_validate",
+      "community": 39,
+      "norm_label": "4. validate"
+    },
+    {
+      "label": "Your First Contribution",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L70",
+      "_origin": "ast",
+      "id": "contributing_your_first_contribution",
+      "community": 39,
+      "norm_label": "your first contribution"
+    },
+    {
+      "label": "Understanding the Project",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L83",
+      "_origin": "ast",
+      "id": "contributing_understanding_the_project",
+      "community": 39,
+      "norm_label": "understanding the project"
+    },
+    {
+      "label": "Pull Request Process",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L103",
+      "_origin": "ast",
+      "id": "contributing_pull_request_process",
+      "community": 39,
+      "norm_label": "pull request process"
+    },
+    {
+      "label": "Review Criteria",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L115",
+      "_origin": "ast",
+      "id": "contributing_review_criteria",
+      "community": 39,
+      "norm_label": "review criteria"
+    },
+    {
+      "label": "Design Rules",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L127",
+      "_origin": "ast",
+      "id": "contributing_design_rules",
+      "community": 39,
+      "norm_label": "design rules"
+    },
+    {
+      "label": "Communication",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L147",
+      "_origin": "ast",
+      "id": "contributing_communication",
+      "community": 39,
+      "norm_label": "communication"
+    },
+    {
+      "label": "Code of Conduct",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L155",
+      "_origin": "ast",
+      "id": "contributing_code_of_conduct",
+      "community": 39,
+      "norm_label": "code of conduct"
+    },
+    {
+      "label": "Recognition",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L160",
+      "_origin": "ast",
+      "id": "contributing_recognition",
+      "community": 39,
+      "norm_label": "recognition"
+    },
+    {
+      "label": "Get Help",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L167",
+      "_origin": "ast",
+      "id": "contributing_get_help",
+      "community": 39,
+      "norm_label": "get help"
     },
     {
       "label": "IMPLEMENTATION_STATUS.md",
@@ -1585,7 +1975,7 @@
       "label": "Repository Layout",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L23",
+      "source_location": "L25",
       "_origin": "ast",
       "id": "readme_repository_layout",
       "community": 38,
@@ -1595,7 +1985,7 @@
       "label": "First-Class Documentation",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L39",
+      "source_location": "L41",
       "_origin": "ast",
       "id": "readme_first_class_documentation",
       "community": 38,
@@ -1605,7 +1995,7 @@
       "label": "Knowledge Graph For Continuation",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L68",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "readme_knowledge_graph_for_continuation",
       "community": 38,
@@ -1615,7 +2005,7 @@
       "label": "Current Implementation Status",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L88",
+      "source_location": "L90",
       "_origin": "ast",
       "id": "readme_current_implementation_status",
       "community": 38,
@@ -1625,7 +2015,7 @@
       "label": "Build",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L114",
+      "source_location": "L116",
       "_origin": "ast",
       "id": "readme_build",
       "community": 38,
@@ -1635,7 +2025,7 @@
       "label": "GitHub CI",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L138",
+      "source_location": "L140",
       "_origin": "ast",
       "id": "readme_github_ci",
       "community": 38,
@@ -1645,7 +2035,7 @@
       "label": "Publishing",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L148",
+      "source_location": "L150",
       "_origin": "ast",
       "id": "readme_publishing",
       "community": 38,
@@ -1655,11 +2045,21 @@
       "label": "Design Rules",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L164",
+      "source_location": "L166",
       "_origin": "ast",
       "id": "readme_design_rules",
       "community": 38,
       "norm_label": "design rules"
+    },
+    {
+      "label": "Community",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L177",
+      "_origin": "ast",
+      "id": "readme_community",
+      "community": 38,
+      "norm_label": "community"
     },
     {
       "label": "RELEASES.md",
@@ -2190,6 +2590,236 @@
       "id": "docs_build_system_publishing_source",
       "community": 32,
       "norm_label": "publishing source"
+    },
+    {
+      "label": "first-pr.md",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "contributing_first_pr",
+      "community": 62,
+      "norm_label": "first-pr.md"
+    },
+    {
+      "label": "Your First Contribution to Rush Linux",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "community": 62,
+      "norm_label": "your first contribution to rush linux"
+    },
+    {
+      "label": "1. Set Up Your Environment",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L8",
+      "_origin": "ast",
+      "id": "contributing_first_pr_1_set_up_your_environment",
+      "community": 62,
+      "norm_label": "1. set up your environment"
+    },
+    {
+      "label": "Prerequisites",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "contributing_first_pr_prerequisites",
+      "community": 62,
+      "norm_label": "prerequisites"
+    },
+    {
+      "label": "Clone and Build",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "contributing_first_pr_clone_and_build",
+      "community": 62,
+      "norm_label": "clone and build"
+    },
+    {
+      "label": "Run Tests",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "contributing_first_pr_run_tests",
+      "community": 62,
+      "norm_label": "run tests"
+    },
+    {
+      "label": "2. Find Something to Work On",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L42",
+      "_origin": "ast",
+      "id": "contributing_first_pr_2_find_something_to_work_on",
+      "community": 62,
+      "norm_label": "2. find something to work on"
+    },
+    {
+      "label": "Good First Issues",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L44",
+      "_origin": "ast",
+      "id": "contributing_first_pr_good_first_issues",
+      "community": 62,
+      "norm_label": "good first issues"
+    },
+    {
+      "label": "Common Starter Tasks",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L50",
+      "_origin": "ast",
+      "id": "contributing_first_pr_common_starter_tasks",
+      "community": 62,
+      "norm_label": "common starter tasks"
+    },
+    {
+      "label": "Not Sure Where to Start?",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L60",
+      "_origin": "ast",
+      "id": "contributing_first_pr_not_sure_where_to_start",
+      "community": 62,
+      "norm_label": "not sure where to start?"
+    },
+    {
+      "label": "3. Understand the Codebase",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L72",
+      "_origin": "ast",
+      "id": "contributing_first_pr_3_understand_the_codebase",
+      "community": 62,
+      "norm_label": "3. understand the codebase"
+    },
+    {
+      "label": "`optid` \u2014 The Adaptive Optimizer Daemon",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L76",
+      "_origin": "ast",
+      "id": "contributing_first_pr_optid_the_adaptive_optimizer_daemon",
+      "community": 62,
+      "norm_label": "`optid` \u2014 the adaptive optimizer daemon"
+    },
+    {
+      "label": "`optctl` \u2014 The CLI Tool",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L95",
+      "_origin": "ast",
+      "id": "contributing_first_pr_optctl_the_cli_tool",
+      "community": 62,
+      "norm_label": "`optctl` \u2014 the cli tool"
+    },
+    {
+      "label": "Build System",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L100",
+      "_origin": "ast",
+      "id": "contributing_first_pr_build_system",
+      "community": 62,
+      "norm_label": "build system"
+    },
+    {
+      "label": "4. Make Your Change",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L108",
+      "_origin": "ast",
+      "id": "contributing_first_pr_4_make_your_change",
+      "community": 62,
+      "norm_label": "4. make your change"
+    },
+    {
+      "label": "Create a Branch",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L110",
+      "_origin": "ast",
+      "id": "contributing_first_pr_create_a_branch",
+      "community": 62,
+      "norm_label": "create a branch"
+    },
+    {
+      "label": "Make the Change",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L116",
+      "_origin": "ast",
+      "id": "contributing_first_pr_make_the_change",
+      "community": 62,
+      "norm_label": "make the change"
+    },
+    {
+      "label": "Test Locally",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L123",
+      "_origin": "ast",
+      "id": "contributing_first_pr_test_locally",
+      "community": 62,
+      "norm_label": "test locally"
+    },
+    {
+      "label": "Commit",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L131",
+      "_origin": "ast",
+      "id": "contributing_first_pr_commit",
+      "community": 62,
+      "norm_label": "commit"
+    },
+    {
+      "label": "5. Open a Pull Request",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L143",
+      "_origin": "ast",
+      "id": "contributing_first_pr_5_open_a_pull_request",
+      "community": 62,
+      "norm_label": "5. open a pull request"
+    },
+    {
+      "label": "What Happens in Review",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L151",
+      "_origin": "ast",
+      "id": "contributing_first_pr_what_happens_in_review",
+      "community": 62,
+      "norm_label": "what happens in review"
+    },
+    {
+      "label": "6. Celebrate!",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L164",
+      "_origin": "ast",
+      "id": "contributing_first_pr_6_celebrate",
+      "community": 62,
+      "norm_label": "6. celebrate!"
+    },
+    {
+      "label": "Getting Unstuck",
+      "file_type": "document",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L175",
+      "_origin": "ast",
+      "id": "contributing_first_pr_getting_unstuck",
+      "community": 62,
+      "norm_label": "getting unstuck"
     },
     {
       "label": "0001-systemd-cgroup-v2.md",
@@ -3415,7 +4045,7 @@
       "label": "C2 \u2014 Canonical development environment is Linux",
       "file_type": "document",
       "source_file": "docs/project-sustainability.md",
-      "source_location": "L33",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "docs_project_sustainability_c2_canonical_development_environment_is_linux",
       "community": 53,
@@ -3425,7 +4055,7 @@
       "label": "C8 \u2014 Hardware test lab (required for beta, T3)",
       "file_type": "document",
       "source_file": "docs/project-sustainability.md",
-      "source_location": "L50",
+      "source_location": "L65",
       "_origin": "ast",
       "id": "docs_project_sustainability_c8_hardware_test_lab_required_for_beta_t3",
       "community": 53,
@@ -3435,7 +4065,7 @@
       "label": "Cross-reference",
       "file_type": "document",
       "source_file": "docs/project-sustainability.md",
-      "source_location": "L71",
+      "source_location": "L86",
       "_origin": "ast",
       "id": "docs_project_sustainability_cross_reference",
       "community": 53,
@@ -7448,6 +8078,16 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/create-starter-issues.py",
+      "source_location": "L348",
+      "weight": 1.0,
+      "source": "tools_create_starter_issues",
+      "target": "tools_create_starter_issues_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/download-assets.py",
       "source_location": "L35",
       "weight": 1.0,
@@ -7626,9 +8266,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_check_schema_version",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_check_schema_version"
     },
     {
       "relation": "contains",
@@ -7717,9 +8357,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_build",
-      "target": "tools_rush_builder_check_schema_version",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_check_schema_version"
     },
     {
       "relation": "calls",
@@ -7728,9 +8368,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L224",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_rootfs_create",
-      "target": "tools_rush_builder_check_schema_version",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_check_schema_version"
     },
     {
       "relation": "rationale_for",
@@ -7738,9 +8378,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_rationale_21",
-      "target": "tools_rush_builder_check_schema_version",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_check_schema_version"
     },
     {
       "relation": "calls",
@@ -7892,6 +8532,236 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_actual_behavior",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_additional_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_describe_the_bug",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_environment",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_expected_behavior",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_relevant_logs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "issue_template_bug_report",
+      "target": "issue_template_bug_report_steps_to_reproduce",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L36",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_acceptance_criteria",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_affected_subsystems",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_alternatives_considered",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_problem_statement",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_proposed_solution",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "issue_template_feature_request",
+      "target": "issue_template_feature_request_related",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "issue_template_question",
+      "target": "issue_template_question_context",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "issue_template_question",
+      "target": "issue_template_question_question",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/ISSUE_TEMPLATE/question.md",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "issue_template_question",
+      "target": "issue_template_question_related_documentation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L44",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_checklist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_documentation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_motivation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_testing",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_type_of_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "github_pull_request_template",
+      "target": "github_pull_request_template_what_does_this_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".github/pull_request_template.md",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "github_pull_request_template_documentation",
+      "target": "github_pull_request_template_if_no_doc_update_is_needed_explain_why",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -8005,9 +8875,9 @@
       "source_file": "CODE_OF_CONDUCT.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "code_of_conduct",
-      "target": "code_of_conduct_code_of_conduct",
-      "confidence_score": 1.0
+      "target": "code_of_conduct_code_of_conduct"
     },
     {
       "relation": "contains",
@@ -8015,9 +8885,9 @@
       "source_file": "CODE_OF_CONDUCT.md",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "code_of_conduct_code_of_conduct",
-      "target": "code_of_conduct_enforcement",
-      "confidence_score": 1.0
+      "target": "code_of_conduct_enforcement"
     },
     {
       "relation": "contains",
@@ -8025,9 +8895,9 @@
       "source_file": "CODE_OF_CONDUCT.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "code_of_conduct_code_of_conduct",
-      "target": "code_of_conduct_our_pledge",
-      "confidence_score": 1.0
+      "target": "code_of_conduct_our_pledge"
     },
     {
       "relation": "contains",
@@ -8035,59 +8905,159 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L1",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "contributing",
-      "target": "contributing_contributing"
+      "target": "contributing_contributing_to_rush_linux",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L7",
+      "source_location": "L155",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "contributing_contributing",
-      "target": "contributing_before_you_change_code"
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_code_of_conduct",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L77",
+      "source_location": "L147",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "contributing_contributing",
-      "target": "contributing_commit_quality"
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_communication",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L72",
+      "source_location": "L127",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "contributing_contributing",
-      "target": "contributing_defaults_policy"
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_design_rules",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L53",
+      "source_location": "L167",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "contributing_contributing",
-      "target": "contributing_documentation_is_required"
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_get_help",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CONTRIBUTING.md",
-      "source_location": "L27",
+      "source_location": "L103",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "contributing_contributing",
-      "target": "contributing_required_checks"
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_pull_request_process",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_quick_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_recognition",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L83",
+      "weight": 1.0,
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_understanding_the_project",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_ways_to_contribute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L70",
+      "weight": 1.0,
+      "source": "contributing_contributing_to_rush_linux",
+      "target": "contributing_your_first_contribution",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L34",
+      "weight": 1.0,
+      "source": "contributing_quick_start",
+      "target": "contributing_1_get_the_code",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "contributing_quick_start",
+      "target": "contributing_2_build",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "contributing_quick_start",
+      "target": "contributing_3_make_a_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "contributing_quick_start",
+      "target": "contributing_4_validate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "contributing_pull_request_process",
+      "target": "contributing_review_criteria",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -8218,6 +9188,16 @@
       "confidence_score": 1.0,
       "source": "readme_rush_linux",
       "target": "readme_build"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L177",
+      "weight": 1.0,
+      "source": "readme_rush_linux",
+      "target": "readme_community",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -8555,9 +9535,9 @@
       "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_0001_review_remediation_batch_1",
-      "target": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
-      "confidence_score": 1.0
+      "target": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1"
     },
     {
       "relation": "contains",
@@ -8565,9 +9545,9 @@
       "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
-      "target": "agent_decisions_0001_review_remediation_batch_1_changes",
-      "confidence_score": 1.0
+      "target": "agent_decisions_0001_review_remediation_batch_1_changes"
     },
     {
       "relation": "contains",
@@ -8575,9 +9555,9 @@
       "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
-      "target": "agent_decisions_0001_review_remediation_batch_1_decisions",
-      "confidence_score": 1.0
+      "target": "agent_decisions_0001_review_remediation_batch_1_decisions"
     },
     {
       "relation": "contains",
@@ -8585,9 +9565,9 @@
       "source_file": "docs/agent-decisions/0001-review-remediation-batch-1.md",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_0001_review_remediation_batch_1_ad_0001_expert_review_remediation_batch_1",
-      "target": "agent_decisions_0001_review_remediation_batch_1_follow_ups",
-      "confidence_score": 1.0
+      "target": "agent_decisions_0001_review_remediation_batch_1_follow_ups"
     },
     {
       "relation": "contains",
@@ -8595,9 +9575,9 @@
       "source_file": "docs/agent-decisions/README.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_readme",
-      "target": "agent_decisions_readme_agent_decision_log",
-      "confidence_score": 1.0
+      "target": "agent_decisions_readme_agent_decision_log"
     },
     {
       "relation": "contains",
@@ -8605,9 +9585,9 @@
       "source_file": "docs/agent-decisions/README.md",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_readme_agent_decision_log",
-      "target": "agent_decisions_readme_format",
-      "confidence_score": 1.0
+      "target": "agent_decisions_readme_format"
     },
     {
       "relation": "contains",
@@ -8615,9 +9595,9 @@
       "source_file": "docs/agent-decisions/README.md",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_decisions_readme_agent_decision_log",
-      "target": "agent_decisions_readme_when_to_add_an_entry",
-      "confidence_score": 1.0
+      "target": "agent_decisions_readme_when_to_add_an_entry"
     },
     {
       "relation": "contains",
@@ -8768,6 +9748,226 @@
       "confidence_score": 1.0,
       "source": "docs_build_system_md",
       "target": "docs_build_system_build_system_direction"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "contributing_first_pr",
+      "target": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_1_set_up_your_environment",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L42",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_2_find_something_to_work_on",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L72",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_3_understand_the_codebase",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L108",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_4_make_your_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L143",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_5_open_a_pull_request",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L164",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_6_celebrate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L175",
+      "weight": 1.0,
+      "source": "contributing_first_pr_your_first_contribution_to_rush_linux",
+      "target": "contributing_first_pr_getting_unstuck",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "contributing_first_pr_1_set_up_your_environment",
+      "target": "contributing_first_pr_clone_and_build",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "contributing_first_pr_1_set_up_your_environment",
+      "target": "contributing_first_pr_prerequisites",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "contributing_first_pr_1_set_up_your_environment",
+      "target": "contributing_first_pr_run_tests",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "contributing_first_pr_2_find_something_to_work_on",
+      "target": "contributing_first_pr_common_starter_tasks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L44",
+      "weight": 1.0,
+      "source": "contributing_first_pr_2_find_something_to_work_on",
+      "target": "contributing_first_pr_good_first_issues",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L60",
+      "weight": 1.0,
+      "source": "contributing_first_pr_2_find_something_to_work_on",
+      "target": "contributing_first_pr_not_sure_where_to_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L100",
+      "weight": 1.0,
+      "source": "contributing_first_pr_3_understand_the_codebase",
+      "target": "contributing_first_pr_build_system",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "contributing_first_pr_3_understand_the_codebase",
+      "target": "contributing_first_pr_optctl_the_cli_tool",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L76",
+      "weight": 1.0,
+      "source": "contributing_first_pr_3_understand_the_codebase",
+      "target": "contributing_first_pr_optid_the_adaptive_optimizer_daemon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L131",
+      "weight": 1.0,
+      "source": "contributing_first_pr_4_make_your_change",
+      "target": "contributing_first_pr_commit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L110",
+      "weight": 1.0,
+      "source": "contributing_first_pr_4_make_your_change",
+      "target": "contributing_first_pr_create_a_branch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L116",
+      "weight": 1.0,
+      "source": "contributing_first_pr_4_make_your_change",
+      "target": "contributing_first_pr_make_the_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L123",
+      "weight": 1.0,
+      "source": "contributing_first_pr_4_make_your_change",
+      "target": "contributing_first_pr_test_locally",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/contributing/first-pr.md",
+      "source_location": "L151",
+      "weight": 1.0,
+      "source": "contributing_first_pr_5_open_a_pull_request",
+      "target": "contributing_first_pr_what_happens_in_review",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -8935,9 +10135,9 @@
       "source_file": "docs/decisions/0004-adaptive-optid.md",
       "source_location": "L24",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0004_adaptive_optid_adr_0004_make_optid_the_adaptive_policy_owner",
-      "target": "decisions_0004_adaptive_optid_boundary_clarification_2026_06",
-      "confidence_score": 1.0
+      "target": "decisions_0004_adaptive_optid_boundary_clarification_2026_06"
     },
     {
       "relation": "contains",
@@ -9045,9 +10245,9 @@
       "source_file": "docs/decisions/0006-performance-tweaks.md",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0006_performance_tweaks_adr_0006_integrate_latency_focused_performance_tweaks",
-      "target": "decisions_0006_performance_tweaks_amendment_2026_06_resolve_adr_0004_conflict",
-      "confidence_score": 1.0
+      "target": "decisions_0006_performance_tweaks_amendment_2026_06_resolve_adr_0004_conflict"
     },
     {
       "relation": "contains",
@@ -9085,9 +10285,9 @@
       "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0007_project_and_dbus_naming",
-      "target": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
-      "confidence_score": 1.0
+      "target": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming"
     },
     {
       "relation": "contains",
@@ -9095,9 +10295,9 @@
       "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
-      "target": "decisions_0007_project_and_dbus_naming_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0007_project_and_dbus_naming_consequences"
     },
     {
       "relation": "contains",
@@ -9105,9 +10305,9 @@
       "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
-      "target": "decisions_0007_project_and_dbus_naming_context",
-      "confidence_score": 1.0
+      "target": "decisions_0007_project_and_dbus_naming_context"
     },
     {
       "relation": "contains",
@@ -9115,9 +10315,9 @@
       "source_file": "docs/decisions/0007-project-and-dbus-naming.md",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0007_project_and_dbus_naming_adr_0007_project_and_d_bus_naming",
-      "target": "decisions_0007_project_and_dbus_naming_decision",
-      "confidence_score": 1.0
+      "target": "decisions_0007_project_and_dbus_naming_decision"
     },
     {
       "relation": "contains",
@@ -9125,9 +10325,9 @@
       "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0008_software_delivery_and_packaging",
-      "target": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
-      "confidence_score": 1.0
+      "target": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy"
     },
     {
       "relation": "contains",
@@ -9135,9 +10335,9 @@
       "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
-      "target": "decisions_0008_software_delivery_and_packaging_alternatives_considered",
-      "confidence_score": 1.0
+      "target": "decisions_0008_software_delivery_and_packaging_alternatives_considered"
     },
     {
       "relation": "contains",
@@ -9145,9 +10345,9 @@
       "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
-      "target": "decisions_0008_software_delivery_and_packaging_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0008_software_delivery_and_packaging_consequences"
     },
     {
       "relation": "contains",
@@ -9155,9 +10355,9 @@
       "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
-      "target": "decisions_0008_software_delivery_and_packaging_context",
-      "confidence_score": 1.0
+      "target": "decisions_0008_software_delivery_and_packaging_context"
     },
     {
       "relation": "contains",
@@ -9165,9 +10365,9 @@
       "source_file": "docs/decisions/0008-software-delivery-and-packaging.md",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0008_software_delivery_and_packaging_adr_0008_software_delivery_and_packaging_strategy",
-      "target": "decisions_0008_software_delivery_and_packaging_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0008_software_delivery_and_packaging_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9175,9 +10375,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary",
-      "target": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model"
     },
     {
       "relation": "contains",
@@ -9185,9 +10385,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L60",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "target": "decisions_0009_optid_security_boundary_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_consequences"
     },
     {
       "relation": "contains",
@@ -9195,9 +10395,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "target": "decisions_0009_optid_security_boundary_context",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_context"
     },
     {
       "relation": "contains",
@@ -9205,9 +10405,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "target": "decisions_0009_optid_security_boundary_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9215,9 +10415,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L67",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "target": "decisions_0009_optid_security_boundary_follow_ups",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_follow_ups"
     },
     {
       "relation": "contains",
@@ -9225,9 +10425,9 @@
       "source_file": "docs/decisions/0009-optid-security-boundary.md",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0009_optid_security_boundary_adr_0009_optid_security_boundary_and_threat_model",
-      "target": "decisions_0009_optid_security_boundary_threat_model",
-      "confidence_score": 1.0
+      "target": "decisions_0009_optid_security_boundary_threat_model"
     },
     {
       "relation": "contains",
@@ -9235,9 +10435,9 @@
       "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0010_realtime_edition_kernel_policy",
-      "target": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
-      "confidence_score": 1.0
+      "target": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy"
     },
     {
       "relation": "contains",
@@ -9245,9 +10445,9 @@
       "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
-      "target": "decisions_0010_realtime_edition_kernel_policy_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0010_realtime_edition_kernel_policy_consequences"
     },
     {
       "relation": "contains",
@@ -9255,9 +10455,9 @@
       "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
-      "target": "decisions_0010_realtime_edition_kernel_policy_context",
-      "confidence_score": 1.0
+      "target": "decisions_0010_realtime_edition_kernel_policy_context"
     },
     {
       "relation": "contains",
@@ -9265,9 +10465,9 @@
       "source_file": "docs/decisions/0010-realtime-edition-kernel-policy.md",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0010_realtime_edition_kernel_policy_adr_0010_realtime_edition_kernel_policy",
-      "target": "decisions_0010_realtime_edition_kernel_policy_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0010_realtime_edition_kernel_policy_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9275,9 +10475,9 @@
       "source_file": "docs/decisions/0011-benchmark-methodology.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0011_benchmark_methodology",
-      "target": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
-      "confidence_score": 1.0
+      "target": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines"
     },
     {
       "relation": "contains",
@@ -9285,9 +10485,9 @@
       "source_file": "docs/decisions/0011-benchmark-methodology.md",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
-      "target": "decisions_0011_benchmark_methodology_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0011_benchmark_methodology_consequences"
     },
     {
       "relation": "contains",
@@ -9295,9 +10495,9 @@
       "source_file": "docs/decisions/0011-benchmark-methodology.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
-      "target": "decisions_0011_benchmark_methodology_context",
-      "confidence_score": 1.0
+      "target": "decisions_0011_benchmark_methodology_context"
     },
     {
       "relation": "contains",
@@ -9305,9 +10505,9 @@
       "source_file": "docs/decisions/0011-benchmark-methodology.md",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0011_benchmark_methodology_adr_0011_benchmark_methodology_and_baselines",
-      "target": "decisions_0011_benchmark_methodology_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0011_benchmark_methodology_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9315,9 +10515,9 @@
       "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0012_reproducible_build_discipline",
-      "target": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
-      "confidence_score": 1.0
+      "target": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline"
     },
     {
       "relation": "contains",
@@ -9325,9 +10525,9 @@
       "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
-      "target": "decisions_0012_reproducible_build_discipline_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0012_reproducible_build_discipline_consequences"
     },
     {
       "relation": "contains",
@@ -9335,9 +10535,9 @@
       "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
-      "target": "decisions_0012_reproducible_build_discipline_context",
-      "confidence_score": 1.0
+      "target": "decisions_0012_reproducible_build_discipline_context"
     },
     {
       "relation": "contains",
@@ -9345,9 +10545,9 @@
       "source_file": "docs/decisions/0012-reproducible-build-discipline.md",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0012_reproducible_build_discipline_adr_0012_reproducible_build_discipline",
-      "target": "decisions_0012_reproducible_build_discipline_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0012_reproducible_build_discipline_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9355,9 +10555,9 @@
       "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0013_detection_and_ml_boundary",
-      "target": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
-      "confidence_score": 1.0
+      "target": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary"
     },
     {
       "relation": "contains",
@@ -9365,9 +10565,9 @@
       "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
-      "target": "decisions_0013_detection_and_ml_boundary_consequences",
-      "confidence_score": 1.0
+      "target": "decisions_0013_detection_and_ml_boundary_consequences"
     },
     {
       "relation": "contains",
@@ -9375,9 +10575,9 @@
       "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
-      "target": "decisions_0013_detection_and_ml_boundary_context",
-      "confidence_score": 1.0
+      "target": "decisions_0013_detection_and_ml_boundary_context"
     },
     {
       "relation": "contains",
@@ -9385,9 +10585,9 @@
       "source_file": "docs/decisions/0013-detection-and-ml-boundary.md",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_0013_detection_and_ml_boundary_adr_0013_workload_detection_and_the_ml_boundary",
-      "target": "decisions_0013_detection_and_ml_boundary_decision_proposed",
-      "confidence_score": 1.0
+      "target": "decisions_0013_detection_and_ml_boundary_decision_proposed"
     },
     {
       "relation": "contains",
@@ -9395,9 +10595,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme",
-      "target": "decisions_readme_architecture_decision_records",
-      "confidence_score": 1.0
+      "target": "decisions_readme_architecture_decision_records"
     },
     {
       "relation": "contains",
@@ -9405,9 +10605,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L54",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme_architecture_decision_records",
-      "target": "decisions_readme_adding_a_new_adr",
-      "confidence_score": 1.0
+      "target": "decisions_readme_adding_a_new_adr"
     },
     {
       "relation": "contains",
@@ -9415,9 +10615,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L49",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme_architecture_decision_records",
-      "target": "decisions_readme_current_proposed_adrs_awaiting_ratification",
-      "confidence_score": 1.0
+      "target": "decisions_readme_current_proposed_adrs_awaiting_ratification"
     },
     {
       "relation": "contains",
@@ -9425,9 +10625,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme_architecture_decision_records",
-      "target": "decisions_readme_lifecycle_and_states",
-      "confidence_score": 1.0
+      "target": "decisions_readme_lifecycle_and_states"
     },
     {
       "relation": "contains",
@@ -9435,9 +10635,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme_architecture_decision_records",
-      "target": "decisions_readme_who_ratifies",
-      "confidence_score": 1.0
+      "target": "decisions_readme_who_ratifies"
     },
     {
       "relation": "contains",
@@ -9445,9 +10645,9 @@
       "source_file": "docs/decisions/README.md",
       "source_location": "L36",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "decisions_readme_who_ratifies",
-      "target": "decisions_readme_ratifying_a_proposed_adr",
-      "confidence_score": 1.0
+      "target": "decisions_readme_ratifying_a_proposed_adr"
     },
     {
       "relation": "contains",
@@ -9865,9 +11065,9 @@
       "source_file": "docs/packaging-and-builds.md",
       "source_location": "L30",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_packaging_and_builds_packaging_and_builds",
-      "target": "docs_packaging_and_builds_recipe_schema_versioning",
-      "confidence_score": 1.0
+      "target": "docs_packaging_and_builds_recipe_schema_versioning"
     },
     {
       "relation": "contains",
@@ -9875,9 +11075,9 @@
       "source_file": "docs/project-sustainability.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_project_sustainability",
-      "target": "docs_project_sustainability_project_sustainability",
-      "confidence_score": 1.0
+      "target": "docs_project_sustainability_project_sustainability"
     },
     {
       "relation": "contains",
@@ -9885,9 +11085,9 @@
       "source_file": "docs/project-sustainability.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_project_sustainability_project_sustainability",
-      "target": "docs_project_sustainability_c1_contributor_model_governance_community",
-      "confidence_score": 1.0
+      "target": "docs_project_sustainability_c1_contributor_model_governance_community"
     },
     {
       "relation": "contains",
@@ -9895,9 +11095,9 @@
       "source_file": "docs/project-sustainability.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_project_sustainability_project_sustainability",
-      "target": "docs_project_sustainability_c2_canonical_development_environment_is_linux",
-      "confidence_score": 1.0
+      "target": "docs_project_sustainability_c2_canonical_development_environment_is_linux"
     },
     {
       "relation": "contains",
@@ -9905,9 +11105,9 @@
       "source_file": "docs/project-sustainability.md",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_project_sustainability_project_sustainability",
-      "target": "docs_project_sustainability_c8_hardware_test_lab_required_for_beta_t3",
-      "confidence_score": 1.0
+      "target": "docs_project_sustainability_c8_hardware_test_lab_required_for_beta_t3"
     },
     {
       "relation": "contains",
@@ -9915,9 +11115,9 @@
       "source_file": "docs/project-sustainability.md",
       "source_location": "L71",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_project_sustainability_project_sustainability",
-      "target": "docs_project_sustainability_cross_reference",
-      "confidence_score": 1.0
+      "target": "docs_project_sustainability_cross_reference"
     },
     {
       "relation": "contains",
@@ -10931,5 +12131,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "9698596c24ac6611698f27456d7f0f480bd9b8a5"
+  "built_at_commit": "4bcdac6a7197b63c1dab7d7ddc5e345f6a4f9372"
 }

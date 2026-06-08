@@ -1,16 +1,16 @@
-# Graph Report - Rush-linux  (2026-06-07)
+# Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 52 files · ~22,212 words
+- 58 files · ~26,305 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 480 nodes · 600 edges · 62 communities (58 shown, 4 thin omitted)
+- 543 nodes · 657 edges · 68 communities (64 shown, 4 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9698596c`
+- Built from commit: `4bcdac6a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -74,6 +74,11 @@
 - [[_COMMUNITY_Community 59|Community 59]]
 - [[_COMMUNITY_Community 60|Community 60]]
 - [[_COMMUNITY_Community 61|Community 61]]
+- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_Community 66|Community 66]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -83,9 +88,9 @@
 5. `Release Plan To v1.0.0` - 12 edges
 6. `Roadmap` - 12 edges
 7. `Result` - 11 edges
-8. `run()` - 10 edges
-9. `Self` - 10 edges
-10. `Mode` - 9 edges
+8. `Contributing to Rush Linux` - 11 edges
+9. `run()` - 10 edges
+10. `Self` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `format_status_as_json()` --calls--> `parse_pressure()`  [INFERRED]
@@ -95,7 +100,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (62 total, 4 thin omitted)
+## Communities (68 total, 4 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -234,12 +239,12 @@ Cohesion: 0.20
 Nodes (9): AI Continuation, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task, Repo Layout (+1 more)
 
 ### Community 38 - "Community 38"
-Cohesion: 0.20
-Nodes (9): Build, Current Implementation Status, Design Rules, First-Class Documentation, GitHub CI, Knowledge Graph For Continuation, Publishing, Repository Layout (+1 more)
+Cohesion: 0.18
+Nodes (10): Build, Community, Current Implementation Status, Design Rules, First-Class Documentation, GitHub CI, Knowledge Graph For Continuation, Publishing (+2 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.29
-Nodes (6): Before You Change Code, Commit Quality, Contributing, Defaults Policy, Documentation Is Required, Required Checks
+Cohesion: 0.12
+Nodes (16): 1. Get the code, 2. Build, 3. Make a change, 4. Validate, Code of Conduct, Communication, Contributing to Rush Linux, Design Rules (+8 more)
 
 ### Community 40 - "Community 40"
 Cohesion: 0.29
@@ -317,8 +322,28 @@ Nodes (3): Agent Decision Log, Format, When to add an entry
 Cohesion: 0.50
 Nodes (3): Code of Conduct, Enforcement, Our pledge
 
+### Community 62 - "Community 62"
+Cohesion: 0.09
+Nodes (22): 1. Set Up Your Environment, 2. Find Something to Work On, 3. Understand the Codebase, 4. Make Your Change, 5. Open a Pull Request, 6. Celebrate!, Build System, Clone and Build (+14 more)
+
+### Community 63 - "Community 63"
+Cohesion: 0.25
+Nodes (7): Checklist, Documentation, If no doc update is needed, explain why:, Motivation, Testing, Type of Change, What Does This Change?
+
+### Community 64 - "Community 64"
+Cohesion: 0.25
+Nodes (7): Actual Behavior, Additional Context, Describe the Bug, Environment, Expected Behavior, Relevant Logs, Steps to Reproduce
+
+### Community 65 - "Community 65"
+Cohesion: 0.29
+Nodes (6): Acceptance Criteria, Affected Subsystems, Alternatives Considered, Problem Statement, Proposed Solution, Related
+
+### Community 66 - "Community 66"
+Cohesion: 0.50
+Nodes (3): Context, Question, Related Documentation
+
 ## Knowledge Gaps
-- **243 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+238 more)
+- **290 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+285 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -326,10 +351,14 @@ Nodes (3): Code of Conduct, Enforcement, Our pledge
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _244 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _291 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
+- **Should `Community 39` be split into smaller, more focused modules?**
+  _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
+- **Should `Community 62` be split into smaller, more focused modules?**
+  _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
