@@ -1088,6 +1088,34 @@
       "norm_label": "run_graphify()"
     },
     {
+      "label": "manage-boot-entries.sh",
+      "file_type": "code",
+      "source_file": "tools/manage-boot-entries.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_manage_boot_entries",
+      "community": 81,
+      "norm_label": "manage-boot-entries.sh"
+    },
+    {
+      "label": "manage-boot-entries.sh script",
+      "file_type": "code",
+      "source_file": "tools/manage-boot-entries.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_manage_boot_entries_sh__entry",
+      "community": 81,
+      "norm_label": "manage-boot-entries.sh script"
+    },
+    {
       "label": "publish-github.ps1",
       "file_type": "code",
       "source_file": "tools/publish-github.ps1",
@@ -1138,10 +1166,20 @@
       "norm_label": "cmd_repo_init()"
     },
     {
+      "label": "_write_mock_signature()",
+      "file_type": "code",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L233",
+      "_origin": "ast",
+      "id": "tools_rush_builder_write_mock_signature",
+      "community": 46,
+      "norm_label": "_write_mock_signature()"
+    },
+    {
       "label": "cmd_rootfs_create()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L228",
+      "source_location": "L249",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_rootfs_create",
       "community": 46,
@@ -1151,7 +1189,7 @@
       "label": "write_cpio_newc()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L305",
+      "source_location": "L326",
       "_origin": "ast",
       "id": "tools_rush_builder_write_cpio_newc",
       "community": 46,
@@ -1161,7 +1199,7 @@
       "label": "iter_deb_data_members()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L340",
+      "source_location": "L361",
       "_origin": "ast",
       "id": "tools_rush_builder_iter_deb_data_members",
       "community": 46,
@@ -1171,7 +1209,7 @@
       "label": "helper_extract_from_deb()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L374",
+      "source_location": "L395",
       "_origin": "ast",
       "id": "tools_rush_builder_helper_extract_from_deb",
       "community": 46,
@@ -1181,7 +1219,7 @@
       "label": "helper_extract_many_from_deb()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L382",
+      "source_location": "L403",
       "_origin": "ast",
       "id": "tools_rush_builder_helper_extract_many_from_deb",
       "community": 46,
@@ -1191,7 +1229,7 @@
       "label": "build_vm_kernel_cmdline()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L393",
+      "source_location": "L414",
       "_origin": "ast",
       "id": "tools_rush_builder_build_vm_kernel_cmdline",
       "community": 46,
@@ -1201,7 +1239,7 @@
       "label": "stage_systemd_boot_layout()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L404",
+      "source_location": "L425",
       "_origin": "ast",
       "id": "tools_rush_builder_stage_systemd_boot_layout",
       "community": 46,
@@ -1211,7 +1249,7 @@
       "label": "cmd_build_uki()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L422",
+      "source_location": "L443",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_build_uki",
       "community": 46,
@@ -1221,7 +1259,7 @@
       "label": "cmd_vm_image()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L621",
+      "source_location": "L642",
       "_origin": "ast",
       "id": "tools_rush_builder_cmd_vm_image",
       "community": 46,
@@ -1231,7 +1269,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "tools/rush-builder.py",
-      "source_location": "L679",
+      "source_location": "L700",
       "_origin": "ast",
       "id": "tools_rush_builder_main",
       "community": 46,
@@ -1246,6 +1284,196 @@
       "id": "tools_rush_builder_rationale_49",
       "community": 46,
       "norm_label": "validate the recipe's declared schema_version. returns the version int."
+    },
+    {
+      "label": "Write a mock signature stub when real signing keys are not available.",
+      "file_type": "rationale",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L234",
+      "_origin": "ast",
+      "id": "tools_rush_builder_rationale_234",
+      "community": 46,
+      "norm_label": "write a mock signature stub when real signing keys are not available."
+    },
+    {
+      "label": "sign-updates.sh",
+      "file_type": "code",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_sign_updates_sh_tools_sign_updates",
+      "community": 79,
+      "norm_label": "sign-updates.sh"
+    },
+    {
+      "label": "sign-updates.sh script",
+      "file_type": "code",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
+      "community": 79,
+      "norm_label": "sign-updates.sh script"
+    },
+    {
+      "label": "cmd_init_keys()",
+      "file_type": "code",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L27",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_sign_updates_cmd_init_keys",
+      "community": 79,
+      "norm_label": "cmd_init_keys()"
+    },
+    {
+      "label": "cmd_sign()",
+      "file_type": "code",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L54",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_sign_updates_cmd_sign",
+      "community": 79,
+      "norm_label": "cmd_sign()"
+    },
+    {
+      "label": "cmd_verify()",
+      "file_type": "code",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L95",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_sign_updates_cmd_verify",
+      "community": 79,
+      "norm_label": "cmd_verify()"
+    },
+    {
+      "label": "sign_updates.py",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_sign_updates_py_tools_sign_updates",
+      "community": 46,
+      "norm_label": "sign_updates.py"
+    },
+    {
+      "label": "_get_cryptography()",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L32",
+      "_origin": "ast",
+      "id": "tools_sign_updates_get_cryptography",
+      "community": 46,
+      "norm_label": "_get_cryptography()"
+    },
+    {
+      "label": "init_keys()",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "tools_sign_updates_init_keys",
+      "community": 46,
+      "norm_label": "init_keys()"
+    },
+    {
+      "label": "Path",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "tools_sign_updates_py_path",
+      "community": 46,
+      "norm_label": "path"
+    },
+    {
+      "label": "sign_repodata()",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L94",
+      "_origin": "ast",
+      "id": "tools_sign_updates_sign_repodata",
+      "community": 46,
+      "norm_label": "sign_repodata()"
+    },
+    {
+      "label": "verify_repodata()",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L160",
+      "_origin": "ast",
+      "id": "tools_sign_updates_verify_repodata",
+      "community": 46,
+      "norm_label": "verify_repodata()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L199",
+      "_origin": "ast",
+      "id": "tools_sign_updates_main",
+      "community": 46,
+      "norm_label": "main()"
+    },
+    {
+      "label": "Lazy import of the cryptography library with a helpful error.",
+      "file_type": "rationale",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L33",
+      "_origin": "ast",
+      "id": "tools_sign_updates_rationale_33",
+      "community": 46,
+      "norm_label": "lazy import of the cryptography library with a helpful error."
+    },
+    {
+      "label": "Generate an Ed25519 test key pair for signing update metadata.      Returns (pri",
+      "file_type": "rationale",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L48",
+      "_origin": "ast",
+      "id": "tools_sign_updates_rationale_48",
+      "community": 46,
+      "norm_label": "generate an ed25519 test key pair for signing update metadata.      returns (pri"
+    },
+    {
+      "label": "Sign repodata.json in repo_dir with the test private key.      Creates:",
+      "file_type": "rationale",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L98",
+      "_origin": "ast",
+      "id": "tools_sign_updates_rationale_98",
+      "community": 46,
+      "norm_label": "sign repodata.json in repo_dir with the test private key.      creates:"
+    },
+    {
+      "label": "Verify the signature on repodata.json.      Returns True if signature is valid,",
+      "file_type": "rationale",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L164",
+      "_origin": "ast",
+      "id": "tools_sign_updates_rationale_164",
+      "community": 46,
+      "norm_label": "verify the signature on repodata.json.      returns true if signature is valid,"
     },
     {
       "label": "start-work.sh",
@@ -1296,6 +1524,146 @@
       "norm_label": "main()"
     },
     {
+      "label": "test-rollback.sh",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback",
+      "community": 77,
+      "norm_label": "test-rollback.sh"
+    },
+    {
+      "label": "test-rollback.sh script",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "community": 77,
+      "norm_label": "test-rollback.sh script"
+    },
+    {
+      "label": "die()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L46",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_die",
+      "community": 77,
+      "norm_label": "die()"
+    },
+    {
+      "label": "pass()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L47",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_pass",
+      "community": 77,
+      "norm_label": "pass()"
+    },
+    {
+      "label": "boot_and_log()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L63",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_boot_and_log",
+      "community": 77,
+      "norm_label": "boot_and_log()"
+    },
+    {
+      "label": "log_has()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L87",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_log_has",
+      "community": 77,
+      "norm_label": "log_has()"
+    },
+    {
+      "label": "count_uki_entries()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L94",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_count_uki_entries",
+      "community": 77,
+      "norm_label": "count_uki_entries()"
+    },
+    {
+      "label": "inject_broken_uki()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L104",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_inject_broken_uki",
+      "community": 77,
+      "norm_label": "inject_broken_uki()"
+    },
+    {
+      "label": "replace_main_uki_with_broken()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L121",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_replace_main_uki_with_broken",
+      "community": 77,
+      "norm_label": "replace_main_uki_with_broken()"
+    },
+    {
+      "label": "restore_good_uki()",
+      "file_type": "code",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L135",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_rollback_restore_good_uki",
+      "community": 77,
+      "norm_label": "restore_good_uki()"
+    },
+    {
       "label": "test-rush-builder-unit.py",
       "file_type": "code",
       "source_file": "tools/test-rush-builder-unit.py",
@@ -1334,6 +1702,62 @@
       "id": "tools_test_rush_builder_unit_test_stage_systemd_boot_layout",
       "community": 75,
       "norm_label": "test_stage_systemd_boot_layout()"
+    },
+    {
+      "label": "test-sign-updates.sh",
+      "file_type": "code",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_test_sign_updates",
+      "community": 80,
+      "norm_label": "test-sign-updates.sh"
+    },
+    {
+      "label": "test-sign-updates.sh script",
+      "file_type": "code",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
+      "community": 80,
+      "norm_label": "test-sign-updates.sh script"
+    },
+    {
+      "label": "die()",
+      "file_type": "code",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L20",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_sign_updates_die",
+      "community": 80,
+      "norm_label": "die()"
+    },
+    {
+      "label": "pass()",
+      "file_type": "code",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L21",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "tools_test_sign_updates_pass",
+      "community": 80,
+      "norm_label": "pass()"
     },
     {
       "label": "update-docmap-dates.py",
@@ -2131,7 +2555,7 @@
       "label": "Safe Assumptions",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L82",
+      "source_location": "L85",
       "_origin": "ast",
       "id": "ai_continuation_safe_assumptions",
       "community": 37,
@@ -2141,7 +2565,7 @@
       "label": "Repo Layout",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L94",
+      "source_location": "L97",
       "_origin": "ast",
       "id": "ai_continuation_repo_layout",
       "community": 37,
@@ -2151,7 +2575,7 @@
       "label": "Graphify Continuation Workflow",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L118",
+      "source_location": "L121",
       "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
@@ -2161,7 +2585,7 @@
       "label": "Commands And Checks",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L146",
+      "source_location": "L149",
       "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
@@ -2171,7 +2595,7 @@
       "label": "Next Task",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L180",
+      "source_location": "L183",
       "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
@@ -2181,7 +2605,7 @@
       "label": "Before making any changes",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L206",
+      "source_location": "L231",
       "_origin": "ast",
       "id": "ai_continuation_before_making_any_changes",
       "community": 37,
@@ -2461,7 +2885,7 @@
       "label": "Not Yet Implemented",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L62",
+      "source_location": "L63",
       "_origin": "ast",
       "id": "implementation_status_not_yet_implemented",
       "community": 40,
@@ -2471,7 +2895,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L92",
+      "source_location": "L120",
       "_origin": "ast",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
@@ -2481,7 +2905,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L98",
+      "source_location": "L126",
       "_origin": "ast",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
@@ -2771,7 +3195,7 @@
       "label": "v0.5.0-beta.1: Minimal Installable System",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L92",
+      "source_location": "L97",
       "_origin": "ast",
       "id": "roadmap_v0_5_0_beta_1_minimal_installable_system",
       "community": 0,
@@ -2781,7 +3205,7 @@
       "label": "v0.6.0-beta.1: Hardware-Aware optid",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L109",
+      "source_location": "L114",
       "_origin": "ast",
       "id": "roadmap_v0_6_0_beta_1_hardware_aware_optid",
       "community": 0,
@@ -2791,7 +3215,7 @@
       "label": "v0.7.0-beta.1: Editions",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L128",
+      "source_location": "L133",
       "_origin": "ast",
       "id": "roadmap_v0_7_0_beta_1_editions",
       "community": 0,
@@ -2801,7 +3225,7 @@
       "label": "v0.8.0-beta.1: Benchmark Lab",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L145",
+      "source_location": "L150",
       "_origin": "ast",
       "id": "roadmap_v0_8_0_beta_1_benchmark_lab",
       "community": 0,
@@ -2811,7 +3235,7 @@
       "label": "v0.9.0-rc.1: Release Candidate Hardening",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L162",
+      "source_location": "L167",
       "_origin": "ast",
       "id": "roadmap_v0_9_0_rc_1_release_candidate_hardening",
       "community": 0,
@@ -2821,7 +3245,7 @@
       "label": "v1.0.0: Stable",
       "file_type": "document",
       "source_file": "ROADMAP.md",
-      "source_location": "L179",
+      "source_location": "L184",
       "_origin": "ast",
       "id": "roadmap_v1_0_0_stable",
       "community": 0,
@@ -2876,6 +3300,86 @@
       "id": "security_security_requirements",
       "community": 43,
       "norm_label": "security requirements"
+    },
+    {
+      "label": "V0.4_CHANGES.md",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "v0_4_changes",
+      "community": 78,
+      "norm_label": "v0.4_changes.md"
+    },
+    {
+      "label": "v0.4.0-alpha.1 Changes Summary",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "v0_4_changes_v0_4_0_alpha_1_changes_summary",
+      "community": 78,
+      "norm_label": "v0.4.0-alpha.1 changes summary"
+    },
+    {
+      "label": "What was implemented",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "v0_4_changes_what_was_implemented",
+      "community": 78,
+      "norm_label": "what was implemented"
+    },
+    {
+      "label": "Exit Criteria Status",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L8",
+      "_origin": "ast",
+      "id": "v0_4_changes_exit_criteria_status",
+      "community": 78,
+      "norm_label": "exit criteria status"
+    },
+    {
+      "label": "New Files",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "v0_4_changes_new_files",
+      "community": 78,
+      "norm_label": "new files"
+    },
+    {
+      "label": "Modified Files",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "v0_4_changes_modified_files",
+      "community": 78,
+      "norm_label": "modified files"
+    },
+    {
+      "label": "How to Validate",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "v0_4_changes_how_to_validate",
+      "community": 78,
+      "norm_label": "how to validate"
+    },
+    {
+      "label": "Next Steps After v0.4",
+      "file_type": "document",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L64",
+      "_origin": "ast",
+      "id": "v0_4_changes_next_steps_after_v0_4",
+      "community": 78,
+      "norm_label": "next steps after v0.4"
     },
     {
       "label": "adaptive-engine.md",
@@ -3148,10 +3652,30 @@
       "norm_label": "rollback requirements"
     },
     {
-      "label": "Acceptance Criteria",
+      "label": "Implemented Rollback Infrastructure (v0.4)",
       "file_type": "document",
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L56",
+      "_origin": "ast",
+      "id": "docs_boot_and_updates_implemented_rollback_infrastructure_v0_4",
+      "community": 16,
+      "norm_label": "implemented rollback infrastructure (v0.4)"
+    },
+    {
+      "label": "Update Signing (v0.4)",
+      "file_type": "document",
+      "source_file": "docs/boot-and-updates.md",
+      "source_location": "L82",
+      "_origin": "ast",
+      "id": "docs_boot_and_updates_update_signing_v0_4",
+      "community": 16,
+      "norm_label": "update signing (v0.4)"
+    },
+    {
+      "label": "Acceptance Criteria",
+      "file_type": "document",
+      "source_file": "docs/boot-and-updates.md",
+      "source_location": "L96",
       "_origin": "ast",
       "id": "docs_boot_and_updates_acceptance_criteria",
       "community": 16,
@@ -9049,6 +9573,16 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/manage-boot-entries.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_manage_boot_entries",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_manage_boot_entries_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/rush-builder.py",
       "source_location": "L393",
       "weight": 1.0,
@@ -9177,6 +9711,27 @@
       "target": "tools_rush_builder_write_cpio_newc"
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L233",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_rush_builder_write_mock_signature",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L223",
+      "weight": 1.0,
+      "source": "tools_rush_builder",
+      "target": "tools_sign_updates_sign_repodata",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -9224,11 +9779,43 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tools/rush-builder.py",
+      "source_location": "L228",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_repo_init",
+      "target": "tools_rush_builder_write_mock_signature",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L224",
+      "weight": 1.0,
+      "source": "tools_rush_builder_cmd_repo_init",
+      "target": "tools_sign_updates_sign_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
       "source_location": "L322",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "tools_rush_builder_main",
       "target": "tools_rush_builder_cmd_repo_init"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/rush-builder.py",
+      "source_location": "L234",
+      "weight": 1.0,
+      "source": "tools_rush_builder_rationale_234",
+      "target": "tools_rush_builder_write_mock_signature",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9343,6 +9930,279 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sh_tools_sign_updates",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sh_tools_sign_updates",
+      "target": "tools_sign_updates_cmd_init_keys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sh_tools_sign_updates",
+      "target": "tools_sign_updates_cmd_sign",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sh_tools_sign_updates",
+      "target": "tools_sign_updates_cmd_verify",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L125",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
+      "target": "tools_sign_updates_cmd_init_keys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L128",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
+      "target": "tools_sign_updates_cmd_sign",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign-updates.sh",
+      "source_location": "L131",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
+      "target": "tools_sign_updates_cmd_verify",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "tools_sign_updates_py_tools_sign_updates",
+      "target": "tools_sign_updates_get_cryptography",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "tools_sign_updates_py_tools_sign_updates",
+      "target": "tools_sign_updates_init_keys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L199",
+      "weight": 1.0,
+      "source": "tools_sign_updates_py_tools_sign_updates",
+      "target": "tools_sign_updates_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "tools_sign_updates_py_tools_sign_updates",
+      "target": "tools_sign_updates_sign_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "tools_sign_updates_py_tools_sign_updates",
+      "target": "tools_sign_updates_verify_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "tools_sign_updates_init_keys",
+      "target": "tools_sign_updates_get_cryptography",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "tools_sign_updates_rationale_33",
+      "target": "tools_sign_updates_get_cryptography",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sign_repodata",
+      "target": "tools_sign_updates_get_cryptography",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L168",
+      "weight": 1.0,
+      "source": "tools_sign_updates_verify_repodata",
+      "target": "tools_sign_updates_get_cryptography",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "tools_sign_updates_init_keys",
+      "target": "tools_sign_updates_py_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L216",
+      "weight": 1.0,
+      "source": "tools_sign_updates_main",
+      "target": "tools_sign_updates_init_keys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "tools_sign_updates_rationale_48",
+      "target": "tools_sign_updates_init_keys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L218",
+      "weight": 1.0,
+      "source": "tools_sign_updates_main",
+      "target": "tools_sign_updates_py_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "tools_sign_updates_sign_repodata",
+      "target": "tools_sign_updates_py_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "tools_sign_updates_verify_repodata",
+      "target": "tools_sign_updates_py_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L218",
+      "weight": 1.0,
+      "source": "tools_sign_updates_main",
+      "target": "tools_sign_updates_sign_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L98",
+      "weight": 1.0,
+      "source": "tools_sign_updates_rationale_98",
+      "target": "tools_sign_updates_sign_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L220",
+      "weight": 1.0,
+      "source": "tools_sign_updates_main",
+      "target": "tools_sign_updates_verify_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/sign_updates.py",
+      "source_location": "L164",
+      "weight": 1.0,
+      "source": "tools_sign_updates_rationale_164",
+      "target": "tools_sign_updates_verify_repodata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/start-work.sh",
       "source_location": "L1",
       "weight": 1.0,
@@ -9359,6 +10219,140 @@
       "confidence_score": 1.0,
       "source": "tools_test_builder",
       "target": "tools_test_builder_main"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L63",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_boot_and_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_count_uki_entries",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_inject_broken_uki",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_log_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L121",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_replace_main_uki_with_broken",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L135",
+      "weight": 1.0,
+      "source": "tools_test_rollback",
+      "target": "tools_test_rollback_restore_good_uki",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L156",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "target": "tools_test_rollback_boot_and_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "target": "tools_test_rollback_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "target": "tools_test_rollback_log_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-rollback.sh",
+      "source_location": "L150",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
+      "target": "tools_test_rollback_pass",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -9389,6 +10383,58 @@
       "confidence_score": 1.0,
       "source": "tools_test_rush_builder_unit",
       "target": "tools_test_rush_builder_unit_test_stage_systemd_boot_layout"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_test_sign_updates",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "tools_test_sign_updates",
+      "target": "tools_test_sign_updates_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "tools_test_sign_updates",
+      "target": "tools_test_sign_updates_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
+      "target": "tools_test_sign_updates_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/test-sign-updates.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "context": "call",
+      "source": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
+      "target": "tools_test_sign_updates_pass",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -10101,9 +11147,9 @@
       "source_file": "tools/validate-uefi-boot.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_uefi_boot",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry"
     },
     {
       "relation": "defines",
@@ -10111,9 +11157,9 @@
       "source_file": "tools/validate-uefi-boot.sh",
       "source_location": "L74",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_uefi_boot",
-      "target": "tools_validate_uefi_boot_require_log",
-      "confidence_score": 1.0
+      "target": "tools_validate_uefi_boot_require_log"
     },
     {
       "relation": "calls",
@@ -10122,9 +11168,9 @@
       "source_location": "L85",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_validate_uefi_boot_sh__entry",
-      "target": "tools_validate_uefi_boot_require_log",
-      "confidence_score": 1.0
+      "target": "tools_validate_uefi_boot_require_log"
     },
     {
       "relation": "contains",
@@ -11159,6 +12205,76 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "v0_4_changes",
+      "target": "v0_4_changes_v0_4_0_alpha_1_changes_summary",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "v0_4_changes_v0_4_0_alpha_1_changes_summary",
+      "target": "v0_4_changes_what_was_implemented",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "v0_4_changes_what_was_implemented",
+      "target": "v0_4_changes_exit_criteria_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "v0_4_changes_what_was_implemented",
+      "target": "v0_4_changes_how_to_validate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "v0_4_changes_what_was_implemented",
+      "target": "v0_4_changes_modified_files",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "v0_4_changes_what_was_implemented",
+      "target": "v0_4_changes_new_files",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "V0.4_CHANGES.md",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "v0_4_changes_what_was_implemented",
+      "target": "v0_4_changes_next_steps_after_v0_4",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "docs/adaptive-engine.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -11415,6 +12531,26 @@
       "confidence_score": 1.0,
       "source": "docs_boot_and_updates_md",
       "target": "docs_boot_and_updates_boot_and_updates"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/boot-and-updates.md",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "docs_boot_and_updates_rollback_requirements",
+      "target": "docs_boot_and_updates_implemented_rollback_infrastructure_v0_4",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/boot-and-updates.md",
+      "source_location": "L82",
+      "weight": 1.0,
+      "source": "docs_boot_and_updates_rollback_requirements",
+      "target": "docs_boot_and_updates_update_signing_v0_4",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -13988,5 +15124,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f7ae1484d8d591de3dd546a2d4d8991d35b8cc5d"
+  "built_at_commit": "7f2b256d5ec86bbbe614d65c437e8e519a5b5970"
 }
