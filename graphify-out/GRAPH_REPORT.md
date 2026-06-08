@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-08)
 
 ## Corpus Check
-- 64 files · ~30,905 words
+- 65 files · ~32,174 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 603 nodes · 746 edges · 74 communities (69 shown, 5 thin omitted)
+- 605 nodes · 747 edges · 75 communities (69 shown, 6 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `68306517`
+- Built from commit: `99971322`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -83,6 +83,7 @@
 - [[_COMMUNITY_Community 69|Community 69]]
 - [[_COMMUNITY_Community 70|Community 70]]
 - [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Community 74|Community 74]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -104,7 +105,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (74 total, 5 thin omitted)
+## Communities (75 total, 6 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -359,9 +360,9 @@ Cohesion: 0.12
 Nodes (15): 1. Doc Registry: `docs/docmap.toml`, 2. Automated Sync Validator: `tools/validate-doc-sync.py`, 3. CI Integration, Adding a new ADR, Adding a new doc, Bumping the version, Changing kernel config, Changing `optid` behavior (+7 more)
 
 ## Knowledge Gaps
-- **312 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+307 more)
+- **313 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+308 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -371,7 +372,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _322 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _323 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**

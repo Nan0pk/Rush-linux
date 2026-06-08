@@ -902,6 +902,34 @@
       "norm_label": "build-rootfs.sh script"
     },
     {
+      "label": "build-vm-final.sh",
+      "file_type": "code",
+      "source_file": "tools/build-vm-final.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "tools_build_vm_final",
+      "community": 74,
+      "norm_label": "build-vm-final.sh"
+    },
+    {
+      "label": "build-vm-final.sh script",
+      "file_type": "code",
+      "source_file": "tools/build-vm-final.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "home_runner_work_rush_linux_rush_linux_tools_build_vm_final_sh__entry",
+      "community": 74,
+      "norm_label": "build-vm-final.sh script"
+    },
+    {
       "label": "create-starter-issues.py",
       "file_type": "code",
       "source_file": "tools/create-starter-issues.py",
@@ -1981,7 +2009,7 @@
       "label": "Safe Assumptions",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L79",
+      "source_location": "L82",
       "_origin": "ast",
       "id": "ai_continuation_safe_assumptions",
       "community": 37,
@@ -1991,7 +2019,7 @@
       "label": "Repo Layout",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L91",
+      "source_location": "L94",
       "_origin": "ast",
       "id": "ai_continuation_repo_layout",
       "community": 37,
@@ -2001,7 +2029,7 @@
       "label": "Graphify Continuation Workflow",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L115",
+      "source_location": "L118",
       "_origin": "ast",
       "id": "ai_continuation_graphify_continuation_workflow",
       "community": 37,
@@ -2011,7 +2039,7 @@
       "label": "Commands And Checks",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L143",
+      "source_location": "L146",
       "_origin": "ast",
       "id": "ai_continuation_commands_and_checks",
       "community": 37,
@@ -2021,7 +2049,7 @@
       "label": "Next Task",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L177",
+      "source_location": "L180",
       "_origin": "ast",
       "id": "ai_continuation_next_task",
       "community": 37,
@@ -2031,7 +2059,7 @@
       "label": "Before making any changes",
       "file_type": "document",
       "source_file": "AI_CONTINUATION.md",
-      "source_location": "L199",
+      "source_location": "L202",
       "_origin": "ast",
       "id": "ai_continuation_before_making_any_changes",
       "community": 37,
@@ -2321,7 +2349,7 @@
       "label": "Known Local Constraints",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L82",
+      "source_location": "L86",
       "_origin": "ast",
       "id": "implementation_status_known_local_constraints",
       "community": 40,
@@ -2331,7 +2359,7 @@
       "label": "Acceptance Rule",
       "file_type": "document",
       "source_file": "IMPLEMENTATION_STATUS.md",
-      "source_location": "L88",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "implementation_status_acceptance_rule",
       "community": 40,
@@ -8694,6 +8722,16 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/build-vm-final.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "tools_build_vm_final",
+      "target": "home_runner_work_rush_linux_rush_linux_tools_build_vm_final_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tools/create-starter-issues.py",
       "source_location": "L348",
       "weight": 1.0,
@@ -8759,9 +8797,9 @@
       "source_file": "tools/finish-work.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_finish_work",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_finish_work_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_finish_work_sh__entry"
     },
     {
       "relation": "contains",
@@ -9091,9 +9129,9 @@
       "source_file": "tools/start-work.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_start_work",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_start_work_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_start_work_sh__entry"
     },
     {
       "relation": "contains",
@@ -9111,9 +9149,9 @@
       "source_file": "tools/update-docmap-dates.py",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_update_docmap_dates",
-      "target": "tools_update_docmap_dates_main",
-      "confidence_score": 1.0
+      "target": "tools_update_docmap_dates_main"
     },
     {
       "relation": "contains",
@@ -9121,9 +9159,9 @@
       "source_file": "tools/validate-dirty-state.py",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_dirty_state",
-      "target": "tools_validate_dirty_state_main",
-      "confidence_score": 1.0
+      "target": "tools_validate_dirty_state_main"
     },
     {
       "relation": "contains",
@@ -9620,9 +9658,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L99",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_99",
-      "target": "tools_validate_doc_sync_check_deps_exist",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_deps_exist"
     },
     {
       "relation": "calls",
@@ -9641,9 +9679,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L114",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_114",
-      "target": "tools_validate_doc_sync_check_version_consistency",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_version_consistency"
     },
     {
       "relation": "calls",
@@ -9662,9 +9700,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L142",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_142",
-      "target": "tools_validate_doc_sync_check_adr_status",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_adr_status"
     },
     {
       "relation": "calls",
@@ -9683,9 +9721,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L166",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_166",
-      "target": "tools_validate_doc_sync_check_stale_patterns",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_stale_patterns"
     },
     {
       "relation": "calls",
@@ -9704,9 +9742,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L186",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_186",
-      "target": "tools_validate_doc_sync_check_markdown_links",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_markdown_links"
     },
     {
       "relation": "calls",
@@ -9725,9 +9763,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L218",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_218",
-      "target": "tools_validate_doc_sync_check_optid_doc_sync",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_optid_doc_sync"
     },
     {
       "relation": "calls",
@@ -9746,9 +9784,9 @@
       "source_file": "tools/validate-doc-sync.py",
       "source_location": "L246",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_validate_doc_sync_rationale_246",
-      "target": "tools_validate_doc_sync_check_last_verified",
-      "confidence_score": 1.0
+      "target": "tools_validate_doc_sync_check_last_verified"
     },
     {
       "relation": "contains",
@@ -10076,9 +10114,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agent_instructions",
-      "target": "agents_session_lifecycle_mandatory",
-      "confidence_score": 1.0
+      "target": "agents_session_lifecycle_mandatory"
     },
     {
       "relation": "contains",
@@ -10086,9 +10124,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_session_lifecycle_mandatory",
-      "target": "agents_1_start_bash_tools_start_work_sh_what_you_re_about_to_do",
-      "confidence_score": 1.0
+      "target": "agents_1_start_bash_tools_start_work_sh_what_you_re_about_to_do"
     },
     {
       "relation": "contains",
@@ -10096,9 +10134,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_session_lifecycle_mandatory",
-      "target": "agents_2_work_make_your_changes",
-      "confidence_score": 1.0
+      "target": "agents_2_work_make_your_changes"
     },
     {
       "relation": "contains",
@@ -10106,9 +10144,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L29",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_session_lifecycle_mandatory",
-      "target": "agents_3_finish_bash_tools_finish_work_sh_commit_message",
-      "confidence_score": 1.0
+      "target": "agents_3_finish_bash_tools_finish_work_sh_commit_message"
     },
     {
       "relation": "contains",
@@ -10116,9 +10154,9 @@
       "source_file": "AGENTS.md",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_session_lifecycle_mandatory",
-      "target": "agents_if_you_must_leave_mid_work",
-      "confidence_score": 1.0
+      "target": "agents_if_you_must_leave_mid_work"
     },
     {
       "relation": "contains",
@@ -10216,9 +10254,9 @@
       "source_file": "AI_CONTINUATION.md",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "ai_continuation_ai_continuation",
-      "target": "ai_continuation_session_lifecycle",
-      "confidence_score": 1.0
+      "target": "ai_continuation_session_lifecycle"
     },
     {
       "relation": "contains",
@@ -10386,9 +10424,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_2_start_a_work_session",
-      "confidence_score": 1.0
+      "target": "contributing_2_start_a_work_session"
     },
     {
       "relation": "contains",
@@ -10396,9 +10434,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_3_build",
-      "confidence_score": 1.0
+      "target": "contributing_3_build"
     },
     {
       "relation": "contains",
@@ -10406,9 +10444,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L59",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_4_make_a_change",
-      "confidence_score": 1.0
+      "target": "contributing_4_make_a_change"
     },
     {
       "relation": "contains",
@@ -10416,9 +10454,9 @@
       "source_file": "CONTRIBUTING.md",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "contributing_quick_start",
-      "target": "contributing_5_validate_and_finish",
-      "confidence_score": 1.0
+      "target": "contributing_5_validate_and_finish"
     },
     {
       "relation": "contains",
@@ -13672,5 +13710,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "68306517c36eccd1b4646f687818f3c32264bdd1"
+  "built_at_commit": "99971322d9cc8584177977c372d2a3b2f101417e"
 }
