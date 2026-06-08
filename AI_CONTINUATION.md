@@ -64,6 +64,11 @@ Implemented:
 - `optctl` supports status, explain, mode, trace, benchmark, and has `--json` output option for telemetry.
 - Package builder (`tools/rush-builder.py`) implemented, supporting TOML recipe builds, dependency resolution, local metadata DB initialization with signatures, UKI/initrd assembly with required virtio/ext4 modules for the cached VM kernel, systemd-boot loader entry staging, and partition image formatting using `systemd-repart`.
 - UEFI UKI VM boot path validated through OVMF/systemd-boot using `tools/validate-uefi-boot.sh`; verified 2026-06-08 to reach `multi-user.target` and start `optid.service` without QEMU `-kernel`/`-initrd` direct-boot arguments.
+- Boot entry manager (`tools/manage-boot-entries.sh`) rotates the current UKI into a versioned rollback entry, retains at least `INSTANCES_MAX` (default 3) rollback entries, and prunes oldest entries beyond the limit.
+- Boot assessment service (`optid-boot-assess.service`) marks boots as good after reaching `multi-user.target` via `tools/optid-boot-assess`.
+- Boot assessment tool (`tools/optid-boot-assess`) provides `mark-good`, `check`, `count-failed`, and `reset` commands for boot-good/bad tracking on the ESP.
+- Rollback integration test (`tools/test-rollback.sh`) validates all three v0.4 exit criteria: UKI boot, rollback entry retention (≥3), and simulated bad-kernel rollback recovery.
+- Update metadata signing with Ed25519 test keys via `tools/sign_updates.py` (Python) and `tools/sign-updates.sh` (shell). Signing test (`tools/test-sign-updates.sh`) validates key generation, signing, verification, and tamper detection. `rush-builder.py repo-init` uses real signatures when keys are present.
 - Pre-compiled base assets downloaded and unpacked locally into `build/tmp_downloads/` for offline/no-root compilation of VM image:
   - Debian `systemd-boot-efi` package (`systemd-boot-efi_252.39-1~deb12u2_amd64.deb`) -> extracts `linuxx64.efi.stub` and `systemd-bootx64.efi`.
   - Debian kernel package (`linux-image-6.1.0-49-amd64_6.1.174-1_amd64.deb`) -> extracts `vmlinuz-6.1.0-49-amd64` and kernel modules.
@@ -72,8 +77,6 @@ Implemented:
 
 Not implemented yet:
 
-- Boot assessment, rollback entry retention, signed test update metadata, and
-  simulated bad-kernel rollback for the now-validated UEFI UKI boot path.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - Minimal ISO installer.
 - Hardware benchmark harness execution.
@@ -179,7 +182,29 @@ https://github.com/Nan0pk/Rush-linux
 
 ## Next Task
 
-Current project version is `0.3.0-alpha.1` (complete). The next milestone is `v0.4.0-alpha.1` (UKI, Boot, Rollback, Updates). The direct-kernel v0.3 boot gate and the UEFI UKI/systemd-boot validation path are both verified on 2026-06-08; remaining v0.4 work is rollback/update behavior.
+Current project version is `0.4.0-alpha.1` (in progress). The UKI boot, rollback entry management, boot assessment, and update signing infrastructure are implemented. The remaining v0.4 gate is end-to-end validation:
+
+1. Run `tools/test-rollback.sh build/disk.raw` to validate:
+   - VM boots through UKI
+   - Three rollback entries are retained
+   - Simulated bad kernel rolls back
+
+2. Run `tools/test-sign-updates.sh` to validate:
+   - Test signing keys can be generated
+   - repodata.json can be signed with Ed25519
+   - Signature verification works (valid = pass, tampered = fail)
+
+3. If both pass, mark v0.4.0-alpha.1 as complete in `release/milestones.toml` and advance to `v0.5.0-beta.1` (Minimal Installable System).
+
+Key new tools/files in this milestone:
+- `tools/manage-boot-entries.sh` — Boot entry rotation and retention
+- `tools/optid-boot-assess` — Boot assessment marker (mark-good/check/reset)
+- `tools/test-rollback.sh` — End-to-end rollback test suite
+- `tools/sign_updates.py` — Ed25519 signing/verification (Python)
+- `tools/sign-updates.sh` — Ed25519 signing/verification (shell, OpenSSL)
+- `tools/test-sign-updates.sh` — Signing test suite
+- `packaging/systemd/optid-boot-assess.service` — Boot-good marker service
+- `config/keys/` — Test Ed25519 key pair (git-ignored)
 
 To resume work on a Linux machine (native or container):
 

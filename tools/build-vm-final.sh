@@ -105,6 +105,11 @@ ln -sf /usr/lib/systemd/system/systemd-networkd.service "${ROOTFS}/etc/systemd/s
 ln -sf /usr/lib/systemd/system/systemd-resolved.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
 ln -sf /usr/lib/systemd/system/getty@.service "${ROOTFS}/etc/systemd/system/getty.target.wants/getty@tty1.service"
 
+# Boot assessment tool and service (v0.4 rollback support)
+install -m0755 "${REPO_ROOT}/tools/optid-boot-assess" "${ROOTFS}/usr/libexec/optid-boot-assess"
+install -m0644 "${REPO_ROOT}/packaging/systemd/optid-boot-assess.service" "${ROOTFS}/usr/lib/systemd/system/optid-boot-assess.service"
+ln -sf /usr/lib/systemd/system/optid-boot-assess.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/optid-boot-assess.service"
+
 # Default target
 ln -sf /usr/lib/systemd/system/multi-user.target "${ROOTFS}/etc/systemd/system/default.target"
 
@@ -258,18 +263,24 @@ default rush-linux.conf
 timeout 3
 editor no
 EOF
+
+VERSION_STR="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.3.0-alpha.1")"
 cat > "${BUILD}/uki_staging/loader/entries/rush-linux.conf" << EOF
 title Rush Linux
-version $(cat "${REPO_ROOT}/VERSION")
+version ${VERSION_STR}
 efi /EFI/Linux/rush-linux.efi
 EOF
+
+# Create boot assessment directory on ESP for rollback support (v0.4)
+mkdir -p "${BUILD}/uki_staging/loader/rush-assess"
+
 echo "  UKI: $(du -sh "${BUILD}/uki_staging/EFI/Linux/rush-linux.efi" | cut -f1)"
 
 # ── Step 6: Build ESP image ─────────────────────────────────────
 echo "[6/8] Building ESP partition..."
 dd if=/dev/zero of="${BUILD}/esp.img" bs=1M count=64 status=none
 mkfs.vfat -F 32 -n RUSHESP "${BUILD}/esp.img" 2>&1 | tail -1
-mmd -i "${BUILD}/esp.img" ::EFI ::EFI/Linux ::EFI/BOOT ::loader ::loader/entries
+mmd -i "${BUILD}/esp.img" ::EFI ::EFI/Linux ::EFI/BOOT ::loader ::loader/entries ::loader/rush-assess
 mcopy -i "${BUILD}/esp.img" "${BUILD}/uki_staging/EFI/Linux/rush-linux.efi" ::EFI/Linux/rush-linux.efi
 mcopy -i "${BUILD}/esp.img" "${BUILD}/systemd-bootx64.efi" ::EFI/BOOT/BOOTX64.EFI
 mcopy -i "${BUILD}/esp.img" "${BUILD}/uki_staging/loader/loader.conf" ::loader/loader.conf

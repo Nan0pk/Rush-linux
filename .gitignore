@@ -4,6 +4,9 @@
 /dist/
 *.log
 
+# Test signing keys (never commit private keys)
+/config/keys/testing.private.pem
+
 # Graphify committed artifacts live in graphify-out/, but these files are
 # local-only or mtime/cache based and should not be versioned.
 /graphify-out/cache/

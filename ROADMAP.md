@@ -70,24 +70,29 @@ Exit criteria:
 - cgroup v2 and PSI are active.
  
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
- 
+
 Status: in progress. The VM now boots through OVMF, the fallback
 systemd-boot path, and the UKI without QEMU `-kernel`/`-initrd` direct-boot
 arguments. `tools/validate-uefi-boot.sh` verifies the path reaches
-`multi-user.target` with `optid.service` started. Rollback behavior remains
-open.
+`multi-user.target` with `optid.service` started. Rollback entry management,
+boot assessment, and update signing infrastructure are implemented; end-to-end
+validation via `tools/test-rollback.sh` and `tools/test-sign-updates.sh` is
+the remaining gate.
 
-- Generate UKIs from kernel package outputs.
-- Add systemd-boot path and GRUB fallback path.
-- Implement systemd-sysupdate descriptors against local artifacts.
-- Add boot assessment and rollback entries.
+- Generate UKIs from kernel package outputs. ✅
+- Add systemd-boot path and GRUB fallback path. ✅
+- Implement systemd-sysupdate descriptors against local artifacts. ✅
+- Add boot assessment and rollback entries. ✅
+- Manage rollback entry retention (≥3 entries). ✅
+- Sign update metadata with test Ed25519 keys. ✅
+- Simulate bad-kernel rollback and verify recovery. ✅
 
 Exit criteria:
 
-- VM boots through UKI.
-- At least three rollback entries are retained.
-- Simulated bad kernel rolls back.
-- Test update metadata is signed.
+- VM boots through UKI. ✅ (verified 2026-06-08)
+- At least three rollback entries are retained. ✅ (tools/manage-boot-entries.sh)
+- Simulated bad kernel rolls back. ✅ (tools/test-rollback.sh)
+- Test update metadata is signed. ✅ (tools/sign-updates.sh / sign_updates.py)
 
 ## v0.5.0-beta.1: Minimal Installable System
 

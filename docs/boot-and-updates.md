@@ -53,6 +53,46 @@ Any installable release must support:
 - rollback after failed optimizer or policy update where possible;
 - signed update metadata.
 
+### Implemented Rollback Infrastructure (v0.4)
+
+- **Boot entry manager** (`tools/manage-boot-entries.sh`):
+  Rotates the current main UKI (`rush-linux.efi`) into a versioned and
+  timestamped rollback entry (e.g., `rush-linux-0.4.0-alpha.1-20260608120000.efi`).
+  Prunes entries beyond `INSTANCES_MAX` (default: 3). Updates systemd-boot
+  loader entries accordingly.
+
+- **Boot assessment service** (`optid-boot-assess.service`):
+  A systemd oneshot service that runs after `multi-user.target` and calls
+  `/usr/libexec/optid-boot-assess mark-good` to record a successful boot
+  on the ESP (`/boot/loader/rush-assess/current-boot`).
+
+- **Boot assessment tool** (`tools/optid-boot-assess`):
+  Manages boot-good markers. Commands:
+  - `mark-good` — Record current boot as successful
+  - `check` — Check if previous boot was good (exit 0/1)
+  - `count-failed` — Count consecutive failed boots
+  - `reset` — Clear failure counters
+
+- **Rollback test** (`tools/test-rollback.sh`):
+  Validates all three v0.4 rollback exit criteria:
+  1. VM boots through UKI (calls `validate-uefi-boot.sh`)
+  2. Three rollback entries are retained after simulated updates
+  3. Simulated bad kernel is detected, system rolls back, and recovers
+
+### Update Signing (v0.4)
+
+- **Signing tools**:
+  - `tools/sign_updates.py` — Python module using Ed25519 (`cryptography` library)
+  - `tools/sign-updates.sh` — Shell wrapper using OpenSSL (fallback)
+- **Key management**:
+  - Test Ed25519 keys stored in `config/keys/`
+  - Private key: `testing.private.pem` (git-ignored)
+  - Public key: `testing.public.pem` (bundled in images)
+- **Builder integration**: `rush-builder.py repo-init` uses real Ed25519
+  signatures when keys are present, falls back to mock stubs otherwise.
+- **Signing test** (`tools/test-sign-updates.sh`): Validates key generation,
+  signing, verification, and tamper detection.
+
 ## Acceptance Criteria
 
 Boot/update changes must update this file, `distro/boot/uki.toml`,

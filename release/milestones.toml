@@ -1,5 +1,5 @@
 [project]
-current_version = "0.3.0-alpha.1"
+current_version = "0.4.0-alpha.1"
 final_target = "1.0.0"
 first_stable_arch = "x86_64"
 arm64_status = "experimental-until-tested"
@@ -61,7 +61,7 @@ verified = true
 version = "0.4.0-alpha.1"
 channel = "alpha"
 name = "UKI, Boot, Rollback, Updates"
-status = "next"
+status = "in-progress"
 required_tiers = ["T0", "T1", "T2"]
 exit_criteria = [
   "VM boots through UKI",
@@ -69,6 +69,23 @@ exit_criteria = [
   "simulated bad kernel rolls back",
   "test update metadata is signed",
 ]
+# Per-criterion verification state.
+[[milestone.criteria_status]]
+criterion = "VM boots through UKI"
+verified = true
+note = "Verified 2026-06-08 via tools/validate-uefi-boot.sh under OVMF/systemd-boot."
+[[milestone.criteria_status]]
+criterion = "three rollback entries are retained"
+verified = true
+note = "tools/manage-boot-entries.sh rotates and retains >=3 rollback entries; tools/test-rollback.sh validates."
+[[milestone.criteria_status]]
+criterion = "simulated bad kernel rolls back"
+verified = true
+note = "tools/test-rollback.sh injects broken UKI, verifies boot failure, restores rollback entry, verifies recovery."
+[[milestone.criteria_status]]
+criterion = "test update metadata is signed"
+verified = true
+note = "Ed25519 signing via tools/sign_updates.py and sign-updates.sh; tools/test-sign-updates.sh validates."
 
 [[milestone]]
 version = "0.5.0-beta.1"

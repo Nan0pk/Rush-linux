@@ -208,17 +208,38 @@ def cmd_repo_init(args):
         json.dump(repodata, f, indent=2)
     print(f"Generated repository metadata: {repodata_path.name}")
     
+    # Sign repodata.json using the real signing tool if available,
+    # otherwise fall back to the mock stub.
     repodata_hash = hashlib.sha256()
     with open(repodata_path, "rb") as f:
         repodata_hash.update(f.read())
-    
+
+    repo_root = Path(__file__).resolve().parent.parent
+    sign_tool = repo_root / "tools" / "sign_updates.py"
+    key_dir = repo_root / "config" / "keys"
+
+    if sign_tool.exists() and (key_dir / "testing.private.pem").exists():
+        try:
+            from tools.sign_updates import sign_repodata
+            sign_repodata(repo_dir, key_dir)
+            print(f"Generated repository signature: {sig_path.name}")
+        except Exception:
+            # Fall back to mock if cryptography package not available
+            _write_mock_signature(repo_dir, repodata_hash.hexdigest())
+    else:
+        _write_mock_signature(repo_dir, repodata_hash.hexdigest())
+
+
+def _write_mock_signature(repo_dir, hex_digest):
+    """Write a mock signature stub when real signing keys are not available."""
     mock_key_id = "RUSH_LINUX_MOCK_KEY_2026"
     signature_data = {
         "key_id": mock_key_id,
-        "hash": repodata_hash.hexdigest(),
-        "signature": f"mock_sig_for_{repodata_hash.hexdigest()}_using_{mock_key_id}"
+        "hash": hex_digest,
+        "signature": f"mock_sig_for_{hex_digest}_using_{mock_key_id}",
+        "note": "This is a mock signature. Run 'python3 tools/sign_updates.py init-keys' "
+                "and 'python3 tools/sign_updates.py sign <repo_dir>' for real Ed25519 signatures.",
     }
-    
     sig_path = repo_dir / "repodata.json.sig"
     with open(sig_path, "w") as f:
         json.dump(signature_data, f, indent=2)

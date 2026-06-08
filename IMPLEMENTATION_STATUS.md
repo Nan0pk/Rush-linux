@@ -11,7 +11,7 @@ engineering milestones.
 
 ## Implemented
 
-- Current project version recorded in `VERSION` as `0.3.0-alpha.1`.
+- Current project version recorded in `VERSION` as `0.4.0-alpha.1`.
 - Release plan, versioning rules, release policy, release checklist, and
   machine-readable milestone/test-tier manifests.
 - Documentation policy requiring future changes to document purpose, impact,
@@ -40,7 +40,8 @@ engineering milestones.
   - default adaptive kernel;
   - optional PREEMPT_RT kernel;
   - experimental sched_ext fragment.
-- UKI-first boot config and systemd-sysupdate descriptors.
+- UKI-first boot config and systemd-sysupdate descriptors (renamed from
+  `adaptive` to `rush-linux` branding; `InstancesMax=3` for rollback retention).
 - nftables baseline firewall.
 - cgroup and slice accounting defaults.
 - Source recipe skeletons for kernel, RT kernel, optid, systemd, desktop, and
@@ -62,7 +63,25 @@ engineering milestones.
 ## Not Yet Implemented
 
 - Boot assessment and rollback retention behavior for the validated UKI boot
-  path, including simulated bad-kernel rollback.
+ path, including simulated bad-kernel rollback.
+  - Boot entry manager: `tools/manage-boot-entries.sh` rotates UKIs into
+    versioned rollback entries and prunes entries beyond `INSTANCES_MAX` (default 3).
+  - Boot assessment service: `packaging/systemd/optid-boot-assess.service`
+    runs after `multi-user.target` and writes a boot-good marker via
+    `tools/optid-boot-assess`.
+  - Boot assessment tool: `tools/optid-boot-assess` supports `mark-good`,
+    `check`, `count-failed`, and `reset` commands for boot-good/bad tracking.
+  - Rollback integration test: `tools/test-rollback.sh` validates all three
+    v0.4 exit criteria (UKI boot, rollback entry retention, bad-kernel rollback).
+- Update signing system replaces the mock signature stub with real Ed25519
+  signatures:
+  - `tools/sign_updates.py` — Python module for generating Ed25519 key pairs
+    and signing/verifying `repodata.json` using the `cryptography` library.
+  - `tools/sign-updates.sh` — Shell wrapper using OpenSSL as a fallback.
+  - `tools/test-sign-updates.sh` — Validates key generation, signing,
+    verification, and tamper detection.
+  - Test keys are stored in `config/keys/` (private key git-ignored).
+  - `rush-builder.py repo-init` now uses real signatures when keys are present.
 - Real UKI signing keys, Secure Boot enrollment path, and measured boot policy.
 - eBPF probes and overhead budget enforcement.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
@@ -81,13 +100,22 @@ engineering milestones.
   ZRAM-backed swap (`high_swappiness_requires_zram`), and every write must go
   through the explainable allowlist per ADR 0009.
 - Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
-  Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
-  with `optid.service` active.
+ Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
+ with `optid.service` active.
 - UEFI UKI VM boot validation through OVMF/systemd-boot is now implemented via
-  `tools/validate-uefi-boot.sh` and verified 2026-06-08: OVMF loads
-  `EFI/BOOT/BOOTX64.EFI`, systemd-boot selects the Rush Linux entry, the UKI
-  loads its embedded initrd, the root filesystem mounts from `/dev/vda2`,
-  systemd reaches `multi-user.target`, and `optid.service` starts.
+ `tools/validate-uefi-boot.sh` and verified 2026-06-08: OVMF loads
+ `EFI/BOOT/BOOTX64.EFI`, systemd-boot selects the Rush Linux entry, the UKI
+ loads its embedded initrd, the root filesystem mounts from `/dev/vda2`,
+ systemd reaches `multi-user.target`, and `optid.service` starts.
+- Rollback entry management (`tools/manage-boot-entries.sh`) rotates UKI
+  entries and retains at least 3 rollback entries.
+- Boot assessment marker service (`optid-boot-assess.service`) and tool
+  (`optid-boot-assess`) for marking boots as good/bad.
+- Rollback integration test (`tools/test-rollback.sh`) validates UKI boot,
+  rollback entry retention, and bad-kernel recovery.
+- Update metadata signing with Ed25519 test keys (`tools/sign_updates.py`,
+  `tools/sign-updates.sh`) and signing validation test
+  (`tools/test-sign-updates.sh`).
 
 ## Known Local Constraints
 
