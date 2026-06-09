@@ -402,3 +402,11 @@ deps = []
 freshens = []
 last_verified = "2026-06-08"
 validator = "optional_file"
+
+[docs."docs/plans/agent-work-plan-v1.md"]
+purpose = "Agent work plan v1: 4 tracks, 13 WPs to stabilize repo, harden optid, close v0.4, and deliver first benchmark evidence"
+owner_area = "area:project"
+covers_code = []
+deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
+freshens = []
+last_verified = "2026-06-10"
