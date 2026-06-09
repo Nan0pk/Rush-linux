@@ -1,8 +1,8 @@
 # Graphify Knowledge Graph
 
-Rush Linux keeps a Graphify knowledge graph in `graphify-out/` so future agents
-and maintainers can orient themselves with scoped graph queries before reading
-large parts of the repository.
+Rush Linux keeps a Graphify knowledge graph on the `graphify-data` branch so
+future agents and maintainers can orient themselves with scoped graph queries
+before reading large parts of the repository.
 
 ## Purpose
 
@@ -15,13 +15,32 @@ Primary benefits:
 - persistent cross-session map for AI agents and humans;
 - lower token use through `graphify query`, `graphify path`, and
   `graphify explain` before broad file reads;
-- committed `graph.json`, `GRAPH_REPORT.md`, and `graph.html` so every clone
-  starts with the same baseline;
 - AST-only refresh path for code changes that does not spend LLM/API tokens.
 
-## Committed Artifacts
+## Storage Location
 
-Commit these files when they change:
+**As of 2026-06-10, graph artifacts live on the `graphify-data` branch**, not
+on `main`. This keeps main branch history clean — previously 37% of commits were
+`chore: refresh graphify knowledge graph [skip ci]`.
+
+Main branch contains only `graphify-out/REF`, a pointer file.
+
+### Fetching the Graph
+
+```bash
+# Fetch the dedicated branch
+git fetch origin graphify-data:graphify-data
+
+# Checkout artifacts to your working tree
+git checkout graphify-data -- graphify-out/
+```
+
+Or browse online:
+https://github.com/Nan0pk/Rush-linux/tree/graphify-data/graphify-out
+
+## Committed Artifacts (on graphify-data branch)
+
+These files are updated by CI:
 
 ```text
 graphify-out/graph.json          Machine-readable graph for query/MCP use
@@ -33,10 +52,6 @@ graphify-out/.graphify_labels.json
 Do not commit local-only cache/cost/mtime files. `.gitignore` excludes
 `graphify-out/cache/`, `graphify-out/cost.json`, and
 `graphify-out/manifest.json`.
-
-## Install Graphify
-
-Recommended:
 
 ```sh
 uv tool install graphifyy
