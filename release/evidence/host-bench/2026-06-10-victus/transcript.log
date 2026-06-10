@@ -1,0 +1,53 @@
+[1;34m[matrix][0m surface: EPP=1(24cpu) platform_profile=0 rapl=/sys/class/powercap/intel-rapl:0 ac=/sys/class/power_supply/ACAD bat=/sys/class/power_supply/BAT1
+[1;34m[matrix][0m matrix: power=[ac,bat] levers=[baseline,epp,weight,optid-performance,optid-battery] iter=5 duration=12s
+[1;34m[matrix][0m results -> /root/optid-bench-results/20260611-022742
+[1;34m[matrix][0m capturing original state -> /tmp/optid-matrix.J4Fmk4/restore
+[1;34m[matrix][0m stopping competing daemon for the session: tuned (will restart on exit)
+
+[1;34m[matrix][0m ================ PHASE: power=ac ================
+[1;32m[ACTION][0m PLUG IN the charger now. I will detect it automatically (waiting up to 120s)...
+[1;34m[matrix][0m detected: power=ac (battery at 58%)
+[1;34m[matrix][0m ambient (non-harness) CPU before phase: 1.6% — recorded in meta.txt
+[1;34m[matrix][0m lever=baseline: EPP=power user.slice CPUWeight=[not set]
+    baseline           RESP p95(med)=0.065ms p99(med)=0.123ms [0.065,0.060,0.060,0.069,0.066 | 0.128,0.061,0.066,0.123,0.182]
+    baseline           POWER pkgW(med)=16.47W work(med)=797000000 eff(med)=4056521.75/J [4171381.75,3873241.34,4056521.75,3861586.16,6372280.43]
+[1;34m[matrix][0m lever=epp: EPP=power user.slice CPUWeight=[not set]
+    epp                RESP p95(med)=0.070ms p99(med)=0.128ms [0.075,0.075,0.060,0.069,0.070 | 0.194,0.233,0.063,0.083,0.128]
+    epp                POWER pkgW(med)=16.18W work(med)=789000000 eff(med)=4040155.85/J [4040155.85,4012179.62,4186438.06,4341216.15,4019827.36]
+[1;34m[matrix][0m lever=weight: EPP=power user.slice CPUWeight=200
+    weight             RESP p95(med)=0.061ms p99(med)=0.098ms [0.061,0.061,0.061,0.089,0.072 | 0.079,0.098,0.076,0.245,0.257]
+    weight             POWER pkgW(med)=16.49W work(med)=748000000 eff(med)=3794745.48/J [3925772.00,4009440.82,3728744.13,3794745.48,3744596.98]
+[1;34m[matrix][0m lever=optid-performance: EPP=performance user.slice CPUWeight=200
+    optid-performance  RESP p95(med)=0.061ms p99(med)=0.337ms [0.060,0.127,0.175,0.061,0.058 | 0.337,1.450,1.841,0.089,0.061]
+    optid-performance  POWER pkgW(med)=30.12W work(med)=1514000000 eff(med)=4183762.42/J [4183762.42,4283481.24,4173281.97,4305868.96,3405322.67]
+[1;34m[matrix][0m lever=optid-battery: EPP=power user.slice CPUWeight=[not set]
+    optid-battery      RESP p95(med)=0.067ms p99(med)=0.085ms [0.060,0.071,0.078,0.064,0.067 | 0.067,0.143,0.160,0.079,0.085]
+    optid-battery      POWER pkgW(med)=16.21W work(med)=807000000 eff(med)=4138360.73/J [3947309.60,4057593.98,4218469.56,4138360.73,4174803.48]
+
+[1;34m[matrix][0m ================ PHASE: power=bat ================
+[1;32m[ACTION][0m UNPLUG the charger now. I will detect it automatically (waiting up to 120s)...
+[1;34m[matrix][0m detected: power=bat (battery at 68%)
+[1;34m[matrix][0m ambient (non-harness) CPU before phase: 3.1% — recorded in meta.txt
+[1;34m[matrix][0m lever=baseline: EPP=power user.slice CPUWeight=[not set]
+    baseline           RESP p95(med)=0.070ms p99(med)=0.260ms [0.067,0.066,0.070,0.080,0.076 | 0.086,0.718,0.651,0.229,0.260]
+    baseline           POWER pkgW(med)=16.26W work(med)=815000000 eff(med)=4176770.78/J [4249422.36,4176770.78,4015353.10,4053957.70,4286875.14]
+[1;34m[matrix][0m lever=epp: EPP=power user.slice CPUWeight=[not set]
+    epp                RESP p95(med)=0.065ms p99(med)=0.095ms [0.065,0.076,0.079,0.061,0.062 | 0.081,0.134,0.182,0.095,0.070]
+    epp                POWER pkgW(med)=16.09W work(med)=791000000 eff(med)=4096751.11/J [4280977.44,4096751.11,4133855.06,3871442.61,3647606.87]
+[1;34m[matrix][0m lever=weight: EPP=power user.slice CPUWeight=200
+    weight             RESP p95(med)=0.066ms p99(med)=0.116ms [0.061,0.068,0.061,0.091,0.066 | 0.065,0.116,0.062,0.471,0.117]
+    weight             POWER pkgW(med)=16.38W work(med)=712000000 eff(med)=3700601.71/J [4031431.24,3759855.00,3407864.41,3622771.91,3700601.71]
+[1;34m[matrix][0m lever=optid-performance: EPP=performance user.slice CPUWeight=200
+    optid-performance  RESP p95(med)=0.069ms p99(med)=0.172ms [0.058,0.069,0.082,0.071,0.061 | 0.069,0.205,0.365,0.172,0.068]
+    optid-performance  POWER pkgW(med)=25.08W work(med)=1199000000 eff(med)=3978722.77/J [3978722.77,4023916.15,3965366.13,3970334.26,4013989.52]
+[1;34m[matrix][0m lever=optid-battery: EPP=power user.slice CPUWeight=[not set]
+    optid-battery      RESP p95(med)=0.085ms p99(med)=0.507ms [0.095,0.081,0.069,0.088,0.085 | 0.968,0.288,0.110,0.536,0.507]
+    optid-battery      POWER pkgW(med)=16.42W work(med)=763000000 eff(med)=3917960.27/J [3209536.88,3229533.98,3931950.74,4283374.28,3917960.27]
+
+[1;34m[matrix][0m campaign complete. evidence package: /root/optid-bench-results/20260611-022742
+[1;34m[matrix][0m   results.csv      machine-readable matrix results
+[1;34m[matrix][0m   meta.txt         hardware, drivers, ambient load per phase
+[1;34m[matrix][0m   transcript.log   full raw transcript
+[1;34m[matrix][0m restoring original state...
+[1;34m[matrix][0m restarting tuned
+[1;34m[matrix][0m restore complete. results: /root/optid-bench-results/20260611-022742

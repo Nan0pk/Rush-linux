@@ -79,6 +79,9 @@ fn main() {
 fn run(args: Args) -> io::Result<()> {
     fs::create_dir_all(&args.state_dir)?;
 
+    // Revert sysctls on startup to clean up any left-over state
+    revert_sysctls(&args.state_dir);
+
     let state_dir_clone = args.state_dir.clone();
     thread::spawn(move || {
         let server = OptidServer {
@@ -109,7 +112,7 @@ fn run(args: Args) -> io::Result<()> {
         append_log(&args.state_dir.join("decisions.log"), &report)?;
 
         if args.apply {
-            let mut actuator = Actuator::new(args.state_dir.join("actions.log"));
+            let mut actuator = Actuator::new(args.state_dir.clone());
             for action in &decision.actions {
                 actuator.apply(action)?;
             }
@@ -121,6 +124,9 @@ fn run(args: Args) -> io::Result<()> {
 
         thread::sleep(Duration::from_secs(args.interval_sec));
     }
+
+    // Also revert sysctls on clean exit
+    revert_sysctls(&args.state_dir);
 
     Ok(())
 }
@@ -251,6 +257,7 @@ struct Snapshot {
     cpu_pressure: Option<Pressure>,
     memory_pressure: Option<Pressure>,
     io_pressure: Option<Pressure>,
+    zram_swap_active: bool,
 }
 
 impl Snapshot {
@@ -264,6 +271,7 @@ impl Snapshot {
             cpu_pressure: Pressure::read("/proc/pressure/cpu"),
             memory_pressure: Pressure::read("/proc/pressure/memory"),
             io_pressure: Pressure::read("/proc/pressure/io"),
+            zram_swap_active: read_zram_swap_active(),
         }
     }
 
@@ -273,9 +281,15 @@ impl Snapshot {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+struct MemoryConfig {
+    high_swappiness_requires_zram: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
 struct Policy {
     thresholds: Thresholds,
     modes: Modes,
+    memory: MemoryConfig,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -310,6 +324,12 @@ struct ModeConfig {
     user_io_weight: Option<u32>,
     #[serde(default)]
     requires_controlled_rt_access: Option<bool>,
+    #[serde(default)]
+    vm_swappiness: Option<u32>,
+    #[serde(default)]
+    vm_dirty_background_bytes: Option<u64>,
+    #[serde(default)]
+    vm_dirty_bytes: Option<u64>,
 }
 
 impl Default for Policy {
@@ -332,6 +352,9 @@ impl Default for Policy {
                     user_cpu_weight: None,
                     user_io_weight: None,
                     requires_controlled_rt_access: None,
+                    vm_swappiness: Some(60),
+                    vm_dirty_background_bytes: Some(67108864),
+                    vm_dirty_bytes: Some(134217728),
                 },
                 balanced: ModeConfig {
                     cpu_epp: "balance_performance".to_string(),
@@ -341,6 +364,9 @@ impl Default for Policy {
                     user_cpu_weight: Some(150),
                     user_io_weight: Some(150),
                     requires_controlled_rt_access: None,
+                    vm_swappiness: Some(100),
+                    vm_dirty_background_bytes: Some(67108864),
+                    vm_dirty_bytes: Some(134217728),
                 },
                 performance: ModeConfig {
                     cpu_epp: "performance".to_string(),
@@ -350,6 +376,9 @@ impl Default for Policy {
                     user_cpu_weight: Some(200),
                     user_io_weight: Some(200),
                     requires_controlled_rt_access: None,
+                    vm_swappiness: Some(150),
+                    vm_dirty_background_bytes: Some(67108864),
+                    vm_dirty_bytes: Some(134217728),
                 },
                 realtime: ModeConfig {
                     cpu_epp: "performance".to_string(),
@@ -359,7 +388,13 @@ impl Default for Policy {
                     user_cpu_weight: Some(250),
                     user_io_weight: Some(200),
                     requires_controlled_rt_access: Some(true),
+                    vm_swappiness: Some(10),
+                    vm_dirty_background_bytes: None,
+                    vm_dirty_bytes: None,
                 },
+            },
+            memory: MemoryConfig {
+                high_swappiness_requires_zram: true,
             },
         }
     }
@@ -446,6 +481,13 @@ impl Policy {
                     }
                     _ => {}
                 },
+                "memory" => {
+                    if key == "high_swappiness_requires_zram" {
+                        if let Ok(b) = val.parse::<bool>() {
+                            policy.memory.high_swappiness_requires_zram = b;
+                        }
+                    }
+                }
                 "modes.battery" => match key {
                     "cpu_epp" => policy.modes.battery.cpu_epp = clean_str(val),
                     "platform_profile" => policy.modes.battery.platform_profile = clean_str(val),
@@ -457,6 +499,11 @@ impl Policy {
                     }
                     "user_cpu_weight" => policy.modes.battery.user_cpu_weight = val.parse().ok(),
                     "user_io_weight" => policy.modes.battery.user_io_weight = val.parse().ok(),
+                    "vm_swappiness" => policy.modes.battery.vm_swappiness = val.parse().ok(),
+                    "vm_dirty_background_bytes" => {
+                        policy.modes.battery.vm_dirty_background_bytes = val.parse().ok()
+                    }
+                    "vm_dirty_bytes" => policy.modes.battery.vm_dirty_bytes = val.parse().ok(),
                     _ => {}
                 },
                 "modes.balanced" => match key {
@@ -470,6 +517,11 @@ impl Policy {
                     }
                     "user_cpu_weight" => policy.modes.balanced.user_cpu_weight = val.parse().ok(),
                     "user_io_weight" => policy.modes.balanced.user_io_weight = val.parse().ok(),
+                    "vm_swappiness" => policy.modes.balanced.vm_swappiness = val.parse().ok(),
+                    "vm_dirty_background_bytes" => {
+                        policy.modes.balanced.vm_dirty_background_bytes = val.parse().ok()
+                    }
+                    "vm_dirty_bytes" => policy.modes.balanced.vm_dirty_bytes = val.parse().ok(),
                     _ => {}
                 },
                 "modes.performance" => match key {
@@ -487,6 +539,11 @@ impl Policy {
                         policy.modes.performance.user_cpu_weight = val.parse().ok()
                     }
                     "user_io_weight" => policy.modes.performance.user_io_weight = val.parse().ok(),
+                    "vm_swappiness" => policy.modes.performance.vm_swappiness = val.parse().ok(),
+                    "vm_dirty_background_bytes" => {
+                        policy.modes.performance.vm_dirty_background_bytes = val.parse().ok()
+                    }
+                    "vm_dirty_bytes" => policy.modes.performance.vm_dirty_bytes = val.parse().ok(),
                     _ => {}
                 },
                 "modes.realtime" => match key {
@@ -503,6 +560,11 @@ impl Policy {
                     "requires_controlled_rt_access" => {
                         policy.modes.realtime.requires_controlled_rt_access = val.parse().ok()
                     }
+                    "vm_swappiness" => policy.modes.realtime.vm_swappiness = val.parse().ok(),
+                    "vm_dirty_background_bytes" => {
+                        policy.modes.realtime.vm_dirty_background_bytes = val.parse().ok()
+                    }
+                    "vm_dirty_bytes" => policy.modes.realtime.vm_dirty_bytes = val.parse().ok(),
                     _ => {}
                 },
                 _ => {}
@@ -644,6 +706,39 @@ impl Policy {
             ));
         }
 
+        // vm.swappiness
+        if let Some(mut swappiness) = mode_config.vm_swappiness {
+            if self.memory.high_swappiness_requires_zram
+                && !snapshot.zram_swap_active
+                && swappiness > 60
+            {
+                swappiness = 60;
+            }
+            actions.push(Action::vm_sysctl(
+                PathBuf::from("/proc/sys/vm/swappiness"),
+                swappiness.to_string(),
+                "adjust swappiness for current mode",
+            ));
+        }
+
+        // vm.dirty_background_bytes
+        if let Some(bytes) = mode_config.vm_dirty_background_bytes {
+            actions.push(Action::vm_sysctl(
+                PathBuf::from("/proc/sys/vm/dirty_background_bytes"),
+                bytes.to_string(),
+                "adjust dirty background bytes for current mode",
+            ));
+        }
+
+        // vm.dirty_bytes
+        if let Some(bytes) = mode_config.vm_dirty_bytes {
+            actions.push(Action::vm_sysctl(
+                PathBuf::from("/proc/sys/vm/dirty_bytes"),
+                bytes.to_string(),
+                "adjust dirty bytes for current mode",
+            ));
+        }
+
         if snapshot
             .thermal_c()
             .is_some_and(|temp| temp >= self.thresholds.critical_temp_c)
@@ -761,6 +856,11 @@ enum Action {
         properties: Vec<String>,
         reason: &'static str,
     },
+    VmSysctl {
+        path: PathBuf,
+        value: String,
+        reason: &'static str,
+    },
 }
 
 impl Action {
@@ -784,6 +884,14 @@ impl Action {
         }
     }
 
+    fn vm_sysctl(path: PathBuf, value: String, reason: &'static str) -> Self {
+        Self::VmSysctl {
+            path,
+            value,
+            reason,
+        }
+    }
+
     fn describe(&self) -> String {
         match self {
             Self::CpuEpp { value, reason } => format!("cpu.epp={value} ({reason})"),
@@ -798,17 +906,29 @@ impl Action {
                 "systemd.set-property {unit} {} ({reason})",
                 properties.join(" ")
             ),
+            Self::VmSysctl {
+                path,
+                value,
+                reason,
+            } => {
+                format!("vm.sysctl {}={value} ({reason})", path.display())
+            }
         }
     }
 }
 
 struct Actuator {
+    state_dir: PathBuf,
     log_path: PathBuf,
 }
 
 impl Actuator {
-    fn new(log_path: PathBuf) -> Self {
-        Self { log_path }
+    fn new(state_dir: PathBuf) -> Self {
+        let log_path = state_dir.join("actions.log");
+        Self {
+            state_dir,
+            log_path,
+        }
     }
 
     fn apply(&mut self, action: &Action) -> io::Result<()> {
@@ -820,15 +940,31 @@ impl Actuator {
                     return Ok(());
                 }
                 for path in paths {
+                    let old_value = fs::read_to_string(&path)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
                     guarded_write(&path, value)?;
-                    self.log(&format!("write {} = {value}", path.display()))?;
+                    self.log(&format!(
+                        "write {} = {value} (was {old_value})",
+                        path.display()
+                    ))?;
                 }
             }
             Action::PlatformProfile { value, .. } => {
                 let path = Path::new("/sys/firmware/acpi/platform_profile");
                 if path.exists() {
+                    let old_value = fs::read_to_string(path)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
                     guarded_write(path, value)?;
-                    self.log(&format!("write {} = {value}", path.display()))?;
+                    self.log(&format!(
+                        "write {} = {value} (was {old_value})",
+                        path.display()
+                    ))?;
                 } else {
                     self.log("skip platform.profile: platform_profile is unavailable")?;
                 }
@@ -861,6 +997,40 @@ impl Actuator {
                     }
                 }
             }
+            Action::VmSysctl { path, value, .. } => {
+                let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+                let key = format!("vm_{filename}");
+
+                // Back up original value if not already backed up
+                let orig_file = self.state_dir.join(format!("original_{key}"));
+                if !orig_file.exists() {
+                    if let Ok(current_val) = fs::read_to_string(path) {
+                        let _ = fs::write(&orig_file, current_val.trim());
+                    }
+                }
+
+                // Write intended value
+                let intended_file = self.state_dir.join(format!("intended_{key}"));
+                let _ = fs::write(&intended_file, value);
+
+                // Write new value to sysctl path
+                let old_value = fs::read_to_string(path)
+                    .ok()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                match guarded_write(path, value) {
+                    Ok(_) => {
+                        self.log(&format!(
+                            "write {} = {value} (was {old_value})",
+                            path.display()
+                        ))?;
+                    }
+                    Err(e) => {
+                        self.log(&format!("skip vm.sysctl {filename}: write failed: {e}"))?;
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -870,9 +1040,37 @@ impl Actuator {
     }
 }
 
+fn revert_sysctls(state_dir: &Path) {
+    let keys = [
+        "vm_swappiness",
+        "vm_dirty_background_bytes",
+        "vm_dirty_bytes",
+    ];
+    for key in &keys {
+        let orig_path = state_dir.join(format!("original_{key}"));
+        if orig_path.exists() {
+            if let Ok(orig_val) = fs::read_to_string(&orig_path) {
+                let sysctl_name = key.replace('_', ".");
+                let sysctl_path =
+                    PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
+                if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
+                    eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
+                } else {
+                    println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
+                }
+            }
+            let _ = fs::remove_file(&orig_path);
+            let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
+        }
+    }
+}
+
 fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
-        || path.starts_with("/sys/devices/system/cpu/");
+        || path.starts_with("/sys/devices/system/cpu/")
+        || path == Path::new("/proc/sys/vm/swappiness")
+        || path == Path::new("/proc/sys/vm/dirty_background_bytes")
+        || path == Path::new("/proc/sys/vm/dirty_bytes");
 
     if !allowed {
         return Err(io::Error::new(
@@ -948,6 +1146,18 @@ fn read_battery_pct() -> Option<u8> {
         }
     }
     None
+}
+
+fn read_zram_swap_active() -> bool {
+    let Ok(text) = fs::read_to_string("/proc/swaps") else {
+        return false;
+    };
+    for line in text.lines().skip(1) {
+        if line.contains("/dev/zram") {
+            return true;
+        }
+    }
+    false
 }
 
 fn read_max_thermal_millic() -> Option<i64> {
@@ -1048,6 +1258,7 @@ mod tests {
             cpu_pressure: Some(Pressure::default()),
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
+            zram_swap_active: false,
         };
 
         let decision = Policy::default().decide(&snapshot, Mode::Auto);
@@ -1068,6 +1279,7 @@ mod tests {
             }),
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
+            zram_swap_active: false,
         };
 
         let decision = Policy::default().decide(&snapshot, Mode::Auto);
@@ -1088,6 +1300,7 @@ mod tests {
             }),
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
+            zram_swap_active: false,
         };
 
         let decision = Policy::default().decide(&snapshot, Mode::Performance);
@@ -1098,5 +1311,56 @@ mod tests {
                 false
             }
         }));
+    }
+
+    #[test]
+    fn test_high_swappiness_gating() {
+        let mut policy = Policy::default();
+        policy.memory.high_swappiness_requires_zram = true;
+        policy.modes.performance.vm_swappiness = Some(150);
+
+        // Scenario A: zram is active -> swappiness should be 150
+        let snapshot_with_zram = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: None,
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: true,
+        };
+        let decision_with = policy.decide(&snapshot_with_zram, Mode::Performance);
+        let has_150 = decision_with.actions.iter().any(|action| {
+            if let Action::VmSysctl { path, value, .. } = action {
+                path == Path::new("/proc/sys/vm/swappiness") && value == "150"
+            } else {
+                false
+            }
+        });
+        assert!(has_150, "should apply swappiness 150 with ZRAM");
+
+        // Scenario B: zram is inactive -> swappiness should be clamped to 60
+        let snapshot_no_zram = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: None,
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+        };
+        let decision_no = policy.decide(&snapshot_no_zram, Mode::Performance);
+        let has_60 = decision_no.actions.iter().any(|action| {
+            if let Action::VmSysctl { path, value, .. } = action {
+                path == Path::new("/proc/sys/vm/swappiness") && value == "60"
+            } else {
+                false
+            }
+        });
+        assert!(has_60, "should clamp swappiness to 60 without ZRAM");
     }
 }

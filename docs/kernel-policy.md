@@ -16,6 +16,7 @@ Required direction:
 - cgroup v2 controllers and BPF integration.
 - uclamp support for future scheduling hints.
 - zswap and zram support for memory pressure control (run as mutually exclusive to avoid double compression overhead).
+- Multi-Gen LRU (MGLRU) enabled by default for improved reclaim selection under memory pressure.
 - DAMON support for future memory policy.
 - BFQ and mq-deadline support for device-appropriate I/O policy.
 - modern CPUFreq, Intel P-state, AMD P-state, and CPPC support.

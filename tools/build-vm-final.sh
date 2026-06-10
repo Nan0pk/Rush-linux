@@ -95,6 +95,7 @@ install -m0644 "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${ROOTFS}/u
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-tmpfiles.conf" "${ROOTFS}/usr/lib/tmpfiles.d/optid.conf"
 install -m0644 "${REPO_ROOT}/distro/systemd/00-cgroup-v2.conf" "${ROOTFS}/etc/systemd/system.conf.d/00-cgroup-v2.conf"
 install -m0644 "${REPO_ROOT}/distro/systemd/99-rush-network.conf" "${ROOTFS}/usr/lib/sysctl.d/99-rush-network.conf"
+install -m0644 "${REPO_ROOT}/distro/systemd/zram-generator.conf" "${ROOTFS}/usr/lib/systemd/zram-generator.conf"
 install -m0644 "${REPO_ROOT}/distro/network/nftables.conf" "${ROOTFS}/etc/nftables.conf"
 install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.service" "${ROOTFS}/usr/share/dbus-1/system-services/io.rushlinux.Optid.service"
 install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.xml" "${ROOTFS}/usr/share/dbus-1/interfaces/io.rushlinux.Optid.xml"
@@ -103,6 +104,7 @@ install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.xml" "${ROOTFS}/u
 ln -sf /usr/lib/systemd/system/optid.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/optid.service"
 ln -sf /usr/lib/systemd/system/systemd-networkd.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
 ln -sf /usr/lib/systemd/system/systemd-resolved.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
+ln -sf /usr/lib/systemd/system/systemd-oomd.service "${ROOTFS}/etc/systemd/system/multi-user.target.wants/systemd-oomd.service"
 ln -sf /usr/lib/systemd/system/getty@.service "${ROOTFS}/etc/systemd/system/getty.target.wants/getty@tty1.service"
 
 # Boot assessment tool and service (v0.4 rollback support)
