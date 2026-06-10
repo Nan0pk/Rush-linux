@@ -228,9 +228,9 @@ freshens = ["CONTRIBUTING.md"]
 last_verified = "2026-06-10"
 
 [docs."docs/graphify-knowledge-graph.md"]
-purpose = "How the Graphify knowledge graph works, refresh procedures"
+purpose = "How the Graphify knowledge graph works, refresh procedures, graphify-data branch fetch instructions"
 owner_area = "area:docs"
-covers_code = ["graphify-out/"]
+covers_code = [".github/workflows/graphify.yml", "tools/graphify-refresh.sh"]
 deps = []
 freshens = []
 last_verified = "2026-06-10"

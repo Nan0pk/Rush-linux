@@ -92,54 +92,16 @@ jobs:
       - name: Push to graphify-data branch
         shell: bash
         run: |
-          # Check if there are changes
-          if git diff --quiet -- graphify-out; then
-            echo "Graphify output already current."
-            exit 0
+          if [ ! -d graphify-out ] || [ -z "$(ls -A graphify-out)" ]; then
+            echo "No graphify output generated."; exit 0
           fi
-          
-          # Configure git
+          TMP=$(mktemp -d) && cp -r graphify-out/. "$TMP/"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          
-          # Create or checkout graphify-data branch
-          git fetch origin graphify-data:graphify-data 2>/dev/null || git checkout --orphan graphify-data
-          git checkout graphify-data
-          
-          # Copy graphify-out from main working tree
-          git checkout main -- graphify-out/
-          
-          # Add and commit
+          git checkout --orphan graphify-data-new
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx >/dev/null 2>&1
+          mkdir graphify-out && cp -r "$TMP/." graphify-out/
           git add graphify-out
-          git commit -m "chore: refresh graphify knowledge graph [skip ci]
-          
-          Source commit: ${{ github.sha }}
-          Triggered by: ${{ github.actor }}
-          Mode: ${{ github.event.inputs.mode || 'code' }}" || echo "No changes to commit"
-          
-          # Push
-          git push origin graphify-data --force
-
-      - name: Update pointer on main
-        shell: bash
-        run: |
-          git checkout main
-          mkdir -p graphify-out
-          cat > graphify-out/REF << EOF
-          # Graphify data lives on dedicated branch to keep main history clean
-          branch: graphify-data
-          last_update: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          source_commit: ${{ github.sha }}
-          
-          To fetch:
-            git fetch origin graphify-data:graphify-data
-            git checkout graphify-data -- graphify-out/
-          
-          Or browse: https://github.com/${{ github.repository }}/tree/graphify-data/graphify-out
-          EOF
-          
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add graphify-out/REF
-          git commit -m 'chore: update graphify pointer [skip ci]' || echo "No pointer changes"
-          git push origin main
+          git commit -m "chore: graphify snapshot (source: ${GITHUB_SHA})"
+          git push origin +graphify-data-new:graphify-data
