@@ -44,6 +44,21 @@ sudo ./tools/bench-optid-host.sh --apply               # benchmark 'performance'
 sudo ./tools/bench-optid-host.sh --apply --modes performance,battery
 ```
 
+`tools/bench-optid-host-v2.sh` is the isolating successor. The v1 harness
+could not detect an effect on real hardware because the load and the latency
+probe shared `user.slice` (cancelling the CPUWeight boost), the all-core load
+left EPP nothing to do, and tail latency was dominated by noise. v2 fixes all
+three: it runs an oversubscribed load in `background.slice` while the probe
+runs in `user.slice` (so the weight lever is measurable), adds a partial-load
+CPU-package-watts scenario via RAPL (so the EPP lever is measurable), and
+reports the median of N iterations. Same safety contract.
+
+```sh
+sudo ./tools/bench-optid-host-v2.sh                    # dry-run + baselines
+sudo ./tools/bench-optid-host-v2.sh --apply            # baseline vs performance,battery
+sudo ./tools/bench-optid-host-v2.sh --apply --iter 5
+```
+
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.
