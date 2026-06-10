@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate version consistency
+        run: python3 tools/validate-versions.py
       - name: Validate future-facing defaults
         shell: pwsh
         run: ./tools/validate-repo.ps1
