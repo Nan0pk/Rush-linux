@@ -906,7 +906,11 @@ impl Action {
                 "systemd.set-property {unit} {} ({reason})",
                 properties.join(" ")
             ),
-            Self::VmSysctl { path, value, reason } => {
+            Self::VmSysctl {
+                path,
+                value,
+                reason,
+            } => {
                 format!("vm.sysctl {}={value} ({reason})", path.display())
             }
         }
@@ -921,7 +925,10 @@ struct Actuator {
 impl Actuator {
     fn new(state_dir: PathBuf) -> Self {
         let log_path = state_dir.join("actions.log");
-        Self { state_dir, log_path }
+        Self {
+            state_dir,
+            log_path,
+        }
     }
 
     fn apply(&mut self, action: &Action) -> io::Result<()> {
@@ -933,17 +940,31 @@ impl Actuator {
                     return Ok(());
                 }
                 for path in paths {
-                    let old_value = fs::read_to_string(&path).ok().unwrap_or_default().trim().to_string();
+                    let old_value = fs::read_to_string(&path)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
                     guarded_write(&path, value)?;
-                    self.log(&format!("write {} = {value} (was {old_value})", path.display()))?;
+                    self.log(&format!(
+                        "write {} = {value} (was {old_value})",
+                        path.display()
+                    ))?;
                 }
             }
             Action::PlatformProfile { value, .. } => {
                 let path = Path::new("/sys/firmware/acpi/platform_profile");
                 if path.exists() {
-                    let old_value = fs::read_to_string(path).ok().unwrap_or_default().trim().to_string();
+                    let old_value = fs::read_to_string(path)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
                     guarded_write(path, value)?;
-                    self.log(&format!("write {} = {value} (was {old_value})", path.display()))?;
+                    self.log(&format!(
+                        "write {} = {value} (was {old_value})",
+                        path.display()
+                    ))?;
                 } else {
                     self.log("skip platform.profile: platform_profile is unavailable")?;
                 }
@@ -979,7 +1000,7 @@ impl Actuator {
             Action::VmSysctl { path, value, .. } => {
                 let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
                 let key = format!("vm_{filename}");
-                
+
                 // Back up original value if not already backed up
                 let orig_file = self.state_dir.join(format!("original_{key}"));
                 if !orig_file.exists() {
@@ -987,16 +1008,23 @@ impl Actuator {
                         let _ = fs::write(&orig_file, current_val.trim());
                     }
                 }
-                
+
                 // Write intended value
                 let intended_file = self.state_dir.join(format!("intended_{key}"));
                 let _ = fs::write(&intended_file, value);
-                
+
                 // Write new value to sysctl path
-                let old_value = fs::read_to_string(path).ok().unwrap_or_default().trim().to_string();
+                let old_value = fs::read_to_string(path)
+                    .ok()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
                 match guarded_write(path, value) {
                     Ok(_) => {
-                        self.log(&format!("write {} = {value} (was {old_value})", path.display()))?;
+                        self.log(&format!(
+                            "write {} = {value} (was {old_value})",
+                            path.display()
+                        ))?;
                     }
                     Err(e) => {
                         self.log(&format!("skip vm.sysctl {filename}: write failed: {e}"))?;
@@ -1013,13 +1041,18 @@ impl Actuator {
 }
 
 fn revert_sysctls(state_dir: &Path) {
-    let keys = ["vm_swappiness", "vm_dirty_background_bytes", "vm_dirty_bytes"];
+    let keys = [
+        "vm_swappiness",
+        "vm_dirty_background_bytes",
+        "vm_dirty_bytes",
+    ];
     for key in &keys {
         let orig_path = state_dir.join(format!("original_{key}"));
         if orig_path.exists() {
             if let Ok(orig_val) = fs::read_to_string(&orig_path) {
                 let sysctl_name = key.replace('_', ".");
-                let sysctl_path = PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
+                let sysctl_path =
+                    PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
                 if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
                     eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
                 } else {
