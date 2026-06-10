@@ -481,14 +481,13 @@ impl Policy {
                     }
                     _ => {}
                 },
-                "memory" => match key {
-                    "high_swappiness_requires_zram" => {
+                "memory" => {
+                    if key == "high_swappiness_requires_zram" {
                         if let Ok(b) = val.parse::<bool>() {
                             policy.memory.high_swappiness_requires_zram = b;
                         }
                     }
-                    _ => {}
-                },
+                }
                 "modes.battery" => match key {
                     "cpu_epp" => policy.modes.battery.cpu_epp = clean_str(val),
                     "platform_profile" => policy.modes.battery.platform_profile = clean_str(val),
@@ -709,10 +708,11 @@ impl Policy {
 
         // vm.swappiness
         if let Some(mut swappiness) = mode_config.vm_swappiness {
-            if self.memory.high_swappiness_requires_zram && !snapshot.zram_swap_active {
-                if swappiness > 60 {
-                    swappiness = 60;
-                }
+            if self.memory.high_swappiness_requires_zram
+                && !snapshot.zram_swap_active
+                && swappiness > 60
+            {
+                swappiness = 60;
             }
             actions.push(Action::vm_sysctl(
                 PathBuf::from("/proc/sys/vm/swappiness"),
