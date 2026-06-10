@@ -68,7 +68,11 @@ and emits an evidence-ready results directory (`results.csv`, `meta.txt`,
 `transcript.log`). It stops `tuned`/`power-profiles-daemon` for the session
 if active and restarts them on exit, refuses the battery phase below a
 charge floor (default 25%), and keeps the same capture/restore/verify
-contract as v1/v2.
+contract as v1/v2. It runs a work-counting background load
+(`tools/bench-work-load.py`) under partial load to measure total work units
+performed and compute performance-per-watt efficiency (work units per Joule).
+
+
 
 ```sh
 sudo ./tools/bench-optid-matrix.sh --apply                 # full matrix, AC + battery

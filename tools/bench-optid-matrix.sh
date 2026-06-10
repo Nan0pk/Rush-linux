@@ -245,8 +245,19 @@ apply_lever() { # $1 = lever name -> 0 applied, 1 skip
 }
 
 # ---- scenarios (from v2) ------------------------------------------------------
+read_work_count() {
+  local total=0 val
+  for f in /dev/shm/optid-bench-work-*; do
+    if [ -r "$f" ]; then
+      val="$(cat "$f")"
+      total=$((total + val))
+    fi
+  done
+  echo "$total"
+}
+
 start_load_bg() { stop_load; systemd-run --quiet --collect --unit="$LOAD_UNIT" --slice=background.slice \
-  bash -c 'for i in $(seq '"$1"'); do (while :; do :; done) & done; wait' >/dev/null 2>&1; }
+  python3 "${REPO_ROOT}/tools/bench-work-load.py" "$1" >/dev/null 2>&1; }
 
 probe_user_slice() {
   systemd-run --scope --quiet --slice=user.slice -- python3 -c '
@@ -259,17 +270,28 @@ d.sort(); n=len(d); pick=lambda q:d[min(n-1,int(q*n))]
 print(f"{pick(.50):.3f} {pick(.95):.3f} {pick(.99):.3f} {d[-1]:.3f}")' "$1" 2>/dev/null
 }
 
-rapl_watts() {
-  [ -z "$RAPL_DOM" ] && { echo NA; return; }
-  local e0 e1 mx; e0="$(cat "$RAPL_DOM/energy_uj")"; mx="$(cat "$RAPL_DOM/max_energy_range_uj" 2>/dev/null || echo 0)"
-  sleep "$1"; e1="$(cat "$RAPL_DOM/energy_uj")"
-  python3 -c "e0=$e0;e1=$e1;mx=$mx;d=$1;de=(e1-e0) if e1>=e0 else (mx-e0+e1);print(f'{de/1e6/d:.2f}')"
+rapl_watts_efficiency() {
+  [ -z "$RAPL_DOM" ] && { echo "NA NA NA"; return; }
+  local e0 e1 mx w0 w1
+  w0="$(read_work_count)"
+  e0="$(cat "$RAPL_DOM/energy_uj")"
+  mx="$(cat "$RAPL_DOM/max_energy_range_uj" 2>/dev/null || echo 0)"
+  sleep "$1"
+  e1="$(cat "$RAPL_DOM/energy_uj")"
+  w1="$(read_work_count)"
+  python3 -c "
+e0=$e0; e1=$e1; mx=$mx; d=$1; w0=$w0; w1=$w1
+de=(e1-e0) if e1>=e0 else (mx-e0+e1)
+watts = de/1e6/d
+work = w1 - w0
+eff = (work / (de/1e6)) if de > 0 else 0
+print(f'{watts:.2f} {work} {eff:.2f}')"
 }
 
 median() { printf '%s\n' "$@" | sort -n | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:(a[NR/2]+a[NR/2+1])/2}'; }
 
 run_cell() { # $1 phase, $2 lever, $3 ambient
-  local p95s=() p99s=() ws=() i r
+  local p95s=() p99s=() ws=() works=() effs=() i r res
   # RESP
   start_load_bg "$((NCPU*2))"; sleep 1
   for i in $(seq "$ITER"); do
@@ -284,10 +306,18 @@ run_cell() { # $1 phase, $2 lever, $3 ambient
   # POWER (partial load)
   if [ -n "$RAPL_DOM" ]; then
     start_load_bg "$((NCPU/4>0?NCPU/4:1))"; sleep 1
-    for i in $(seq "$ITER"); do ws+=("$(rapl_watts "$DURATION")"); done
+    for i in $(seq "$ITER"); do
+      res="$(rapl_watts_efficiency "$DURATION")"
+      ws+=( "$(echo "$res" | awk '{print $1}')" )
+      works+=( "$(echo "$res" | awk '{print $2}')" )
+      effs+=( "$(echo "$res" | awk '{print $3}')" )
+    done
     stop_load
-    printf '    %-18s POWER pkgW(med)=%sW [%s]\n' "$2" "$(median "${ws[@]}")" "$(IFS=,; echo "${ws[*]}")"
+    printf '    %-18s POWER pkgW(med)=%sW work(med)=%s eff(med)=%s/J [%s]\n' "$2" \
+      "$(median "${ws[@]}")" "$(median "${works[@]}")" "$(median "${effs[@]}")" "$(IFS=,; echo "${effs[*]}")"
     echo "$1,$2,POWER,pkg_watts,$(median "${ws[@]}"),\"$(IFS=,; echo "${ws[*]}")\",$(batt_pct),$3" >> "$CSV"
+    echo "$1,$2,POWER,work_units,$(median "${works[@]}"),\"$(IFS=,; echo "${works[*]}")\",$(batt_pct),$3" >> "$CSV"
+    echo "$1,$2,POWER,work_per_joule,$(median "${effs[@]}"),\"$(IFS=,; echo "${effs[*]}")\",$(batt_pct),$3" >> "$CSV"
   fi
 }
 
