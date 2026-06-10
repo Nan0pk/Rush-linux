@@ -1,3 +1,4 @@
+# Superseded by work-plan-v2.md
 # Rush Linux — Agent Work Plan v1
 
 | Field | Value |

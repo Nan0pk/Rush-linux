@@ -410,3 +410,19 @@ covers_code = []
 deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/plans/work-plan-v2.md"]
+purpose = "Work Plan v2: recovery sprint with explicit builder/verifier/human roles and evidence rule"
+owner_area = "area:project"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/plans/action-plan-2026-06-10.md"]
+purpose = "Action Plan (Execution Runbook) for Phase 0 merge train and subsequent agent sessions"
+owner_area = "area:project"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
