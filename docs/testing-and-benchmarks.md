@@ -59,6 +59,23 @@ sudo ./tools/bench-optid-host-v2.sh --apply            # baseline vs performance
 sudo ./tools/bench-optid-host-v2.sh --apply --iter 5
 ```
 
+`tools/bench-optid-matrix.sh` is the guided campaign runner. It walks a test
+matrix across power sources (prompting the operator to plug/unplug the
+charger and verifying the transition through sysfs before measuring),
+isolates levers individually (EPP alone, cgroup weight alone, full optid
+modes), records ambient desktop load as metadata instead of forbidding it,
+and emits an evidence-ready results directory (`results.csv`, `meta.txt`,
+`transcript.log`). It stops `tuned`/`power-profiles-daemon` for the session
+if active and restarts them on exit, refuses the battery phase below a
+charge floor (default 25%), and keeps the same capture/restore/verify
+contract as v1/v2.
+
+```sh
+sudo ./tools/bench-optid-matrix.sh --apply                 # full matrix, AC + battery
+sudo ./tools/bench-optid-matrix.sh --apply --power ac      # AC only, no prompts
+sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
+```
+
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.
