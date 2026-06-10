@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -35,7 +35,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/documentation-policy.md", "docs/architecture.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "contains_heading:Documentation Is Required"
 
 [docs."PROJECT_BRIEF.md"]
@@ -44,7 +44,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["README.md", "docs/architecture.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "version_matches:VERSION"
 
 [docs."AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -87,7 +87,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md", "RELEASES.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "semver"
 
 [docs."SECURITY.md"]
@@ -96,7 +96,7 @@ owner_area = "area:security"
 covers_code = ["crates/optid/src/main.rs"]
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."CODE_OF_CONDUCT.md"]
 purpose = "Contributor Covenant v2.1 with enforcement contact"
@@ -104,7 +104,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."AUTHORS"]
 purpose = "Contributor recognition list"
@@ -112,7 +112,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/architecture.md"]
 purpose = "Four-layer system architecture and subsystem boundaries"
@@ -120,7 +120,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["PROJECT_BRIEF.md"]
 freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/adaptive-engine.md"]
 purpose = "optid design: inputs, actions, guardrails, current MVP scope"
@@ -128,7 +128,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = ["README.md", "IMPLEMENTATION_STATUS.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "covers_optid_features"
 
 [docs."docs/kernel-policy.md"]
@@ -137,7 +137,7 @@ owner_area = "area:kernel"
 covers_code = ["distro/kernel/"]
 deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/packaging-and-builds.md"]
 purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
@@ -145,7 +145,7 @@ owner_area = "area:packaging"
 covers_code = ["tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh", "recipes/"]
 deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/boot-and-updates.md"]
 purpose = "UKI boot flow, systemd-sysupdate, rollback policy"
@@ -153,7 +153,7 @@ owner_area = "area:boot"
 covers_code = ["distro/boot/", "distro/sysupdate/", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["docs/decisions/0003-uki-rollback.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/hardware-support.md"]
 purpose = "Hardware enablement strategy, allowlist database, device policy"
@@ -161,7 +161,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/testing-and-benchmarks.md"]
 purpose = "Test tiers, benchmark methodology, acceptance gates"
@@ -169,7 +169,7 @@ owner_area = "area:docs"
 covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml"]
 deps = ["docs/decisions/0011-benchmark-methodology.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/non-goals.md"]
 purpose = "Explicit list of what Rush Linux does NOT aim to do"
@@ -177,7 +177,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["PROJECT_BRIEF.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/validation.md"]
 purpose = "How to validate the repository, role of validate-repo.ps1"
@@ -185,7 +185,7 @@ owner_area = "area:docs"
 covers_code = ["tools/validate-repo.ps1"]
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/versioning.md"]
 purpose = "Semantic versioning rules, channel naming, bump policy"
@@ -201,7 +201,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/versioning.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/release-checklist.md"]
 purpose = "Step-by-step checklist for cutting a release"
@@ -209,7 +209,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/release-policy.md", "docs/versioning.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/release-plan-v1.md"]
 purpose = "Detailed milestone gates and test-tier requirements for v1.0"
@@ -217,7 +217,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["ROADMAP.md", "docs/release-policy.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/documentation-policy.md"]
 purpose = "Required documentation surface per change type, minimum commit standard"
@@ -225,7 +225,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["CONTRIBUTING.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/graphify-knowledge-graph.md"]
 purpose = "How the Graphify knowledge graph works, refresh procedures"
@@ -241,7 +241,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["CONTRIBUTING.md", "CODE_OF_CONDUCT.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/decisions/README.md"]
 purpose = "ADR lifecycle, ratification rules, numbering policy"
@@ -249,7 +249,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/decisions/0001-systemd-cgroup-v2.md"]
 purpose = "ADR: use systemd with unified cgroup v2"
@@ -257,7 +257,7 @@ owner_area = "area:docs"
 covers_code = ["distro/systemd/"]
 deps = []
 freshens = ["docs/architecture.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0002-wayland-pipewire.md"]
@@ -266,7 +266,7 @@ owner_area = "area:docs"
 covers_code = ["distro/editions/desktop.toml"]
 deps = []
 freshens = ["docs/architecture.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0003-uki-rollback.md"]
@@ -275,7 +275,7 @@ owner_area = "area:boot"
 covers_code = ["distro/boot/", "distro/sysupdate/"]
 deps = []
 freshens = ["docs/boot-and-updates.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0004-adaptive-optid.md"]
@@ -284,7 +284,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/", "config/optid/policy.toml", "packaging/systemd/optid.service"]
 deps = []
 freshens = ["docs/adaptive-engine.md", "docs/architecture.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0005-avoid-obsolete-defaults.md"]
@@ -293,7 +293,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0006-performance-tweaks.md"]
@@ -302,7 +302,7 @@ owner_area = "area:kernel"
 covers_code = ["config/optid/policy.toml"]
 deps = ["docs/decisions/0004-adaptive-optid.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0007-project-and-dbus-naming.md"]
@@ -311,7 +311,7 @@ owner_area = "area:optid"
 covers_code = ["packaging/dbus/"]
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0008-software-delivery-and-packaging.md"]
@@ -320,7 +320,7 @@ owner_area = "area:packaging"
 covers_code = ["tools/rush-builder.py", "recipes/"]
 deps = []
 freshens = ["docs/packaging-and-builds.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0009-optid-security-boundary.md"]
@@ -329,7 +329,7 @@ owner_area = "area:security"
 covers_code = ["crates/optid/src/main.rs", "packaging/systemd/optid.service"]
 deps = ["docs/decisions/0004-adaptive-optid.md"]
 freshens = ["SECURITY.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0010-realtime-edition-kernel-policy.md"]
@@ -338,7 +338,7 @@ owner_area = "area:kernel"
 covers_code = ["distro/kernel/realtime.config", "distro/editions/realtime-audio.toml"]
 deps = []
 freshens = ["docs/kernel-policy.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0011-benchmark-methodology.md"]
@@ -347,7 +347,7 @@ owner_area = "area:docs"
 covers_code = ["benchmarks/manifest.toml"]
 deps = []
 freshens = ["docs/testing-and-benchmarks.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0012-reproducible-build-discipline.md"]
@@ -356,7 +356,7 @@ owner_area = "area:packaging"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0013-detection-and-ml-boundary.md"]
@@ -365,7 +365,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs"]
 deps = ["docs/decisions/0004-adaptive-optid.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/contributing/first-pr.md"]
@@ -374,7 +374,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["CONTRIBUTING.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/agent-decisions/README.md"]
 purpose = "Index of agent-authored decisions and review notes"
@@ -382,7 +382,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/decisions/README.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 # ── Configuration files that also serve as documentation ──
 
@@ -392,7 +392,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs"]
 deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."DIRTY_STATE.md"]
 purpose = "Work-in-progress flag. Present only when the repo is mid-work. Contains session notes for the next agent."
@@ -400,7 +400,16 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
+validator = "optional_file"
+
+[docs."docs/templates/VERIFICATION.md"]
+purpose = "Template for verifier reports (WP acceptance criteria, exit codes, verdicts)"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
 validator = "optional_file"
 
 [docs."docs/plans/agent-work-plan-v1.md"]
