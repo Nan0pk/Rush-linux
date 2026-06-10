@@ -23,7 +23,12 @@ Primary benefits:
 on `main`. This keeps main branch history clean — previously 37% of commits were
 `chore: refresh graphify knowledge graph [skip ci]`.
 
-Main branch contains only `graphify-out/REF`, a pointer file.
+Nothing under `graphify-out/` is tracked on `main` (the directory is fully
+git-ignored there). The `graphify-data` branch is a **disposable snapshot**: CI
+force-replaces it on each refresh from an orphan commit, so it carries no
+history of its own. Never base work on it; this document is the canonical
+reference for where the data lives and how to fetch it. No workflow ever
+pushes to `main`.
 
 ### Fetching the Graph
 
@@ -49,9 +54,9 @@ graphify-out/graph.html          Offline interactive visualization
 graphify-out/.graphify_labels.json
 ```
 
-Do not commit local-only cache/cost/mtime files. `.gitignore` excludes
-`graphify-out/cache/`, `graphify-out/cost.json`, and
-`graphify-out/manifest.json`.
+Do not commit local-only cache/cost/mtime files. On `main`, `.gitignore`
+excludes the entire `graphify-out/` directory; CI publishes only the snapshot
+artifacts above to the `graphify-data` branch.
 
 ```sh
 uv tool install graphifyy
