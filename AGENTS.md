@@ -59,9 +59,19 @@ See `docs/contributing/keeping-docs-synced.md` for the full guide.
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community
-structure, and cross-file relationships. If you have the `graphify` CLI
-available (GitHub Copilot/Codex), use it:
+This project has a knowledge graph stored on the `graphify-data` branch to keep
+main history clean. The graph contains god nodes, community structure, and
+cross-file relationships.
+
+**Fetching the graph:**
+```bash
+git fetch origin graphify-data:graphify-data
+git checkout graphify-data -- graphify-out/
+```
+
+Or browse online: https://github.com/Nan0pk/Rush-linux/tree/graphify-data/graphify-out
+
+If you have the `graphify` CLI available (GitHub Copilot/Codex), use it:
 
 When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
 
@@ -70,52 +80,13 @@ Rules:
 - Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost). The CI will push updates to the graphify-data branch.
 
 **If you do NOT have the `graphify` CLI** (e.g., you are Claude, Gemini, or
 another non-GitHub model), skip graphify entirely. Instead, read
-`docs/docmap.toml` for doc relationships and `graphify-out/GRAPH_REPORT.md`
-for a static architecture overview. The docmap is the more reliable source for
+`docs/docmap.toml` for doc relationships and fetch GRAPH_REPORT.md from the
+graphify-data branch if needed. The docmap is the more reliable source for
 cross-reference information.
 
----
-
-## Evidence Rule & Verifier Protocol (v2 — non-negotiable)
-
-This section was added by WP-P2.
-
-### Evidence Rule
-
-An exit-criterion checkmark may **only** appear next to an **embedded command transcript**: the literal command, literal output (or attached log file), date, and host description.  
-"The script implements X" is a description, not evidence.  
-`bash -n` is a syntax check, not a test run.  
-Any evidence README violating this rule is rejected at review without further reading.
-
-### Roles (Builder vs Verifier)
-
-**Builder agent**  
-- Executes exactly one WP per session.  
-- Produces a branch and opens a PR.  
-- May *claim* completion but **must never** *certify* its own work.
-
-**Verifier agent** (separate session, ideally different model)  
-- Checks out the branch cold.  
-- Runs the WP's acceptance block **verbatim**.  
-- Fills `docs/templates/VERIFICATION.md` (or posts equivalent in PR comment).  
-- Records: each command, literal exit code, one-line verdict.  
-- Never fixes code — a failure is a verdict, not a task.  
-- Builder ≠ verifier for the same WP, always.
-
-**Human (maintainer)**  
-- Only role allowed to merge to `main`.  
-- Runs hardware-dependent gates (KVM, physical benchmarks).  
-- Holds production keys.  
-- Changes milestone status.
-
-### Key Rule
-
-Builders never certify their own work. Verification is always performed by a separate verifier session that produces a `VERIFICATION.md` report.
-
----
-
-*Protocol introduced in work-plan-v2 recovery sprint (WP-P2).*
+**Why the separate branch?** Main branch history was 37% graphify refresh commits.
+Moving artifacts to `graphify-data` keeps `git log` focused on engineering changes.
