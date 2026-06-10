@@ -2132,6 +2132,86 @@
       "norm_label": "require_log()"
     },
     {
+      "label": "validate-versions.py",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tools_validate_versions",
+      "community": 85,
+      "norm_label": "validate-versions.py"
+    },
+    {
+      "label": "get_version_file()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "tools_validate_versions_get_version_file",
+      "community": 85,
+      "norm_label": "get_version_file()"
+    },
+    {
+      "label": "get_cargo_workspace_version()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L24",
+      "_origin": "ast",
+      "id": "tools_validate_versions_get_cargo_workspace_version",
+      "community": 85,
+      "norm_label": "get_cargo_workspace_version()"
+    },
+    {
+      "label": "get_roadmap_version()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L30",
+      "_origin": "ast",
+      "id": "tools_validate_versions_get_roadmap_version",
+      "community": 85,
+      "norm_label": "get_roadmap_version()"
+    },
+    {
+      "label": "get_milestones_version()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L38",
+      "_origin": "ast",
+      "id": "tools_validate_versions_get_milestones_version",
+      "community": 85,
+      "norm_label": "get_milestones_version()"
+    },
+    {
+      "label": "check_crate_versions_use_workspace()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L44",
+      "_origin": "ast",
+      "id": "tools_validate_versions_check_crate_versions_use_workspace",
+      "community": 85,
+      "norm_label": "check_crate_versions_use_workspace()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L58",
+      "_origin": "ast",
+      "id": "tools_validate_versions_main",
+      "community": 85,
+      "norm_label": "main()"
+    },
+    {
+      "label": "Ensure crates use version.workspace = true",
+      "file_type": "rationale",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L45",
+      "_origin": "ast",
+      "id": "tools_validate_versions_rationale_45",
+      "community": 85,
+      "norm_label": "ensure crates use version.workspace = true"
+    },
+    {
       "label": "bug_report.md",
       "file_type": "document",
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
@@ -6412,10 +6492,40 @@
       "norm_label": "pre-release labels"
     },
     {
-      "label": "Current Version",
+      "label": "Single Source of Truth",
       "file_type": "document",
       "source_file": "docs/versioning.md",
       "source_location": "L38",
+      "_origin": "ast",
+      "id": "docs_versioning_single_source_of_truth",
+      "community": 8,
+      "norm_label": "single source of truth"
+    },
+    {
+      "label": "Crate Version Policy",
+      "file_type": "document",
+      "source_file": "docs/versioning.md",
+      "source_location": "L42",
+      "_origin": "ast",
+      "id": "docs_versioning_crate_version_policy",
+      "community": 8,
+      "norm_label": "crate version policy"
+    },
+    {
+      "label": "Documentation Sync",
+      "file_type": "document",
+      "source_file": "docs/versioning.md",
+      "source_location": "L62",
+      "_origin": "ast",
+      "id": "docs_versioning_documentation_sync",
+      "community": 8,
+      "norm_label": "documentation sync"
+    },
+    {
+      "label": "Current Version",
+      "file_type": "document",
+      "source_file": "docs/versioning.md",
+      "source_location": "L73",
       "_origin": "ast",
       "id": "docs_versioning_current_version",
       "community": 8,
@@ -6425,7 +6535,7 @@
       "label": "Package Versions",
       "file_type": "document",
       "source_file": "docs/versioning.md",
-      "source_location": "L44",
+      "source_location": "L78",
       "_origin": "ast",
       "id": "docs_versioning_package_versions",
       "community": 8,
@@ -6435,7 +6545,7 @@
       "label": "Channels",
       "file_type": "document",
       "source_file": "docs/versioning.md",
-      "source_location": "L57",
+      "source_location": "L91",
       "_origin": "ast",
       "id": "docs_versioning_channels",
       "community": 8,
@@ -6445,7 +6555,7 @@
       "label": "Tagging Rules",
       "file_type": "document",
       "source_file": "docs/versioning.md",
-      "source_location": "L68",
+      "source_location": "L102",
       "_origin": "ast",
       "id": "docs_versioning_tagging_rules",
       "community": 8,
@@ -11835,6 +11945,131 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L44",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_check_crate_versions_use_workspace",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_get_cargo_workspace_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_get_milestones_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_get_roadmap_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_get_version_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "tools_validate_versions",
+      "target": "tools_validate_versions_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L63",
+      "weight": 1.0,
+      "source": "tools_validate_versions_main",
+      "target": "tools_validate_versions_get_version_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "tools_validate_versions_main",
+      "target": "tools_validate_versions_get_cargo_workspace_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L65",
+      "weight": 1.0,
+      "source": "tools_validate_versions_main",
+      "target": "tools_validate_versions_get_roadmap_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "tools_validate_versions_main",
+      "target": "tools_validate_versions_get_milestones_version",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "tools_validate_versions_main",
+      "target": "tools_validate_versions_check_crate_versions_use_workspace",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tools/validate-versions.py",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "tools_validate_versions_rationale_45",
+      "target": "tools_validate_versions_check_crate_versions_use_workspace",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": ".github/ISSUE_TEMPLATE/bug_report.md",
       "source_location": "L23",
       "weight": 1.0,
@@ -14728,9 +14963,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10",
-      "target": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook"
     },
     {
       "relation": "contains",
@@ -14738,9 +14973,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L129",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_daily_cadence_15_min_day_while_agents_run",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_daily_cadence_15_min_day_while_agents_run"
     },
     {
       "relation": "contains",
@@ -14748,9 +14983,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L142",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_definition_of_done_this_week",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_definition_of_done_this_week"
     },
     {
       "relation": "contains",
@@ -14758,9 +14993,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min"
     },
     {
       "relation": "contains",
@@ -14768,9 +15003,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L101",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_phase_1_agent_session_queue_this_week_one_session_each",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_phase_1_agent_session_queue_this_week_one_session_each"
     },
     {
       "relation": "contains",
@@ -14778,9 +15013,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L117",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_phase_2_human_hardware_gate_weekend_or_week_2_1_2_h",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_phase_2_human_hardware_gate_weekend_or_week_2_1_2_h"
     },
     {
       "relation": "contains",
@@ -14788,9 +15023,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L123",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_phase_3_following_weeks_unchanged_from_work_plan_v2_4",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_phase_3_following_weeks_unchanged_from_work_plan_v2_4"
     },
     {
       "relation": "contains",
@@ -14798,9 +15033,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L12",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
-      "target": "plans_action_plan_2026_06_10_tl_dr",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_tl_dr"
     },
     {
       "relation": "contains",
@@ -14808,9 +15043,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_1_land_plan_documents_10_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_1_land_plan_documents_10_min"
     },
     {
       "relation": "contains",
@@ -14818,9 +15053,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_2_merge_p1_first_unlocks_ci_for_everything_else_10_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_2_merge_p1_first_unlocks_ci_for_everything_else_10_min"
     },
     {
       "relation": "contains",
@@ -14828,9 +15063,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_3_merge_the_verified_backlog_in_this_order_25_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_3_merge_the_verified_backlog_in_this_order_25_min"
     },
     {
       "relation": "contains",
@@ -14838,9 +15073,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_4_file_the_p3_gap_as_an_issue_don_t_block_on_it_5_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_4_file_the_p3_gap_as_an_issue_don_t_block_on_it_5_min"
     },
     {
       "relation": "contains",
@@ -14848,9 +15083,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L79",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_5_signing_evidence_defer_to_an_agent_0_min_now",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_5_signing_evidence_defer_to_an_agent_0_min_now"
     },
     {
       "relation": "contains",
@@ -14858,9 +15093,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L83",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_6_burn_the_dead_branches_5_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_6_burn_the_dead_branches_5_min"
     },
     {
       "relation": "contains",
@@ -14868,9 +15103,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_7_branch_protection_make_discipline_structural_10_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_7_branch_protection_make_discipline_structural_10_min"
     },
     {
       "relation": "contains",
@@ -14878,9 +15113,9 @@
       "source_file": "docs/plans/action-plan-2026-06-10.md",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
-      "target": "plans_action_plan_2026_06_10_0_8_suspend_the_graphify_session_mandate_until_proven_5_min",
-      "confidence_score": 1.0
+      "target": "plans_action_plan_2026_06_10_0_8_suspend_the_graphify_session_mandate_until_proven_5_min"
     },
     {
       "relation": "contains",
@@ -14888,9 +15123,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1"
     },
     {
       "relation": "contains",
@@ -14898,9 +15133,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_superseded_by_work_plan_v2_md",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_superseded_by_work_plan_v2_md"
     },
     {
       "relation": "contains",
@@ -14908,9 +15143,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_1_ground_truth_audit_findings_driving_this_plan",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_1_ground_truth_audit_findings_driving_this_plan"
     },
     {
       "relation": "contains",
@@ -14918,9 +15153,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_2_operating_rules_for_every_agent_session",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_2_operating_rules_for_every_agent_session"
     },
     {
       "relation": "contains",
@@ -14928,9 +15163,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_3_track_dependency_overview",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_3_track_dependency_overview"
     },
     {
       "relation": "contains",
@@ -14938,9 +15173,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L86",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo"
     },
     {
       "relation": "contains",
@@ -14948,9 +15183,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L135",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor"
     },
     {
       "relation": "contains",
@@ -14958,9 +15193,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L256",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate"
     },
     {
       "relation": "contains",
@@ -14968,9 +15203,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L287",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence"
     },
     {
       "relation": "contains",
@@ -14978,9 +15213,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L357",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_8_ready_to_paste_agent_prompts",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_8_ready_to_paste_agent_prompts"
     },
     {
       "relation": "contains",
@@ -14988,9 +15223,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L372",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_9_plan_maintenance",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_9_plan_maintenance"
     },
     {
       "relation": "contains",
@@ -14998,9 +15233,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L378",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_status_ledger",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_status_ledger"
     },
     {
       "relation": "contains",
@@ -15008,9 +15243,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
-      "target": "plans_agent_work_plan_v1_tl_dr",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_tl_dr"
     },
     {
       "relation": "contains",
@@ -15018,9 +15253,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
-      "target": "plans_agent_work_plan_v1_wp_a1_version_consistency_ci_gate",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_a1_version_consistency_ci_gate"
     },
     {
       "relation": "contains",
@@ -15028,9 +15263,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L111",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
-      "target": "plans_agent_work_plan_v1_wp_a2_move_graphify_output_off_main",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_a2_move_graphify_output_off_main"
     },
     {
       "relation": "contains",
@@ -15038,9 +15273,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L137",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b1_split_optid_into_modules_mechanical_zero_behavior_change",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b1_split_optid_into_modules_mechanical_zero_behavior_change"
     },
     {
       "relation": "contains",
@@ -15048,9 +15283,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L170",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b2_fixture_testable_readers_policy_test_matrix",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b2_fixture_testable_readers_policy_test_matrix"
     },
     {
       "relation": "contains",
@@ -15058,9 +15293,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b3_actuator_safety_allowlist_revert_hysteresis",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b3_actuator_safety_allowlist_revert_hysteresis"
     },
     {
       "relation": "contains",
@@ -15068,9 +15303,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L213",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b4_d_bus_hardening_authorization_no_fake_surface",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b4_d_bus_hardening_authorization_no_fake_surface"
     },
     {
       "relation": "contains",
@@ -15078,9 +15313,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L233",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b5_optctl_truthfulness_json_contract",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b5_optctl_truthfulness_json_contract"
     },
     {
       "relation": "contains",
@@ -15088,9 +15323,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L250",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
-      "target": "plans_agent_work_plan_v1_wp_b6_optional_zbus_3_5_migration",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_b6_optional_zbus_3_5_migration"
     },
     {
       "relation": "contains",
@@ -15098,9 +15333,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L258",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
-      "target": "plans_agent_work_plan_v1_wp_c1_rollback_validation_end_to_end",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_c1_rollback_validation_end_to_end"
     },
     {
       "relation": "contains",
@@ -15108,9 +15343,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L274",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
-      "target": "plans_agent_work_plan_v1_wp_c2_signing_validation_declare_v0_4_complete",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_c2_signing_validation_declare_v0_4_complete"
     },
     {
       "relation": "contains",
@@ -15118,9 +15353,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L291",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
-      "target": "plans_agent_work_plan_v1_wp_d1_rush_bench_harness_one_scenario_no_gui",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_d1_rush_bench_harness_one_scenario_no_gui"
     },
     {
       "relation": "contains",
@@ -15128,9 +15363,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L313",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
-      "target": "plans_agent_work_plan_v1_wp_d2_a_b_matrix_vs_power_profiles_daemon",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_d2_a_b_matrix_vs_power_profiles_daemon"
     },
     {
       "relation": "contains",
@@ -15138,9 +15373,9 @@
       "source_file": "docs/plans/agent-work-plan-v1.md",
       "source_location": "L332",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
-      "target": "plans_agent_work_plan_v1_wp_d3_first_benchmark_report",
-      "confidence_score": 1.0
+      "target": "plans_agent_work_plan_v1_wp_d3_first_benchmark_report"
     },
     {
       "relation": "contains",
@@ -15148,9 +15383,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2",
-      "target": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human"
     },
     {
       "relation": "contains",
@@ -15158,9 +15393,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_1_status_ledger_carried_in_from_v1_reassessment",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_1_status_ledger_carried_in_from_v1_reassessment"
     },
     {
       "relation": "contains",
@@ -15168,9 +15403,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_2_role_model_and_authority_matrix",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_2_role_model_and_authority_matrix"
     },
     {
       "relation": "contains",
@@ -15178,9 +15413,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_3_week_1_recovery_sprint"
     },
     {
       "relation": "contains",
@@ -15188,9 +15423,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L118",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks"
     },
     {
       "relation": "contains",
@@ -15198,9 +15433,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L148",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_5_standing_human_duties_the_scarce_resource_budgeted",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_5_standing_human_duties_the_scarce_resource_budgeted"
     },
     {
       "relation": "contains",
@@ -15208,9 +15443,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L164",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_6_ready_to_paste_prompts",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_6_ready_to_paste_prompts"
     },
     {
       "relation": "contains",
@@ -15218,9 +15453,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L177",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_7_definition_of_done_v0_5_0_alpha_1_first_evidence",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_7_definition_of_done_v0_5_0_alpha_1_first_evidence"
     },
     {
       "relation": "contains",
@@ -15228,9 +15463,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L181",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_8_plan_maintenance",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_8_plan_maintenance"
     },
     {
       "relation": "contains",
@@ -15238,9 +15473,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L185",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_status_ledger",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_status_ledger"
     },
     {
       "relation": "contains",
@@ -15248,9 +15483,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
-      "target": "plans_work_plan_v2_tl_dr",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_tl_dr"
     },
     {
       "relation": "contains",
@@ -15258,9 +15493,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
-      "target": "plans_work_plan_v2_authority_matrix",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_authority_matrix"
     },
     {
       "relation": "contains",
@@ -15268,9 +15503,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L58",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
-      "target": "plans_work_plan_v2_evidence_rule_non_negotiable_born_from_the_c1_incident",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_evidence_rule_non_negotiable_born_from_the_c1_incident"
     },
     {
       "relation": "contains",
@@ -15278,9 +15513,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
-      "target": "plans_work_plan_v2_roles",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_roles"
     },
     {
       "relation": "contains",
@@ -15288,9 +15523,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "target": "plans_work_plan_v2_h1_human_45_min_merge_train",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_h1_human_45_min_merge_train"
     },
     {
       "relation": "contains",
@@ -15298,9 +15533,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L104",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "target": "plans_work_plan_v2_wp_b1r_agent_module_split_restarted_with_a_stricter_contract",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_wp_b1r_agent_module_split_restarted_with_a_stricter_contract"
     },
     {
       "relation": "contains",
@@ -15308,9 +15543,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "target": "plans_work_plan_v2_wp_p1_agent_ci_on_work_branches",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_wp_p1_agent_ci_on_work_branches"
     },
     {
       "relation": "contains",
@@ -15318,9 +15553,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L82",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "target": "plans_work_plan_v2_wp_p2_agent_codify_the_evidence_rule_verifier_protocol",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_wp_p2_agent_codify_the_evidence_rule_verifier_protocol"
     },
     {
       "relation": "contains",
@@ -15328,9 +15563,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L88",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
-      "target": "plans_work_plan_v2_wp_p3_agent_finish_work_sh_opens_the_pr",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_wp_p3_agent_finish_work_sh_opens_the_pr"
     },
     {
       "relation": "contains",
@@ -15338,9 +15573,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L134",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
-      "target": "plans_work_plan_v2_c1r_rollback_gate_human_executed_agent_cannot_do_this",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_c1r_rollback_gate_human_executed_agent_cannot_do_this"
     },
     {
       "relation": "contains",
@@ -15348,9 +15583,9 @@
       "source_file": "docs/plans/work-plan-v2.md",
       "source_location": "L142",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
-      "target": "plans_work_plan_v2_d2_benchmark_runs_human_executed_agent_cannot_do_this",
-      "confidence_score": 1.0
+      "target": "plans_work_plan_v2_d2_benchmark_runs_human_executed_agent_cannot_do_this"
     },
     {
       "relation": "contains",
@@ -15826,11 +16061,41 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/versioning.md",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "docs_versioning_versioning",
+      "target": "docs_versioning_single_source_of_truth",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/versioning.md",
       "source_location": "L68",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_versioning_versioning",
       "target": "docs_versioning_tagging_rules"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/versioning.md",
+      "source_location": "L42",
+      "weight": 1.0,
+      "source": "docs_versioning_single_source_of_truth",
+      "target": "docs_versioning_crate_version_policy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/versioning.md",
+      "source_location": "L62",
+      "weight": 1.0,
+      "source": "docs_versioning_single_source_of_truth",
+      "target": "docs_versioning_documentation_sync",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -16414,5 +16679,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "fe68e4c3b58bc0129bd931582fb9ebceb49fff83"
+  "built_at_commit": "cc8c770172709cd209ff7da930b0123e5de2831a"
 }

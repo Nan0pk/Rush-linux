@@ -1,16 +1,16 @@
 # Graph Report - Rush-linux  (2026-06-10)
 
 ## Corpus Check
-- 77 files · ~45,649 words
+- 78 files · ~46,080 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 726 nodes · 884 edges · 85 communities (77 shown, 8 thin omitted)
+- 737 nodes · 899 edges · 86 communities (78 shown, 8 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `fe68e4c3`
+- Built from commit: `cc8c7701`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -93,6 +93,7 @@
 - [[_COMMUNITY_Community 82|Community 82]]
 - [[_COMMUNITY_Community 83|Community 83]]
 - [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Community 85|Community 85]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
@@ -116,7 +117,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (85 total, 8 thin omitted)
+## Communities (86 total, 8 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -151,8 +152,8 @@ Cohesion: 0.20
 Nodes (9): AI Continuation, Commands And Checks, Current Status, Forbidden Shortcuts, Graphify Continuation Workflow, Mission, Next Task, Repo Layout (+1 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.20
-Nodes (8): Channels, Current Version, Meaning, Package Versions, Pre-Release Labels, Project Versions, Tagging Rules, Versioning
+Cohesion: 0.15
+Nodes (11): Channels, Crate Version Policy, Current Version, Documentation Sync, Meaning, Package Versions, Pre-Release Labels, Project Versions (+3 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.25
@@ -398,8 +399,12 @@ Nodes (21): 1. Status Ledger (carried in from v1 reassessment), 2. Role Model an
 Cohesion: 0.12
 Nodes (16): 0.1 Land plan documents (10 min), 0.2 Merge P1 FIRST — unlocks CI for everything else (10 min), 0.3 Merge the verified backlog, in this order (25 min), 0.4 File the P3 gap as an issue, don't block on it (5 min), 0.5 Signing evidence — defer to an agent (0 min now), 0.6 Burn the dead branches (5 min), 0.7 Branch protection — make discipline structural (10 min), 0.8 Suspend the graphify session mandate until proven (5 min) (+8 more)
 
+### Community 85 - "Community 85"
+Cohesion: 0.43
+Nodes (7): check_crate_versions_use_workspace(), get_cargo_workspace_version(), get_milestones_version(), get_roadmap_version(), get_version_file(), main(), Ensure crates use version.workspace = true
+
 ## Knowledge Gaps
-- **372 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+367 more)
+- **374 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+369 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -407,11 +412,11 @@ Nodes (16): 0.1 Land plan documents (10 min), 0.2 Merge P1 FIRST — unlocks CI 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
-  _High betweenness centrality (0.005) - this node is a cross-community bridge._
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _387 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _390 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
