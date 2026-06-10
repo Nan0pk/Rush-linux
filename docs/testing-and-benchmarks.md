@@ -19,6 +19,31 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
+## Host Benchmark Harness
+
+`tools/bench-optid-host.sh` benchmarks `optid` on a real Linux host (for
+example an existing Fedora or Arch installation) before Rush Linux itself is
+installable. It measures timer-wakeup latency percentiles under mixed CPU and
+I/O load as a proxy for the manifest's `input-latency` metrics, first at
+baseline and then with `optid --apply` in one or more modes.
+
+Safety properties:
+
+- Refuses to run without root, or on hosts with no EPP and no
+  `platform_profile` (containers, most VMs), where `optid` cannot actuate.
+- Captures every knob `optid` can mutate (per-CPU EPP, platform profile,
+  systemd slice properties) before applying anything.
+- Restores and verifies the captured state on every exit path via a shell
+  trap, including errors and interrupts. Slice properties are set with
+  `systemctl set-property --runtime`, so a reboot also clears them.
+- Defaults to dry-run; `--apply` is required to mutate anything.
+
+```sh
+sudo ./tools/bench-optid-host.sh                       # dry-run + baseline
+sudo ./tools/bench-optid-host.sh --apply               # benchmark 'performance'
+sudo ./tools/bench-optid-host.sh --apply --modes performance,battery
+```
+
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.
