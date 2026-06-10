@@ -18,7 +18,7 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=no
-ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile
+ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile /proc/sys/vm
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 SystemCallArchitectures=native
 
