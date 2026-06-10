@@ -77,3 +77,45 @@ another non-GitHub model), skip graphify entirely. Instead, read
 `docs/docmap.toml` for doc relationships and `graphify-out/GRAPH_REPORT.md`
 for a static architecture overview. The docmap is the more reliable source for
 cross-reference information.
+
+---
+
+## Evidence Rule & Verifier Protocol (v2 — non-negotiable)
+
+This section was added by WP-P2.
+
+### Evidence Rule
+
+An exit-criterion checkmark may **only** appear next to an **embedded command transcript**: the literal command, literal output (or attached log file), date, and host description.  
+"The script implements X" is a description, not evidence.  
+`bash -n` is a syntax check, not a test run.  
+Any evidence README violating this rule is rejected at review without further reading.
+
+### Roles (Builder vs Verifier)
+
+**Builder agent**  
+- Executes exactly one WP per session.  
+- Produces a branch and opens a PR.  
+- May *claim* completion but **must never** *certify* its own work.
+
+**Verifier agent** (separate session, ideally different model)  
+- Checks out the branch cold.  
+- Runs the WP's acceptance block **verbatim**.  
+- Fills `docs/templates/VERIFICATION.md` (or posts equivalent in PR comment).  
+- Records: each command, literal exit code, one-line verdict.  
+- Never fixes code — a failure is a verdict, not a task.  
+- Builder ≠ verifier for the same WP, always.
+
+**Human (maintainer)**  
+- Only role allowed to merge to `main`.  
+- Runs hardware-dependent gates (KVM, physical benchmarks).  
+- Holds production keys.  
+- Changes milestone status.
+
+### Key Rule
+
+Builders never certify their own work. Verification is always performed by a separate verifier session that produces a `VERIFICATION.md` report.
+
+---
+
+*Protocol introduced in work-plan-v2 recovery sprint (WP-P2).*
