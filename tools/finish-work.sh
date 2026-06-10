@@ -68,6 +68,26 @@ if [ -z "$(git status --porcelain)" ] && [ ! -f "$DIRTY_FILE" ]; then
     exit 0
 fi
 
+# ── Step 0.5: Branch guard up front (WP-P3.1 follow-up) ─────────────
+# Previously this guard only sat on the push path, so a real run on main
+# validated and COMMITTED locally before refusing. Guard first instead:
+# never commit work on main or a detached HEAD. Dry-run is exempt (it
+# mutates nothing and is useful for previews anywhere).
+GUARD_BRANCH=$(git branch --show-current)
+if [ "$DRY_RUN" -eq 0 ]; then
+    if [ -z "$GUARD_BRANCH" ]; then
+        echo "❌ Detached HEAD — refusing to run. Create a branch first:"
+        echo "   git checkout -b wp/<id>-<slug>"
+        exit 1
+    fi
+    if [ "$GUARD_BRANCH" = "main" ]; then
+        echo "❌ On main — refusing to run. main is PR-only (protect-main ruleset)."
+        echo "   Move your work to a branch (uncommitted changes come along):"
+        echo "   git checkout -b wp/<id>-<slug> && bash tools/finish-work.sh"
+        exit 1
+    fi
+fi
+
 # ── Step 1: Update docmap last_verified dates ───────
 if [ "$DRY_RUN" -eq 1 ]; then
     echo ">> [dry-run] Would update doc verification dates (skipped — mutates docmap.toml)."
