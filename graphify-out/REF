@@ -1,7 +1,7 @@
 # Graphify data lives on dedicated branch to keep main history clean
 branch: graphify-data
-last_update: 2026-06-10T10:34:51Z
-source_commit: 9d1ac76d912dcfcff9fb26a9e644b6b7b4ebb69d
+last_update: 2026-06-10T10:39:14Z
+source_commit: b1383300da6db770fc42682f7ce1193696c3e89e
 
 To fetch:
   git fetch origin graphify-data:graphify-data
