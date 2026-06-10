@@ -411,3 +411,10 @@ deps = []
 freshens = []
 last_verified = "2026-06-10"
 validator = "optional_file"
+[docs."tools/finish-work.sh"]
+purpose = "Script to finish work sessions: validation, commit, push, and PR creation"
+owner_area = "area:tools"
+covers_code = ["tools/finish-work.sh"]
+deps = []
+freshens = []
+last_verified = "2026-06-10"
