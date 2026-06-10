@@ -184,3 +184,46 @@ echo ""
 echo "════════════════════════════════════════════════════"
 echo "  ✅ Work session finished. Repo is clean and pushed."
 echo "════════════════════════════════════════════════════"
+# ── Step 7 (NEW in WP-P3): Open PR if gh is available ─────────────────
+echo ""
+echo ">> Checking for GitHub CLI to open PR..."
+
+if command -v gh &>/dev/null; then
+    echo "   gh CLI detected — attempting to create PR..."
+    
+    # Get current branch
+    CURRENT_BRANCH=$(git branch --show-current)
+    
+    # Check if we're not on main
+    if [ "$CURRENT_BRANCH" = "main" ]; then
+        echo "   ⚠️  On main branch — skipping PR creation"
+    else
+        # Try to create PR
+        PR_TITLE="${COMMIT_MSG:-Work session: $CURRENT_BRANCH}"
+        PR_BODY="This PR was created automatically by finish-work.sh (WP-P3).
+
+**Branch:** $CURRENT_BRANCH  
+**Agent:** $WHO  
+**Date:** $NOW
+
+## Acceptance block (from work session)
+$COMMIT_MSG
+
+---
+*Opened via tools/finish-work.sh — see work-plan-v2 WP-P3*"
+        
+        if gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base main 2>/dev/null; then
+            echo "   ✅ PR created successfully"
+        else
+            echo "   ⚠️  Could not create PR automatically (may already exist or no gh auth)"
+            echo "   Compare URL: https://github.com/Nan0pk/Rush-linux/compare/$CURRENT_BRANCH"
+        fi
+    fi
+else
+    echo "   gh CLI not found — printing compare URL for manual PR creation"
+    CURRENT_BRANCH=$(git branch --show-current)
+    if [ "$CURRENT_BRANCH" != "main" ]; then
+        echo "   Compare URL: https://github.com/Nan0pk/Rush-linux/compare/$CURRENT_BRANCH"
+        echo "   Please open a PR manually with the WP id in the title."
+    fi
+fi
