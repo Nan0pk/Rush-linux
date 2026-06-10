@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
