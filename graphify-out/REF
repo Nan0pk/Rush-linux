@@ -1,0 +1,10 @@
+# Graphify data lives on dedicated branch to keep main history clean
+branch: graphify-data
+last_update: 2026-06-10T10:34:51Z
+source_commit: 9d1ac76d912dcfcff9fb26a9e644b6b7b4ebb69d
+
+To fetch:
+  git fetch origin graphify-data:graphify-data
+  git checkout graphify-data -- graphify-out/
+
+Or browse: https://github.com/Nan0pk/Rush-linux/tree/graphify-data/graphify-out
