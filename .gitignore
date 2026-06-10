@@ -7,10 +7,14 @@
 # Test signing keys (never commit private keys)
 /config/keys/testing.private.pem
 
-# Graphify committed artifacts live in graphify-out/, but these files are
-# local-only or mtime/cache based and should not be versioned.
+# Graphify knowledge graph lives on dedicated branch (graphify-data)
+# to keep main history clean. Only the pointer file is kept on main.
+/graphify-out/*
+!/graphify-out/REF
+!/graphify-out/.gitkeep
+
+# Local-only graphify cache files (never commit)
 /graphify-out/cache/
 /graphify-out/cost.json
 /graphify-out/manifest.json
 /graphify-out/.graphify_root
-

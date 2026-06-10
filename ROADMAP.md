@@ -1,6 +1,6 @@
 # Roadmap
 
-Current project version: `0.3.0-alpha.1`
+Current project version: `0.4.0-alpha.1`
 
 The detailed v1 release plan lives in `docs/release-plan-v1.md`. The
 machine-readable milestone gates live in `release/milestones.toml`.
