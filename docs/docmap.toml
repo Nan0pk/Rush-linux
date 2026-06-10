@@ -35,7 +35,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/documentation-policy.md", "docs/architecture.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "contains_heading:Documentation Is Required"
 
 [docs."PROJECT_BRIEF.md"]

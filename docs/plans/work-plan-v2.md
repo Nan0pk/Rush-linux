@@ -182,6 +182,23 @@ Unchanged from v1 §7, restated as the single convergence point: reproducible `r
 
 Append one ledger line per merged WP below. Material scope change → `work-plan-v3.md`, written **from the D3 benchmark data**.
 
+## 9. WP-B3 Actuator Safety Amendment
+
+### Goal
+Incorporate crash-safety guardrails inspired by the sibling `Vigilantune` project, and add an adaptive deadband key to prevent excessive actuator write-churn.
+
+### Amended Steps for WP-B3:
+1. **Systemd Watchdog Integration**:
+   * Add Unix socket watchdog notification support to `optid` without external dependencies. If `NOTIFY_SOCKET` is present in the environment on start, write a `"WATCHDOG=1"` datagram to the specified socket path via `std::os::unix::net::UnixDatagram` on every tick of the main loop.
+   * Update the systemd unit files (`packaging/systemd/optid.service` and `optid-apply.service`) with `WatchdogSec=10` and `NotifyAccess=main`.
+2. **ExecStopPost Revert Guardrail**:
+   * Add `ExecStopPost=/usr/libexec/optid --revert --state-dir /run/optid` to both systemd service files. This ensures that if the daemon crashes, gets killed, or fails the watchdog ping, systemd will invoke `optid --revert` to clean up and restore all sysctls to their pre-optid boot defaults.
+   * Add `/proc/sys/vm` to the `ReadWritePaths` parameter in `optid-apply.service` to permit sysctl restores to execute under systemd's strict security sandbox.
+3. **Adaptive Deadband Hysteresis**:
+   * Add a `deadband` configuration under the `[policy]` section (and optionally per-mode) in `config/optid/policy.toml`.
+   * The deadband key specifies a minimum change threshold (e.g., thermal change < 2°C or CPU pressure change < 3.0) required before the actuator will re-evaluate and write the new values, preventing jitter and write-churn.
+
 ## Status Ledger
 
 *(append entries below as WPs merge — format: date, WP, PR#, verifier)*
+
