@@ -233,7 +233,7 @@ owner_area = "area:docs"
 covers_code = ["graphify-out/"]
 deps = []
 freshens = []
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/project-sustainability.md"]
 purpose = "People/infrastructure plan: contributor model, governance, hardware lab"
