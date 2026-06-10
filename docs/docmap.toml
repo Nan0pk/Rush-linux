@@ -193,7 +193,7 @@ owner_area = "area:docs"
 covers_code = ["VERSION"]
 deps = []
 freshens = ["ROADMAP.md", "RELEASES.md"]
-last_verified = "2026-06-08"
+last_verified = "2026-06-10"
 
 [docs."docs/release-policy.md"]
 purpose = "Release cadence, blocker criteria, cherry-pick rules"
@@ -402,3 +402,27 @@ deps = []
 freshens = []
 last_verified = "2026-06-08"
 validator = "optional_file"
+
+[docs."docs/plans/agent-work-plan-v1.md"]
+purpose = "Agent work plan v1: 4 tracks, 13 WPs to stabilize repo, harden optid, close v0.4, and deliver first benchmark evidence"
+owner_area = "area:project"
+covers_code = []
+deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/plans/work-plan-v2.md"]
+purpose = "Work Plan v2: recovery sprint with explicit builder/verifier/human roles and evidence rule"
+owner_area = "area:project"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/plans/action-plan-2026-06-10.md"]
+purpose = "Action Plan (Execution Runbook) for Phase 0 merge train and subsequent agent sessions"
+owner_area = "area:project"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
