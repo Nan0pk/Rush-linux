@@ -435,3 +435,11 @@ covers_code = []
 deps = []
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md"]
+purpose = "Handover: ecosystem incorporation strategy (mkosi/Arch, sched_ext, D-Bus shims), wave plan, and first host benchmark evidence from HP Victus"
+owner_area = "area:project"
+covers_code = ["tools/bench-optid-host.sh", "tools/bench-optid-host-v2.sh", "tools/bench-optid-matrix.sh"]
+deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.md", "docs/plans/action-plan-2026-06-10.md"]
+freshens = []
+last_verified = "2026-06-10"
