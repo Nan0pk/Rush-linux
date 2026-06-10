@@ -5302,6 +5302,666 @@
       "norm_label": "build acceptance criteria"
     },
     {
+      "label": "action-plan-2026-06-10.md",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10",
+      "community": 84,
+      "norm_label": "action-plan-2026-06-10.md"
+    },
+    {
+      "label": "Rush Linux \u2014 Action Plan (Execution Runbook)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "community": 84,
+      "norm_label": "rush linux \u2014 action plan (execution runbook)"
+    },
+    {
+      "label": "TL;DR",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L12",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_tl_dr",
+      "community": 84,
+      "norm_label": "tl;dr"
+    },
+    {
+      "label": "Phase 0 \u2014 Human Merge Train (today, ~75 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L18",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "community": 84,
+      "norm_label": "phase 0 \u2014 human merge train (today, ~75 min)"
+    },
+    {
+      "label": "0.1 Land plan documents (10 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_1_land_plan_documents_10_min",
+      "community": 84,
+      "norm_label": "0.1 land plan documents (10 min)"
+    },
+    {
+      "label": "0.2 Merge P1 FIRST \u2014 unlocks CI for everything else (10 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L38",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_2_merge_p1_first_unlocks_ci_for_everything_else_10_min",
+      "community": 84,
+      "norm_label": "0.2 merge p1 first \u2014 unlocks ci for everything else (10 min)"
+    },
+    {
+      "label": "0.3 Merge the verified backlog, in this order (25 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L53",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_3_merge_the_verified_backlog_in_this_order_25_min",
+      "community": 84,
+      "norm_label": "0.3 merge the verified backlog, in this order (25 min)"
+    },
+    {
+      "label": "0.4 File the P3 gap as an issue, don't block on it (5 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L72",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_4_file_the_p3_gap_as_an_issue_don_t_block_on_it_5_min",
+      "community": 84,
+      "norm_label": "0.4 file the p3 gap as an issue, don't block on it (5 min)"
+    },
+    {
+      "label": "0.5 Signing evidence \u2014 defer to an agent (0 min now)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L79",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_5_signing_evidence_defer_to_an_agent_0_min_now",
+      "community": 84,
+      "norm_label": "0.5 signing evidence \u2014 defer to an agent (0 min now)"
+    },
+    {
+      "label": "0.6 Burn the dead branches (5 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L83",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_6_burn_the_dead_branches_5_min",
+      "community": 84,
+      "norm_label": "0.6 burn the dead branches (5 min)"
+    },
+    {
+      "label": "0.7 Branch protection \u2014 make discipline structural (10 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L91",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_7_branch_protection_make_discipline_structural_10_min",
+      "community": 84,
+      "norm_label": "0.7 branch protection \u2014 make discipline structural (10 min)"
+    },
+    {
+      "label": "0.8 Suspend the graphify session mandate until proven (5 min)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L95",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_0_8_suspend_the_graphify_session_mandate_until_proven_5_min",
+      "community": 84,
+      "norm_label": "0.8 suspend the graphify session mandate until proven (5 min)"
+    },
+    {
+      "label": "Phase 1 \u2014 Agent Session Queue (this week, one session each)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L101",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_phase_1_agent_session_queue_this_week_one_session_each",
+      "community": 84,
+      "norm_label": "phase 1 \u2014 agent session queue (this week, one session each)"
+    },
+    {
+      "label": "Phase 2 \u2014 Human Hardware Gate (weekend or week 2, 1\u20132 h)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L117",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_phase_2_human_hardware_gate_weekend_or_week_2_1_2_h",
+      "community": 84,
+      "norm_label": "phase 2 \u2014 human hardware gate (weekend or week 2, 1\u20132 h)"
+    },
+    {
+      "label": "Phase 3 \u2014 Following Weeks (unchanged from work-plan-v2 \u00a74)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L123",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_phase_3_following_weeks_unchanged_from_work_plan_v2_4",
+      "community": 84,
+      "norm_label": "phase 3 \u2014 following weeks (unchanged from work-plan-v2 \u00a74)"
+    },
+    {
+      "label": "Daily Cadence (15 min/day while agents run)",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L129",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_daily_cadence_15_min_day_while_agents_run",
+      "community": 84,
+      "norm_label": "daily cadence (15 min/day while agents run)"
+    },
+    {
+      "label": "Definition of Done \u2014 This Week",
+      "file_type": "document",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L142",
+      "_origin": "ast",
+      "id": "plans_action_plan_2026_06_10_definition_of_done_this_week",
+      "community": 84,
+      "norm_label": "definition of done \u2014 this week"
+    },
+    {
+      "label": "agent-work-plan-v1.md",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1",
+      "community": 82,
+      "norm_label": "agent-work-plan-v1.md"
+    },
+    {
+      "label": "Superseded by work-plan-v2.md",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_superseded_by_work_plan_v2_md",
+      "community": 82,
+      "norm_label": "superseded by work-plan-v2.md"
+    },
+    {
+      "label": "Rush Linux \u2014 Agent Work Plan v1",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L2",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "community": 82,
+      "norm_label": "rush linux \u2014 agent work plan v1"
+    },
+    {
+      "label": "TL;DR",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L14",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_tl_dr",
+      "community": 82,
+      "norm_label": "tl;dr"
+    },
+    {
+      "label": "1. Ground Truth (audit findings driving this plan)",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L20",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_1_ground_truth_audit_findings_driving_this_plan",
+      "community": 82,
+      "norm_label": "1. ground truth (audit findings driving this plan)"
+    },
+    {
+      "label": "2. Operating Rules for Every Agent Session",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L39",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_2_operating_rules_for_every_agent_session",
+      "community": 82,
+      "norm_label": "2. operating rules for every agent session"
+    },
+    {
+      "label": "3. Track & Dependency Overview",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L53",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_3_track_dependency_overview",
+      "community": 82,
+      "norm_label": "3. track & dependency overview"
+    },
+    {
+      "label": "4. Track 1 \u2014 Stabilize the Repo",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L86",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
+      "community": 82,
+      "norm_label": "4. track 1 \u2014 stabilize the repo"
+    },
+    {
+      "label": "WP-A1 \u2014 Version consistency + CI gate",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L88",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_a1_version_consistency_ci_gate",
+      "community": 82,
+      "norm_label": "wp-a1 \u2014 version consistency + ci gate"
+    },
+    {
+      "label": "WP-A2 \u2014 Move graphify output off `main`",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L111",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_a2_move_graphify_output_off_main",
+      "community": 82,
+      "norm_label": "wp-a2 \u2014 move graphify output off `main`"
+    },
+    {
+      "label": "5. Track 2 \u2014 `optid` Hardening & Refactor",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L135",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "community": 82,
+      "norm_label": "5. track 2 \u2014 `optid` hardening & refactor"
+    },
+    {
+      "label": "WP-B1 \u2014 Split `optid` into modules (mechanical, zero behavior change)",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L137",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b1_split_optid_into_modules_mechanical_zero_behavior_change",
+      "community": 82,
+      "norm_label": "wp-b1 \u2014 split `optid` into modules (mechanical, zero behavior change)"
+    },
+    {
+      "label": "WP-B2 \u2014 Fixture-testable readers + policy test matrix",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L170",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b2_fixture_testable_readers_policy_test_matrix",
+      "community": 82,
+      "norm_label": "wp-b2 \u2014 fixture-testable readers + policy test matrix"
+    },
+    {
+      "label": "WP-B3 \u2014 Actuator safety: allowlist, revert, hysteresis",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L190",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b3_actuator_safety_allowlist_revert_hysteresis",
+      "community": 82,
+      "norm_label": "wp-b3 \u2014 actuator safety: allowlist, revert, hysteresis"
+    },
+    {
+      "label": "WP-B4 \u2014 D-Bus hardening: authorization + no fake surface",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L213",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b4_d_bus_hardening_authorization_no_fake_surface",
+      "community": 82,
+      "norm_label": "wp-b4 \u2014 d-bus hardening: authorization + no fake surface"
+    },
+    {
+      "label": "WP-B5 \u2014 `optctl` truthfulness + JSON contract",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L233",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b5_optctl_truthfulness_json_contract",
+      "community": 82,
+      "norm_label": "wp-b5 \u2014 `optctl` truthfulness + json contract"
+    },
+    {
+      "label": "WP-B6 (optional) \u2014 zbus 3 \u2192 5 migration",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L250",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_b6_optional_zbus_3_5_migration",
+      "community": 82,
+      "norm_label": "wp-b6 (optional) \u2014 zbus 3 \u2192 5 migration"
+    },
+    {
+      "label": "6. Track 3 \u2014 Close the v0.4 Gate",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L256",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
+      "community": 82,
+      "norm_label": "6. track 3 \u2014 close the v0.4 gate"
+    },
+    {
+      "label": "WP-C1 \u2014 Rollback validation end-to-end",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L258",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_c1_rollback_validation_end_to_end",
+      "community": 82,
+      "norm_label": "wp-c1 \u2014 rollback validation end-to-end"
+    },
+    {
+      "label": "WP-C2 \u2014 Signing validation + declare v0.4 complete",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L274",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_c2_signing_validation_declare_v0_4_complete",
+      "community": 82,
+      "norm_label": "wp-c2 \u2014 signing validation + declare v0.4 complete"
+    },
+    {
+      "label": "7. Track 4 \u2014 The Proof (flagship: v0.5.0-alpha.1 \"First Evidence\")",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L287",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
+      "community": 82,
+      "norm_label": "7. track 4 \u2014 the proof (flagship: v0.5.0-alpha.1 \"first evidence\")"
+    },
+    {
+      "label": "WP-D1 \u2014 `rush-bench` harness, one scenario, no GUI",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L291",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_d1_rush_bench_harness_one_scenario_no_gui",
+      "community": 82,
+      "norm_label": "wp-d1 \u2014 `rush-bench` harness, one scenario, no gui"
+    },
+    {
+      "label": "WP-D2 \u2014 A/B matrix vs power-profiles-daemon",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L313",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_d2_a_b_matrix_vs_power_profiles_daemon",
+      "community": 82,
+      "norm_label": "wp-d2 \u2014 a/b matrix vs power-profiles-daemon"
+    },
+    {
+      "label": "WP-D3 \u2014 First benchmark report",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L332",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_wp_d3_first_benchmark_report",
+      "community": 82,
+      "norm_label": "wp-d3 \u2014 first benchmark report"
+    },
+    {
+      "label": "8. Ready-to-Paste Agent Prompts",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L357",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_8_ready_to_paste_agent_prompts",
+      "community": 82,
+      "norm_label": "8. ready-to-paste agent prompts"
+    },
+    {
+      "label": "9. Plan Maintenance",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L372",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_9_plan_maintenance",
+      "community": 82,
+      "norm_label": "9. plan maintenance"
+    },
+    {
+      "label": "Status Ledger",
+      "file_type": "document",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L378",
+      "_origin": "ast",
+      "id": "plans_agent_work_plan_v1_status_ledger",
+      "community": 82,
+      "norm_label": "status ledger"
+    },
+    {
+      "label": "work-plan-v2.md",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2",
+      "community": 83,
+      "norm_label": "work-plan-v2.md"
+    },
+    {
+      "label": "Rush Linux \u2014 Work Plan v2 (AI Agents + Human)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "community": 83,
+      "norm_label": "rush linux \u2014 work plan v2 (ai agents + human)"
+    },
+    {
+      "label": "TL;DR",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_tl_dr",
+      "community": 83,
+      "norm_label": "tl;dr"
+    },
+    {
+      "label": "1. Status Ledger (carried in from v1 reassessment)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_1_status_ledger_carried_in_from_v1_reassessment",
+      "community": 83,
+      "norm_label": "1. status ledger (carried in from v1 reassessment)"
+    },
+    {
+      "label": "2. Role Model and Authority Matrix",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L35",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_2_role_model_and_authority_matrix",
+      "community": 83,
+      "norm_label": "2. role model and authority matrix"
+    },
+    {
+      "label": "Roles",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L37",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_roles",
+      "community": 83,
+      "norm_label": "roles"
+    },
+    {
+      "label": "Authority matrix",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L45",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_authority_matrix",
+      "community": 83,
+      "norm_label": "authority matrix"
+    },
+    {
+      "label": "Evidence rule (non-negotiable, born from the C1 incident)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L58",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_evidence_rule_non_negotiable_born_from_the_c1_incident",
+      "community": 83,
+      "norm_label": "evidence rule (non-negotiable, born from the c1 incident)"
+    },
+    {
+      "label": "3. Week 1 \u2014 Recovery Sprint",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L64",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "community": 83,
+      "norm_label": "3. week 1 \u2014 recovery sprint"
+    },
+    {
+      "label": "WP-P1 (agent) \u2014 CI on work branches",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L66",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_wp_p1_agent_ci_on_work_branches",
+      "community": 83,
+      "norm_label": "wp-p1 (agent) \u2014 ci on work branches"
+    },
+    {
+      "label": "WP-P2 (agent) \u2014 Codify the evidence rule + verifier protocol",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L82",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_wp_p2_agent_codify_the_evidence_rule_verifier_protocol",
+      "community": 83,
+      "norm_label": "wp-p2 (agent) \u2014 codify the evidence rule + verifier protocol"
+    },
+    {
+      "label": "WP-P3 (agent) \u2014 finish-work.sh opens the PR",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L88",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_wp_p3_agent_finish_work_sh_opens_the_pr",
+      "community": 83,
+      "norm_label": "wp-p3 (agent) \u2014 finish-work.sh opens the pr"
+    },
+    {
+      "label": "H1 (human, ~45 min) \u2014 Merge train",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L94",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_h1_human_45_min_merge_train",
+      "community": 83,
+      "norm_label": "h1 (human, ~45 min) \u2014 merge train"
+    },
+    {
+      "label": "WP-B1R (agent) \u2014 Module split, restarted with a stricter contract",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L104",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_wp_b1r_agent_module_split_restarted_with_a_stricter_contract",
+      "community": 83,
+      "norm_label": "wp-b1r (agent) \u2014 module split, restarted with a stricter contract"
+    },
+    {
+      "label": "4. Weeks 2\u20135 \u2014 Carried-Forward Tracks",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L118",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
+      "community": 83,
+      "norm_label": "4. weeks 2\u20135 \u2014 carried-forward tracks"
+    },
+    {
+      "label": "C1R \u2014 Rollback gate, human-executed (agent cannot do this)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L134",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_c1r_rollback_gate_human_executed_agent_cannot_do_this",
+      "community": 83,
+      "norm_label": "c1r \u2014 rollback gate, human-executed (agent cannot do this)"
+    },
+    {
+      "label": "D2 \u2014 Benchmark runs, human-executed (agent cannot do this)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L142",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_d2_benchmark_runs_human_executed_agent_cannot_do_this",
+      "community": 83,
+      "norm_label": "d2 \u2014 benchmark runs, human-executed (agent cannot do this)"
+    },
+    {
+      "label": "5. Standing Human Duties (the scarce resource, budgeted)",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L148",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_5_standing_human_duties_the_scarce_resource_budgeted",
+      "community": 83,
+      "norm_label": "5. standing human duties (the scarce resource, budgeted)"
+    },
+    {
+      "label": "6. Ready-to-Paste Prompts",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L164",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_6_ready_to_paste_prompts",
+      "community": 83,
+      "norm_label": "6. ready-to-paste prompts"
+    },
+    {
+      "label": "7. Definition of Done \u2014 v0.5.0-alpha.1 \"First Evidence\"",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L177",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_7_definition_of_done_v0_5_0_alpha_1_first_evidence",
+      "community": 83,
+      "norm_label": "7. definition of done \u2014 v0.5.0-alpha.1 \"first evidence\""
+    },
+    {
+      "label": "8. Plan Maintenance",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L181",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_8_plan_maintenance",
+      "community": 83,
+      "norm_label": "8. plan maintenance"
+    },
+    {
+      "label": "Status Ledger",
+      "file_type": "document",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L185",
+      "_origin": "ast",
+      "id": "plans_work_plan_v2_status_ledger",
+      "community": 83,
+      "norm_label": "status ledger"
+    },
+    {
       "label": "project-sustainability.md",
       "file_type": "document",
       "source_file": "docs/project-sustainability.md",
@@ -9576,9 +10236,9 @@
       "source_file": "tools/manage-boot-entries.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_manage_boot_entries",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_manage_boot_entries_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_manage_boot_entries_sh__entry"
     },
     {
       "relation": "contains",
@@ -9716,9 +10376,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L233",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_rush_builder_write_mock_signature",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_write_mock_signature"
     },
     {
       "relation": "imports",
@@ -9727,9 +10387,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L223",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder",
-      "target": "tools_sign_updates_sign_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_sign_repodata"
     },
     {
       "relation": "calls",
@@ -9781,9 +10441,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L228",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_repo_init",
-      "target": "tools_rush_builder_write_mock_signature",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_write_mock_signature"
     },
     {
       "relation": "calls",
@@ -9792,9 +10452,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L224",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_cmd_repo_init",
-      "target": "tools_sign_updates_sign_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_sign_repodata"
     },
     {
       "relation": "calls",
@@ -9813,9 +10473,9 @@
       "source_file": "tools/rush-builder.py",
       "source_location": "L234",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_rush_builder_rationale_234",
-      "target": "tools_rush_builder_write_mock_signature",
-      "confidence_score": 1.0
+      "target": "tools_rush_builder_write_mock_signature"
     },
     {
       "relation": "calls",
@@ -9933,9 +10593,9 @@
       "source_file": "tools/sign-updates.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sh_tools_sign_updates",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry"
     },
     {
       "relation": "defines",
@@ -9943,9 +10603,9 @@
       "source_file": "tools/sign-updates.sh",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sh_tools_sign_updates",
-      "target": "tools_sign_updates_cmd_init_keys",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_init_keys"
     },
     {
       "relation": "defines",
@@ -9953,9 +10613,9 @@
       "source_file": "tools/sign-updates.sh",
       "source_location": "L54",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sh_tools_sign_updates",
-      "target": "tools_sign_updates_cmd_sign",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_sign"
     },
     {
       "relation": "defines",
@@ -9963,9 +10623,9 @@
       "source_file": "tools/sign-updates.sh",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sh_tools_sign_updates",
-      "target": "tools_sign_updates_cmd_verify",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_verify"
     },
     {
       "relation": "calls",
@@ -9974,9 +10634,9 @@
       "source_location": "L125",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
-      "target": "tools_sign_updates_cmd_init_keys",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_init_keys"
     },
     {
       "relation": "calls",
@@ -9985,9 +10645,9 @@
       "source_location": "L128",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
-      "target": "tools_sign_updates_cmd_sign",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_sign"
     },
     {
       "relation": "calls",
@@ -9996,9 +10656,9 @@
       "source_location": "L131",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_sign_updates_sh__entry",
-      "target": "tools_sign_updates_cmd_verify",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_cmd_verify"
     },
     {
       "relation": "contains",
@@ -10006,9 +10666,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_py_tools_sign_updates",
-      "target": "tools_sign_updates_get_cryptography",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_get_cryptography"
     },
     {
       "relation": "contains",
@@ -10016,9 +10676,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_py_tools_sign_updates",
-      "target": "tools_sign_updates_init_keys",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_init_keys"
     },
     {
       "relation": "contains",
@@ -10026,9 +10686,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L199",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_py_tools_sign_updates",
-      "target": "tools_sign_updates_main",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_main"
     },
     {
       "relation": "contains",
@@ -10036,9 +10696,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_py_tools_sign_updates",
-      "target": "tools_sign_updates_sign_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_sign_repodata"
     },
     {
       "relation": "contains",
@@ -10046,9 +10706,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_py_tools_sign_updates",
-      "target": "tools_sign_updates_verify_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_verify_repodata"
     },
     {
       "relation": "calls",
@@ -10057,9 +10717,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_init_keys",
-      "target": "tools_sign_updates_get_cryptography",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_get_cryptography"
     },
     {
       "relation": "rationale_for",
@@ -10067,9 +10727,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L33",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_rationale_33",
-      "target": "tools_sign_updates_get_cryptography",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_get_cryptography"
     },
     {
       "relation": "calls",
@@ -10078,9 +10738,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sign_repodata",
-      "target": "tools_sign_updates_get_cryptography",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_get_cryptography"
     },
     {
       "relation": "calls",
@@ -10089,9 +10749,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L168",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_verify_repodata",
-      "target": "tools_sign_updates_get_cryptography",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_get_cryptography"
     },
     {
       "relation": "references",
@@ -10100,9 +10760,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_init_keys",
-      "target": "tools_sign_updates_py_path",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_py_path"
     },
     {
       "relation": "calls",
@@ -10111,9 +10771,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L216",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_main",
-      "target": "tools_sign_updates_init_keys",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_init_keys"
     },
     {
       "relation": "rationale_for",
@@ -10121,9 +10781,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_rationale_48",
-      "target": "tools_sign_updates_init_keys",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_init_keys"
     },
     {
       "relation": "calls",
@@ -10132,9 +10792,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L218",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_main",
-      "target": "tools_sign_updates_py_path",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_py_path"
     },
     {
       "relation": "references",
@@ -10143,9 +10803,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_sign_repodata",
-      "target": "tools_sign_updates_py_path",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_py_path"
     },
     {
       "relation": "references",
@@ -10154,9 +10814,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_verify_repodata",
-      "target": "tools_sign_updates_py_path",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_py_path"
     },
     {
       "relation": "calls",
@@ -10165,9 +10825,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L218",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_main",
-      "target": "tools_sign_updates_sign_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_sign_repodata"
     },
     {
       "relation": "rationale_for",
@@ -10175,9 +10835,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_rationale_98",
-      "target": "tools_sign_updates_sign_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_sign_repodata"
     },
     {
       "relation": "calls",
@@ -10186,9 +10846,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L220",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_main",
-      "target": "tools_sign_updates_verify_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_verify_repodata"
     },
     {
       "relation": "rationale_for",
@@ -10196,9 +10856,9 @@
       "source_file": "tools/sign_updates.py",
       "source_location": "L164",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_sign_updates_rationale_164",
-      "target": "tools_sign_updates_verify_repodata",
-      "confidence_score": 1.0
+      "target": "tools_sign_updates_verify_repodata"
     },
     {
       "relation": "contains",
@@ -10226,9 +10886,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry"
     },
     {
       "relation": "defines",
@@ -10236,9 +10896,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L63",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_boot_and_log",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_boot_and_log"
     },
     {
       "relation": "defines",
@@ -10246,9 +10906,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_count_uki_entries",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_count_uki_entries"
     },
     {
       "relation": "defines",
@@ -10256,9 +10916,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L46",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_die",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_die"
     },
     {
       "relation": "defines",
@@ -10266,9 +10926,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L104",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_inject_broken_uki",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_inject_broken_uki"
     },
     {
       "relation": "defines",
@@ -10276,9 +10936,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_log_has",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_log_has"
     },
     {
       "relation": "defines",
@@ -10286,9 +10946,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_pass",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_pass"
     },
     {
       "relation": "defines",
@@ -10296,9 +10956,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L121",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_replace_main_uki_with_broken",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_replace_main_uki_with_broken"
     },
     {
       "relation": "defines",
@@ -10306,9 +10966,9 @@
       "source_file": "tools/test-rollback.sh",
       "source_location": "L135",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_rollback",
-      "target": "tools_test_rollback_restore_good_uki",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_restore_good_uki"
     },
     {
       "relation": "calls",
@@ -10317,9 +10977,9 @@
       "source_location": "L156",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
-      "target": "tools_test_rollback_boot_and_log",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_boot_and_log"
     },
     {
       "relation": "calls",
@@ -10328,9 +10988,9 @@
       "source_location": "L55",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
-      "target": "tools_test_rollback_die",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_die"
     },
     {
       "relation": "calls",
@@ -10339,9 +10999,9 @@
       "source_location": "L157",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
-      "target": "tools_test_rollback_log_has",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_log_has"
     },
     {
       "relation": "calls",
@@ -10350,9 +11010,9 @@
       "source_location": "L150",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_rollback_sh__entry",
-      "target": "tools_test_rollback_pass",
-      "confidence_score": 1.0
+      "target": "tools_test_rollback_pass"
     },
     {
       "relation": "contains",
@@ -10390,9 +11050,9 @@
       "source_file": "tools/test-sign-updates.sh",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_sign_updates",
-      "target": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
-      "confidence_score": 1.0
+      "target": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry"
     },
     {
       "relation": "defines",
@@ -10400,9 +11060,9 @@
       "source_file": "tools/test-sign-updates.sh",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_sign_updates",
-      "target": "tools_test_sign_updates_die",
-      "confidence_score": 1.0
+      "target": "tools_test_sign_updates_die"
     },
     {
       "relation": "defines",
@@ -10410,9 +11070,9 @@
       "source_file": "tools/test-sign-updates.sh",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_test_sign_updates",
-      "target": "tools_test_sign_updates_pass",
-      "confidence_score": 1.0
+      "target": "tools_test_sign_updates_pass"
     },
     {
       "relation": "calls",
@@ -10421,9 +11081,9 @@
       "source_location": "L57",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
-      "target": "tools_test_sign_updates_die",
-      "confidence_score": 1.0
+      "target": "tools_test_sign_updates_die"
     },
     {
       "relation": "calls",
@@ -10432,9 +11092,9 @@
       "source_location": "L55",
       "weight": 1.0,
       "context": "call",
+      "confidence_score": 1.0,
       "source": "home_runner_work_rush_linux_rush_linux_tools_test_sign_updates_sh__entry",
-      "target": "tools_test_sign_updates_pass",
-      "confidence_score": 1.0
+      "target": "tools_test_sign_updates_pass"
     },
     {
       "relation": "contains",
@@ -12208,9 +12868,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes",
-      "target": "v0_4_changes_v0_4_0_alpha_1_changes_summary",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_v0_4_0_alpha_1_changes_summary"
     },
     {
       "relation": "contains",
@@ -12218,9 +12878,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_v0_4_0_alpha_1_changes_summary",
-      "target": "v0_4_changes_what_was_implemented",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_what_was_implemented"
     },
     {
       "relation": "contains",
@@ -12228,9 +12888,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_what_was_implemented",
-      "target": "v0_4_changes_exit_criteria_status",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_exit_criteria_status"
     },
     {
       "relation": "contains",
@@ -12238,9 +12898,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_what_was_implemented",
-      "target": "v0_4_changes_how_to_validate",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_how_to_validate"
     },
     {
       "relation": "contains",
@@ -12248,9 +12908,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_what_was_implemented",
-      "target": "v0_4_changes_modified_files",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_modified_files"
     },
     {
       "relation": "contains",
@@ -12258,9 +12918,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_what_was_implemented",
-      "target": "v0_4_changes_new_files",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_new_files"
     },
     {
       "relation": "contains",
@@ -12268,9 +12928,9 @@
       "source_file": "V0.4_CHANGES.md",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "v0_4_changes_what_was_implemented",
-      "target": "v0_4_changes_next_steps_after_v0_4",
-      "confidence_score": 1.0
+      "target": "v0_4_changes_next_steps_after_v0_4"
     },
     {
       "relation": "contains",
@@ -12538,9 +13198,9 @@
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L56",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_boot_and_updates_rollback_requirements",
-      "target": "docs_boot_and_updates_implemented_rollback_infrastructure_v0_4",
-      "confidence_score": 1.0
+      "target": "docs_boot_and_updates_implemented_rollback_infrastructure_v0_4"
     },
     {
       "relation": "contains",
@@ -12548,9 +13208,9 @@
       "source_file": "docs/boot-and-updates.md",
       "source_location": "L82",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "docs_boot_and_updates_rollback_requirements",
-      "target": "docs_boot_and_updates_update_signing_v0_4",
-      "confidence_score": 1.0
+      "target": "docs_boot_and_updates_update_signing_v0_4"
     },
     {
       "relation": "contains",
@@ -14065,6 +14725,636 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10",
+      "target": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L129",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_daily_cadence_15_min_day_while_agents_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L142",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_definition_of_done_this_week",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L101",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_phase_1_agent_session_queue_this_week_one_session_each",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L117",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_phase_2_human_hardware_gate_weekend_or_week_2_1_2_h",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L123",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_phase_3_following_weeks_unchanged_from_work_plan_v2_4",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_rush_linux_action_plan_execution_runbook",
+      "target": "plans_action_plan_2026_06_10_tl_dr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_1_land_plan_documents_10_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_2_merge_p1_first_unlocks_ci_for_everything_else_10_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_3_merge_the_verified_backlog_in_this_order_25_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L72",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_4_file_the_p3_gap_as_an_issue_don_t_block_on_it_5_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L79",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_5_signing_evidence_defer_to_an_agent_0_min_now",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L83",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_6_burn_the_dead_branches_5_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L91",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_7_branch_protection_make_discipline_structural_10_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/action-plan-2026-06-10.md",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "plans_action_plan_2026_06_10_phase_0_human_merge_train_today_75_min",
+      "target": "plans_action_plan_2026_06_10_0_8_suspend_the_graphify_session_mandate_until_proven_5_min",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L2",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_superseded_by_work_plan_v2_md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_1_ground_truth_audit_findings_driving_this_plan",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L39",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_2_operating_rules_for_every_agent_session",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_3_track_dependency_overview",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L86",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L135",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L256",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L287",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L357",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_8_ready_to_paste_agent_prompts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L372",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_9_plan_maintenance",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L378",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_status_ledger",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_rush_linux_agent_work_plan_v1",
+      "target": "plans_agent_work_plan_v1_tl_dr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L88",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
+      "target": "plans_agent_work_plan_v1_wp_a1_version_consistency_ci_gate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L111",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_4_track_1_stabilize_the_repo",
+      "target": "plans_agent_work_plan_v1_wp_a2_move_graphify_output_off_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L137",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b1_split_optid_into_modules_mechanical_zero_behavior_change",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L170",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b2_fixture_testable_readers_policy_test_matrix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L190",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b3_actuator_safety_allowlist_revert_hysteresis",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L213",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b4_d_bus_hardening_authorization_no_fake_surface",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L233",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b5_optctl_truthfulness_json_contract",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L250",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_5_track_2_optid_hardening_refactor",
+      "target": "plans_agent_work_plan_v1_wp_b6_optional_zbus_3_5_migration",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L258",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
+      "target": "plans_agent_work_plan_v1_wp_c1_rollback_validation_end_to_end",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L274",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_6_track_3_close_the_v0_4_gate",
+      "target": "plans_agent_work_plan_v1_wp_c2_signing_validation_declare_v0_4_complete",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L291",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
+      "target": "plans_agent_work_plan_v1_wp_d1_rush_bench_harness_one_scenario_no_gui",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L313",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
+      "target": "plans_agent_work_plan_v1_wp_d2_a_b_matrix_vs_power_profiles_daemon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/agent-work-plan-v1.md",
+      "source_location": "L332",
+      "weight": 1.0,
+      "source": "plans_agent_work_plan_v1_7_track_4_the_proof_flagship_v0_5_0_alpha_1_first_evidence",
+      "target": "plans_agent_work_plan_v1_wp_d3_first_benchmark_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2",
+      "target": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_1_status_ledger_carried_in_from_v1_reassessment",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_2_role_model_and_authority_matrix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L118",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L148",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_5_standing_human_duties_the_scarce_resource_budgeted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L164",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_6_ready_to_paste_prompts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L177",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_7_definition_of_done_v0_5_0_alpha_1_first_evidence",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L181",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_8_plan_maintenance",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L185",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_status_ledger",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_rush_linux_work_plan_v2_ai_agents_human",
+      "target": "plans_work_plan_v2_tl_dr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
+      "target": "plans_work_plan_v2_authority_matrix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
+      "target": "plans_work_plan_v2_evidence_rule_non_negotiable_born_from_the_c1_incident",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_2_role_model_and_authority_matrix",
+      "target": "plans_work_plan_v2_roles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "target": "plans_work_plan_v2_h1_human_45_min_merge_train",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "target": "plans_work_plan_v2_wp_b1r_agent_module_split_restarted_with_a_stricter_contract",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "target": "plans_work_plan_v2_wp_p1_agent_ci_on_work_branches",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L82",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "target": "plans_work_plan_v2_wp_p2_agent_codify_the_evidence_rule_verifier_protocol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L88",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_3_week_1_recovery_sprint",
+      "target": "plans_work_plan_v2_wp_p3_agent_finish_work_sh_opens_the_pr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L134",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
+      "target": "plans_work_plan_v2_c1r_rollback_gate_human_executed_agent_cannot_do_this",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/plans/work-plan-v2.md",
+      "source_location": "L142",
+      "weight": 1.0,
+      "source": "plans_work_plan_v2_4_weeks_2_5_carried_forward_tracks",
+      "target": "plans_work_plan_v2_d2_benchmark_runs_human_executed_agent_cannot_do_this",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "docs/project-sustainability.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -15124,5 +16414,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "7f2b256d5ec86bbbe614d65c437e8e519a5b5970"
+  "built_at_commit": "fe68e4c3b58bc0129bd931582fb9ebceb49fff83"
 }

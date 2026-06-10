@@ -1,16 +1,16 @@
-# Graph Report - Rush-linux  (2026-06-08)
+# Graph Report - Rush-linux  (2026-06-10)
 
 ## Corpus Check
-- 74 files · ~39,057 words
+- 77 files · ~45,649 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 660 nodes · 821 edges · 82 communities (74 shown, 8 thin omitted)
+- 726 nodes · 884 edges · 85 communities (77 shown, 8 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7f2b256d`
+- Built from commit: `fe68e4c3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -90,18 +90,21 @@
 - [[_COMMUNITY_Community 79|Community 79]]
 - [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
+- [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_Community 84|Community 84]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `run()` - 14 edges
 2. `String` - 13 edges
 3. `Option` - 12 edges
 4. `Roadmap` - 12 edges
-5. `Release Plan To v1.0.0` - 12 edges
-6. `Roadmap` - 12 edges
-7. `Result` - 11 edges
-8. `Contributing to Rush Linux` - 11 edges
-9. `run()` - 10 edges
-10. `Self` - 10 edges
+5. `Rush Linux — Agent Work Plan v1` - 12 edges
+6. `Release Plan To v1.0.0` - 12 edges
+7. `Roadmap` - 12 edges
+8. `Result` - 11 edges
+9. `Contributing to Rush Linux` - 11 edges
+10. `Rush Linux — Work Plan v2 (AI Agents + Human)` - 11 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `format_status_as_json()` --calls--> `parse_pressure()`  [INFERRED]
@@ -113,7 +116,7 @@
 - 1-file cycle: `crates/optctl/src/main.rs -> crates/optctl/src/main.rs`
 - 1-file cycle: `crates/optid/src/main.rs -> crates/optid/src/main.rs`
 
-## Communities (82 total, 8 thin omitted)
+## Communities (85 total, 8 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -383,8 +386,20 @@ Nodes (4): sign-updates.sh script, cmd_init_keys(), cmd_sign(), cmd_verify()
 Cohesion: 0.83
 Nodes (3): test-sign-updates.sh script, die(), pass()
 
+### Community 82 - "Community 82"
+Cohesion: 0.07
+Nodes (26): 1. Ground Truth (audit findings driving this plan), 2. Operating Rules for Every Agent Session, 3. Track & Dependency Overview, 4. Track 1 — Stabilize the Repo, 5. Track 2 — `optid` Hardening & Refactor, 6. Track 3 — Close the v0.4 Gate, 7. Track 4 — The Proof (flagship: v0.5.0-alpha.1 "First Evidence"), 8. Ready-to-Paste Agent Prompts (+18 more)
+
+### Community 83 - "Community 83"
+Cohesion: 0.09
+Nodes (21): 1. Status Ledger (carried in from v1 reassessment), 2. Role Model and Authority Matrix, 3. Week 1 — Recovery Sprint, 4. Weeks 2–5 — Carried-Forward Tracks, 5. Standing Human Duties (the scarce resource, budgeted), 6. Ready-to-Paste Prompts, 7. Definition of Done — v0.5.0-alpha.1 "First Evidence", 8. Plan Maintenance (+13 more)
+
+### Community 84 - "Community 84"
+Cohesion: 0.12
+Nodes (16): 0.1 Land plan documents (10 min), 0.2 Merge P1 FIRST — unlocks CI for everything else (10 min), 0.3 Merge the verified backlog, in this order (25 min), 0.4 File the P3 gap as an issue, don't block on it (5 min), 0.5 Signing evidence — defer to an agent (0 min now), 0.6 Burn the dead branches (5 min), 0.7 Branch protection — make discipline structural (10 min), 0.8 Suspend the graphify session mandate until proven (5 min) (+8 more)
+
 ## Knowledge Gaps
-- **320 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+315 more)
+- **372 isolated node(s):** `Optid`, `Vec`, `Option`, `Args`, `I` (+367 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -394,9 +409,9 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `parse_pressure()` connect `Community 1` to `Community 5`?**
   _High betweenness centrality (0.005) - this node is a cross-community bridge._
 - **Why does `format_status_as_json()` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.005) - this node is a cross-community bridge._
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **What connects `Optid`, `Vec`, `Option` to the rest of the system?**
-  _335 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _387 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.08181126331811263 - nodes in this community are weakly interconnected._
 - **Should `Community 39` be split into smaller, more focused modules?**
