@@ -7,7 +7,32 @@ This document outlines the exhaustive research phase required to inform the stra
 - **Core Pillar:** Adaptive optimization (`optid`) as the conductor.
 - **Goal:** Every research item must answer: "How does this strengthen the core optimization mission?"
 
-## 2. Research Tracks (Q1–Q11 & Beyond)
+## 2. Decision-Making Framework (Policy)
+
+To ensure decisions are robust, Rush Linux adopts a **data-driven, multi-criteria decision analysis (MCDA)** approach.
+
+### 2.1 Roles (DACI)
+- **Driver:** The AI Agent or Contributor conducting the research.
+- **Approver:** Nan0pk (The project owner).
+- **Contributors:** Community members, upstream maintainers (e.g., PipeWire/systemd developers).
+- **Informed:** Users and future maintainers.
+
+### 2.2 Decision Criteria & Weighting
+Every proposal will be evaluated against these five criteria:
+1. **Responsiveness (Weight: 35%):** Measured reduction in p99 latency or felt jitter.
+2. **Power Efficiency (Weight: 25%):** Measured reduction in package power (Watts) for equivalent work.
+3. **Upstream Alignment (Weight: 20%):** Adherence to modern Linux standards (e.g., UKI, cgroup v2, Wayland).
+4. **Maintenance Cost (Weight: 15%):** Long-term burden of code, fragmentation, or vendor-specific shims.
+5. **Safety & Reversibility (Weight: 5%):** Risk of hardware damage or inability to roll back.
+
+### 2.3 Complexity Categorization (Cynefin)
+Before research begins, categorize the question:
+- **Simple:** Best practice exists. (Research = Audit).
+- **Complicated:** Expert analysis needed. (Research = Expert consult/Review).
+- **Complex:** Emergent behavior, no clear answer. (Research = Technical spike/Benchmarking).
+- **Chaotic:** Immediate action needed to stabilize. (N/A for strategic review).
+
+## 3. Research Tracks (Q1–Q11 & Beyond)
 
 ### Track A: Intent & Interaction (Q1, Q9, Q4)
 - **Objective:** Move from reactive to proactive optimization.
@@ -32,16 +57,23 @@ This document outlines the exhaustive research phase required to inform the stra
 - **D2 (Telemetry):** Research Prio/Differential Privacy for local-first telemetry.
 - **D3 (Rollback):** Benchmarking snapshot overhead on `ext4` (via `reflink` or `dm-thinp`) vs. `btrfs`.
 
-## 3. Methodology
+## 4. Methodology: The Research Memo
 
-For each research point, the output must be a **Research Memo** containing:
-1. **The Question:** (e.g., Q1).
-2. **Methodology:** (What was audited/built/measured).
-3. **Findings:** (Raw data, code snippets, upstream feedback).
-4. **Decision Hint:** (Recommended path based on data).
-5. **Impact on Core Pillar:** (How it helps `optid`).
+For each research point, the output must be a **Research Memo** (recorded in `docs/agent-decisions/`) containing:
 
-## 4. Execution Schedule (Phased)
+1.  **Context:** The strategic question and its complexity class.
+2.  **Hypothesis:** What we expect to find.
+3.  **Methodology:** Steps taken (e.g., "Ran `bench-optid-matrix.sh` on HP Victus").
+4.  **Evidence & Data:** Graphs, CSVs, logs, or upstream documentation links.
+5.  **Option Comparison:**
+    - Option A: [Pros/Cons/Score]
+    - Option B: [Pros/Cons/Score]
+    - Option "Do Nothing": [Pros/Cons/Score]
+6.  **Pre-Mortem Analysis:** "If we pick Option A and it fails in 6 months, why did it fail?"
+7.  **Decision Hint:** Recommended path for Nan0pk.
+8.  **Reversal Plan:** How do we undo this if it fails?
+
+## 5. Execution Schedule (Phased)
 
 ### Phase R1: Foundations (The "Low-Hanging" Spikes)
 - B1 (`sched_ext` benchmark).
@@ -60,7 +92,7 @@ For each research point, the output must be a **Research Memo** containing:
 - D3 (Snapshot timing benchmarks).
 - A3 (Market position finalization).
 
-## 5. Success Criteria
+## 6. Success Criteria
 
 Research is complete when:
 - Each of Q1–Q11 has a corresponding Research Memo.

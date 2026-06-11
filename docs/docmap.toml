@@ -400,7 +400,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["PROJECT_BRIEF.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-11"
+last_verified = "2026-06-12"
 validator = "no_stale_next_step"
 
 [docs."docs/plans/research-and-exploration-v1.md"]
@@ -409,7 +409,7 @@ owner_area = "area:project"
 covers_code = []
 deps = ["docs/strategic-ideas-pool.md"]
 freshens = []
-last_verified = "2026-06-11"
+last_verified = "2026-06-12"
 validator = "no_stale_next_step"
 
 [docs."DIRTY_STATE.md"]
