@@ -14,6 +14,20 @@ The pool has been seeded with the initial strategic directions of the project. T
 - [Strategic Differentiation](distro-differentiation.md) — Defining what makes Rush Linux indispensable.
 - [Open Questions Ledger](open-questions.md) — Critical architectural gaps to resolve before v1.0.
 
+
+## ⚙️ Technical Engine Patterns
+
+Beyond high-level strategy, we are exploring specific patterns to ensure the `optid` engine is world-class in terms of latency, safety, and stability:
+
+- [Continuous Stress Score](pattern-stress-score.md) — Smoothing out mode-flipping.
+- [Batched Actuation](pattern-batched-actuation.md) — Reducing syscall overhead.
+- [Zero-Allocation Hot Path](pattern-zero-allocation.md) — Eliminating latency spikes.
+- [Policy Integrity](pattern-integrity-verify.md) — Ensuring the "Brain" is untampered.
+- [Telemetry Ring Buffer](pattern-telemetry-buffer.md) — High-frequency benchmark correlation.
+- [Protected Services](pattern-protected-services.md) — Preventing critical infrastructure throttling.
+- [System Restoration](pattern-system-restore.md) — The "Panic Button" for system defaults.
+
+---
 ---
 ## 🌊 How the Pool Works
 
