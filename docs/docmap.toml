@@ -462,6 +462,14 @@ deps = ["docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md", "docs/deci
 freshens = []
 last_verified = "2026-06-11"
 
+[docs."docs/plans/reports/README.md"]
+purpose = "Executor (Antigravity) task-report directory: required report format and rules; the durable executor↔verifier channel"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/plans/antigravity-tasks-2026-06-11.md"]
+freshens = []
+last_verified = "2026-06-11"
+
 [docs."docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md"]
 purpose = "Handover: ecosystem incorporation strategy (mkosi/Arch, sched_ext, D-Bus shims), wave plan, and first host benchmark evidence from HP Victus"
 owner_area = "area:project"

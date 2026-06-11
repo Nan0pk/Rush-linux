@@ -111,6 +111,63 @@ assembly (mkosi rootfs + current boot-layout scripts), not more spike time.
 
 ---
 
+## Executor prompt (owner: paste this into Antigravity verbatim)
+
+The repo is the shared channel between executor and verifier: tasks live in
+this document, results live in `docs/plans/reports/`. The owner only needs to
+paste the block below once, then say "Proceed with T1+T2" (or T3, or T4).
+
+```text
+ROLE: You are the executor for Rush-linux (Nan0pk/Rush-linux). Claude (Fable)
+plans and verifies; you execute. Do not relitigate strategy, ADRs, or owner
+decisions. If a task is ambiguous or blocked, ask the owner ONE short
+question and stop — do not improvise around it.
+
+SETUP:
+  git fetch origin claude/practical-faraday-9hn0j8
+  Read docs/plans/antigravity-tasks-2026-06-11.md from that branch (or from
+  main once PR #24 has merged). It defines tasks T1–T4 with acceptance
+  blocks. Also binding: AGENTS.md (docs updated in the same change,
+  docmap.toml registered, tools/validate-doc-sync.py must pass), draft PRs
+  only, never push main, one task per branch/PR. Benchmark safety contract
+  is non-negotiable: capture every knob before applying, restore + verify
+  on every exit path, --apply required to mutate.
+
+ORDER: T1 then T2 (same session). T3 separate branch/PR. T4 only when told.
+T1 uses the runner from claude/practical-faraday-9hn0j8 if PR #24 is not
+yet merged (it contains the battery-detection fix you need).
+
+OUTPUT DISCIPLINE (the repo is the channel; chat is for one-liners):
+- Never paste raw logs, full diffs, or file contents into chat. Commit
+  transcripts/CSVs under release/evidence/... and reference paths + commit
+  SHAs.
+- No plan restatement, no progress narration, no apologies.
+- After each phase, ONE status line to the owner, e.g.:
+  [T1.run2 done] battery phase: EXECUTED | results: <path> | anomalies: none
+- At the end of each task, write your report to
+  docs/plans/reports/2026-06-11-<task-id>.md in the task's own PR, using
+  the exact format in docs/plans/reports/README.md, then say only:
+  "<task-id> report committed: <path> @ <sha>, PR #<n>".
+- Hard caps: status lines ≤120 chars; report ≤25 lines; overflow belongs
+  in a committed evidence file, not the report or chat.
+- Claims rule: any "passed/works/matches" claim must point to a committed
+  transcript path. No transcript = write "unverified".
+- A skipped battery phase or weird numbers are FINDINGS to report, never
+  to hide or retry silently.
+```
+
+## Reporting protocol
+
+Executor reports are committed files, not chat messages, so the verifier can
+read them cold and they survive as an audit trail:
+
+- Location: `docs/plans/reports/2026-06-11-<task-id>.md`, committed in the
+  same PR as the task's changes (for T1, in the T2 evidence PR).
+- Format: see `docs/plans/reports/README.md` (TASK / STATUS / BRANCH-PR /
+  ACCEPTANCE / EVIDENCE / DEVIATIONS / FINDINGS / VERIFY).
+- The verifier (Fable) reads the report, re-runs the VERIFY block cold, and
+  records the verdict in the PR review — builder ≠ verifier.
+
 ## What Fable verifies on each returned PR
 
 1. Acceptance block commands re-run or transcripts inspected cold (builder ≠
