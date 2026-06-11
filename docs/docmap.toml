@@ -454,6 +454,14 @@ deps = []
 freshens = []
 last_verified = "2026-06-10"
 
+[docs."docs/plans/antigravity-tasks-2026-06-11.md"]
+purpose = "Task pack for Antigravity CLI: benchmark re-runs, evidence folding, oomd drop-ins, mkosi spike — with Fable verification criteria"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md", "docs/decisions/0014-mkosi-arch-image-composition.md", "docs/decisions/0015-sched-ext-default-on.md"]
+freshens = []
+last_verified = "2026-06-11"
+
 [docs."docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md"]
 purpose = "Handover: ecosystem incorporation strategy (mkosi/Arch, sched_ext, D-Bus shims), wave plan, and first host benchmark evidence from HP Victus"
 owner_area = "area:project"
