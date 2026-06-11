@@ -32,6 +32,8 @@ We evaluate six candidate Unique Selling Points:
 5. **Developer-First Defaults:** Pre-configured tools for compilation, debugging, and profiling.
 6. **Rollback as a First-Class Feature:** Not just for updates, but for policy "experiments" and driver changes.
 
+3. **Vertical Hardware-Software Synchronicity:** Drawing from the "Apple Model," Rush treats hardware and software as a single unit. `optid` acts as the conductor, ensuring the kernel scheduler (`sched_ext`), memory management (MGLRU), and power limits are synchronized with user intent in real-time.
+
 ## 4. Advanced Policy Engine Patterns
 
 - **Continuous Stress Scoring:** Moving from discrete thresholds (e.g., "CPU > 80%") to a continuous score that drives actuation.
