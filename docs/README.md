@@ -27,7 +27,8 @@ Welcome to the central documentation repository for Rush Linux. This hub is desi
 
 ### 🧪 Quality & Validation
 *Ensuring the system is stable, performant, and focused.*
-- [Testing & Benchmarks](quality/testing-and-benchmarks.md) — How we prove our performance claims.
+
+- [The Evidence Lab](quality/performance-lab.md) — Real-world PoC results and hardware benchmarks.- [Testing & Benchmarks](quality/testing-and-benchmarks.md) — How we prove our performance claims.
 - [Non-Goals](quality/non-goals.md) — What Rush Linux is *not* trying to be.
 
 ### 📜 Policies & Standards
