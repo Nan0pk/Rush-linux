@@ -44,6 +44,7 @@ sudo ./tools/bench-optid-host.sh --apply               # benchmark 'performance'
 sudo ./tools/bench-optid-host.sh --apply --modes performance,battery
 ```
 
+<<<<<<< HEAD
 `tools/bench-optid-host-v2.sh` is the isolating successor. The v1 harness
 could not detect an effect on real hardware because the load and the latency
 probe shared `user.slice` (cancelling the CPUWeight boost), the all-core load
@@ -86,6 +87,8 @@ sudo ./tools/bench-optid-matrix.sh --apply --power ac      # AC only, no prompts
 sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp-power,epp-perf --iter 9
 ```
 
+=======
+>>>>>>> 686bc1d (feat(tools): add self-restoring host benchmark harness for optid)
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.
