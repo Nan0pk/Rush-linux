@@ -4,6 +4,17 @@ Welcome to the **Ideas Pool**. This is the project's "low-pressure" zone.
 
 Unlike the [Roadmap](docs/project/ROADMAP.md), which contains committed milestones and planned features, the Ideas Pool is a space for **divergent thinking**. It is a repository for raw concepts, architectural "what-ifs," and experimental features that are not yet ready for formal implementation but are too valuable to be forgotten.
 
+
+## 🚀 Strategic Seeds
+
+The pool has been seeded with the initial strategic directions of the project. These represent the "big bets" for Rush Linux:
+
+- [Proactive Intent Detection](intent-detection.md) — Moving from reactive to proactive optimization.
+- [The Conductor Architecture](conductor-architecture.md) — Positioning optid as the brain of a larger stack.
+- [Strategic Differentiation](distro-differentiation.md) — Defining what makes Rush Linux indispensable.
+- [Open Questions Ledger](open-questions.md) — Critical architectural gaps to resolve before v1.0.
+
+---
 ## 🌊 How the Pool Works
 
 The Ideas Pool is designed to prevent "roadmap bloat" while ensuring that the project's creative energy is captured.
