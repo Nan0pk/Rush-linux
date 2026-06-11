@@ -2,6 +2,9 @@
 
 Status: proposed
 
+> Amended by ADR 0015 (proposed): the realtime-audio edition never stacks a
+> sched_ext scheduler on its PREEMPT_RT kernel.
+
 > Marked **proposed**; needs human ratification. Addresses review item B4.
 
 ## Context

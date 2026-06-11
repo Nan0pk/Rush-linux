@@ -2,6 +2,11 @@
 
 Status: proposed
 
+> Superseded in part by ADR 0014 (proposed): the base-OS build mechanics move
+> to mkosi on an Arch base, and the package plane's DNF5/RPM backend choice is
+> withdrawn. The two-plane delivery model (image-based base, Flatpak-first
+> applications) remains in force here.
+
 > This ADR makes a binding architectural call about what kind of distro Rush
 > Linux is. It is the single biggest gap in the project (review items A1, B2,
 > C6). It is marked **proposed** and needs human ratification before it becomes

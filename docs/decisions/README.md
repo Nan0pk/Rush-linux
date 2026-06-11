@@ -48,8 +48,11 @@ A maintainer ratifies by editing the ADR to:
 
 ## Current proposed ADRs awaiting ratification
 
-ADRs 0008–0013 are **proposed** and are not yet binding. ADR 0008 (software
-delivery and packaging) is the most consequential and should be ratified first.
+ADRs 0008–0015 are **proposed** and are not yet binding. ADR 0014 (mkosi on an
+Arch base) and ADR 0015 (sched_ext default-on) record decisions the owner made
+in the 2026-06-10 strategy session and need only the formal `Ratified-by:`
+edit; ADR 0008 (software delivery and packaging) should be ratified alongside
+ADR 0014, which supersedes part of it.
 
 ## Adding a new ADR
 

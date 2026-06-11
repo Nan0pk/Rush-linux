@@ -135,9 +135,9 @@ validator = "covers_optid_features"
 purpose = "Kernel config fragment rationale and edition kernel rules"
 owner_area = "area:kernel"
 covers_code = ["distro/kernel/"]
-deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
+deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md", "docs/decisions/0015-sched-ext-default-on.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."docs/packaging-and-builds.md"]
 purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
@@ -249,7 +249,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."docs/decisions/0001-systemd-cgroup-v2.md"]
 purpose = "ADR: use systemd with unified cgroup v2"
@@ -315,12 +315,12 @@ last_verified = "2026-06-10"
 validator = "status:accepted"
 
 [docs."docs/decisions/0008-software-delivery-and-packaging.md"]
-purpose = "ADR: recipe-based source builds with signed metadata"
+purpose = "ADR: recipe-based source builds with signed metadata (build mechanics superseded in part by ADR 0014)"
 owner_area = "area:packaging"
 covers_code = ["tools/rush-builder.py", "recipes/"]
 deps = []
 freshens = ["docs/packaging-and-builds.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "status:proposed"
 
 [docs."docs/decisions/0009-optid-security-boundary.md"]
@@ -333,12 +333,12 @@ last_verified = "2026-06-10"
 validator = "status:proposed"
 
 [docs."docs/decisions/0010-realtime-edition-kernel-policy.md"]
-purpose = "ADR: PREEMPT_RT is opt-in, not universal default"
+purpose = "ADR: PREEMPT_RT is opt-in, not universal default (amended by ADR 0015: no scx on RT)"
 owner_area = "area:kernel"
 covers_code = ["distro/kernel/realtime.config", "distro/editions/realtime-audio.toml"]
 deps = []
 freshens = ["docs/kernel-policy.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "status:proposed"
 
 [docs."docs/decisions/0011-benchmark-methodology.md"]
@@ -366,6 +366,24 @@ covers_code = ["crates/optid/src/main.rs"]
 deps = ["docs/decisions/0004-adaptive-optid.md"]
 freshens = []
 last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0014-mkosi-arch-image-composition.md"]
+purpose = "ADR: images composed with mkosi on a pinned Arch base; bespoke builder retired strangler-fig"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py", "recipes/", "tools/build-vm-final.sh"]
+deps = ["docs/decisions/0008-software-delivery-and-packaging.md", "docs/decisions/0012-reproducible-build-discipline.md", "docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md"]
+freshens = ["docs/packaging-and-builds.md"]
+last_verified = "2026-06-11"
+validator = "status:proposed"
+
+[docs."docs/decisions/0015-sched-ext-default-on.md"]
+purpose = "ADR: sched_ext (scx via scx_loader, driven by optid) default-on with EEVDF fallback"
+owner_area = "area:kernel"
+covers_code = ["distro/kernel/default-adaptive.config"]
+deps = ["docs/decisions/0004-adaptive-optid.md", "docs/decisions/0010-realtime-edition-kernel-policy.md", "docs/plans/handover-2026-06-10-ecosystem-and-benchmarks.md"]
+freshens = ["docs/kernel-policy.md"]
+last_verified = "2026-06-11"
 validator = "status:proposed"
 
 [docs."docs/contributing/first-pr.md"]

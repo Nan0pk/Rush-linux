@@ -36,6 +36,14 @@ latency.
 `distro/kernel/experimental-sched-ext.config` is experimental only. Production
 profiles must not depend on sched_ext while upstream documents ABI instability.
 
+**Pending direction (ADR 0015, proposed):** sched_ext is mainline since kernel
+6.12 and the owner has decided to make scx schedulers (via `scx_loader`, driven
+by `optid`) default-on for desktop/laptop editions with verified EEVDF
+fallback. When ADR 0015 is ratified, this section flips: `CONFIG_SCHED_CLASS_EXT`
+moves into `default-adaptive.config`, gated on the fallback soak test
+(`tools/test-scx-fallback.sh`). The realtime-audio edition never stacks scx on
+PREEMPT_RT.
+
 ## Acceptance Criteria
 
 Kernel policy changes must update:
