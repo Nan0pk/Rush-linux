@@ -11,6 +11,13 @@ A living ledger of the most critical unanswered questions regarding the architec
 Prevents critical architectural gaps from being ignored until the release phase.
 
 ### 🛠️ The Current Ledger
+### ⚙️ Engine Pattern Questions
+- **Q7: Continuous Stress Score:** Should optid adopt a continuous stress score instead of discrete mode thresholds? If yes, how do we preserve explainability?
+- **Q8: Zero-Allocation Guarantee:** Should we benchmark and enforce zero-allocation in the optid hot path as a v0.8 benchmark gate?
+- **Q9: Standardized Foreground Intent Protocol:** Should Rush Linux contribute to or define a new Wayland protocol for standardized foreground intent detection?
+- **Q10: Telemetry Privacy Policy:** If optid adds optional telemetry collection, what is the exact privacy boundary and consent model?
+- **Q11: System Restoration Snapshot Timing:** When should the baseline snapshot for `optctl reset` be captured? At boot, at install, or at first mutating mode enable?
+
 - **Q1: Intent Architecture:** Universal Wayland bridge vs. compositor-specific adapters?
 - **Q2: sched_ext:** Should v0.6/0.7 include a spike to prototype BPF scheduler orchestration?
 - **Q3: Scope:** Should GPU/PCIe/USB power management be in scope for v1.0?
