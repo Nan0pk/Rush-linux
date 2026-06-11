@@ -457,15 +457,6 @@ freshens = []
 last_verified = "2026-06-12"
 validator = "no_stale_next_step"
 
-[docs."docs/agent-decisions/0017-research-memo-vertical-synchronicity.md"]
-purpose = "Research Memo: Vertical Hardware-Software Synchronicity (The Apple Model)"
-owner_area = "area:optid"
-covers_code = []
-deps = ["docs/plans/research-and-exploration-v1.md"]
-freshens = []
-last_verified = "2026-06-12"
-validator = "no_stale_next_step"
-
 [docs."DIRTY_STATE.md"]
 purpose = "Work-in-progress flag. Present only when the repo is mid-work. Contains session notes for the next agent."
 owner_area = "area:docs"
