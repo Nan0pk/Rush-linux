@@ -443,3 +443,19 @@ covers_code = ["tools/bench-optid-host.sh", "tools/bench-optid-host-v2.sh", "too
 deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.md", "docs/plans/action-plan-2026-06-10.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."CLAUDE.md"]
+purpose = "Tight index for Claude Code: build/test commands, folder map, discovery rules, compact instructions"
+owner_area = "area:docs"
+covers_code = []
+deps = ["AI_CONTINUATION.md", "README.md"]
+freshens = []
+last_verified = "2026-06-11"
+
+[docs."docs/token-optimization-setup.md"]
+purpose = "Local-machine setup for the token-optimization stack (CodeGraph, Headroom) and how to disable each layer"
+owner_area = "area:docs"
+covers_code = [".claude/settings.json", ".claude/agents/README.md", "CLAUDE.md"]
+deps = ["CLAUDE.md"]
+freshens = []
+last_verified = "2026-06-11"
