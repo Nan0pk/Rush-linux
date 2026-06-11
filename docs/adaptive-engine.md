@@ -12,9 +12,20 @@ The current Rust implementation:
 - reads AC/battery state from `/sys/class/power_supply`;
 - reads thermal state from `/sys/class/thermal`;
 - reads load average from `/proc/loadavg`;
+- detects ZRAM-backed swap from `/proc/swaps`;
 - chooses battery, balanced, performance, or realtime mode;
 - writes status and decision logs under `/run/optid`;
-- applies guarded actions only when `--apply` is passed.
+- applies guarded actions only when `--apply` is passed;
+- actuates per-mode `vm.swappiness`, `vm.dirty_background_bytes`, and
+  `vm.dirty_bytes` through the write allowlist. High swappiness (>60) is
+  clamped to 60 unless ZRAM swap is active
+  (`memory.high_swappiness_requires_zram` in `policy.toml`). Before the first
+  write of each sysctl the original value is backed up under
+  `/run/optid/original_vm_*` and the intended value recorded under
+  `/run/optid/intended_vm_*`; the daemon restores the originals on startup and
+  on clean exit, appending a `revert` line to `actions.log`. A failed sysctl
+  write or revert is logged and skipped (the backup is kept for the next
+  attempt), never fatal.
 
 `optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.rushlinux.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
 
@@ -53,7 +64,9 @@ Accepted action classes:
   protection, and OOM policy.
 - CPU energy performance preference and platform profile changes.
 - Background throttling during pressure, heat, video calls, or battery use.
-- zswap/zram/swap policy after memory pressure support is implemented.
+- VM sysctls (`vm.swappiness`, `vm.dirty_background_bytes`, `vm.dirty_bytes`)
+  per mode, with high swappiness gated on detected ZRAM swap; further
+  zswap/zram/swap policy after memory pressure support is implemented.
 - GPU, PCIe, USB, NVMe, Wi-Fi, and display power policy only through hardware
   allowlists.
 

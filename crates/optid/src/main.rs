@@ -1040,39 +1040,76 @@ impl Actuator {
     }
 }
 
+/// Maps a state-dir backup key (`vm_<sysctl file name>`) back to the sysctl
+/// path it was captured from. The sysctl file name may itself contain
+/// underscores (e.g. `dirty_background_bytes`), so only the `vm_` prefix is
+/// translated.
+fn vm_sysctl_path(key: &str) -> Option<PathBuf> {
+    let name = key.strip_prefix("vm_")?;
+    Some(PathBuf::from(format!("/proc/sys/vm/{name}")))
+}
+
 fn revert_sysctls(state_dir: &Path) {
     let keys = [
         "vm_swappiness",
         "vm_dirty_background_bytes",
         "vm_dirty_bytes",
     ];
+    let log_path = state_dir.join("actions.log");
     for key in &keys {
         let orig_path = state_dir.join(format!("original_{key}"));
-        if orig_path.exists() {
-            if let Ok(orig_val) = fs::read_to_string(&orig_path) {
-                let sysctl_name = key.replace('_', ".");
-                let sysctl_path =
-                    PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
-                if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
-                    eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
-                } else {
-                    println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
-                }
+        if !orig_path.exists() {
+            continue;
+        }
+        let Some(sysctl_path) = vm_sysctl_path(key) else {
+            continue;
+        };
+        let Ok(orig_val) = fs::read_to_string(&orig_path) else {
+            continue;
+        };
+        let orig_val = orig_val.trim();
+        match guarded_write(&sysctl_path, orig_val) {
+            Ok(()) => {
+                let _ = append_log(
+                    &log_path,
+                    &format!(
+                        "{} revert {} = {orig_val}\n",
+                        now_unix(),
+                        sysctl_path.display()
+                    ),
+                );
+                let _ = fs::remove_file(&orig_path);
+                let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
             }
-            let _ = fs::remove_file(&orig_path);
-            let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
+            Err(e) => {
+                // Keep the backup so the next startup can retry the revert.
+                let _ = append_log(
+                    &log_path,
+                    &format!(
+                        "{} revert {} failed: {e}\n",
+                        now_unix(),
+                        sysctl_path.display()
+                    ),
+                );
+                eprintln!(
+                    "optid: failed to revert sysctl {}: {e}",
+                    sysctl_path.display()
+                );
+            }
         }
     }
 }
 
-fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
-    let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
+fn write_allowed(path: &Path) -> bool {
+    path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
         || path == Path::new("/proc/sys/vm/dirty_background_bytes")
-        || path == Path::new("/proc/sys/vm/dirty_bytes");
+        || path == Path::new("/proc/sys/vm/dirty_bytes")
+}
 
-    if !allowed {
+fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
+    if !write_allowed(path) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             format!("refusing to write unallowlisted path {}", path.display()),
@@ -1311,6 +1348,31 @@ mod tests {
                 false
             }
         }));
+    }
+
+    #[test]
+    fn revert_keys_map_to_allowlisted_sysctl_paths() {
+        // Regression: keys like vm_dirty_background_bytes contain underscores
+        // inside the sysctl name; a naive '_'→'/' translation produced
+        // /proc/sys/vm/dirty/background/bytes, which the allowlist rejected,
+        // so dirty_* values were never restored on revert.
+        for key in [
+            "vm_swappiness",
+            "vm_dirty_background_bytes",
+            "vm_dirty_bytes",
+        ] {
+            let path = vm_sysctl_path(key).expect("backup key must map to a sysctl path");
+            assert!(
+                write_allowed(&path),
+                "revert path {} for key {key} is not allowlisted",
+                path.display()
+            );
+        }
+        assert_eq!(
+            vm_sysctl_path("vm_dirty_background_bytes"),
+            Some(PathBuf::from("/proc/sys/vm/dirty_background_bytes"))
+        );
+        assert_eq!(vm_sysctl_path("swappiness"), None);
     }
 
     #[test]
