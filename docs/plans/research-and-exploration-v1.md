@@ -34,24 +34,26 @@ Before research begins, categorize the question:
 
 ## 3. Research Tracks (Q1–Q11 & Beyond)
 
-### Track A: Intent & Interaction (Q1, Q9, Q4)
+*Execution for these tracks is tracked in the **[v0.4.5: Strategic Research Milestone](https://github.com/Nan0pk/Rush-linux/milestone/1)**.*
+
+### [Track A: Intent & Interaction](https://github.com/Nan0pk/Rush-linux/issues/37) (Q1, Q9, Q4)
 - **Objective:** Move from reactive to proactive optimization.
 - **A1 (Architecture):** Audit existing Wayland protocols (`idle-inhibit`, `xdg-activation`, `tablet-v2`). Investigate `portal` APIs for application metadata.
 - **A2 (Foreground):** Prototyping `logind` session tracking vs. a lightweight Wayland compositor shim.
 - **A3 (Personas):** Competitive analysis of "Performance OS" market (NixOS, CachyOS, Clear Linux). Define the "Developer/Builder" persona requirements.
 
-### Track B: Kernel & Scheduler (Q2, Q6, Q8)
+### [Track B: Kernel & Scheduler](https://github.com/Nan0pk/Rush-linux/issues/38) (Q2, Q6, Q8)
 - **Objective:** Prove the felt-responsiveness thesis.
 - **B1 (sched_ext):** Benchmark `scx_lavd` and `scx_bpfland` against standard EEVDF under "Rush-like" mixed loads (e.g., 4K video + background compile).
 - **B2 (Memory):** Analyze MGLRU performance with varying `vm.swappiness` levels specifically in ZRAM-backed scenarios.
 - **B3 (Hot-Path):** Profiling `optid` core loop for allocations and jitter. Explore `no_std` for critical paths.
 
-### Track C: Hardware & Power (Q3, Q5)
+### [Track C: Hardware & Power](https://github.com/Nan0pk/Rush-linux/issues/39) (Q3, Q5)
 - **Objective:** Safe, cross-vendor power management.
 - **C1 (GPU/Peripherals):** Catalog sysfs knobs for AMD/Intel/NVIDIA GPU power levels. Audit `nvme` APST and USB autosuspend impact on latency.
 - **C2 (Allowlist):** Review TLP and `power-profiles-daemon` hardware databases. Research "Security of Tunables" (which knobs can brick hardware?).
 
-### Track D: Reliability & Data (Q7, Q10, Q11)
+### [Track D: Reliability & Data](https://github.com/Nan0pk/Rush-linux/issues/40) (Q7, Q10, Q11)
 - **Objective:** Trustworthy, explainable, and private optimization.
 - **D1 (Control Theory):** Compare discrete state-machine transitions vs. PID/Continuous-Stress-Score transitions for responsiveness.
 - **D2 (Telemetry):** Research Prio/Differential Privacy for local-first telemetry.

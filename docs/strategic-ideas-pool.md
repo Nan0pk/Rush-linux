@@ -43,14 +43,16 @@ We evaluate six candidate Unique Selling Points:
 
 ## 5. Strategic Questions for Decision
 
-- **Q1:** Intent detection architecture (universal Wayland protocol vs. compositor-specific adapters)
-- **Q2:** `sched_ext` de-risking spike before v1.0?
-- **Q3:** GPU/peripheral power policy scope (v1.0 or v1.1?)
-- **Q4:** Market position (end-user desktop vs. developer/builder OS)
-- **Q5:** Hardware allowlist vs. crowdsourced profiles
-- **Q6:** `vm.swappiness` sysctl actuation gap
-- **Q7:** Continuous stress score adoption vs. explainability tradeoff
-- **Q8:** Zero-allocation hot-path benchmark gate
-- **Q9:** Standardized foreground intent protocol contribution
-- **Q10:** Telemetry privacy policy and consent model
-- **Q11:** System restoration snapshot timing
+*Active debate for these questions has been moved to **GitHub Discussions**. Use the links below to participate in the research and decision-making process.*
+
+- **[Q1: Intent detection architecture](https://github.com/Nan0pk/Rush-linux/discussions/26)**
+- **[Q2: sched_ext de-risking spike before v1.0?](https://github.com/Nan0pk/Rush-linux/discussions/27)**
+- **[Q3: GPU/peripheral power policy scope](https://github.com/Nan0pk/Rush-linux/discussions/28)**
+- **[Q4: Market position](https://github.com/Nan0pk/Rush-linux/discussions/29)**
+- **[Q5: Hardware allowlist vs. crowdsourced profiles](https://github.com/Nan0pk/Rush-linux/discussions/30)**
+- **[Q6: vm.swappiness sysctl actuation gap](https://github.com/Nan0pk/Rush-linux/discussions/31)**
+- **[Q7: Continuous stress score adoption vs. explainability tradeoff](https://github.com/Nan0pk/Rush-linux/discussions/32)**
+- **[Q8: Zero-allocation hot-path benchmark gate](https://github.com/Nan0pk/Rush-linux/discussions/33)**
+- **[Q9: Standardized foreground intent protocol contribution](https://github.com/Nan0pk/Rush-linux/discussions/34)**
+- **[Q10: Telemetry privacy policy and consent model](https://github.com/Nan0pk/Rush-linux/discussions/35)**
+- **[Q11: System restoration snapshot timing](https://github.com/Nan0pk/Rush-linux/discussions/36)**
