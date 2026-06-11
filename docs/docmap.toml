@@ -400,7 +400,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["PROJECT_BRIEF.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-12"
+last_verified = "2026-06-11"
 validator = "no_stale_next_step"
 
 [docs."docs/plans/research-and-exploration-v1.md"]
@@ -408,6 +408,33 @@ purpose = "Exhaustive research plan for v0.5 strategic decisions"
 owner_area = "area:project"
 covers_code = []
 deps = ["docs/strategic-ideas-pool.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0014-research-memo-intent-detection.md"]
+purpose = "Research Memo: Wayland, logind, and PipeWire for intent detection"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0015-research-memo-tunable-safety.md"]
+purpose = "Research Memo: Audit of safe vs dangerous sysfs tunables"
+owner_area = "area:security"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
+freshens = []
+last_verified = "2026-06-12"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0016-research-memo-memory-swappiness.md"]
+purpose = "Research Memo: ZRAM, MGLRU, and swappiness actuation"
+owner_area = "area:kernel"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
 freshens = []
 last_verified = "2026-06-12"
 validator = "no_stale_next_step"
