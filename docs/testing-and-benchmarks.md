@@ -73,7 +73,7 @@ contract as v1/v2.
 ```sh
 sudo ./tools/bench-optid-matrix.sh --apply                 # full matrix, AC + battery
 sudo ./tools/bench-optid-matrix.sh --apply --power ac      # AC only, no prompts
-sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
+sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp-power,epp-perf --iter 9
 ```
 
 ## Benchmark Manifest

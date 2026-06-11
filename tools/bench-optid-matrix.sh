@@ -9,7 +9,8 @@
 # Matrix dimensions:
 #   power : ac, bat            (prompted + sysfs-verified; default: both)
 #   lever : baseline           nothing applied
-#           epp                EPP written directly (isolates the EPP lever)
+#           epp-power          EPP=power written directly (isolates battery EPP)
+#           epp-perf           EPP=performance written directly (isolates perf EPP)
 #           weight             user.slice CPUWeight=200 only (isolates cgroups)
 #           optid-performance  full optid --apply, mode=performance
 #           optid-battery      full optid --apply, mode=battery
@@ -31,14 +32,14 @@
 # Usage:
 #   sudo ./bench-optid-matrix.sh --apply                       # full matrix, both power sources
 #   sudo ./bench-optid-matrix.sh --apply --power ac            # AC only, no prompts
-#   sudo ./bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
+#   sudo ./bench-optid-matrix.sh --apply --levers baseline,epp-power,epp-perf --iter 9
 #   sudo ./bench-optid-matrix.sh --apply --out ~/bench-results
 #
 set -euo pipefail
 
 APPLY=0
 POWER_PHASES="auto"        # auto -> ac,bat if a battery exists, else ac
-LEVERS="baseline,epp,weight,optid-performance,optid-battery"
+LEVERS="baseline,epp-power,epp-perf,weight,optid-performance,optid-battery"
 DURATION=12
 ITER=5
 MIN_BATT=25
@@ -103,7 +104,20 @@ for ps in /sys/class/power_supply/*; do
   esac
 done
 
-ac_online() { [ -n "$AC_PATH" ] && [ "$(cat "$AC_PATH/online" 2>/dev/null)" = "1" ] && echo 1 || echo 0; }
+# AC detection with fallback: some firmware (incl. some HP) does not update the
+# Mains 'online' node reliably; battery status=Discharging is the dependable
+# DC indicator, so prefer it when a battery exists.
+ac_online() {
+  local bstat
+  if [ -n "$BAT_PATH" ]; then
+    bstat="$(cat "$BAT_PATH/status" 2>/dev/null || true)"
+    case "$bstat" in
+      Discharging) echo 0; return ;;
+      Charging|Full|Not\ charging) echo 1; return ;;
+    esac
+  fi
+  [ -n "$AC_PATH" ] && [ "$(cat "$AC_PATH/online" 2>/dev/null)" = "1" ] && echo 1 || echo 0
+}
 batt_pct()  { cat "$BAT_PATH/capacity" 2>/dev/null || echo "NA"; }
 
 if [ "$POWER_PHASES" = "auto" ]; then
@@ -228,9 +242,12 @@ apply_lever() { # $1 = lever name -> 0 applied, 1 skip
   clear_levers
   case "$1" in
     baseline) : ;;
-    epp)
+    epp-power)
       [ "$HAVE_EPP" = 1 ] || return 1
       for p in "${EPP_PATHS[@]}"; do printf 'power' > "$p" 2>/dev/null || true; done ;;
+    epp-perf)
+      [ "$HAVE_EPP" = 1 ] || return 1
+      for p in "${EPP_PATHS[@]}"; do printf 'performance' > "$p" 2>/dev/null || true; done ;;
     weight)
       systemctl set-property --runtime user.slice CPUWeight=200 IOWeight=200 ;;
     optid-performance)
@@ -239,8 +256,10 @@ apply_lever() { # $1 = lever name -> 0 applied, 1 skip
     optid-battery)
       printf 'battery' > "${WORK}/mode"
       "$OPTID" --once --apply --state-dir "$WORK" --config "$POLICY" >/dev/null 2>&1 || true ;;
+    epp) warn "lever 'epp' was renamed to 'epp-power'"; return 1 ;;
     *) warn "unknown lever: $1"; return 1 ;;
   esac
+  sleep 2   # let EPP/firmware settle before measuring
   return 0
 }
 
@@ -268,8 +287,11 @@ rapl_watts() {
 
 median() { printf '%s\n' "$@" | sort -n | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:(a[NR/2]+a[NR/2+1])/2}'; }
 
-run_cell() { # $1 phase, $2 lever, $3 ambient
-  local p95s=() p99s=() ws=() i r
+run_cell() { # $1 phase, $2 lever
+  local p95s=() p99s=() ws=() i r amb
+  # ambient sampled per cell (2s, no harness load running) so mid-campaign
+  # desktop bursts are attributable to the exact cell they contaminated
+  amb="$(ambient_cpu)"
   # RESP
   start_load_bg "$((NCPU*2))"; sleep 1
   for i in $(seq "$ITER"); do
@@ -277,17 +299,18 @@ run_cell() { # $1 phase, $2 lever, $3 ambient
     p95s+=("$(echo "$r" | awk '{print $2}')"); p99s+=("$(echo "$r" | awk '{print $3}')")
   done
   stop_load
-  printf '    %-18s RESP p95(med)=%sms p99(med)=%sms [%s | %s]\n' "$2" \
-    "$(median "${p95s[@]}")" "$(median "${p99s[@]}")" "$(IFS=,; echo "${p95s[*]}")" "$(IFS=,; echo "${p99s[*]}")"
-  echo "$1,$2,RESP,p95_ms,$(median "${p95s[@]}"),\"$(IFS=,; echo "${p95s[*]}")\",$(batt_pct),$3" >> "$CSV"
-  echo "$1,$2,RESP,p99_ms,$(median "${p99s[@]}"),\"$(IFS=,; echo "${p99s[*]}")\",$(batt_pct),$3" >> "$CSV"
-  # POWER (partial load)
+  printf '    %-18s RESP p95(med)=%sms p99(med)=%sms [%s | %s] amb=%s%%\n' "$2" \
+    "$(median "${p95s[@]}")" "$(median "${p99s[@]}")" "$(IFS=,; echo "${p95s[*]}")" "$(IFS=,; echo "${p99s[*]}")" "$amb"
+  echo "$1,$2,RESP,p95_ms,$(median "${p95s[@]}"),\"$(IFS=,; echo "${p95s[*]}")\",$(batt_pct),$amb" >> "$CSV"
+  echo "$1,$2,RESP,p99_ms,$(median "${p99s[@]}"),\"$(IFS=,; echo "${p99s[*]}")\",$(batt_pct),$amb" >> "$CSV"
+  # POWER (partial load); 6s warm-up after load start so RAPL samples the
+  # steady state, not the EPP/firmware ramp transition
   if [ -n "$RAPL_DOM" ]; then
-    start_load_bg "$((NCPU/4>0?NCPU/4:1))"; sleep 1
+    start_load_bg "$((NCPU/4>0?NCPU/4:1))"; sleep 6
     for i in $(seq "$ITER"); do ws+=("$(rapl_watts "$DURATION")"); done
     stop_load
-    printf '    %-18s POWER pkgW(med)=%sW [%s]\n' "$2" "$(median "${ws[@]}")" "$(IFS=,; echo "${ws[*]}")"
-    echo "$1,$2,POWER,pkg_watts,$(median "${ws[@]}"),\"$(IFS=,; echo "${ws[*]}")\",$(batt_pct),$3" >> "$CSV"
+    printf '    %-18s POWER pkgW(med)=%sW [%s] amb=%s%%\n' "$2" "$(median "${ws[@]}")" "$(IFS=,; echo "${ws[*]}")" "$amb"
+    echo "$1,$2,POWER,pkg_watts,$(median "${ws[@]}"),\"$(IFS=,; echo "${ws[*]}")\",$(batt_pct),$amb" >> "$CSV"
   fi
 }
 
@@ -304,14 +327,14 @@ for phase in ${POWER_PHASES//,/ }; do
     fi
   fi
 
-  amb="$(record_ambient "$phase")"
-  log "ambient (non-harness) CPU before phase: ${amb}% — recorded in meta.txt"
+  phase_amb="$(record_ambient "$phase")"
+  log "ambient (non-harness) CPU at phase start: ${phase_amb}% — recorded in meta.txt (also re-sampled per cell)"
 
   for lever in ${LEVERS//,/ }; do
     if [ "$APPLY" = 0 ] && [ "$lever" != "baseline" ]; then continue; fi
     apply_lever "$lever" || { warn "lever '$lever' unavailable here — skipped"; continue; }
     [ "$HAVE_EPP" = 1 ] && log "lever=${lever}: EPP=$(cat "${EPP_PATHS[0]}") user.slice CPUWeight=$(systemctl show user.slice -p CPUWeight --value 2>/dev/null)"
-    run_cell "$phase" "$lever" "$amb"
+    run_cell "$phase" "$lever"
     clear_levers
   done
 done
