@@ -44,7 +44,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["README.md", "docs/architecture.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "version_matches:VERSION"
 
 [docs."AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -87,7 +87,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md", "RELEASES.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 validator = "semver"
 
 [docs."SECURITY.md"]
@@ -96,7 +96,7 @@ owner_area = "area:security"
 covers_code = ["crates/optid/src/main.rs"]
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."CODE_OF_CONDUCT.md"]
 purpose = "Contributor Covenant v2.1 with enforcement contact"
@@ -104,7 +104,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-11"
 
 [docs."AUTHORS"]
 purpose = "Contributor recognition list"
@@ -411,6 +411,51 @@ covers_code = ["crates/optid/src/main.rs"]
 deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/strategic-ideas-pool.md"]
+purpose = "Strategic ideas pool: proactive intent, risk mitigation, and USPs"
+owner_area = "area:docs"
+covers_code = []
+deps = ["PROJECT_BRIEF.md", "ROADMAP.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "no_stale_next_step"
+
+[docs."docs/plans/research-and-exploration-v1.md"]
+purpose = "Exhaustive research plan for v0.5 strategic decisions"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/strategic-ideas-pool.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0014-research-memo-intent-detection.md"]
+purpose = "Research Memo: Wayland, logind, and PipeWire for intent detection"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0015-research-memo-tunable-safety.md"]
+purpose = "Research Memo: Audit of safe vs dangerous sysfs tunables"
+owner_area = "area:security"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
+freshens = []
+last_verified = "2026-06-12"
+validator = "no_stale_next_step"
+
+[docs."docs/agent-decisions/0016-research-memo-memory-swappiness.md"]
+purpose = "Research Memo: ZRAM, MGLRU, and swappiness actuation"
+owner_area = "area:kernel"
+covers_code = []
+deps = ["docs/plans/research-and-exploration-v1.md"]
+freshens = []
+last_verified = "2026-06-12"
+validator = "no_stale_next_step"
 
 [docs."DIRTY_STATE.md"]
 purpose = "Work-in-progress flag. Present only when the repo is mid-work. Contains session notes for the next agent."

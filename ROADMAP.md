@@ -94,6 +94,21 @@ Exit criteria:
 - Simulated bad kernel rolls back. ✅ (tools/test-rollback.sh)
 - Test update metadata is signed. ✅ (tools/sign-updates.sh / sign_updates.py)
 
+## v0.4.5: Strategic Research Phase
+
+Status: planned. This phase focuses on exhaustive research to answer the
+strategic questions Q1–Q11 before v0.5 planning is finalized.
+
+- Execute research plan in `docs/plans/research-and-exploration-v1.md`.
+- Produce Research Memos for each strategic question.
+- Benchmark `sched_ext` performance.
+- Audit hardware allowlist safety.
+- Prototype proactive intent detection shims.
+
+Exit criteria:
+- Research Memos for Q1–Q11 completed.
+- Decision Matrix produced for v0.5 milestones.
+
 ## v0.5.0-beta.1: Minimal Installable System
 
 Status: planned.
