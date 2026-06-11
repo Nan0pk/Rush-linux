@@ -72,12 +72,18 @@ contract as v1/v2. It runs a work-counting background load
 (`tools/bench-work-load.py`) under partial load to measure total work units
 performed and compute performance-per-watt efficiency (work units per Joule).
 
-
+Lessons from the first real campaign are folded in: the EPP lever is split
+into `epp-power` and `epp-perf` so a combined-mode improvement can be
+attributed to a single knob; AC/battery transitions are detected via battery
+status (`Discharging`) with the Mains `online` node as fallback, because some
+firmware never updates the latter; ambient CPU is re-sampled per cell (not
+once per phase) and written to every CSV row; and the POWER scenario warms up
+for 6 s so RAPL samples steady state rather than ramp.
 
 ```sh
 sudo ./tools/bench-optid-matrix.sh --apply                 # full matrix, AC + battery
 sudo ./tools/bench-optid-matrix.sh --apply --power ac      # AC only, no prompts
-sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
+sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp-power,epp-perf --iter 9
 ```
 
 ## Benchmark Manifest
