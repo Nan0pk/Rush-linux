@@ -100,6 +100,18 @@ cargo build --release
 
 ---
 
+
+---
+
+## 💡 The Ideas Pool
+
+Rush Linux is a community-driven architecture. If you have a vision for the future of the OS—from wild architectural shifts to small quality-of-life tweaks—we want to hear it.
+
+The **Ideas Pool** is our space for brainstorming, sketches, and "what-if" scenarios that aren't yet on the roadmap.
+
+👉 **[Drop an idea in the Pool $ightarrow$](docs/ideas-pool/README.md)**
+
+---
 ## 🤝 Join the Rush
 
 We are looking for kernel hackers, Rustaceans, and performance enthusiasts. Whether you're interested in low-latency tuning, boot-flow security, or adaptive algorithms, there is a place for you here.
