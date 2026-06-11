@@ -10,7 +10,8 @@ Welcome to the central documentation repository for Rush Linux. This hub is desi
 - [Roadmap](project/ROADMAP.md) — Our path from MVP to a bootable distribution.
 - [Implementation Status](project/IMPLEMENTATION_STATUS.md) — What's built, what's in progress.
 - [Releases](project/RELEASES.md) — Version milestones and the release ledger.
-- [AI Continuation Guide](project/AI_CONTINUATION.md) — Instructions for LLMs helping with the project.
+
+- [The Ideas Pool](ideas-pool/README.md) — Brainstorming and future concepts.- [AI Continuation Guide](project/AI_CONTINUATION.md) — Instructions for LLMs helping with the project.
 
 ### 🏗️ System Architecture
 *The technical design and decision-making process.*
