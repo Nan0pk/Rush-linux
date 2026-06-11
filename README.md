@@ -58,6 +58,16 @@ Rush Linux is built on a "Modern Baseline," rejecting legacy defaults in favor o
 
 ---
 
+
+---
+
+## 🔬 The Evidence Lab
+
+We don't just claim performance; we prove it. Our PoC tests on HP Victus hardware show that `optid` can **nearly double work throughput** (from 800M to 1.5B units) while maintaining sub-0.1ms responsiveness.
+
+👉 **[Explore the Evidence Lab $ightarrow$](docs/quality/performance-lab.md)**
+
+---
 ## 🚀 Getting Started
 
 Rush Linux is currently in its **first implementation slice**. While the full distribution is not yet bootable, you can build and run the `optid` MVP to see the adaptive engine in action on any modern Linux system.
