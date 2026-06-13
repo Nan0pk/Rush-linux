@@ -142,7 +142,7 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 | EPP (toward power-save) | `energy_performance_preference` | contract | A |
 | `platform_profile` (low-power) | `platform_profile` | contract | A |
 | systemd slice weights (background) | cgroup v2 | contract | A |
-| `vm.*` sysctls (swappiness, dirty_*) | sysctl, zram-gated | contract | **P** |
+| `vm.*` sysctls (swappiness, dirty_*) | sysctl, zram-gated | contract | **A** |
 | Runtime PM autosuspend (USB/PCI/audio/camera/radio) | `runtime_pm` | contract + allowlist | — |
 | NVMe APST | nvme power states | contract + allowlist | — |
 | PCIe ASPM (L0s/L1/L1.2) | ASPM policy | contract + allowlist | — |

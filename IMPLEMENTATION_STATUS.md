@@ -91,14 +91,11 @@ engineering milestones.
 - The `Cargo.lock` file is checked in, but it still needs confirmation from
   real Cargo on Linux.
 - `optid` sysctl actuation: the per-mode `vm.*` keys (`vm_swappiness`,
-  `vm_dirty_*`) defined in `config/optid/policy.toml` are **not yet applied** by
-  the daemon. The Rust MVP parses policy but ignores these keys, so the running
-  system uses kernel defaults for them. This is deliberate (no aggressive
-  swappiness is applied unconditionally; the old static drop-in that did so was
-  removed to resolve the ADR 0004 conflict). Tracked follow-up: implement gated
-  `vm.*` actuation in `optid` — high `vm.swappiness` must remain conditional on
-  ZRAM-backed swap (`high_swappiness_requires_zram`), and every write must go
-  through the explainable allowlist per ADR 0009.
+  `vm_dirty_*`) defined in `config/optid/policy.toml` are **implemented and applied** by
+  the daemon when running with `--apply`. High `vm.swappiness` is conditional on
+  ZRAM-backed swap (`high_swappiness_requires_zram`), and every write goes
+  through the explainable allowlist per ADR 0009. The prior values are journaled
+  and reverted on service stop.
 - Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
  Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
  with `optid.service` active.
