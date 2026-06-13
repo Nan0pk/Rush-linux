@@ -15,7 +15,7 @@ This repository is the first implementation slice:
 - Kernel config fragments for adaptive and realtime kernels.
 - Future-facing system defaults for cgroup v2, PSI, UKI boot, nftables,
   Wayland, PipeWire, and signed rollbackable updates.
-- Source recipe skeletons for the core OS packages.
+- Declarative `mkosi` image composition for the core OS.
 - Validation checks that reject legacy defaults.
 
 The project deliberately does not make hard realtime the universal default.
@@ -32,7 +32,7 @@ distro/boot/              UKI-first boot defaults and kernel command line
 distro/kernel/            Kernel config fragments
 distro/network/           nftables baseline
 packaging/systemd/        systemd units and tmpfiles
-recipes/                  Source package recipe skeletons
+mkosi/                    Declarative image definitions and overlays
 release/                  Version milestones and test-tier gates
 tools/                    Local validation scripts
 docs/                     Architecture and implementation notes
@@ -42,6 +42,8 @@ docs/                     Architecture and implementation notes
 
 Start with:
 
+- **[How Rush is Built](docs/how-rush-is-built.md)** — The honest provenance manifesto
+- **[Agent Protocol](docs/agent-protocol.md)** — Rules of engagement and the Evidence Rule
 - [Project brief](PROJECT_BRIEF.md)
 - [AI continuation guide](AI_CONTINUATION.md)
 - [Implementation status](IMPLEMENTATION_STATUS.md)
@@ -174,6 +176,8 @@ $env:GH_TOKEN = '<token>'
 - Use Wayland-first desktop sessions and PipeWire/WirePlumber audio.
 - Use nftables, not iptables, as the firewall baseline.
 - Use UKI-first boot and rollbackable kernel entries.
+- Use `sched_ext` (via `scx_loader` and `optid`) as the default scheduler, with EEVDF fallback.
+- Use `mkosi` for declarative, reproducible image composition on an Arch Linux base.
 - Use eBPF/PSI/cgroup data for observability, with strict overhead limits.
 - Do not run TLP, power-profiles-daemon, or TuneD as active default policy
   daemons. Compatibility can exist, but `optid` owns the knobs.
