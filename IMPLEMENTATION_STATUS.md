@@ -29,7 +29,9 @@ engineering milestones.
   - writes explainable status and decision logs;
   - applies guarded EPP, platform profile, and systemd cgroup actions only with
     `--apply`.
-- Workload class latency-budget contract table defined as data in `config/optid/contracts.toml` (not yet enforced; consumed by N2).
+- PM QoS enforcement implemented: workload class latency-budget contract table (`config/optid/contracts.toml`) is now **enforced** (resolving class to CPU wakeup latency floor via `/dev/cpu_dma_latency` and per-device resume latency floor via `/sys/bus/pci/devices/*/power/pm_qos_resume_latency_us`).
+- `fits_contract(exit_latency_us, floor_us) -> bool` helper is **defined**, not yet wired to devices.
+- PM QoS budget values are **provisional pending WP-B1** validation.
 - `optctl` Rust MVP:
   - reads status and decision logs;
   - sets mode through the state directory;

@@ -98,6 +98,7 @@ fn run(args: Args) -> io::Result<()> {
 
     // Revert sysctls on startup to clean up any left-over state
     revert_sysctls(&args.state_dir);
+    revert_pm_qos(&args.state_dir);
 
     let state_dir_clone = args.state_dir.clone();
     thread::spawn(move || {
@@ -125,6 +126,8 @@ fn run(args: Args) -> io::Result<()> {
         .unwrap_or(WorkloadClass::Idle);
     let mut hysteresis = HysteresisState::new(initial_class);
 
+    let mut actuator = Actuator::new(args.state_dir.clone());
+
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let mut snapshot = Snapshot::collect();
@@ -142,14 +145,26 @@ fn run(args: Args) -> io::Result<()> {
             committed_class.to_string(),
         );
 
-        let decision = policy.decide(&snapshot, override_mode, committed_class, class_reason);
+        let contracts_path = args
+            .config_path
+            .parent()
+            .map(|p| p.join("contracts.toml"))
+            .unwrap_or_else(|| PathBuf::from("contracts.toml"));
+        let contracts = Contracts::load(&contracts_path);
+
+        let decision = policy.decide(
+            &snapshot,
+            override_mode,
+            committed_class,
+            class_reason,
+            &contracts,
+        );
         let report = decision.render(&snapshot);
 
         fs::write(args.state_dir.join("status"), &report)?;
         append_log(&args.state_dir.join("decisions.log"), &report)?;
 
         if args.apply {
-            let mut actuator = Actuator::new(args.state_dir.clone());
             for action in &decision.actions {
                 actuator.apply(action)?;
             }
@@ -164,6 +179,7 @@ fn run(args: Args) -> io::Result<()> {
 
     // Also revert sysctls on clean exit
     revert_sysctls(&args.state_dir);
+    revert_pm_qos(&args.state_dir);
 
     Ok(())
 }
@@ -320,6 +336,215 @@ impl WorkloadClass {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct ContractFloors {
+    cpu_wakeup_latency: i64,
+    device_resume_latency: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct Contracts {
+    idle: ContractFloors,
+    light: ContractFloors,
+    interactive: ContractFloors,
+    latency_critical: ContractFloors,
+    throughput: ContractFloors,
+}
+
+impl Default for Contracts {
+    fn default() -> Self {
+        Self {
+            idle: ContractFloors {
+                cpu_wakeup_latency: 100000,
+                device_resume_latency: 1000000,
+            },
+            light: ContractFloors {
+                cpu_wakeup_latency: 50000,
+                device_resume_latency: 500000,
+            },
+            interactive: ContractFloors {
+                cpu_wakeup_latency: 1000,
+                device_resume_latency: 10000,
+            },
+            latency_critical: ContractFloors {
+                cpu_wakeup_latency: 10,
+                device_resume_latency: 100,
+            },
+            throughput: ContractFloors {
+                cpu_wakeup_latency: 10000,
+                device_resume_latency: 100000,
+            },
+        }
+    }
+}
+
+impl Contracts {
+    fn load(path: &Path) -> Self {
+        let mut contracts = Self::default();
+        let text = match fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(_) => return contracts,
+        };
+
+        let mut current_class: Option<String> = None;
+        for line in text.lines() {
+            let line = line.trim();
+            let line = if let Some(idx) = line.find('#') {
+                line[..idx].trim()
+            } else {
+                line
+            };
+            if line.is_empty() {
+                continue;
+            }
+            if line.starts_with('[') && line.ends_with(']') {
+                let section = line[1..line.len() - 1].trim();
+                if let Some(stripped) = section.strip_prefix("contracts.") {
+                    current_class = Some(stripped.trim().to_string());
+                } else {
+                    current_class = None;
+                }
+                continue;
+            }
+
+            let mut parts = line.splitn(2, '=');
+            let key = match parts.next() {
+                Some(k) => k.trim(),
+                None => continue,
+            };
+            let val = match parts.next() {
+                Some(v) => v.trim(),
+                None => continue,
+            };
+
+            if let Some(ref class) = current_class {
+                let val_parsed: i64 = match val.parse() {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                match class.as_str() {
+                    "idle" => match key {
+                        "cpu_wakeup_latency" => contracts.idle.cpu_wakeup_latency = val_parsed,
+                        "device_resume_latency" => {
+                            contracts.idle.device_resume_latency = val_parsed
+                        }
+                        _ => {}
+                    },
+                    "light" => match key {
+                        "cpu_wakeup_latency" => contracts.light.cpu_wakeup_latency = val_parsed,
+                        "device_resume_latency" => {
+                            contracts.light.device_resume_latency = val_parsed
+                        }
+                        _ => {}
+                    },
+                    "interactive" => match key {
+                        "cpu_wakeup_latency" => {
+                            contracts.interactive.cpu_wakeup_latency = val_parsed
+                        }
+                        "device_resume_latency" => {
+                            contracts.interactive.device_resume_latency = val_parsed
+                        }
+                        _ => {}
+                    },
+                    "latency-critical" => match key {
+                        "cpu_wakeup_latency" => {
+                            contracts.latency_critical.cpu_wakeup_latency = val_parsed
+                        }
+                        "device_resume_latency" => {
+                            contracts.latency_critical.device_resume_latency = val_parsed
+                        }
+                        _ => {}
+                    },
+                    "throughput" => match key {
+                        "cpu_wakeup_latency" => {
+                            contracts.throughput.cpu_wakeup_latency = val_parsed
+                        }
+                        "device_resume_latency" => {
+                            contracts.throughput.device_resume_latency = val_parsed
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        }
+        contracts
+    }
+
+    fn resolve(&self, class: WorkloadClass) -> ContractFloors {
+        match class {
+            WorkloadClass::Idle => self.idle,
+            WorkloadClass::Light => self.light,
+            WorkloadClass::Interactive => self.interactive,
+            WorkloadClass::LatencyCritical => self.latency_critical,
+            WorkloadClass::Throughput => self.throughput,
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn fits_contract(exit_latency_us: u64, floor_us: u64) -> bool {
+    exit_latency_us <= floor_us
+}
+
+trait PmqosSink {
+    fn read_cpu_latency(&self) -> io::Result<String>;
+    fn write_cpu_latency(&mut self, value: Option<i32>) -> io::Result<()>;
+    fn read_device_latency(&self, device_path: &Path) -> io::Result<String>;
+    fn write_device_latency(&mut self, device_path: &Path, value: &str) -> io::Result<()>;
+}
+
+struct RealPmqosSink {
+    cpu_fd: Option<fs::File>,
+}
+
+impl RealPmqosSink {
+    fn new() -> Self {
+        Self { cpu_fd: None }
+    }
+}
+
+impl PmqosSink for RealPmqosSink {
+    fn read_cpu_latency(&self) -> io::Result<String> {
+        let text = fs::read_to_string("/dev/cpu_dma_latency")?;
+        Ok(text)
+    }
+
+    fn write_cpu_latency(&mut self, value: Option<i32>) -> io::Result<()> {
+        use std::io::Write;
+        match value {
+            Some(val) => {
+                let mut file = fs::OpenOptions::new()
+                    .write(true)
+                    .open("/dev/cpu_dma_latency")?;
+                file.write_all(&val.to_ne_bytes())?;
+                file.flush()?;
+                self.cpu_fd = Some(file);
+            }
+            None => {
+                self.cpu_fd = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn read_device_latency(&self, device_path: &Path) -> io::Result<String> {
+        fs::read_to_string(device_path)
+    }
+
+    fn write_device_latency(&mut self, device_path: &Path, value: &str) -> io::Result<()> {
+        guarded_write(device_path, value)
+    }
+}
+
+fn get_path_hash(path: &Path) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
 #[derive(Debug, Clone)]
 struct HysteresisState {
     committed_class: WorkloadClass,
@@ -376,6 +601,21 @@ fn read_pinned_class(state_dir: &Path, app_id: &str) -> Option<WorkloadClass> {
     WorkloadClass::parse(&text)
 }
 
+fn discover_pm_qos_device_paths() -> Vec<PathBuf> {
+    let base = Path::new("/sys/bus/pci/devices");
+    let mut paths = Vec::new();
+    let Ok(entries) = fs::read_dir(base) else {
+        return paths;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path().join("power").join("pm_qos_resume_latency_us");
+        if path.exists() {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
 #[derive(Debug, Clone)]
 struct Snapshot {
     timestamp: u64,
@@ -389,6 +629,7 @@ struct Snapshot {
     zram_swap_active: bool,
     foreground_app: Option<String>,
     pinned_class: Option<WorkloadClass>,
+    pm_qos_device_paths: Vec<PathBuf>,
 }
 
 impl Snapshot {
@@ -405,6 +646,7 @@ impl Snapshot {
             zram_swap_active: read_zram_swap_active(),
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: discover_pm_qos_device_paths(),
         }
     }
 
@@ -777,6 +1019,7 @@ impl Policy {
         requested: Mode,
         workload_class: WorkloadClass,
         workload_reason: String,
+        contracts: &Contracts,
     ) -> Decision {
         let effective_mode = match requested {
             Mode::Auto => self.auto_mode(snapshot),
@@ -818,18 +1061,18 @@ impl Policy {
             if memory.avg10 >= self.thresholds.memory_pressure_protect_avg10 {
                 reasons.push(format!("memory pressure avg10 is {:.2}", memory.avg10));
                 actions.push(Action::systemd_set_property(
-                    "user.slice",
+                    "user.slice".to_string(),
                     vec!["MemoryLow=256M".to_string()],
-                    "protect active user sessions from reclaim pressure",
+                    "protect active user sessions from reclaim pressure".to_string(),
                 ));
                 actions.push(Action::systemd_set_property(
-                    "background.slice",
+                    "background.slice".to_string(),
                     vec![
                         "CPUWeight=50".to_string(),
                         "IOWeight=50".to_string(),
                         "MemoryHigh=75%".to_string(),
                     ],
-                    "throttle background work during memory pressure",
+                    "throttle background work during memory pressure".to_string(),
                 ));
             }
         }
@@ -838,9 +1081,9 @@ impl Policy {
             if io.avg10 >= self.thresholds.io_pressure_throttle_avg10 {
                 reasons.push(format!("I/O pressure avg10 is {:.2}", io.avg10));
                 actions.push(Action::systemd_set_property(
-                    "background.slice",
+                    "background.slice".to_string(),
                     vec!["IOWeight=25".to_string()],
-                    "reduce background I/O interference",
+                    "reduce background I/O interference".to_string(),
                 ));
             }
         }
@@ -856,22 +1099,26 @@ impl Policy {
         actions.push(Action::cpu_epp(
             mode_config.cpu_epp.clone(),
             match effective_mode {
-                Mode::Battery => "prefer battery life through CPU energy preference",
-                Mode::Balanced => "keep foreground responsiveness without full turbo bias",
-                Mode::Performance => "reduce CPU wakeup and ramp latency for sustained load",
-                Mode::Realtime => "minimize latency for realtime mode",
-                _ => "",
+                Mode::Battery => "prefer battery life through CPU energy preference".to_string(),
+                Mode::Balanced => {
+                    "keep foreground responsiveness without full turbo bias".to_string()
+                }
+                Mode::Performance => {
+                    "reduce CPU wakeup and ramp latency for sustained load".to_string()
+                }
+                Mode::Realtime => "minimize latency for realtime mode".to_string(),
+                _ => "".to_string(),
             },
         ));
 
         actions.push(Action::platform_profile(
             mode_config.platform_profile.clone(),
             match effective_mode {
-                Mode::Battery => "request low-power platform profile",
-                Mode::Balanced => "request balanced platform profile",
-                Mode::Performance => "request performance platform profile",
-                Mode::Realtime => "avoid firmware power-save latency in realtime mode",
-                _ => "",
+                Mode::Battery => "request low-power platform profile".to_string(),
+                Mode::Balanced => "request balanced platform profile".to_string(),
+                Mode::Performance => "request performance platform profile".to_string(),
+                Mode::Realtime => "avoid firmware power-save latency in realtime mode".to_string(),
+                _ => "".to_string(),
             },
         ));
 
@@ -884,9 +1131,9 @@ impl Policy {
         }
         if !bg_properties.is_empty() {
             actions.push(Action::systemd_set_property(
-                "background.slice",
+                "background.slice".to_string(),
                 bg_properties,
-                "deprioritize background services on battery",
+                "deprioritize background services on battery".to_string(),
             ));
         }
 
@@ -899,13 +1146,13 @@ impl Policy {
         }
         if !user_properties.is_empty() {
             actions.push(Action::systemd_set_property(
-                "user.slice",
+                "user.slice".to_string(),
                 user_properties,
                 match effective_mode {
-                    Mode::Balanced => "favor interactive user sessions",
-                    Mode::Performance => "boost foreground user work",
-                    Mode::Realtime => "prioritize controlled realtime user workload",
-                    _ => "",
+                    Mode::Balanced => "favor interactive user sessions".to_string(),
+                    Mode::Performance => "boost foreground user work".to_string(),
+                    Mode::Realtime => "prioritize controlled realtime user workload".to_string(),
+                    _ => "".to_string(),
                 },
             ));
         }
@@ -921,7 +1168,7 @@ impl Policy {
             actions.push(Action::vm_sysctl(
                 PathBuf::from("/proc/sys/vm/swappiness"),
                 swappiness.to_string(),
-                "adjust swappiness for current mode",
+                "adjust swappiness for current mode".to_string(),
             ));
         }
 
@@ -930,7 +1177,7 @@ impl Policy {
             actions.push(Action::vm_sysctl(
                 PathBuf::from("/proc/sys/vm/dirty_background_bytes"),
                 bytes.to_string(),
-                "adjust dirty background bytes for current mode",
+                "adjust dirty background bytes for current mode".to_string(),
             ));
         }
 
@@ -939,7 +1186,7 @@ impl Policy {
             actions.push(Action::vm_sysctl(
                 PathBuf::from("/proc/sys/vm/dirty_bytes"),
                 bytes.to_string(),
-                "adjust dirty bytes for current mode",
+                "adjust dirty bytes for current mode".to_string(),
             ));
         }
 
@@ -949,12 +1196,39 @@ impl Policy {
         {
             actions.push(Action::cpu_epp(
                 "balance_power".to_string(),
-                "override performance bias because thermals are critical",
+                "override performance bias because thermals are critical".to_string(),
             ));
             actions.push(Action::platform_profile(
                 "balanced".to_string(),
-                "back off platform profile under critical thermals",
+                "back off platform profile under critical thermals".to_string(),
             ));
+        }
+
+        // PM QoS wakeup latency (CPU)
+        let floors = contracts.resolve(workload_class);
+        let cpu_wakeup_latency = Some(floors.cpu_wakeup_latency);
+        let device_resume_latency = Some(floors.device_resume_latency);
+
+        let reason_cpu = format!(
+            "class={}, floor={}us, row=contracts.{}",
+            workload_class, floors.cpu_wakeup_latency, workload_class
+        );
+        actions.push(Action::CpuDmaLatency {
+            value: Some(floors.cpu_wakeup_latency as i32),
+            reason: reason_cpu,
+        });
+
+        // PM QoS resume latency (Per-device)
+        for path in &snapshot.pm_qos_device_paths {
+            let reason_dev = format!(
+                "class={}, floor={}us, row=contracts.{}",
+                workload_class, floors.device_resume_latency, workload_class
+            );
+            actions.push(Action::DeviceResumeLatency {
+                path: path.clone(),
+                value: Some(floors.device_resume_latency as i32),
+                reason: reason_dev,
+            });
         }
 
         if reasons.is_empty() {
@@ -967,6 +1241,8 @@ impl Policy {
             actions,
             workload_class,
             workload_reason,
+            cpu_wakeup_latency,
+            device_resume_latency,
         }
     }
 
@@ -1014,6 +1290,8 @@ struct Decision {
     actions: Vec<Action>,
     workload_class: WorkloadClass,
     workload_reason: String,
+    cpu_wakeup_latency: Option<i64>,
+    device_resume_latency: Option<i64>,
 }
 
 impl Decision {
@@ -1039,6 +1317,16 @@ impl Decision {
         ));
         out.push_str(&format!("workload_class={}\n", self.workload_class));
         out.push_str(&format!("workload_reason={}\n", self.workload_reason));
+
+        match self.cpu_wakeup_latency {
+            Some(v) => out.push_str(&format!("cpu_wakeup_latency={}\n", v)),
+            None => out.push_str("cpu_wakeup_latency=None\n"),
+        }
+        match self.device_resume_latency {
+            Some(v) => out.push_str(&format!("device_resume_latency={}\n", v)),
+            None => out.push_str("device_resume_latency=None\n"),
+        }
+
         out.push_str("reasons:\n");
         for reason in &self.reasons {
             out.push_str(&format!("- {reason}\n"));
@@ -1055,38 +1343,43 @@ impl Decision {
 enum Action {
     CpuEpp {
         value: String,
-        reason: &'static str,
+        reason: String,
     },
     PlatformProfile {
         value: String,
-        reason: &'static str,
+        reason: String,
     },
     SystemdSetProperty {
-        unit: &'static str,
+        unit: String,
         properties: Vec<String>,
-        reason: &'static str,
+        reason: String,
     },
     VmSysctl {
         path: PathBuf,
         value: String,
-        reason: &'static str,
+        reason: String,
+    },
+    CpuDmaLatency {
+        value: Option<i32>,
+        reason: String,
+    },
+    DeviceResumeLatency {
+        path: PathBuf,
+        value: Option<i32>,
+        reason: String,
     },
 }
 
 impl Action {
-    fn cpu_epp(value: String, reason: &'static str) -> Self {
+    fn cpu_epp(value: String, reason: String) -> Self {
         Self::CpuEpp { value, reason }
     }
 
-    fn platform_profile(value: String, reason: &'static str) -> Self {
+    fn platform_profile(value: String, reason: String) -> Self {
         Self::PlatformProfile { value, reason }
     }
 
-    fn systemd_set_property(
-        unit: &'static str,
-        properties: Vec<String>,
-        reason: &'static str,
-    ) -> Self {
+    fn systemd_set_property(unit: String, properties: Vec<String>, reason: String) -> Self {
         Self::SystemdSetProperty {
             unit,
             properties,
@@ -1094,7 +1387,7 @@ impl Action {
         }
     }
 
-    fn vm_sysctl(path: PathBuf, value: String, reason: &'static str) -> Self {
+    fn vm_sysctl(path: PathBuf, value: String, reason: String) -> Self {
         Self::VmSysctl {
             path,
             value,
@@ -1123,6 +1416,25 @@ impl Action {
             } => {
                 format!("vm.sysctl {}={value} ({reason})", path.display())
             }
+            Self::CpuDmaLatency { value, reason } => {
+                let val_str = value
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "None".to_string());
+                format!("cpu_dma_latency={val_str} ({reason})")
+            }
+            Self::DeviceResumeLatency {
+                path,
+                value,
+                reason,
+            } => {
+                let val_str = value
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "None".to_string());
+                format!(
+                    "device_resume_latency {}={val_str} ({reason})",
+                    path.display()
+                )
+            }
         }
     }
 }
@@ -1130,6 +1442,9 @@ impl Action {
 struct Actuator {
     state_dir: PathBuf,
     log_path: PathBuf,
+    pmqos_sink: Box<dyn PmqosSink>,
+    last_cpu_latency: Option<Option<i32>>,
+    last_device_latencies: std::collections::HashMap<PathBuf, Option<i32>>,
 }
 
 impl Actuator {
@@ -1138,6 +1453,21 @@ impl Actuator {
         Self {
             state_dir,
             log_path,
+            pmqos_sink: Box::new(RealPmqosSink::new()),
+            last_cpu_latency: None,
+            last_device_latencies: std::collections::HashMap::new(),
+        }
+    }
+
+    #[allow(dead_code)]
+    fn new_with_sink(state_dir: PathBuf, sink: Box<dyn PmqosSink>) -> Self {
+        let log_path = state_dir.join("actions.log");
+        Self {
+            state_dir,
+            log_path,
+            pmqos_sink: sink,
+            last_cpu_latency: None,
+            last_device_latencies: std::collections::HashMap::new(),
         }
     }
 
@@ -1241,6 +1571,80 @@ impl Actuator {
                     }
                 }
             }
+            Action::CpuDmaLatency { value, reason } => {
+                let should_apply = match self.last_cpu_latency {
+                    Some(last_val) => last_val != *value,
+                    None => true,
+                };
+                if should_apply {
+                    let old_value = self
+                        .pmqos_sink
+                        .read_cpu_latency()
+                        .unwrap_or_else(|_| "n/a".to_string());
+                    self.pmqos_sink.write_cpu_latency(*value)?;
+                    self.last_cpu_latency = Some(*value);
+                    let val_str = value
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "n/a".to_string());
+                    self.log(&format!(
+                        "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
+                    ))?;
+                }
+            }
+            Action::DeviceResumeLatency {
+                path,
+                value,
+                reason,
+            } => {
+                let should_apply = match self.last_device_latencies.get(path) {
+                    Some(last_val) => last_val != value,
+                    None => true,
+                };
+                if should_apply {
+                    let hash = get_path_hash(path);
+                    let key = format!("dev_{hash}");
+
+                    // Back up original value if not already backed up
+                    let orig_file = self.state_dir.join(format!("original_{key}"));
+                    if !orig_file.exists() {
+                        if let Ok(current_val) = self.pmqos_sink.read_device_latency(path) {
+                            let content = format!("{}\n{}", path.display(), current_val.trim());
+                            let _ = fs::write(&orig_file, content);
+                        }
+                    }
+
+                    // Write intended value
+                    let val_str = value
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "0".to_string());
+                    let intended_file = self.state_dir.join(format!("intended_{key}"));
+                    let _ = fs::write(&intended_file, &val_str);
+
+                    let old_value = self
+                        .pmqos_sink
+                        .read_device_latency(path)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
+
+                    match self.pmqos_sink.write_device_latency(path, &val_str) {
+                        Ok(_) => {
+                            self.last_device_latencies.insert(path.clone(), *value);
+                            self.log(&format!(
+                                "write {} = {val_str} (was {old_value}) reason: {reason}",
+                                path.display()
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip device latency {}: write failed: {e}",
+                                path.display()
+                            ))?;
+                        }
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -1275,12 +1679,52 @@ fn revert_sysctls(state_dir: &Path) {
     }
 }
 
+fn revert_pm_qos(state_dir: &Path) {
+    let Ok(entries) = fs::read_dir(state_dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str.starts_with("original_dev_") {
+            let orig_path = entry.path();
+            if let Ok(content) = fs::read_to_string(&orig_path) {
+                let mut lines = content.lines();
+                if let (Some(dev_path_str), Some(orig_val)) = (lines.next(), lines.next()) {
+                    let dev_path = Path::new(dev_path_str);
+                    if let Err(e) = guarded_write(dev_path, orig_val.trim()) {
+                        eprintln!(
+                            "optid: failed to revert PM QoS for {}: {e}",
+                            dev_path.display()
+                        );
+                    } else {
+                        println!(
+                            "optid: reverted PM QoS for {} to {}",
+                            dev_path.display(),
+                            orig_val.trim()
+                        );
+                    }
+                }
+            }
+            let _ = fs::remove_file(&orig_path);
+            let hash = name_str.strip_prefix("original_dev_").unwrap_or("");
+            if !hash.is_empty() {
+                let intended_path = state_dir.join(format!("intended_dev_{hash}"));
+                let _ = fs::remove_file(intended_path);
+            }
+        }
+    }
+}
+
 fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
         || path == Path::new("/proc/sys/vm/dirty_background_bytes")
-        || path == Path::new("/proc/sys/vm/dirty_bytes");
+        || path == Path::new("/proc/sys/vm/dirty_bytes")
+        || (path.starts_with("/sys/")
+            && path.to_string_lossy().contains("pm_qos_resume_latency_us"))
+        || (cfg!(test) && path.to_string_lossy().contains("pm_qos_resume_latency_us"));
 
     if !allowed {
         return Err(io::Error::new(
@@ -1471,6 +1915,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
 
         let decision = Policy::default().decide(
@@ -1478,6 +1923,7 @@ mod tests {
             Mode::Auto,
             WorkloadClass::Idle,
             "test".to_string(),
+            &Contracts::default(),
         );
         assert_eq!(decision.mode, Mode::Battery);
     }
@@ -1499,6 +1945,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
 
         let decision = Policy::default().decide(
@@ -1506,6 +1953,7 @@ mod tests {
             Mode::Auto,
             WorkloadClass::Idle,
             "test".to_string(),
+            &Contracts::default(),
         );
         assert_eq!(decision.mode, Mode::Performance);
     }
@@ -1527,6 +1975,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
 
         let decision = Policy::default().decide(
@@ -1534,6 +1983,7 @@ mod tests {
             Mode::Performance,
             WorkloadClass::Idle,
             "test".to_string(),
+            &Contracts::default(),
         );
         assert!(decision.actions.iter().any(|action| {
             if let Action::CpuEpp { value, .. } = action {
@@ -1579,7 +2029,7 @@ mod tests {
         let action = Action::vm_sysctl(
             PathBuf::from("/proc/sys/vm/swappiness"),
             "60".to_string(),
-            "test reason",
+            "test reason".to_string(),
         );
         let _ = actuator.apply(&action);
 
@@ -1610,12 +2060,14 @@ mod tests {
             zram_swap_active: true,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         let decision_with = policy.decide(
             &snapshot_with_zram,
             Mode::Performance,
             WorkloadClass::Idle,
             "test".to_string(),
+            &Contracts::default(),
         );
         let has_150 = decision_with.actions.iter().any(|action| {
             if let Action::VmSysctl { path, value, .. } = action {
@@ -1638,12 +2090,14 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         let decision_no = policy.decide(
             &snapshot_no_zram,
             Mode::Performance,
             WorkloadClass::Idle,
             "test".to_string(),
+            &Contracts::default(),
         );
         let has_60 = decision_no.actions.iter().any(|action| {
             if let Action::VmSysctl { path, value, .. } = action {
@@ -1660,7 +2114,7 @@ mod tests {
         let action = Action::vm_sysctl(
             PathBuf::from("/proc/sys/vm/swappiness"),
             "100".to_string(),
-            "adjust swappiness for current mode",
+            "adjust swappiness for current mode".to_string(),
         );
         let desc = action.describe();
         assert_eq!(
@@ -1686,6 +2140,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
 
@@ -1702,6 +2157,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
 
@@ -1718,6 +2174,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
 
@@ -1737,6 +2194,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
 
@@ -1756,6 +2214,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
     }
@@ -1775,6 +2234,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: Some("doom.exe".to_string()),
             pinned_class: Some(WorkloadClass::LatencyCritical),
+            pm_qos_device_paths: Vec::new(),
         };
         let (class, reason) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::LatencyCritical);
@@ -1819,6 +2279,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         let res1 = policy.classify(&snap);
         let res2 = policy.classify(&snap);
@@ -1843,6 +2304,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
         let (_, reason) = policy.classify(&snap);
         assert!(reason.contains("high load") && reason.contains("high pressure"));
@@ -1863,9 +2325,375 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
         };
-        // Should fallback to Interactive due to loadavg=1.0 without foreground app or pin
         let (class, _) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::Interactive);
+    }
+
+    struct MockPmqosSink {
+        cpu_latency: Option<i32>,
+        device_latencies: std::collections::HashMap<PathBuf, String>,
+        cpu_fd_open: bool,
+        write_count: usize,
+    }
+
+    impl MockPmqosSink {
+        fn new() -> Self {
+            Self {
+                cpu_latency: None,
+                device_latencies: std::collections::HashMap::new(),
+                cpu_fd_open: false,
+                write_count: 0,
+            }
+        }
+    }
+
+    impl PmqosSink for MockPmqosSink {
+        fn read_cpu_latency(&self) -> io::Result<String> {
+            Ok(self
+                .cpu_latency
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "n/a".to_string()))
+        }
+
+        fn write_cpu_latency(&mut self, value: Option<i32>) -> io::Result<()> {
+            self.cpu_latency = value;
+            self.cpu_fd_open = value.is_some();
+            self.write_count += 1;
+            Ok(())
+        }
+
+        fn read_device_latency(&self, device_path: &Path) -> io::Result<String> {
+            if let Some(val) = self.device_latencies.get(device_path) {
+                Ok(val.clone())
+            } else {
+                Ok("0".to_string())
+            }
+        }
+
+        fn write_device_latency(&mut self, device_path: &Path, value: &str) -> io::Result<()> {
+            self.device_latencies
+                .insert(device_path.to_path_buf(), value.to_string());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_n2_t1_resolution() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t1_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let contracts_path = temp_dir.join("contracts.toml");
+        fs::write(
+            &contracts_path,
+            r#"
+[contracts.idle]
+cpu_wakeup_latency = 100000
+device_resume_latency = 1000000
+
+[contracts.light]
+cpu_wakeup_latency = 50000
+device_resume_latency = 500000
+
+[contracts.interactive]
+cpu_wakeup_latency = 1000
+device_resume_latency = 10000
+
+[contracts.latency-critical]
+cpu_wakeup_latency = 10
+device_resume_latency = 100
+
+[contracts.throughput]
+cpu_wakeup_latency = 10000
+device_resume_latency = 100000
+"#,
+        )
+        .unwrap();
+
+        let contracts = Contracts::load(&contracts_path);
+
+        assert_eq!(
+            contracts.resolve(WorkloadClass::Idle).cpu_wakeup_latency,
+            100000
+        );
+        assert_eq!(
+            contracts.resolve(WorkloadClass::Idle).device_resume_latency,
+            1000000
+        );
+
+        assert_eq!(
+            contracts.resolve(WorkloadClass::Light).cpu_wakeup_latency,
+            50000
+        );
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::Light)
+                .device_resume_latency,
+            500000
+        );
+
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::Interactive)
+                .cpu_wakeup_latency,
+            1000
+        );
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::Interactive)
+                .device_resume_latency,
+            10000
+        );
+
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::LatencyCritical)
+                .cpu_wakeup_latency,
+            10
+        );
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::LatencyCritical)
+                .device_resume_latency,
+            100
+        );
+
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::Throughput)
+                .cpu_wakeup_latency,
+            10000
+        );
+        assert_eq!(
+            contracts
+                .resolve(WorkloadClass::Throughput)
+                .device_resume_latency,
+            100000
+        );
+    }
+
+    #[test]
+    fn test_n2_t2_dry_run_no_op() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t2_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap();
+        fs::write(temp_dir.join("contracts.toml"), "").unwrap();
+
+        let args = Args {
+            apply: false, // DRY RUN
+            once: true,
+            help: false,
+            interval_sec: 1,
+            state_dir: temp_dir.clone(),
+            config_path,
+        };
+
+        run(args).unwrap();
+
+        let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap();
+        assert!(decisions.contains("cpu_wakeup_latency="));
+        assert!(decisions.contains("device_resume_latency="));
+        assert!(
+            !temp_dir.join("actions.log").exists()
+                || fs::read_to_string(temp_dir.join("actions.log"))
+                    .unwrap()
+                    .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_n2_t3_apply_cpu_floor() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t3_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let mock_sink = Box::new(MockPmqosSink::new());
+        let mut actuator = Actuator::new_with_sink(temp_dir.clone(), mock_sink);
+
+        let action = Action::CpuDmaLatency {
+            value: Some(1000),
+            reason: "test".to_string(),
+        };
+
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(actuator.pmqos_sink.read_cpu_latency().unwrap(), "1000");
+    }
+
+    #[test]
+    fn test_n2_t4_per_device_revert() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t4_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let dev_path = temp_dir.join("device_pm_qos_resume_latency_us");
+
+        let mut mock_sink = MockPmqosSink::new();
+        mock_sink.write_device_latency(&dev_path, "250").unwrap();
+        fs::write(&dev_path, "250").unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp_dir.clone(), Box::new(mock_sink));
+
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "test".to_string(),
+        };
+
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "100"
+        );
+
+        let hash = get_path_hash(&dev_path);
+        let orig_file = temp_dir.join(format!("original_dev_{hash}"));
+        assert!(orig_file.exists());
+        let orig_content = fs::read_to_string(&orig_file).unwrap();
+        let mut lines = orig_content.lines();
+        assert_eq!(lines.next().unwrap(), dev_path.to_str().unwrap());
+        assert_eq!(lines.next().unwrap(), "250");
+
+        revert_pm_qos(&temp_dir);
+
+        let current_disk_val = fs::read_to_string(&dev_path).unwrap();
+        assert_eq!(current_disk_val.trim(), "250");
+
+        assert!(!orig_file.exists());
+        assert!(!temp_dir.join(format!("intended_dev_{hash}")).exists());
+    }
+
+    #[test]
+    fn test_n2_t5_fd_release() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t5_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        struct DropCheckSink {
+            dropped: std::sync::Arc<std::sync::atomic::AtomicBool>,
+            cpu_latency: Option<i32>,
+        }
+        impl PmqosSink for DropCheckSink {
+            fn read_cpu_latency(&self) -> io::Result<String> {
+                Ok("n/a".to_string())
+            }
+            fn write_cpu_latency(&mut self, value: Option<i32>) -> io::Result<()> {
+                self.cpu_latency = value;
+                Ok(())
+            }
+            fn read_device_latency(&self, _device_path: &Path) -> io::Result<String> {
+                Ok("0".to_string())
+            }
+            fn write_device_latency(
+                &mut self,
+                _device_path: &Path,
+                _value: &str,
+            ) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        impl Drop for DropCheckSink {
+            fn drop(&mut self) {
+                self.dropped
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        let sink = Box::new(DropCheckSink {
+            dropped: dropped.clone(),
+            cpu_latency: None,
+        });
+
+        let mut actuator = Actuator::new_with_sink(temp_dir.clone(), sink);
+
+        actuator
+            .apply(&Action::CpuDmaLatency {
+                value: Some(1000),
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        std::mem::drop(actuator);
+
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_n2_t6_no_thrash() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n2_t6_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let mock_sink = Box::new(MockPmqosSink::new());
+        let mut actuator = Actuator::new_with_sink(temp_dir.clone(), mock_sink);
+
+        let action1 = Action::CpuDmaLatency {
+            value: Some(1000),
+            reason: "test1".to_string(),
+        };
+        let action2 = Action::CpuDmaLatency {
+            value: Some(1000),
+            reason: "test2".to_string(),
+        };
+
+        actuator.apply(&action1).unwrap();
+        actuator.apply(&action2).unwrap();
+
+        let actions_log_path = temp_dir.join("actions.log");
+        let logs = fs::read_to_string(&actions_log_path).unwrap_or_default();
+        let occurrence_count = logs.matches("write /dev/cpu_dma_latency = 1000").count();
+        assert_eq!(occurrence_count, 1);
+    }
+
+    #[test]
+    fn test_n2_t7_fits_contract() {
+        assert!(fits_contract(100, 200));
+        assert!(fits_contract(100, 100));
+        assert!(!fits_contract(200, 100));
+    }
+
+    #[test]
+    fn test_n2_t8_explainability() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+        let contracts = Contracts::default();
+        let decision = policy.decide(
+            &snap,
+            Mode::Auto,
+            WorkloadClass::Interactive,
+            "test".to_string(),
+            &contracts,
+        );
+        let action = decision
+            .actions
+            .iter()
+            .find(|a| matches!(a, Action::CpuDmaLatency { .. }))
+            .unwrap();
+        if let Action::CpuDmaLatency { reason, .. } = action {
+            assert!(reason.contains("class=interactive"));
+            assert!(reason.contains("floor=1000us"));
+            assert!(reason.contains("row=contracts.interactive"));
+        } else {
+            panic!("Expected CpuDmaLatency action");
+        }
     }
 }
