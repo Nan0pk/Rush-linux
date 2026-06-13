@@ -9,8 +9,7 @@ ideas.
   package ecosystem from scratch.
 - Shipping a derivative distro that only applies post-install tweaks.
 - Making PREEMPT_RT the default for every machine.
-- Depending on sched_ext for production behavior before upstream stability is
-  sufficient.
+- Depending on sched_ext for production behavior before upstream stability is sufficient (reconciled by ADR 0015; sched_ext is enabled by default on desktop/laptop profiles with EEVDF fallback).
 - Running multiple competing power/performance daemons by default.
 - Using opaque ML policy before deterministic policy and benchmarks exist.
   (This is a sequencing rule, not a permanent ban — see ADR 0013 for how
