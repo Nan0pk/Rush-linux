@@ -35,6 +35,14 @@ def get_roadmap_version() -> str:
         sys.exit(1)
     return match.group(1)
 
+def get_releases_version() -> str:
+    releases = Path("RELEASES.md").read_text()
+    match = re.search(r"Current project version:\s*`([^`]+)`", releases)
+    if not match:
+        print("ERROR: Could not find version in RELEASES.md")
+        sys.exit(1)
+    return match.group(1)
+
 def get_milestones_version() -> str:
     milestones_path = Path("release/milestones.toml")
     with milestones_path.open("rb") as f:
@@ -63,11 +71,13 @@ def main():
     version_file = get_version_file()
     cargo_version = get_cargo_workspace_version()
     roadmap_version = get_roadmap_version()
+    releases_version = get_releases_version()
     milestones_version = get_milestones_version()
     
     print(f"\nVERSION file:              {version_file}")
     print(f"Cargo.toml workspace:      {cargo_version}")
     print(f"ROADMAP.md:                {roadmap_version}")
+    print(f"RELEASES.md:               {releases_version}")
     print(f"milestones.toml:           {milestones_version}")
     
     errors = []
@@ -77,6 +87,9 @@ def main():
     
     if version_file != roadmap_version:
         errors.append(f"VERSION ({version_file}) != ROADMAP.md ({roadmap_version})")
+    
+    if version_file != releases_version:
+        errors.append(f"VERSION ({version_file}) != RELEASES.md ({releases_version})")
     
     if version_file != milestones_version:
         errors.append(f"VERSION ({version_file}) != milestones.toml ({milestones_version})")

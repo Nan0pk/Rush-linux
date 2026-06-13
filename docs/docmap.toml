@@ -44,7 +44,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["README.md", "docs/architecture.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-13"
 
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-13"
 validator = "version_matches:VERSION"
 
 [docs."AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-13"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
