@@ -131,6 +131,12 @@ fn run(args: Args) -> io::Result<()> {
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let mut snapshot = Snapshot::collect();
+        if let Ok(app) = fs::read_to_string(args.state_dir.join("foreground_app")) {
+            let app_trimmed = app.trim().to_string();
+            if !app_trimmed.is_empty() {
+                snapshot.foreground_app = Some(app_trimmed);
+            }
+        }
         if let Some(ref app) = snapshot.foreground_app {
             snapshot.pinned_class = read_pinned_class(&args.state_dir, app);
         }

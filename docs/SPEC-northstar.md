@@ -202,12 +202,14 @@ without first observing state and defining the contract.
 | WP-N9 | Thermal/fan budget coupling | arbitrator | Acoustic state tracks thermal headroom without floor breach |
 | WP-B1 | Benchmark harness execution vs PPD/TLP/baseline | evidence | Real numbers published in `benchmarks/results/`; losses documented honestly |
 
+*Note: WP-B1's first deliverable is the measurement rig (`rushbench`) and single-host evidence; the cross-distro PPD/TLP/baseline comparison is a follow-up under the same WP row.*
+
 `sched_ext` stays an experimental fragment with no WP until a hypothesis grounded
 in WP-B1 data justifies one.
 
 **Gate:** WP-B1 evidence is required before claiming any enabler "works." An
 enabler that doesn't lower avoidable energy at a fixed floor is reverted, not
-shipped.
+shipped. The gate is satisfied by evidence produced by the `rushbench` measurement rig.
 
 ---
 
