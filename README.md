@@ -2,7 +2,7 @@
 ### *The declarative, adaptive, and verifiable OS.*
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Pre--Alpha%20(v0.5)-orange.svg)]()
+[![Status](https://img.shields.io/badge/status-Pre--Alpha%20(v0.5)-orange.svg)](ROADMAP.md)
 [![Built with](https://img.shields.io/badge/built%20with-Rust-red.svg)](https://www.rust-lang.org/)
 
 Rush Linux is a **source-built Linux architecture** designed for a future where the operating system is declarative, adaptive, and rigorously verifiable. It is built natively for AI-human collaboration, requiring strict cryptographic-style proof for every engineering claim.
