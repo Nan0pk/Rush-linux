@@ -486,3 +486,20 @@ deps = []
 freshens = ["docs/architecture.md", "docs/adaptive-engine.md"]
 last_verified = "2026-06-13"
 
+
+[docs."docs/research/0002-rush-linux-architecture-review.md"]
+purpose = "Architecture review of Rush Linux as a unified power orchestrator"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-13"
+
+[docs."docs/research/0003-unified-power-orchestrator-paper.md"]
+purpose = "Paper on closing the loop on the Linux platform stack"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-13"
+
