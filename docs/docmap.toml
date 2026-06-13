@@ -503,3 +503,12 @@ deps = []
 freshens = []
 last_verified = "2026-06-13"
 
+
+[docs."docs/SPEC-northstar.md"]
+purpose = "Canonical objective specification for optid"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-13"
+
