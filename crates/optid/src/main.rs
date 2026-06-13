@@ -1332,7 +1332,7 @@ mod tests {
         run(args).unwrap();
 
         assert!(!temp_dir.join("intended_vm_swappiness").exists());
-        
+
         let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap();
         assert!(decisions.contains("vm.sysctl /proc/sys/vm/swappiness"));
     }
@@ -1344,7 +1344,6 @@ mod tests {
         let config_path = temp_dir.join("policy.toml");
         fs::write(&config_path, "").unwrap();
 
-
         let mut actuator = Actuator::new(temp_dir.clone());
         let action = Action::vm_sysctl(
             PathBuf::from("/proc/sys/vm/swappiness"),
@@ -1354,7 +1353,7 @@ mod tests {
         let _ = actuator.apply(&action);
 
         assert!(temp_dir.join("intended_vm_swappiness").exists());
-        
+
         let actions_log = fs::read_to_string(temp_dir.join("actions.log")).unwrap();
         assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
 
@@ -1419,6 +1418,9 @@ mod tests {
             "adjust swappiness for current mode",
         );
         let desc = action.describe();
-        assert_eq!(desc, "vm.sysctl /proc/sys/vm/swappiness=100 (adjust swappiness for current mode)");
+        assert_eq!(
+            desc,
+            "vm.sysctl /proc/sys/vm/swappiness=100 (adjust swappiness for current mode)"
+        );
     }
 }
