@@ -1,0 +1,12 @@
+[Unit]
+Description=Poweroff VM automatically after testing
+After=multi-user.target optid.service optid-boot-assess.service
+Requires=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl poweroff --force
+StandardOutput=tty
+
+[Install]
+WantedBy=multi-user.target

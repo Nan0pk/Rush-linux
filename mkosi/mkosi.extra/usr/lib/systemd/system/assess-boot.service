@@ -1,0 +1,11 @@
+[Unit]
+Description=Assess Boot Success and Poweroff
+After=multi-user.target optid.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/assess-boot.sh
+StandardOutput=tty
+
+[Install]
+WantedBy=multi-user.target

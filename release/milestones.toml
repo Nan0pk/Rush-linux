@@ -80,8 +80,8 @@ verified = true
 note = "tools/manage-boot-entries.sh rotates and retains >=3 rollback entries; tools/test-rollback.sh validates."
 [[milestone.criteria_status]]
 criterion = "simulated bad kernel rolls back"
-verified = true
-note = "tools/test-rollback.sh injects broken UKI, verifies boot failure, restores rollback entry, verifies recovery."
+verified = false
+note = "Awaiting C1R human gate transcript (falsely certified via bash -n)."
 [[milestone.criteria_status]]
 criterion = "test update metadata is signed"
 verified = true
