@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-11"
+last_verified = "2026-06-14"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -44,7 +44,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["README.md", "docs/architecture.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -424,9 +424,17 @@ last_verified = "2026-06-10"
 purpose = "Work Plan v2: recovery sprint with explicit builder/verifier/human roles and evidence rule"
 owner_area = "area:project"
 covers_code = []
-deps = []
+deps = ["docs/agent-protocol.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/agent-protocol.md"]
+purpose = "Canonical source for agent roles, authority matrix, and evidence rule"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/plans/work-plan-v2.md"]
+last_verified = "2026-06-14"
 
 [docs."docs/plans/action-plan-2026-06-10.md"]
 purpose = "Action Plan (Execution Runbook) for Phase 0 merge train and subsequent agent sessions"
