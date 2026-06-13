@@ -35,12 +35,7 @@ if [ -z "$(git status --porcelain)" ] && [ ! -f "$DIRTY_FILE" ]; then
     exit 0
 fi
 
-# ── Step 1: Update docmap last_verified dates ───────
-echo ">> Updating doc verification dates..."
-python3 tools/update-docmap-dates.py 2>/dev/null || {
-    echo "⚠️  Could not auto-update docmap dates. Update manually if needed."
-}
-echo ""
+# ── Step 1: (Removed in WP-G3) ─────────────────────────
 
 # ── Step 2: Run all validators ─────────────────────
 echo ">> Running full validation suite..."

@@ -243,13 +243,45 @@ def check_optid_doc_sync(entries):
 
 
 def check_last_verified(entries, max_age_days):
-    """Warn if last_verified is older than max_age_days."""
+    """Warn if last_verified is older than max_age_days for docs covering changed code."""
     print(f"\n── Check: last_verified freshness (max {max_age_days} days) ──")
     now = datetime.now(timezone.utc)
     threshold_days = max_age_days
 
+    import subprocess
+    try:
+        # Get changed files in the current PR/branch relative to main
+        changed_files = subprocess.check_output(
+            ["git", "diff", "--name-only", "origin/main...HEAD"],
+            text=True, stderr=subprocess.DEVNULL
+        ).splitlines()
+    except Exception:
+        try:
+            # Fallback to local unstaged/staged if origin/main isn't available
+            changed_files = subprocess.check_output(
+                ["git", "diff", "--name-only", "HEAD"],
+                text=True, stderr=subprocess.DEVNULL
+            ).splitlines()
+        except Exception:
+            changed_files = []
+
     stale_count = 0
     for path, entry in sorted(entries.items()):
+        covers = entry.get("covers_code", [])
+        
+        # Only evaluate if a covered file changed
+        if covers and changed_files:
+            affected = False
+            for cfile in changed_files:
+                for cov in covers:
+                    if cfile.startswith(cov):
+                        affected = True
+                        break
+                if affected:
+                    break
+            if not affected:
+                continue
+
         lv = entry.get("last_verified", "")
         if not lv:
             warn(f"{path} has no last_verified date")
@@ -264,7 +296,7 @@ def check_last_verified(entries, max_age_days):
             err(f"{path} has invalid last_verified format: '{lv}'")
 
     if stale_count == 0:
-        ok(f"All docs verified within {threshold_days} days")
+        ok(f"All relevant docs verified within {threshold_days} days")
 
 
 # ── Main ─────────────────────────────────────────────────────

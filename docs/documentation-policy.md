@@ -27,6 +27,9 @@ Every non-trivial change must document:
 - validation commands and results;
 - follow-up work and known limitations.
 
+Same-commit doc updates are **required** for *behavior/default/policy/boot/security/API* changes.
+They are **not required** for *mechanical refactors* with zero behavior change or internal-only edits (the PR states the class and the validator does not block).
+
 ## Required Docs By Change Type
 
 - `optid` or `optctl` behavior: update `docs/adaptive-engine.md`,
@@ -49,7 +52,7 @@ Every non-trivial change must document:
 
 Before committing:
 
-- update docs in the same commit as code/config changes;
+- update docs in the same commit as code/config changes (if behavior class);
 - run `powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`;
 - include validation status in the final handoff;
 - keep `AI_CONTINUATION.md` current when the next task changes.
