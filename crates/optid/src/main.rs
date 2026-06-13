@@ -1314,12 +1314,59 @@ mod tests {
     }
 
     #[test]
-    fn test_high_swappiness_gating() {
+    fn test_t1_dry_run_no_op() {
+        let temp_dir = std::env::temp_dir().join(format!("optid_tests_t1_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap();
+
+        let args = Args {
+            apply: false, // DRY RUN
+            once: true,
+            help: false,
+            interval_sec: 1,
+            state_dir: temp_dir.clone(),
+            config_path,
+        };
+
+        run(args).unwrap();
+
+        assert!(!temp_dir.join("intended_vm_swappiness").exists());
+
+        let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap();
+        assert!(decisions.contains("vm.sysctl /proc/sys/vm/swappiness"));
+    }
+
+    #[test]
+    fn test_t2_apply_allowlisted_and_t4_revert() {
+        let temp_dir = std::env::temp_dir().join(format!("optid_tests_t2_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap();
+
+        let mut actuator = Actuator::new(temp_dir.clone());
+        let action = Action::vm_sysctl(
+            PathBuf::from("/proc/sys/vm/swappiness"),
+            "60".to_string(),
+            "test reason",
+        );
+        let _ = actuator.apply(&action);
+
+        assert!(temp_dir.join("intended_vm_swappiness").exists());
+
+        let actions_log = fs::read_to_string(temp_dir.join("actions.log")).unwrap();
+        assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
+
+        revert_sysctls(&temp_dir);
+        assert!(!temp_dir.join("intended_vm_swappiness").exists());
+    }
+
+    #[test]
+    fn test_t3_zram_gate() {
         let mut policy = Policy::default();
         policy.memory.high_swappiness_requires_zram = true;
         policy.modes.performance.vm_swappiness = Some(150);
 
-        // Scenario A: zram is active -> swappiness should be 150
         let snapshot_with_zram = Snapshot {
             timestamp: 0,
             on_ac: Some(true),
@@ -1339,9 +1386,8 @@ mod tests {
                 false
             }
         });
-        assert!(has_150, "should apply swappiness 150 with ZRAM");
+        assert!(has_150);
 
-        // Scenario B: zram is inactive -> swappiness should be clamped to 60
         let snapshot_no_zram = Snapshot {
             timestamp: 0,
             on_ac: Some(true),
@@ -1361,6 +1407,20 @@ mod tests {
                 false
             }
         });
-        assert!(has_60, "should clamp swappiness to 60 without ZRAM");
+        assert!(has_60);
+    }
+
+    #[test]
+    fn test_t5_explainability() {
+        let action = Action::vm_sysctl(
+            PathBuf::from("/proc/sys/vm/swappiness"),
+            "100".to_string(),
+            "adjust swappiness for current mode",
+        );
+        let desc = action.describe();
+        assert_eq!(
+            desc,
+            "vm.sysctl /proc/sys/vm/swappiness=100 (adjust swappiness for current mode)"
+        );
     }
 }
