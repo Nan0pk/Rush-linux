@@ -127,7 +127,7 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 
 | Lever | Kernel interface | Role detail | Status |
 |---|---|---|---|
-| Workload-class detection | foreground/fullscreen/audio/video, PSI | Selects active contract | — |
+| Workload-class detection | foreground/fullscreen/audio/video, PSI | Selects active contract | A |
 | `optctl pin <app> <mode>` | optid state | Manual floor override | A |
 | PM QoS CPU wakeup latency | `cpu_dma_latency` / `pm_qos` | CPU floor as a number | — |
 | PM QoS per-device resume latency | per-device `pm_qos` | Device floor as a number | — |

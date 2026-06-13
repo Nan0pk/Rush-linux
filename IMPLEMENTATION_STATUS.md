@@ -25,9 +25,11 @@ engineering milestones.
   - reads thermal state from `/sys/class/thermal`;
   - reads load average from `/proc/loadavg`;
   - decides battery, balanced, performance, or realtime mode;
+  - workload classifier pure function mapping PSI/load/AC/pin to the five classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`) with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
   - writes explainable status and decision logs;
   - applies guarded EPP, platform profile, and systemd cgroup actions only with
     `--apply`.
+- Workload class latency-budget contract table defined as data in `config/optid/contracts.toml` (not yet enforced; consumed by N2).
 - `optctl` Rust MVP:
   - reads status and decision logs;
   - sets mode through the state directory;

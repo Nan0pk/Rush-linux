@@ -13,6 +13,8 @@ const DEFAULT_STATE_DIR: &str = "/run/optid";
 const DEFAULT_CONFIG_PATH: &str = "/usr/lib/optid/policy.toml";
 const DEFAULT_INTERVAL_SEC: u64 = 2;
 
+const DEFAULT_DWELL_WINDOW_SEC: u64 = 3;
+
 struct OptidServer {
     state_dir: PathBuf,
 }
@@ -36,10 +38,25 @@ impl OptidServer {
             .map_err(|e| zbus::fdo::Error::Failed(format!("failed to write mode: {e}")))
     }
 
-    fn pin_application(&self, app_id: &str, mode: &str) -> zbus::fdo::Result<()> {
-        let _mode_parsed = Mode::parse(mode)
-            .ok_or_else(|| zbus::fdo::Error::InvalidArgs(format!("invalid mode: {mode}")))?;
-        println!("Pinning application {app_id} to mode {mode}");
+    fn pin_application(&self, app_id: &str, class: &str) -> zbus::fdo::Result<()> {
+        let classes = [
+            "idle",
+            "light",
+            "interactive",
+            "latency-critical",
+            "throughput",
+        ];
+        if !classes.contains(&class) {
+            return Err(zbus::fdo::Error::InvalidArgs(format!(
+                "invalid workload class: {class}"
+            )));
+        }
+        let pins_dir = self.state_dir.join("pins");
+        fs::create_dir_all(&pins_dir)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to create pins dir: {e}")))?;
+        fs::write(pins_dir.join(app_id), class)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to write pin: {e}")))?;
+        println!("Pinned application {app_id} to class {class}");
         Ok(())
     }
 
@@ -102,10 +119,30 @@ fn run(args: Args) -> io::Result<()> {
         }
     });
 
+    let initial_class = fs::read_to_string(args.state_dir.join("workload_class"))
+        .ok()
+        .and_then(|s| WorkloadClass::parse(&s))
+        .unwrap_or(WorkloadClass::Idle);
+    let mut hysteresis = HysteresisState::new(initial_class);
+
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
-        let snapshot = Snapshot::collect();
-        let decision = Policy::load(&args.config_path).decide(&snapshot, override_mode);
+        let mut snapshot = Snapshot::collect();
+        if let Some(ref app) = snapshot.foreground_app {
+            snapshot.pinned_class = read_pinned_class(&args.state_dir, app);
+        }
+
+        let policy = Policy::load(&args.config_path);
+        let (raw_class, class_reason) = policy.classify(&snapshot);
+        let (committed_class, _) =
+            hysteresis.update(raw_class, snapshot.timestamp, DEFAULT_DWELL_WINDOW_SEC);
+
+        let _ = fs::write(
+            args.state_dir.join("workload_class"),
+            committed_class.to_string(),
+        );
+
+        let decision = policy.decide(&snapshot, override_mode, committed_class, class_reason);
         let report = decision.render(&snapshot);
 
         fs::write(args.state_dir.join("status"), &report)?;
@@ -247,6 +284,98 @@ impl Pressure {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WorkloadClass {
+    Idle,
+    Light,
+    Interactive,
+    LatencyCritical,
+    Throughput,
+}
+
+impl fmt::Display for WorkloadClass {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::Idle => "idle",
+            Self::Light => "light",
+            Self::Interactive => "interactive",
+            Self::LatencyCritical => "latency-critical",
+            Self::Throughput => "throughput",
+        };
+        f.write_str(value)
+    }
+}
+
+impl WorkloadClass {
+    fn parse(s: &str) -> Option<Self> {
+        match s.trim() {
+            "idle" => Some(Self::Idle),
+            "light" => Some(Self::Light),
+            "interactive" => Some(Self::Interactive),
+            "latency-critical" => Some(Self::LatencyCritical),
+            "throughput" => Some(Self::Throughput),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct HysteresisState {
+    committed_class: WorkloadClass,
+    candidate_class: WorkloadClass,
+    candidate_since: Option<u64>,
+}
+
+impl HysteresisState {
+    fn new(initial_class: WorkloadClass) -> Self {
+        Self {
+            committed_class: initial_class,
+            candidate_class: initial_class,
+            candidate_since: None,
+        }
+    }
+
+    fn update(
+        &mut self,
+        next_class: WorkloadClass,
+        now: u64,
+        dwell_window_sec: u64,
+    ) -> (WorkloadClass, bool) {
+        if next_class == self.committed_class {
+            self.candidate_class = next_class;
+            self.candidate_since = None;
+            (self.committed_class, false)
+        } else if next_class == self.candidate_class {
+            match self.candidate_since {
+                None => {
+                    self.candidate_since = Some(now);
+                    (self.committed_class, false)
+                }
+                Some(since) => {
+                    if now >= since + dwell_window_sec {
+                        self.committed_class = next_class;
+                        self.candidate_since = None;
+                        (self.committed_class, true)
+                    } else {
+                        (self.committed_class, false)
+                    }
+                }
+            }
+        } else {
+            self.candidate_class = next_class;
+            self.candidate_since = Some(now);
+            (self.committed_class, false)
+        }
+    }
+}
+
+fn read_pinned_class(state_dir: &Path, app_id: &str) -> Option<WorkloadClass> {
+    let pin_file = state_dir.join("pins").join(app_id);
+    let text = fs::read_to_string(pin_file).ok()?;
+    WorkloadClass::parse(&text)
+}
+
 #[derive(Debug, Clone)]
 struct Snapshot {
     timestamp: u64,
@@ -258,6 +387,8 @@ struct Snapshot {
     memory_pressure: Option<Pressure>,
     io_pressure: Option<Pressure>,
     zram_swap_active: bool,
+    foreground_app: Option<String>,
+    pinned_class: Option<WorkloadClass>,
 }
 
 impl Snapshot {
@@ -272,6 +403,8 @@ impl Snapshot {
             memory_pressure: Pressure::read("/proc/pressure/memory"),
             io_pressure: Pressure::read("/proc/pressure/io"),
             zram_swap_active: read_zram_swap_active(),
+            foreground_app: None,
+            pinned_class: None,
         }
     }
 
@@ -573,7 +706,78 @@ impl Policy {
         policy
     }
 
-    fn decide(&self, snapshot: &Snapshot, requested: Mode) -> Decision {
+    fn classify(&self, snapshot: &Snapshot) -> (WorkloadClass, String) {
+        if let Some(pinned) = snapshot.pinned_class {
+            return (pinned, "pinned override for foreground app".to_string());
+        }
+
+        let load = snapshot.loadavg_1.unwrap_or(0.0);
+        let cpu_pressure = snapshot.cpu_pressure.map(|p| p.avg10).unwrap_or(0.0);
+        let mem_pressure = snapshot.memory_pressure.map(|p| p.avg10).unwrap_or(0.0);
+        let io_pressure = snapshot.io_pressure.map(|p| p.avg10).unwrap_or(0.0);
+
+        if load >= 4.0
+            && (cpu_pressure >= self.thresholds.cpu_pressure_perf_avg10
+                || io_pressure >= self.thresholds.io_pressure_throttle_avg10)
+        {
+            return (
+                WorkloadClass::Throughput,
+                format!(
+                    "high load ({:.2}) and high pressure (cpu: {:.2}, io: {:.2})",
+                    load, cpu_pressure, io_pressure
+                ),
+            );
+        }
+
+        if (1.5..4.0).contains(&load)
+            && cpu_pressure >= self.thresholds.cpu_pressure_perf_avg10
+            && snapshot.on_ac == Some(true)
+        {
+            return (
+                WorkloadClass::LatencyCritical,
+                format!(
+                    "moderate load ({:.2}) with cpu pressure ({:.2}) on AC",
+                    load, cpu_pressure
+                ),
+            );
+        }
+
+        if load >= 0.5 || cpu_pressure > 2.0 || mem_pressure > 2.0 {
+            return (
+                WorkloadClass::Interactive,
+                format!(
+                    "active usage: load={:.2}, cpu_pressure={:.2}, mem_pressure={:.2}",
+                    load, cpu_pressure, mem_pressure
+                ),
+            );
+        }
+
+        if load > 0.05 || cpu_pressure > 0.1 {
+            return (
+                WorkloadClass::Light,
+                format!(
+                    "low activity: load={:.2}, cpu_pressure={:.2}",
+                    load, cpu_pressure
+                ),
+            );
+        }
+
+        (
+            WorkloadClass::Idle,
+            format!(
+                "system idle: load={:.2}, cpu_pressure={:.2}",
+                load, cpu_pressure
+            ),
+        )
+    }
+
+    fn decide(
+        &self,
+        snapshot: &Snapshot,
+        requested: Mode,
+        workload_class: WorkloadClass,
+        workload_reason: String,
+    ) -> Decision {
         let effective_mode = match requested {
             Mode::Auto => self.auto_mode(snapshot),
             explicit => explicit,
@@ -761,6 +965,8 @@ impl Policy {
             mode: effective_mode,
             reasons,
             actions,
+            workload_class,
+            workload_reason,
         }
     }
 
@@ -806,6 +1012,8 @@ struct Decision {
     mode: Mode,
     reasons: Vec<String>,
     actions: Vec<Action>,
+    workload_class: WorkloadClass,
+    workload_reason: String,
 }
 
 impl Decision {
@@ -829,6 +1037,8 @@ impl Decision {
             "io_pressure={}\n",
             fmt_pressure(snapshot.io_pressure)
         ));
+        out.push_str(&format!("workload_class={}\n", self.workload_class));
+        out.push_str(&format!("workload_reason={}\n", self.workload_reason));
         out.push_str("reasons:\n");
         for reason in &self.reasons {
             out.push_str(&format!("- {reason}\n"));
@@ -1259,9 +1469,16 @@ mod tests {
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
             zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
         };
 
-        let decision = Policy::default().decide(&snapshot, Mode::Auto);
+        let decision = Policy::default().decide(
+            &snapshot,
+            Mode::Auto,
+            WorkloadClass::Idle,
+            "test".to_string(),
+        );
         assert_eq!(decision.mode, Mode::Battery);
     }
 
@@ -1280,9 +1497,16 @@ mod tests {
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
             zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
         };
 
-        let decision = Policy::default().decide(&snapshot, Mode::Auto);
+        let decision = Policy::default().decide(
+            &snapshot,
+            Mode::Auto,
+            WorkloadClass::Idle,
+            "test".to_string(),
+        );
         assert_eq!(decision.mode, Mode::Performance);
     }
 
@@ -1301,9 +1525,16 @@ mod tests {
             memory_pressure: Some(Pressure::default()),
             io_pressure: Some(Pressure::default()),
             zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
         };
 
-        let decision = Policy::default().decide(&snapshot, Mode::Performance);
+        let decision = Policy::default().decide(
+            &snapshot,
+            Mode::Performance,
+            WorkloadClass::Idle,
+            "test".to_string(),
+        );
         assert!(decision.actions.iter().any(|action| {
             if let Action::CpuEpp { value, .. } = action {
                 value == "balance_power"
@@ -1377,8 +1608,15 @@ mod tests {
             memory_pressure: None,
             io_pressure: None,
             zram_swap_active: true,
+            foreground_app: None,
+            pinned_class: None,
         };
-        let decision_with = policy.decide(&snapshot_with_zram, Mode::Performance);
+        let decision_with = policy.decide(
+            &snapshot_with_zram,
+            Mode::Performance,
+            WorkloadClass::Idle,
+            "test".to_string(),
+        );
         let has_150 = decision_with.actions.iter().any(|action| {
             if let Action::VmSysctl { path, value, .. } = action {
                 path == Path::new("/proc/sys/vm/swappiness") && value == "150"
@@ -1398,8 +1636,15 @@ mod tests {
             memory_pressure: None,
             io_pressure: None,
             zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
         };
-        let decision_no = policy.decide(&snapshot_no_zram, Mode::Performance);
+        let decision_no = policy.decide(
+            &snapshot_no_zram,
+            Mode::Performance,
+            WorkloadClass::Idle,
+            "test".to_string(),
+        );
         let has_60 = decision_no.actions.iter().any(|action| {
             if let Action::VmSysctl { path, value, .. } = action {
                 path == Path::new("/proc/sys/vm/swappiness") && value == "60"
@@ -1422,5 +1667,205 @@ mod tests {
             desc,
             "vm.sysctl /proc/sys/vm/swappiness=100 (adjust swappiness for current mode)"
         );
+    }
+
+    #[test]
+    fn test_n1_t1_class_mapping() {
+        let policy = Policy::default();
+
+        // 1. Idle snapshot
+        let idle_snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
+
+        // 2. Light snapshot
+        let light_snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.1),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
+
+        // 3. Interactive snapshot
+        let int_snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.8),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
+
+        // 4. Latency-critical snapshot
+        let lc_snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(2.0),
+            cpu_pressure: Some(Pressure {
+                avg10: 15.0,
+                ..Pressure::default()
+            }),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
+
+        // 5. Throughput snapshot
+        let tp_snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(5.0),
+            cpu_pressure: Some(Pressure {
+                avg10: 15.0,
+                ..Pressure::default()
+            }),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
+    }
+
+    #[test]
+    fn test_n1_t2_pin_precedence() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: Some("doom.exe".to_string()),
+            pinned_class: Some(WorkloadClass::LatencyCritical),
+        };
+        let (class, reason) = policy.classify(&snap);
+        assert_eq!(class, WorkloadClass::LatencyCritical);
+        assert!(reason.contains("pinned override"));
+    }
+
+    #[test]
+    fn test_n1_t3_hysteresis() {
+        let mut hysteresis = HysteresisState::new(WorkloadClass::Idle);
+
+        // Transition from Idle -> Interactive.
+        // Sample at t=0, class remains Idle (candidate Interactive)
+        let (class, _) = hysteresis.update(WorkloadClass::Interactive, 0, 3);
+        assert_eq!(class, WorkloadClass::Idle);
+
+        // Sample at t=2 (less than 3 seconds), class remains Idle
+        let (class, _) = hysteresis.update(WorkloadClass::Interactive, 2, 3);
+        assert_eq!(class, WorkloadClass::Idle);
+
+        // Sample at t=3 (sustained 3 seconds), class transitions to Interactive
+        let (class, changed) = hysteresis.update(WorkloadClass::Interactive, 3, 3);
+        assert_eq!(class, WorkloadClass::Interactive);
+        assert!(changed);
+
+        // A single-sample blip at t=4 back to Idle does not immediately change committed class
+        let (class, _) = hysteresis.update(WorkloadClass::Idle, 4, 3);
+        assert_eq!(class, WorkloadClass::Interactive);
+    }
+
+    #[test]
+    fn test_n1_t4_determinism() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.5),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        let res1 = policy.classify(&snap);
+        let res2 = policy.classify(&snap);
+        assert_eq!(res1, res2);
+    }
+
+    #[test]
+    fn test_n1_t5_explainability() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(5.0),
+            cpu_pressure: Some(Pressure {
+                avg10: 20.0,
+                ..Pressure::default()
+            }),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        let (_, reason) = policy.classify(&snap);
+        assert!(reason.contains("high load") && reason.contains("high pressure"));
+    }
+
+    #[test]
+    fn test_n1_t6_absent_foreground() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(1.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+        };
+        // Should fallback to Interactive due to loadavg=1.0 without foreground app or pin
+        let (class, _) = policy.classify(&snap);
+        assert_eq!(class, WorkloadClass::Interactive);
     }
 }
