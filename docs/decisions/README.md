@@ -48,7 +48,7 @@ A maintainer ratifies by editing the ADR to:
 
 ## Current proposed ADRs awaiting ratification
 
-ADRs 0008–0013 are **proposed** and are not yet binding. ADR 0008 (software
+ADRs 0008–0015 are **proposed** and are not yet binding. ADR 0008 (software
 delivery and packaging) is the most consequential and should be ratified first.
 
 ## Adding a new ADR
