@@ -745,7 +745,7 @@ fn write_record(
     let host_folder = get_host_folder_name();
     let utc_date = started_at.split('T').next().unwrap_or("unknown");
 
-    let results_root = find_repo_file("Cargo.toml")
+    let results_root = find_repo_file("VERSION")
         .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
         .unwrap_or_else(|| PathBuf::from("benchmarks/results"));
 
@@ -1559,7 +1559,7 @@ mod tests {
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
         // Check the emitted JSON contains "insufficient_n"
-        let results_root = find_repo_file("Cargo.toml")
+        let results_root = find_repo_file("VERSION")
             .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
             .unwrap();
         // find file
@@ -1664,7 +1664,7 @@ mod tests {
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
         // Capture report output
-        let results_root = find_repo_file("Cargo.toml")
+        let results_root = find_repo_file("VERSION")
             .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
             .unwrap();
         let date = get_utc_timestamp().split('T').next().unwrap().to_string();
