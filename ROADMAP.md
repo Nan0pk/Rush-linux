@@ -94,73 +94,56 @@ Exit criteria:
 - Simulated bad kernel rolls back. ✅ (tools/test-rollback.sh)
 - Test update metadata is signed. ✅ (tools/sign-updates.sh / sign_updates.py)
 
-## v0.5.0-beta.1: Minimal Installable System
+## v0.5.0-beta.1: Image Pivot
 
 Status: planned.
 
-- Produce minimal ISO or VM installer image.
-- Add filesystem selection.
-- Add server/minimal edition profile.
-- Add smoke tests for install, boot, update, rollback, optid dry-run, and
-  network.
+- Re-base the image composition plane on `mkosi` with an Arch Linux package base.
+- Retire `tools/rush-builder.py` and `recipes/` once parity is proven.
+- Complete Wave 0 (zram-generator, systemd-oomd, MGLRU) and Wave 1 (mkosi/Arch base, scx + scx_loader + optid integration).
 
 Exit criteria:
 
-- Fresh install succeeds in VM.
-- Installed system boots twice cleanly.
-- Update and rollback tests pass.
-- No desktop stack required for minimal/server edition.
+- mkosi/Arch image passes all existing `validate-uefi-boot.sh` and `test-rollback.sh` checks unmodified.
+- scx soak passes with EEVDF fallback verified.
 
 ## v0.6.0-beta.1: Hardware-Aware optid
 
 Status: planned.
 
-- Add CPU topology, EPP, platform profile, storage class, thermal, and battery
-  detection.
-- Add hardware allowlist database for risky sysfs knobs.
-- Add memory pressure policy.
-- Add background cgroup throttling policy.
-- Add foreground session detection through systemd/logind first.
+- Implement Wave 2 features: compatibility D-Bus interfaces (PPD, GameMode), TLP allowlist, foreground detection, and vm.* actuation.
+- Add hardware allowlist database (`config/optid/hardware-allowlist.toml`).
+- Prevent conflicting daemons (TLP, tuned, ppd) from executing alongside `optid`.
 
 Exit criteria:
 
+- GNOME/KDE power slider and games drive optid mode changes via D-Bus shims.
+- No writes occur outside allowlisted paths.
 - Unsupported knobs are skipped with logged reasons.
-- Mixed-load responsiveness improves on at least two machines.
-- Battery behavior matches or improves mainstream defaults on at least one
-  laptop.
-- No unsafe write occurs outside allowlisted paths.
 
 ## v0.7.0-beta.1: Editions
 
 Status: planned.
 
-- Build desktop KDE Plasma Wayland image.
-- Build laptop profile.
-- Build realtime audio profile with optional PREEMPT_RT kernel.
-- Build server image with systemd-networkd option and nftables.
-- Validate edition defaults against ADRs.
+- Implement editions as mkosi profiles and signed system extensions (sysexts) on a single base image.
+- Build profiles for desktop, laptop, and realtime-audio (PREEMPT_RT kernel).
 
 Exit criteria:
 
-- Each edition installs and boots.
-- Desktop uses Wayland and PipeWire by default.
-- Realtime edition uses RT kernel only when selected.
-- Server does not install desktop stack by default.
+- Each edition installs, boots, and verifies cleanly.
+- Desktop uses Wayland, PipeWire, and default-on sched_ext.
+- Server profile builds without desktop components.
 
 ## v0.8.0-beta.1: Benchmark Lab
 
 Status: planned.
 
-- Implement benchmark harness from `benchmarks/manifest.toml`.
-- Compare against Fedora current, Ubuntu current, Arch current, and minimal
-  tuned baseline.
-- Capture optimizer decisions alongside benchmark metrics.
-- Publish benchmark report format.
-- Add regression thresholds.
+- Implement Benchmark Lab backed by Phoronix Test Suite (Wave 3).
+- Compare performance-per-watt and latency metrics against mainstream Linux distributions.
 
 Exit criteria:
 
-- Public benchmark artifact generated.
+- Public benchmark artifact generated automatically from tests.
 - Regressions block release candidates.
 - `optctl explain` correlates with benchmark traces.
 
