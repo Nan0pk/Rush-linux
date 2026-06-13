@@ -129,11 +129,13 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 |---|---|---|---|
 | Workload-class detection | foreground/fullscreen/audio/video, PSI | Selects active contract | A |
 | `optctl pin <app> <mode>` | optid state | Manual floor override | A |
-| PM QoS CPU wakeup latency | `cpu_dma_latency` / `pm_qos` | CPU floor as a number | — |
-| PM QoS per-device resume latency | per-device `pm_qos` | Device floor as a number | — |
+| PM QoS CPU wakeup latency | `cpu_dma_latency` / `pm_qos` | CPU floor as a number | **A** |
+| PM QoS per-device resume latency | per-device `pm_qos` | Device floor as a number | **A** |
 | util_clamp (`uclamp_min`) | sched util-clamp | Per-task min performance floor | — |
 | EPP (toward performance) | `energy_performance_preference` | Coarse CPU floor expression | A |
 | `platform_profile` (performance) | `platform_profile` sysfs | Coarse platform floor | A |
+
+*Note: The PM QoS enabler exit-latency check `fits_contract` is defined/available in the code, but is unconsumed until WP-N5/N6. Latency budget values are provisional pending WP-B1 validation.*
 
 ### 4.3 DEPTH-ENABLERS (go deeper within the floor)
 

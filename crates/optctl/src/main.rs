@@ -253,6 +253,8 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
     let mut mode = String::new();
     let mut workload_class = String::new();
     let mut workload_reason = String::new();
+    let mut cpu_wakeup_latency: Option<i64> = None;
+    let mut device_resume_latency: Option<i64> = None;
     let mut on_ac: Option<bool> = None;
     let mut battery_pct: Option<u8> = None;
     let mut thermal_c: Option<f32> = None;
@@ -367,6 +369,8 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
             "mode" => mode = val.to_string(),
             "workload_class" => workload_class = val.to_string(),
             "workload_reason" => workload_reason = val.to_string(),
+            "cpu_wakeup_latency" => cpu_wakeup_latency = val.parse().ok(),
+            "device_resume_latency" => device_resume_latency = val.parse().ok(),
             "on_ac" => on_ac = parse_option_bool(val),
             "battery_pct" => battery_pct = parse_option_u8(val),
             "thermal_c" => thermal_c = parse_option_f32(val),
@@ -387,6 +391,16 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
         "  \"workload_reason\": \"{}\",\n",
         workload_reason
     ));
+
+    match cpu_wakeup_latency {
+        Some(v) => out.push_str(&format!("  \"cpu_wakeup_latency\": {},\n", v)),
+        None => out.push_str("  \"cpu_wakeup_latency\": null,\n"),
+    }
+
+    match device_resume_latency {
+        Some(v) => out.push_str(&format!("  \"device_resume_latency\": {},\n", v)),
+        None => out.push_str("  \"device_resume_latency\": null,\n"),
+    }
 
     match on_ac {
         Some(b) => out.push_str(&format!("  \"on_ac\": {},\n", b)),
@@ -470,6 +484,8 @@ timestamp=1717500000
 mode=balanced
 workload_class=interactive
 workload_reason=pinned override for foreground app
+cpu_wakeup_latency=1000
+device_resume_latency=10000
 on_ac=Some(true)
 battery_pct=Some(95)
 thermal_c=Some(45.5)
@@ -489,6 +505,8 @@ actions:
         assert!(result.contains("\"mode\": \"balanced\""));
         assert!(result.contains("\"workload_class\": \"interactive\""));
         assert!(result.contains("\"workload_reason\": \"pinned override for foreground app\""));
+        assert!(result.contains("\"cpu_wakeup_latency\": 1000"));
+        assert!(result.contains("\"device_resume_latency\": 10000"));
         assert!(result.contains("\"on_ac\": true"));
         assert!(result.contains("\"battery_pct\": 95"));
         assert!(result.contains("\"thermal_c\": 45.50"));
@@ -527,6 +545,8 @@ actions:
         assert!(result.contains("\"thermal_c\": null"));
         assert!(result.contains("\"loadavg_1\": null"));
         assert!(result.contains("\"cpu_pressure\": null"));
+        assert!(result.contains("\"cpu_wakeup_latency\": null"));
+        assert!(result.contains("\"device_resume_latency\": null"));
         assert!(result.contains("\"reasons\": [\n  ]"));
         assert!(result.contains("\"actions\": [\n  ]"));
     }

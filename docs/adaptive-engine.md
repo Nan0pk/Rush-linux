@@ -17,6 +17,14 @@ The classification is performed by a pure function based on load average, PSI pr
 
 To prevent classification flapping under transient spikes, a hysteresis wrapper filters the decisions, committing changes only when a new workload class persists across a 3-second dwell window.
 
+## PM QoS and Latency Budget Contracts
+
+`optid` enforces latency budgets defined in `/config/optid/contracts.toml` mapping committed workload classes to concrete latency floors:
+- **CPU wakeup latency floor**: Enforced globally by writing the floor in microseconds to `/dev/cpu_dma_latency` using a file descriptor held open for the daemon's lifetime (which automatically releases the floor on crash/exit).
+- **Device resume latency floor**: Enforced per-device by writing the floor in microseconds to each PCI device's `/sys/bus/pci/devices/*/power/pm_qos_resume_latency_us` path. Prior sysfs values are journaled to the state directory and reverted on service startup and shutdown.
+
+All PM QoS writes are subject to the dry-run (`--apply`) gate, act on floor changes only to avoid thrashing, and are explainable via `optctl explain`.
+
 ## Current MVP
 
 The current Rust implementation:
