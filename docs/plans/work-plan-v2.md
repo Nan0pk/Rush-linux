@@ -34,30 +34,10 @@ Root causes v2 must fix: (1) CI never runs on branches, so agents get zero feedb
 
 ## 2. Role Model and Authority Matrix
 
-### Roles
+### Roles and Evidence Rule
 
-**Builder agent** — executes exactly one WP per session under `tools/start-work.sh` / `finish-work.sh`. Produces a branch and opens a PR. May *claim* completion; may never *certify* it.
+The detailed roles (Builder, Verifier, Human), authority matrix, and the non-negotiable Evidence Rule (introduced during WP-P2) have been extracted to the canonical canon: **[docs/agent-protocol.md](../agent-protocol.md)**.
 
-**Verifier agent** — a separate session (ideally a different model/tool than the builder) that takes a PR, checks out the branch cold, runs the WP's acceptance block verbatim, and writes `VERIFICATION.md` into the PR (or a PR comment): each command, its exit code, and a one-line verdict per criterion. The verifier never fixes code — a failed check is a verdict, not a task. Builder ≠ verifier for the same WP, always.
-
-**Human (maintainer)** — the only role that can: merge to `main`, run hardware-dependent gates (KVM rollback test, physical benchmark runs), handle production keys, change milestone status to `complete`, and resolve disagreements between builder and verifier.
-
-### Authority matrix
-
-| Action | Builder | Verifier | Human |
-|---|---|---|---|
-| Create branch / push commits | ✅ | ❌ | ✅ |
-| Open PR | ✅ | ❌ | ✅ |
-| Run acceptance commands | ✅ (self-check) | ✅ (authoritative) | ✅ |
-| Mark WP criteria ✅ in evidence/docs | ❌ | ✅ (in VERIFICATION.md only) | ✅ |
-| Merge to `main` | ❌ | ❌ | ✅ only |
-| Edit `release/milestones.toml` status | ❌ | ❌ | ✅ only |
-| Touch signing keys beyond test keys | ❌ | ❌ | ✅ only |
-| Declare a gate "passed" without command transcript | ❌ | ❌ | ❌ — nobody |
-
-### Evidence rule (non-negotiable, born from the C1 incident)
-
-An exit-criterion checkmark may only appear next to an **embedded command transcript**: the literal command, literal output (or attached log file), date, and host description. "The script implements X" is a description, not evidence. `bash -n` is a syntax check, not a test run. Any evidence README violating this is rejected at review without further reading.
 
 ---
 
