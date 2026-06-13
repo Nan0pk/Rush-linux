@@ -477,3 +477,12 @@ covers_code = ["tools/bench-optid-host.sh", "tools/bench-optid-host-v2.sh", "too
 deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.md", "docs/plans/action-plan-2026-06-10.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/research/0001-apple-power-stack-analysis.md"]
+purpose = "Synthesis of reverse-engineering Apple power stack and Linux blind spots"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["docs/architecture.md", "docs/adaptive-engine.md"]
+last_verified = "2026-06-13"
+
