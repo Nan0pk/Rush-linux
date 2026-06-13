@@ -4,6 +4,19 @@
 observes workload and hardware state, then applies guarded policy changes to
 improve responsiveness, battery behavior, thermals, and resource utilization.
 
+## Workload Classification
+
+`optid` implements a workload-class detector (contract-setter) that maps current telemetry and override pins to exactly one of five workload classes:
+- `idle`: Extremely low activity.
+- `light`: Low background or system activity.
+- `interactive`: Default responsive user activity.
+- `latency-critical`: High-priority interactive work (e.g., gaming, audio) requiring low latency.
+- `throughput`: Massive batch tasks (e.g., compiling) requiring raw compute output.
+
+The classification is performed by a pure function based on load average, PSI pressure, and power supply state, with highest precedence given to explicit application pins (`optctl pin`).
+
+To prevent classification flapping under transient spikes, a hysteresis wrapper filters the decisions, committing changes only when a new workload class persists across a 3-second dwell window.
+
 ## Current MVP
 
 The current Rust implementation:
@@ -13,6 +26,7 @@ The current Rust implementation:
 - reads thermal state from `/sys/class/thermal`;
 - reads load average from `/proc/loadavg`;
 - chooses battery, balanced, performance, or realtime mode;
+- workload classifier pure function mapping PSI/load/AC/pin to the five classes with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
 - writes status and decision logs under `/run/optid`;
 - applies guarded actions only when `--apply` is passed.
 
