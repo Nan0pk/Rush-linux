@@ -1,15 +1,15 @@
 use std::env;
 
-pub mod types;
-pub mod utils;
+pub mod contracts;
 pub mod energy;
 pub mod probes;
-pub mod contracts;
-pub mod runner;
 pub mod report;
+pub mod runner;
+pub mod types;
+pub mod utils;
 
-use runner::run_cell;
 use report::run_report;
+use runner::run_cell;
 
 fn print_usage() {
     println!("Usage:");
@@ -155,14 +155,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use energy::{calculate_window, EnergySample, EnergySource};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
     use types::{HostInfo, ResolvedFloors, RunRecord, RushInfo};
-    use energy::{calculate_window, EnergySample, EnergySource};
     use utils::{
-        get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board, get_git_sha,
-        get_kernel_version, get_utc_timestamp, get_host_folder_name, find_repo_file
+        find_repo_file, get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
+        get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp,
     };
 
     static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

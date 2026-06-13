@@ -117,7 +117,8 @@ pub fn run_report(results_dir: &str) -> Result<String, String> {
             iqr_str,
             power_str,
             status_str
-        ).unwrap();
+        )
+        .unwrap();
     }
     writeln!(&mut out).unwrap();
 
@@ -128,13 +129,18 @@ pub fn run_report(results_dir: &str) -> Result<String, String> {
         if idle_w >= int_w {
             writeln!(&mut out, "- **Warning:** idle power draw ({:.2} W) is NOT less than interactive power draw ({:.2} W)!", idle_w, int_w).unwrap();
         } else {
-            writeln!(&mut out, "- Idle power draw is less than interactive power draw (expected behavior).").unwrap();
+            writeln!(
+                &mut out,
+                "- Idle power draw is less than interactive power draw (expected behavior)."
+            )
+            .unwrap();
         }
     } else {
         writeln!(
             &mut out,
             "- Note: insufficient battery run data to compare idle vs interactive power draw."
-        ).unwrap();
+        )
+        .unwrap();
     }
     writeln!(&mut out).unwrap();
 
@@ -149,20 +155,33 @@ pub fn run_report(results_dir: &str) -> Result<String, String> {
                         &mut out,
                         "- Latency-critical cyclictest median: {} us (Contract Floor: {} us)",
                         med_val, contract.cpu_wakeup_latency
-                    ).unwrap();
+                    )
+                    .unwrap();
                     if med_val > contract.cpu_wakeup_latency as f64 {
                         writeln!(&mut out, "  - **BUDGET VIOLATION DETECTED**: Observed latency ({} us) exceeds contract limit ({} us)!", med_val, contract.cpu_wakeup_latency).unwrap();
                     } else {
-                        writeln!(&mut out, "  - Pass: Observed latency fits within the contract budget.").unwrap();
+                        writeln!(
+                            &mut out,
+                            "  - Pass: Observed latency fits within the contract budget."
+                        )
+                        .unwrap();
                     }
                 }
             } else {
-                writeln!(&mut out, "- Latency-critical cyclictest run has no valid median data.").unwrap();
+                writeln!(
+                    &mut out,
+                    "- Latency-critical cyclictest run has no valid median data."
+                )
+                .unwrap();
             }
         }
     }
     if !lc_checked {
-        writeln!(&mut out, "- Note: no latency-critical cyclictest results found in the dataset.").unwrap();
+        writeln!(
+            &mut out,
+            "- Note: no latency-critical cyclictest results found in the dataset."
+        )
+        .unwrap();
     }
 
     Ok(out)
