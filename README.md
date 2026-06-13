@@ -1,193 +1,111 @@
-# Rush Linux
+# ⚡ Rush Linux
+### *The declarative, adaptive, and verifiable OS.*
 
-Rush Linux is a source-built Linux distribution project centered on one native
-optimization service: `optid`. The distribution target is a modern,
-future-facing Linux baseline with automatic, explainable runtime policy changes
-for responsiveness, battery life, thermal behavior, and resource utilization.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-Pre--Alpha%20(v0.5)-orange.svg)]()
+[![Built with](https://img.shields.io/badge/built%20with-Rust-red.svg)](https://www.rust-lang.org/)
 
-Repository: https://github.com/Nan0pk/Rush-linux
+Rush Linux is a **source-built Linux architecture** designed for a future where the operating system is declarative, adaptive, and rigorously verifiable. It is built natively for AI-human collaboration, requiring strict cryptographic-style proof for every engineering claim.
 
-**[Contributing](CONTRIBUTING.md)** · **[Code of Conduct](CODE_OF_CONDUCT.md)** · **[Security](SECURITY.md)** · **[Discussions](https://github.com/Nan0pk/Rush-linux/discussions)**
+At its heart lies **`optid`**, a native optimization engine that monitors system pressure and hardware telemetry to dynamically shift OS behavior. We pair this with **`sched_ext`** for user-space scheduling, and **`mkosi`** for deterministic image composition.
 
-This repository is the first implementation slice:
+---
 
-- Rust workspace for `optid` and `optctl`.
-- Kernel config fragments for adaptive and realtime kernels.
-- Future-facing system defaults for cgroup v2, PSI, UKI boot, nftables,
-  Wayland, PipeWire, and signed rollbackable updates.
-- Declarative `mkosi` image composition for the core OS.
-- Validation checks that reject legacy defaults.
+## 🌌 The Vision: Why Rush?
 
-The project deliberately does not make hard realtime the universal default.
-The default kernel is low-latency and adaptive; PREEMPT_RT is packaged as a
-specialist kernel for workloads that need bounded latency.
+Most distributions rely on fixed profiles and procedural build scripts. Rush Linux replaces static environments with a dynamic feedback loop, and fragile scripts with declarative truth.
 
-## Repository Layout
+- **Adaptive:** Senses CPU pressure and IO bottlenecks before you feel them.
+- **Predictive:** Uses `sched_ext` (eBPF) to dynamically route workloads.
+- **Deterministic:** Built exclusively via `mkosi` on an Arch Linux base—if the build isn't reproducible, it's broken.
+- **Honest:** No marketing fluff. We operate under a strict **Evidence Rule**: no claim of performance or correctness is accepted without a literal command transcript.
 
-```text
-crates/optid/             Adaptive optimization daemon
-crates/optctl/            CLI for status, mode, explain, trace, benchmark
-config/optid/             Default optimizer policy
-distro/boot/              UKI-first boot defaults and kernel command line
-distro/kernel/            Kernel config fragments
-distro/network/           nftables baseline
-packaging/systemd/        systemd units and tmpfiles
-mkosi/                    Declarative image definitions and overlays
-release/                  Version milestones and test-tier gates
-tools/                    Local validation scripts
-docs/                     Architecture and implementation notes
+👉 **[Read our Provenance Manifesto: How Rush is Built](docs/how-rush-is-built.md)**
+
+---
+
+## 🧠 The Core: `optid` & `optctl`
+
+The brain of Rush Linux is the `optid` daemon, written in Rust for safety and minimal overhead.
+
+- **`optid`**: Ingests data from `/proc/pressure` (PSI), thermal sensors, and load averages to apply guarded policy changes.
+- **`optctl`**: The CLI to trace logic, pin applications to modes, and manually override policies.
+
+### The Adaptive Loop
+```mermaid
+graph LR
+    A[System Sensors] --> B{optid Engine}
+    B --> C[Policy Analysis]
+    C --> D[Guarded Actions]
+    D --> E[Kernel/Hardware]
+    E --> A
 ```
 
-## First-Class Documentation
+---
 
-Start with:
+## 🛠️ The Technical Blueprint
 
-- **[How Rush is Built](docs/how-rush-is-built.md)** — The honest provenance manifesto
-- **[Agent Protocol](docs/agent-protocol.md)** — Rules of engagement and the Evidence Rule
-- [Project brief](PROJECT_BRIEF.md)
-- [AI continuation guide](AI_CONTINUATION.md)
-- [Implementation status](IMPLEMENTATION_STATUS.md)
-- [Roadmap](ROADMAP.md)
-- [Release ledger](RELEASES.md)
-- [Versioning](docs/versioning.md)
-- [Release policy](docs/release-policy.md)
-- [Release checklist](docs/release-checklist.md)
-- [v1 release plan](docs/release-plan-v1.md)
-- [Documentation policy](docs/documentation-policy.md)
-- [Graphify knowledge graph](docs/graphify-knowledge-graph.md)
-- [Architecture](docs/architecture.md)
-- [Adaptive engine](docs/adaptive-engine.md)
-- [Kernel policy](docs/kernel-policy.md)
-- [Packaging and builds](docs/packaging-and-builds.md)
-- [Boot and updates](docs/boot-and-updates.md)
-- [Hardware support](docs/hardware-support.md)
-- [Testing and benchmarks](docs/testing-and-benchmarks.md)
-- [Non-goals](docs/non-goals.md)
-- [Doc registry](docs/docmap.toml) — maps every doc to its purpose, code coverage, and dependencies
-- [Keeping docs in sync](docs/contributing/keeping-docs-synced.md) — how to update docs without drift
-- [ADRs](docs/decisions/)
+We reject legacy defaults in favor of future-facing Linux technologies:
 
-Documentation is part of acceptance criteria. Changes to behavior, defaults,
-policy, boot/update flow, kernel fragments, recipes, or tests must update the
-relevant docs in the same change.
+| Pillar | Technology | Why? |
+| :--- | :--- | :--- |
+| **Composition** | **mkosi & Arch Linux** | Declarative, immutable image building. No bespoke shell scripts. |
+| **Scheduling** | **sched_ext (scx_loader)** | BPF-based user-space task scheduling; EEVDF as the strict fallback. |
+| **Boot** | **Unified Kernel Images (UKI)** | Atomic, signed, and simplified boot flow via systemd-boot. |
+| **Resources** | **cgroup v2 & PSI** | Precise pressure stall information for intelligent scaling. |
+| **Display** | **Wayland & PipeWire** | Eliminating legacy X11/PulseAudio overhead. |
 
-## Knowledge Graph For Continuation
+---
 
-This repository commits a Graphify knowledge graph under `graphify-out/` so
-future agents can query architecture and code relationships before spending
-context on broad file reads. Start with:
+## ⚖️ The Governance Model
 
-```sh
-graphify query "what should I inspect before changing optid policy?" --graph graphify-out/graph.json
+Rush Linux is engineered by both humans and AI. To ensure absolute integrity, we enforce a strict Builder/Verifier separation.
+
+**The Evidence Rule:** Any `✅` or claim of success *must* carry a literal command transcript. No claim substitutes for a transcript.
+
+👉 **[Read the Agent Protocol](docs/agent-protocol.md)** to understand the rules of engagement before contributing.
+
+---
+
+## 🚀 Getting Started
+
+We are currently executing the **v0.5 Image Pivot**. 
+
+### Build the Optimizer (MVP)
+```bash
+# Clone the repository
+git clone https://github.com/Nan0pk/Rush-linux.git
+cd Rush-linux
+
+# Build the Rust workspace
+cargo build --release
 ```
 
-After code or supported config changes, refresh the graph without LLM/API token
-use:
-
-```sh
-./tools/graphify-refresh.sh code
+### Run a Simulation
+```bash
+# Run optid in trace mode to see how it interprets your current system state
+./target/release/optid --trace
 ```
 
-For Markdown/design-document semantic refreshes, run the explicit full mode with
-a configured backend. See [Graphify knowledge graph](docs/graphify-knowledge-graph.md).
+---
 
-## Current Implementation Status
+## 🗺️ The Journey (Roadmap)
 
-`optid` is implemented as a safe MVP:
+- [x] **Phase 0: The Blueprint** (Architecture, ADRs, MVP Engine)
+- [ ] **Phase 1: The Image Pivot (v0.5)** (mkosi base images, MGLRU/zram tuning)
+- [ ] **Phase 2: The Sched-Ext Drop (v0.6)** (optid eBPF integration)
+- [ ] **Phase 3: The RT Staging (v0.7)** (Isolated PREEMPT_RT editions)
+- [ ] **Phase 4: The Benchmark Automaton (v0.8)** (Harness integration)
 
-- Reads PSI from `/proc/pressure/{cpu,memory,io}`.
-- Reads battery/AC state from `/sys/class/power_supply`.
-- Reads thermal state from `/sys/class/thermal`.
-- Reads load average from `/proc/loadavg`.
-- Computes an adaptive mode and an explainable action plan.
-- Applies only guarded actions when `--apply` is passed.
-- Writes status and decision logs under `/run/optid` by default.
+👉 **[View the detailed ROADMAP](ROADMAP.md)**
 
-The packaged default service is dry-run. `optid-apply.service` exists for
-explicit mutating tests only.
+---
 
-The v0.3 VM path boots to `multi-user.target`, and the v0.4 UKI path is now
-validated under QEMU/OVMF with systemd-boot loading `/EFI/Linux/rush-linux.efi`
-and `optid.service` starting.
+## 🤝 Join the Rush
 
-`optctl` communicates with `optid` via D-Bus (system bus) with automatic
-fallback to the state directory when D-Bus is offline:
+We are looking for kernel hackers, Rustaceans, and AI agents who respect verifiable engineering.
 
-- `optctl status` — show current optimizer state (`--json` for machine-readable output)
-- `optctl explain` — show decision history with reasons
-- `optctl mode [auto|battery|balanced|performance|realtime]` — get or set optimizer mode
-- `optctl pin <app_id> <mode>` — pin an application to a specific mode
-- `optctl trace` — show applied action log
-- `optctl benchmark` — benchmark suite placeholder
-
-## Build
-
-Install a current Rust toolchain, then run:
-
-```sh
-cargo build --workspace
-cargo test --workspace
-```
-
-Linux (native or a container) is the canonical development and build
-environment: the rootfs builder, UKI generation, `systemd-repart`, and QEMU
-boot all require Linux, and CI builds and tests on Linux. Develop and verify on
-Linux.
-
-The repository-policy check is cross-platform and runs under PowerShell Core
-(`pwsh`), including in CI on Linux:
-
-```sh
-pwsh ./tools/validate-repo.ps1
-```
-
-It is a convenience for contributors on Windows, not a substitute for building
-and testing on Linux.
-
-## GitHub CI
-
-The repository includes GitHub Actions checks for:
-
-- `cargo fmt`
-- `cargo test`
-- `cargo clippy -D warnings`
-- future-facing repository policy validation
-- Graphify knowledge-graph refresh on `main` pushes
-
-## Publishing
-
-This local workspace is already configured for:
-
-```sh
-https://github.com/Nan0pk/Rush-linux
-```
-
-If the GitHub repository does not exist yet, create it with a token that has
-repository creation permission:
-
-```powershell
-$env:GH_TOKEN = '<token>'
-.\tools\publish-github.ps1
-```
-
-## Design Rules
-
-- Use `systemd` with unified cgroup v2 only.
-- Use Wayland-first desktop sessions and PipeWire/WirePlumber audio.
-- Use nftables, not iptables, as the firewall baseline.
-- Use UKI-first boot and rollbackable kernel entries.
-- Use `sched_ext` (via `scx_loader` and `optid`) as the default scheduler, with EEVDF fallback.
-- Use `mkosi` for declarative, reproducible image composition on an Arch Linux base.
-- Use eBPF/PSI/cgroup data for observability, with strict overhead limits.
-- Do not run TLP, power-profiles-daemon, or TuneD as active default policy
-  daemons. Compatibility can exist, but `optid` owns the knobs.
-- Avoid legacy defaults unless no modern alternative works.
-
-## Community
-
-- **Issues:** [Report bugs or request features](https://github.com/Nan0pk/Rush-linux/issues)
-- **Discussions:** [Ask questions, share ideas](https://github.com/Nan0pk/Rush-linux/discussions)
-- **Good first issues:** [Starter tasks for new contributors](https://github.com/Nan0pk/Rush-linux/labels/good%20first%20issue)
-- **Security:** [Report vulnerabilities privately](https://github.com/Nan0pk/Rush-linux/security/advisories/new)
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
+- 📖 **Read [How Rush is Built](docs/how-rush-is-built.md)**
+- ⚖️ **Understand the [Agent Protocol](docs/agent-protocol.md)**
+- 🗺️ **Check the [ROADMAP](ROADMAP.md)**
+- 💬 **Start a [Discussion](https://github.com/Nan0pk/Rush-linux/discussions)**
