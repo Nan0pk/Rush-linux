@@ -1,0 +1,27 @@
+#  optid-boot-assess.service — Mark a successful boot after multi-user.target.
+#
+#  Part of the Rush Linux boot assessment and rollback system (v0.4).
+#  This service runs after multi-user.target and writes a "good boot" marker
+#  to the ESP. If the system fails to reach this point, no marker is written,
+#  and the next boot will count a failed boot attempt.
+#
+#  The boot assessment logic in the initrd or systemd-boot will:
+#  - Count consecutive failures
+#  - Roll back to a previous known-good UKI after N failures
+#
+#  See: distro/boot/uki.toml [assessment] section
+#  See: tools/test-rollback.sh
+
+[Unit]
+Description=Rush Linux boot assessment marker
+DefaultDependencies=no
+After=multi-user.target
+Confirms=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/optid-boot-assess mark-good
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

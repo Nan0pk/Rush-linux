@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-11"
+last_verified = "2026-06-14"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -44,7 +44,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["README.md", "docs/architecture.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -87,7 +87,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md", "RELEASES.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "semver"
 
 [docs."SECURITY.md"]
@@ -96,7 +96,7 @@ owner_area = "area:security"
 covers_code = ["crates/optid/src/main.rs"]
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."CODE_OF_CONDUCT.md"]
 purpose = "Contributor Covenant v2.1 with enforcement contact"
@@ -104,7 +104,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."AUTHORS"]
 purpose = "Contributor recognition list"
@@ -112,7 +112,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."docs/architecture.md"]
 purpose = "Four-layer system architecture and subsystem boundaries"
@@ -120,7 +120,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["PROJECT_BRIEF.md"]
 freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."docs/adaptive-engine.md"]
 purpose = "optid design: inputs, actions, guardrails, current MVP scope"
@@ -226,6 +226,14 @@ covers_code = []
 deps = []
 freshens = ["CONTRIBUTING.md"]
 last_verified = "2026-06-10"
+
+[docs."docs/how-rush-is-built.md"]
+purpose = "Outlines governed development model, evidence rule, C1 incident, and honest-claims policy"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md"]
+freshens = ["README.md"]
+last_verified = "2026-06-14"
 
 [docs."docs/graphify-knowledge-graph.md"]
 purpose = "How the Graphify knowledge graph works, refresh procedures, graphify-data branch fetch instructions"
@@ -368,6 +376,24 @@ freshens = []
 last_verified = "2026-06-10"
 validator = "status:proposed"
 
+[docs."docs/decisions/0014-image-composition-mkosi-arch.md"]
+purpose = "ADR: image composition via mkosi on Arch Linux"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py"]
+deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
+freshens = []
+last_verified = "2026-06-14"
+validator = "status:proposed"
+
+[docs."docs/decisions/0015-sched-ext-default-on.md"]
+purpose = "ADR: sched_ext as default-on centerpiece"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs"]
+deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
+freshens = ["docs/non-goals.md"]
+last_verified = "2026-06-14"
+validator = "status:proposed"
+
 [docs."docs/contributing/first-pr.md"]
 purpose = "Step-by-step guide for making your first contribution"
 owner_area = "area:docs"
@@ -424,9 +450,17 @@ last_verified = "2026-06-10"
 purpose = "Work Plan v2: recovery sprint with explicit builder/verifier/human roles and evidence rule"
 owner_area = "area:project"
 covers_code = []
-deps = []
+deps = ["docs/agent-protocol.md"]
 freshens = []
 last_verified = "2026-06-10"
+
+[docs."docs/agent-protocol.md"]
+purpose = "Canonical source for agent roles, authority matrix, and evidence rule"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/plans/work-plan-v2.md"]
+last_verified = "2026-06-14"
 
 [docs."docs/plans/action-plan-2026-06-10.md"]
 purpose = "Action Plan (Execution Runbook) for Phase 0 merge train and subsequent agent sessions"
