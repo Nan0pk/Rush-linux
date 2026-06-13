@@ -80,6 +80,27 @@ sudo ./tools/bench-optid-matrix.sh --apply --power ac      # AC only, no prompts
 sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
 ```
 
+## Measurement Rig (rushbench)
+
+`rushbench` is a pure Rust measurement rig workspace member that gathers contract-validation evidence on a single host. It operates under a strict **no-write/observe-only** guarantee, never executing EPP, PM QoS, sysctl, or other actuator writes itself.
+
+### Commands
+
+- `rushbench run --class <C> --workload <W> [--n 5] [--ac-ok]`  
+  Runs `n` iterations (default 5, must be >=5 for valid rollups) of the specified workload under the target workload class. Pins the class via `optctl pin` and validates the resolved floors via `optctl status --json`.
+- `rushbench matrix [--ac-ok]`  
+  Iterates through all supported workload classes and workloads.
+- `rushbench report <results-dir>`  
+  Parses the JSON records in `<results-dir>` and generates a Markdown summary verifying contract floors, energy consumption, and flagging `budget_violation` if limits are exceeded.
+
+### Results Schema & Directory
+
+Results are written under `benchmarks/results/<UTC-date>/<host-fingerprint>/<class>/<workload>.json`. The schema version is frozen at `1`.
+
+### Safety & Sandboxing
+
+The rig performs zero optimization writes. The only writes are to the `benchmarks/results/` output path, stdout/stderr, and `/tmp` scratch paths (no writes to `/proc/sys/**`, `/sys/devices/**`, etc.). This can be validated using sandboxing tools such as `strace` or `bwrap`.
+
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.

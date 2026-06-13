@@ -63,6 +63,7 @@ engineering milestones.
 - Package metadata database generation (`repodata.json`) and signature validation stubs (`repodata.json.sig`).
 - Extensible rootfs generator populating output rootfs from recipe-resolved dependency trees.
 - GPT raw VM disk image compiler using native `systemd-repart` to format ext4 partition and clone rootfs trees without loop mounts or root privileges.
+- Measurement rig (`rushbench`) implemented: pure Rust workspace member that captures battery drain (BAT/energy_now or intel-rapl) and responsiveness metrics per SPEC §1 class, pinning class via `optctl` and validating resolved PM QoS floors. `contracts.toml` values remain provisional; this tool enables collecting the validation dataset, but no results are committed yet.
 
 ## Not Yet Implemented
 
