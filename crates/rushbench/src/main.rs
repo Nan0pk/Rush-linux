@@ -253,8 +253,27 @@ mod tests {
     }
 
     #[test]
+    fn test_t9_avg_watts_positive() {
+        // Use mock samples where energy decreases, ensuring avg_watts > 0
+        let mock_source = EnergySource::Battery(PathBuf::from("/mock/battery"));
+        let start = EnergySample {
+            time: Instant::now(),
+            joules: 200.0,
+            on_ac: Some(false),
+        };
+        let end = EnergySample {
+            time: start.time + Duration::from_secs(10),
+            joules: 100.0,
+            on_ac: Some(false),
+        };
+        let info = calculate_window(&mock_source, &start, &end).expect("Window calculation failed");
+        assert!(info.avg_watts > 0.0, "avg_watts should be positive");
+
+    }
+
+    #[test]
     fn test_t3_class_readback_enforcement() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Mock optctl status returning a class != requested
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
@@ -336,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_t5_n_less_than_5_honesty() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // If N=1, the record carries an "insufficient_n" anomaly
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
@@ -358,18 +377,15 @@ mod tests {
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
         // Check the emitted JSON contains "insufficient_n"
-        let results_root = find_repo_file("VERSION")
-            .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
-            .unwrap();
-        // find file
+        // Read from temp_dir (RUSHBENCH_STATE_DIR), not the repo benchmarks/ path
         let date = get_utc_timestamp().split('T').next().unwrap().to_string();
         let host_folder = get_host_folder_name();
-        let target_file = results_root
+        let target_file = temp_dir
             .join(date)
             .join(host_folder)
             .join("interactive")
             .join("psi-cpu.json");
-        assert!(target_file.exists());
+        assert!(target_file.exists(), "Result file not found at {:?}", target_file);
 
         let content = fs::read_to_string(&target_file).unwrap();
         let rec: RunRecord = serde_json::from_str(&content).unwrap();
@@ -441,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_t8_latency_critical_honesty_path() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // High reading forced
         env::set_var("RUSHBENCH_MOCK_METRIC_cyclictest_max_us", "50");
         env::set_var(
@@ -462,26 +478,20 @@ mod tests {
         let res = run_cell("latency-critical", "cyclictest", 5, true);
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
-        // Capture report output
-        let results_root = find_repo_file("VERSION")
-            .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
-            .unwrap();
+        // Capture report output — read from temp_dir (RUSHBENCH_STATE_DIR)
         let date = get_utc_timestamp().split('T').next().unwrap().to_string();
         let host_folder = get_host_folder_name();
-        let results_day = results_root.join(date).join(host_folder);
+        let results_day = temp_dir.join(date).join(host_folder);
 
         // Run report and verify budget_violation is present
-        // Let's redirect stdout to string or capture it by calling run_report directly
-        // We can check the target file content first
         let target_file = results_day.join("latency-critical").join("cyclictest.json");
-        assert!(target_file.exists());
+        assert!(target_file.exists(), "Result file not found at {:?}", target_file);
 
-        // Clear print capture helper: we'll call run_report which prints to stdout.
-        // Let's verify that target_file itself contains the high reading
+        // Verify that target_file itself contains the high reading
         let content = fs::read_to_string(&target_file).unwrap();
         assert!(content.contains(r#""median": 50.0"#));
 
-        let report_res = run_report(results_root.to_str().unwrap());
+        let report_res = run_report(temp_dir.to_str().unwrap());
         assert!(report_res.is_ok(), "run_report failed: {:?}", report_res);
         let report_content = report_res.unwrap();
         assert!(
@@ -505,11 +515,55 @@ mod tests {
 
     #[test]
     fn test_t9_host_reject_when_no_energy_counter() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         env::set_var("RUSHBENCH_MOCK_ENERGY_SOURCE", "none");
         let res = EnergySource::detect();
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), "no_energy_counter");
         env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+    }
+
+    #[test]
+    fn test_t10_real_energy_advance() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Clear any mock env vars just in case they are set by other tests
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_JOULES");
+        env::remove_var("RUSHBENCH_MOCK_ON_AC");
+
+        let source = EnergySource::detect().expect("An energy source must be available for testing");
+        let start = source.sample().expect("Failed to sample start energy");
+
+        let start_time = Instant::now();
+        let mut end = start.clone();
+        
+        // Burn CPU for up to 45 seconds or until the energy reading changes
+        while start_time.elapsed() < Duration::from_secs(45) {
+            let mut x = 0;
+            for idx in 0..1_000_000 {
+                x ^= idx;
+            }
+            std::hint::black_box(x);
+
+            if let Ok(sample) = source.sample() {
+                if sample.joules != start.joules {
+                    end = sample;
+                    break;
+                }
+            }
+        }
+
+        match calculate_window(&source, &start, &end) {
+            Ok(info) => {
+                println!("Real energy test window info: {:?}", info);
+                assert!(info.avg_watts >= 0.0, "avg_watts was negative: {:?}", info);
+                assert!(info.window_joules >= 0.0, "window_joules was negative: {:?}", info);
+            }
+            Err(ref e) if e == "zero_duration_window" => {
+                // On AC power, energy counters may not advance; this is a known condition
+                println!("Tolerated anomaly on AC: {}", e);
+            }
+            Err(e) => panic!("Unexpected energy error: {}", e),
+        }
     }
 }
