@@ -494,6 +494,7 @@ deps = ["docs/SPEC-northstar.md"]
 freshens = []
 last_verified = "2026-06-14"
 
+
 [docs."docs/research/0001-apple-power-stack-analysis.md"]
 purpose = "Synthesis of reverse-engineering Apple power stack and Linux blind spots"
 owner_area = "area:docs"
