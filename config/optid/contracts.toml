@@ -1,0 +1,24 @@
+# config/optid/contracts.toml
+#
+# Latency-budget contracts for the workload classes defined in SPEC §1.
+# Consumed by WP-N2 (PM QoS); not enforced yet.
+
+[contracts.idle]
+cpu_wakeup_latency = 100000        # 100ms (in microseconds)
+device_resume_latency = 1000000    # 1s (in microseconds)
+
+[contracts.light]
+cpu_wakeup_latency = 50000         # 50ms
+device_resume_latency = 500000     # 500ms
+
+[contracts.interactive]
+cpu_wakeup_latency = 1000          # 1ms
+device_resume_latency = 10000      # 10ms
+
+[contracts.latency-critical]
+cpu_wakeup_latency = 10            # 10us
+device_resume_latency = 100        # 100us
+
+[contracts.throughput]
+cpu_wakeup_latency = 10000         # 10ms
+device_resume_latency = 100000     # 100ms

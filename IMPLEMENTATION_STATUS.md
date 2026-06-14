@@ -25,9 +25,13 @@ engineering milestones.
   - reads thermal state from `/sys/class/thermal`;
   - reads load average from `/proc/loadavg`;
   - decides battery, balanced, performance, or realtime mode;
+  - workload classifier pure function mapping PSI/load/AC/pin to the five classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`) with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
   - writes explainable status and decision logs;
   - applies guarded EPP, platform profile, and systemd cgroup actions only with
     `--apply`.
+- PM QoS enforcement implemented: workload class latency-budget contract table (`config/optid/contracts.toml`) is now **enforced** (resolving class to CPU wakeup latency floor via `/dev/cpu_dma_latency` and per-device resume latency floor via `/sys/bus/pci/devices/*/power/pm_qos_resume_latency_us`).
+- `fits_contract(exit_latency_us, floor_us) -> bool` helper is **defined**, not yet wired to devices.
+- PM QoS budget values are **provisional pending WP-B1** validation.
 - `optctl` Rust MVP:
   - reads status and decision logs;
   - sets mode through the state directory;
@@ -59,6 +63,7 @@ engineering milestones.
 - Package metadata database generation (`repodata.json`) and signature validation stubs (`repodata.json.sig`).
 - Extensible rootfs generator populating output rootfs from recipe-resolved dependency trees.
 - GPT raw VM disk image compiler using native `systemd-repart` to format ext4 partition and clone rootfs trees without loop mounts or root privileges.
+- Measurement rig (`rushbench`) implemented: pure Rust workspace member that captures battery drain (BAT/energy_now or intel-rapl) and responsiveness metrics per SPEC §1 class, pinning class via `optctl` and validating resolved PM QoS floors. `contracts.toml` values remain provisional; this tool enables collecting the validation dataset, but no results are committed yet.
 
 ## Not Yet Implemented
 
@@ -91,14 +96,11 @@ engineering milestones.
 - The `Cargo.lock` file is checked in, but it still needs confirmation from
   real Cargo on Linux.
 - `optid` sysctl actuation: the per-mode `vm.*` keys (`vm_swappiness`,
-  `vm_dirty_*`) defined in `config/optid/policy.toml` are **not yet applied** by
-  the daemon. The Rust MVP parses policy but ignores these keys, so the running
-  system uses kernel defaults for them. This is deliberate (no aggressive
-  swappiness is applied unconditionally; the old static drop-in that did so was
-  removed to resolve the ADR 0004 conflict). Tracked follow-up: implement gated
-  `vm.*` actuation in `optid` — high `vm.swappiness` must remain conditional on
-  ZRAM-backed swap (`high_swappiness_requires_zram`), and every write must go
-  through the explainable allowlist per ADR 0009.
+  `vm_dirty_*`) defined in `config/optid/policy.toml` are **implemented and applied** by
+  the daemon when running with `--apply`. High `vm.swappiness` is conditional on
+  ZRAM-backed swap (`high_swappiness_requires_zram`), and every write goes
+  through the explainable allowlist per ADR 0009. The prior values are journaled
+  and reverted on service stop.
 - Bootable VM disk image (`disk.raw`) produced by `tools/build-vm-final.sh`.
  Verified 2026-06-08: QEMU direct-kernel boot reaches `multi-user.target`
  with `optid.service` active.
