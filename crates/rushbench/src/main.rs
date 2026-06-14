@@ -159,7 +159,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
-    use types::{HostInfo, ResolvedFloors, RunRecord, RushInfo};
+    use types::{EnergyInfo, HostInfo, ResolvedFloors, RunRecord, RushInfo};
     use utils::{
         get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board, get_git_sha,
         get_host_folder_name, get_kernel_version, get_utc_timestamp,
@@ -653,5 +653,136 @@ mod tests {
             "window_joules should be > 0 when counter advanced: {:?}",
             info
         );
+    }
+
+    #[test]
+    fn test_report_energy_analysis_workload_filter() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let rand_dir = format!(
+            "rushbench_test_report_{}",
+            Instant::now().elapsed().as_nanos()
+        );
+        let temp_dir = env::temp_dir().join(rand_dir);
+        let date_folder = get_utc_timestamp().split('T').next().unwrap().to_string();
+        let host_folder = get_host_folder_name();
+
+        let results_day = temp_dir.join(&date_folder).join(&host_folder);
+        fs::create_dir_all(results_day.join("idle")).unwrap();
+        fs::create_dir_all(results_day.join("interactive")).unwrap();
+
+        // 1. Write an idle record with workload "cyclictest" (avg_watts = 2.5)
+        let record_idle_cyclictest = RunRecord {
+            schema_version: 1,
+            host: HostInfo {
+                kernel: "test-kernel".to_string(),
+                cpu_model: "test-cpu".to_string(),
+                dmi_board: "test-board".to_string(),
+                battery_design_uwh: 1000000,
+            },
+            rush: RushInfo {
+                optid_sha: "test-sha".to_string(),
+                contracts_sha256: "test-checksum".to_string(),
+                rig_sha: "test-sha".to_string(),
+                rig_version: "0.1.0".to_string(),
+            },
+            class_requested: "idle".to_string(),
+            class_observed: "idle".to_string(),
+            resolved_floors: ResolvedFloors {
+                cpu_wakeup_latency_us: 1000,
+                device_resume_latency_us: 10000,
+            },
+            power_source: "battery".to_string(),
+            workload: "cyclictest".to_string(),
+            metric: "cyclictest-max-us".to_string(),
+            n: 5,
+            samples: Some(vec![10, 10, 10, 10, 10]),
+            median: Some(10.0),
+            p95: Some(10.0),
+            iqr: Some(0.0),
+            energy: Some(EnergyInfo {
+                window_joules: 75.0,
+                avg_watts: 2.5,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            started_at: "2026-06-14T09:00:00Z".to_string(),
+            warmup_runs: 2,
+            anomalies: vec![],
+        };
+
+        // 2. Write an interactive record with workload "cyclictest" (avg_watts = 5.0)
+        let record_interactive_cyclictest = RunRecord {
+            class_requested: "interactive".to_string(),
+            class_observed: "interactive".to_string(),
+            workload: "cyclictest".to_string(),
+            metric: "cyclictest-max-us".to_string(),
+            energy: Some(EnergyInfo {
+                window_joules: 150.0,
+                avg_watts: 5.0,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            ..record_idle_cyclictest.clone()
+        };
+
+        // Write both records
+        fs::write(
+            results_day.join("idle/cyclictest.json"),
+            serde_json::to_string_pretty(&record_idle_cyclictest).unwrap(),
+        )
+        .unwrap();
+
+        fs::write(
+            results_day.join("interactive/cyclictest.json"),
+            serde_json::to_string_pretty(&record_interactive_cyclictest).unwrap(),
+        )
+        .unwrap();
+
+        // Run report and verify that we see the comparative energy analysis
+        let report = run_report(temp_dir.to_str().unwrap()).unwrap();
+        assert!(
+            report.contains("Idle average power draw: 2.50 W"),
+            "Report missing correct idle power. Report:\n{}",
+            report
+        );
+        assert!(
+            report.contains("Interactive average power draw: 5.00 W"),
+            "Report missing correct interactive power. Report:\n{}",
+            report
+        );
+        assert!(
+            report.contains("Idle power draw is less than interactive power draw"),
+            "Report missing expected comparison text. Report:\n{}",
+            report
+        );
+
+        // 3. Write an idle record with a non-matching workload ("foreground-launch", avg_watts = 1.0)
+        // This should NOT override the 2.5 W idle power computed from "cyclictest"
+        let record_idle_launch = RunRecord {
+            workload: "foreground-launch".to_string(),
+            metric: "foreground-launch-ms".to_string(),
+            energy: Some(EnergyInfo {
+                window_joules: 30.0,
+                avg_watts: 1.0,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            ..record_idle_cyclictest.clone()
+        };
+        fs::create_dir_all(results_day.join("idle_launch")).unwrap();
+        fs::write(
+            results_day.join("idle_launch/foreground-launch.json"),
+            serde_json::to_string_pretty(&record_idle_launch).unwrap(),
+        )
+        .unwrap();
+
+        let report_after = run_report(temp_dir.to_str().unwrap()).unwrap();
+        // The idle power must remain 2.5 W (from cyclictest), not 1.0 W (from foreground-launch)
+        assert!(
+            report_after.contains("Idle average power draw: 2.50 W"),
+            "Report idle power was overwritten by incorrect workload. Report:\n{}",
+            report_after
+        );
+
+        // Cleanup
+        fs::remove_dir_all(&temp_dir).unwrap();
     }
 }
