@@ -2,6 +2,7 @@
 members = [
     "crates/optid",
     "crates/optctl",
+    "crates/rushbench",
 ]
 resolver = "2"
 
