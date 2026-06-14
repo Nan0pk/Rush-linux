@@ -159,10 +159,10 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
-    use types::{HostInfo, ResolvedFloors, RunRecord, RushInfo};
+    use types::{EnergyInfo, HostInfo, ResolvedFloors, RunRecord, RushInfo};
     use utils::{
-        find_repo_file, get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
-        get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp,
+        get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board, get_git_sha,
+        get_host_folder_name, get_kernel_version, get_utc_timestamp,
     };
 
     static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -253,8 +253,26 @@ mod tests {
     }
 
     #[test]
+    fn test_t9_avg_watts_positive() {
+        // Use mock samples where energy decreases, ensuring avg_watts > 0
+        let mock_source = EnergySource::Battery(PathBuf::from("/mock/battery"));
+        let start = EnergySample {
+            time: Instant::now(),
+            joules: 200.0,
+            on_ac: Some(false),
+        };
+        let end = EnergySample {
+            time: start.time + Duration::from_secs(10),
+            joules: 100.0,
+            on_ac: Some(false),
+        };
+        let info = calculate_window(&mock_source, &start, &end).expect("Window calculation failed");
+        assert!(info.avg_watts > 0.0, "avg_watts should be positive");
+    }
+
+    #[test]
     fn test_t3_class_readback_enforcement() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Mock optctl status returning a class != requested
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
@@ -336,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_t5_n_less_than_5_honesty() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // If N=1, the record carries an "insufficient_n" anomaly
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
@@ -358,18 +376,19 @@ mod tests {
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
         // Check the emitted JSON contains "insufficient_n"
-        let results_root = find_repo_file("VERSION")
-            .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
-            .unwrap();
-        // find file
+        // Read from temp_dir (RUSHBENCH_STATE_DIR), not the repo benchmarks/ path
         let date = get_utc_timestamp().split('T').next().unwrap().to_string();
         let host_folder = get_host_folder_name();
-        let target_file = results_root
+        let target_file = temp_dir
             .join(date)
             .join(host_folder)
             .join("interactive")
             .join("psi-cpu.json");
-        assert!(target_file.exists());
+        assert!(
+            target_file.exists(),
+            "Result file not found at {:?}",
+            target_file
+        );
 
         let content = fs::read_to_string(&target_file).unwrap();
         let rec: RunRecord = serde_json::from_str(&content).unwrap();
@@ -441,7 +460,7 @@ mod tests {
 
     #[test]
     fn test_t8_latency_critical_honesty_path() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // High reading forced
         env::set_var("RUSHBENCH_MOCK_METRIC_cyclictest_max_us", "50");
         env::set_var(
@@ -462,26 +481,24 @@ mod tests {
         let res = run_cell("latency-critical", "cyclictest", 5, true);
         assert!(res.is_ok(), "run_cell failed: {:?}", res);
 
-        // Capture report output
-        let results_root = find_repo_file("VERSION")
-            .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
-            .unwrap();
+        // Capture report output — read from temp_dir (RUSHBENCH_STATE_DIR)
         let date = get_utc_timestamp().split('T').next().unwrap().to_string();
         let host_folder = get_host_folder_name();
-        let results_day = results_root.join(date).join(host_folder);
+        let results_day = temp_dir.join(date).join(host_folder);
 
         // Run report and verify budget_violation is present
-        // Let's redirect stdout to string or capture it by calling run_report directly
-        // We can check the target file content first
         let target_file = results_day.join("latency-critical").join("cyclictest.json");
-        assert!(target_file.exists());
+        assert!(
+            target_file.exists(),
+            "Result file not found at {:?}",
+            target_file
+        );
 
-        // Clear print capture helper: we'll call run_report which prints to stdout.
-        // Let's verify that target_file itself contains the high reading
+        // Verify that target_file itself contains the high reading
         let content = fs::read_to_string(&target_file).unwrap();
         assert!(content.contains(r#""median": 50.0"#));
 
-        let report_res = run_report(results_root.to_str().unwrap());
+        let report_res = run_report(temp_dir.to_str().unwrap());
         assert!(report_res.is_ok(), "run_report failed: {:?}", report_res);
         let report_content = report_res.unwrap();
         assert!(
@@ -505,11 +522,272 @@ mod tests {
 
     #[test]
     fn test_t9_host_reject_when_no_energy_counter() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         env::set_var("RUSHBENCH_MOCK_ENERGY_SOURCE", "none");
         let res = EnergySource::detect();
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), "no_energy_counter");
         env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+    }
+
+    #[test]
+    fn test_t9_energy_detection_priority() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Setup temp directory
+        let rand_dir = format!(
+            "rushbench_test_sysfs_{}",
+            Instant::now().elapsed().as_nanos()
+        );
+        let temp_sysfs = env::temp_dir().join(rand_dir);
+        fs::create_dir_all(&temp_sysfs).unwrap();
+
+        let mock_bat_dir = temp_sysfs.join("sys/class/power_supply/BAT0");
+        let mock_rapl_dir = temp_sysfs.join("sys/class/powercap/intel-rapl:0");
+
+        env::set_var("RUSHBENCH_SYSFS_ROOT", &temp_sysfs);
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+
+        // Scenario A: Only battery is present
+        fs::create_dir_all(&mock_bat_dir).unwrap();
+        let bat_file = mock_bat_dir.join("energy_now");
+        fs::write(&bat_file, "1000").unwrap();
+
+        let source = EnergySource::detect().expect("Should detect battery");
+        assert!(matches!(source, EnergySource::Battery(_)));
+
+        // Scenario B: Both battery and RAPL are present, and RAPL is readable
+        fs::create_dir_all(&mock_rapl_dir).unwrap();
+        let rapl_file = mock_rapl_dir.join("energy_uj");
+        fs::write(&rapl_file, "2000").unwrap();
+
+        let source = EnergySource::detect().expect("Should detect RAPL");
+        assert!(matches!(source, EnergySource::Rapl(_)));
+
+        // Scenario C: Both battery and RAPL are present, but RAPL is NOT readable
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&rapl_file, fs::Permissions::from_mode(0o000)).unwrap();
+
+        let source =
+            EnergySource::detect().expect("Should fall back to battery when RAPL is unreadable");
+        assert!(matches!(source, EnergySource::Battery(_)));
+
+        // Scenario D: Only RAPL is present but NOT readable (remove battery)
+        fs::remove_file(&bat_file).unwrap();
+        let source = EnergySource::detect();
+        assert!(source.is_ok());
+        assert!(matches!(source.unwrap(), EnergySource::Rapl(_)));
+
+        // Scenario E: No energy counter at all
+        fs::remove_file(&rapl_file).unwrap();
+        let source = EnergySource::detect();
+        assert!(source.is_err());
+        assert_eq!(source.err().unwrap(), "no_energy_counter");
+
+        // Clean up
+        env::remove_var("RUSHBENCH_SYSFS_ROOT");
+        let _ = fs::remove_dir_all(&temp_sysfs);
+    }
+
+    #[test]
+    fn test_t10_real_energy_advance() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Clear any mock env vars just in case they are set by other tests
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_JOULES");
+        env::remove_var("RUSHBENCH_MOCK_ON_AC");
+
+        let source = match EnergySource::detect() {
+            Ok(s) => s,
+            Err(_) => {
+                println!("test_t10: SKIP — no energy counter on this host (CI container).");
+                return;
+            }
+        };
+        let start = source.sample().expect("Failed to sample start energy");
+        println!("test_t10: start = {:?}", start);
+
+        if matches!(source, EnergySource::Battery(_)) && start.on_ac == Some(true) {
+            println!("test_t10: SKIP — battery source on AC power (cannot measure discharging).");
+            return;
+        }
+
+        let start_time = Instant::now();
+        let mut counter_advanced = false;
+        let mut end = start.clone();
+
+        // Burn CPU for up to 45 seconds or until the energy reading changes
+        while start_time.elapsed() < Duration::from_secs(45) {
+            let mut x = 0;
+            for idx in 0..1_000_000 {
+                x ^= idx;
+            }
+            std::hint::black_box(x);
+
+            if let Ok(sample) = source.sample() {
+                if sample.joules != start.joules {
+                    end = sample;
+                    counter_advanced = true;
+                    break;
+                }
+            }
+        }
+
+        if !counter_advanced {
+            // The energy counter never changed in 45 s.
+            // This happens when there is no battery/RAPL available (AC-only, CI container,
+            // or a battery controller with very coarse resolution). Skip — do NOT claim
+            // the energy-advance logic has been verified on this host.
+            println!(
+                "test_t10: SKIP — energy counter did not advance in 45 s (no real battery/RAPL)."
+            );
+            return;
+        }
+
+        // Counter advanced: now we can assert real energy semantics.
+        let info = calculate_window(&source, &start, &end)
+            .expect("calculate_window failed after counter advanced");
+        println!("Real energy test window info: {:?}", info);
+        assert!(
+            info.avg_watts > 0.0,
+            "avg_watts should be > 0 when counter advanced: {:?}",
+            info
+        );
+        assert!(
+            info.window_joules > 0.0,
+            "window_joules should be > 0 when counter advanced: {:?}",
+            info
+        );
+    }
+
+    #[test]
+    fn test_report_energy_analysis_workload_filter() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let rand_dir = format!(
+            "rushbench_test_report_{}",
+            Instant::now().elapsed().as_nanos()
+        );
+        let temp_dir = env::temp_dir().join(rand_dir);
+        let date_folder = get_utc_timestamp().split('T').next().unwrap().to_string();
+        let host_folder = get_host_folder_name();
+
+        let results_day = temp_dir.join(&date_folder).join(&host_folder);
+        fs::create_dir_all(results_day.join("idle")).unwrap();
+        fs::create_dir_all(results_day.join("interactive")).unwrap();
+
+        // 1. Write an idle record with workload "cyclictest" (avg_watts = 2.5)
+        let record_idle_cyclictest = RunRecord {
+            schema_version: 1,
+            host: HostInfo {
+                kernel: "test-kernel".to_string(),
+                cpu_model: "test-cpu".to_string(),
+                dmi_board: "test-board".to_string(),
+                battery_design_uwh: 1000000,
+            },
+            rush: RushInfo {
+                optid_sha: "test-sha".to_string(),
+                contracts_sha256: "test-checksum".to_string(),
+                rig_sha: "test-sha".to_string(),
+                rig_version: "0.1.0".to_string(),
+            },
+            class_requested: "idle".to_string(),
+            class_observed: "idle".to_string(),
+            resolved_floors: ResolvedFloors {
+                cpu_wakeup_latency_us: 1000,
+                device_resume_latency_us: 10000,
+            },
+            power_source: "battery".to_string(),
+            workload: "cyclictest".to_string(),
+            metric: "cyclictest-max-us".to_string(),
+            n: 5,
+            samples: Some(vec![10, 10, 10, 10, 10]),
+            median: Some(10.0),
+            p95: Some(10.0),
+            iqr: Some(0.0),
+            energy: Some(EnergyInfo {
+                window_joules: 75.0,
+                avg_watts: 2.5,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            started_at: "2026-06-14T09:00:00Z".to_string(),
+            warmup_runs: 2,
+            anomalies: vec![],
+        };
+
+        // 2. Write an interactive record with workload "cyclictest" (avg_watts = 5.0)
+        let record_interactive_cyclictest = RunRecord {
+            class_requested: "interactive".to_string(),
+            class_observed: "interactive".to_string(),
+            workload: "cyclictest".to_string(),
+            metric: "cyclictest-max-us".to_string(),
+            energy: Some(EnergyInfo {
+                window_joules: 150.0,
+                avg_watts: 5.0,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            ..record_idle_cyclictest.clone()
+        };
+
+        // Write both records
+        fs::write(
+            results_day.join("idle/cyclictest.json"),
+            serde_json::to_string_pretty(&record_idle_cyclictest).unwrap(),
+        )
+        .unwrap();
+
+        fs::write(
+            results_day.join("interactive/cyclictest.json"),
+            serde_json::to_string_pretty(&record_interactive_cyclictest).unwrap(),
+        )
+        .unwrap();
+
+        // Run report and verify that we see the comparative energy analysis
+        let report = run_report(temp_dir.to_str().unwrap()).unwrap();
+        assert!(
+            report.contains("Idle average power draw: 2.50 W"),
+            "Report missing correct idle power. Report:\n{}",
+            report
+        );
+        assert!(
+            report.contains("Interactive average power draw: 5.00 W"),
+            "Report missing correct interactive power. Report:\n{}",
+            report
+        );
+        assert!(
+            report.contains("Idle power draw is less than interactive power draw"),
+            "Report missing expected comparison text. Report:\n{}",
+            report
+        );
+
+        // 3. Write an idle record with a non-matching workload ("foreground-launch", avg_watts = 1.0)
+        // This should NOT override the 2.5 W idle power computed from "cyclictest"
+        let record_idle_launch = RunRecord {
+            workload: "foreground-launch".to_string(),
+            metric: "foreground-launch-ms".to_string(),
+            energy: Some(EnergyInfo {
+                window_joules: 30.0,
+                avg_watts: 1.0,
+                counter: "BAT0/energy_now".to_string(),
+            }),
+            ..record_idle_cyclictest.clone()
+        };
+        fs::create_dir_all(results_day.join("idle_launch")).unwrap();
+        fs::write(
+            results_day.join("idle_launch/foreground-launch.json"),
+            serde_json::to_string_pretty(&record_idle_launch).unwrap(),
+        )
+        .unwrap();
+
+        let report_after = run_report(temp_dir.to_str().unwrap()).unwrap();
+        // The idle power must remain 2.5 W (from cyclictest), not 1.0 W (from foreground-launch)
+        assert!(
+            report_after.contains("Idle average power draw: 2.50 W"),
+            "Report idle power was overwritten by incorrect workload. Report:\n{}",
+            report_after
+        );
+
+        // Cleanup
+        fs::remove_dir_all(&temp_dir).unwrap();
     }
 }

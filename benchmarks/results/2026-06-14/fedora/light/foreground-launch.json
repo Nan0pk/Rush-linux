@@ -7,9 +7,9 @@
     "battery_design_uwh": 70070000
   },
   "rush": {
-    "optid_sha": "804f537c339d20df2dd50bc0b7a2a4ebd2078a8e",
+    "optid_sha": "b8fb79980695e0b87f5caa107afdd1795238a59f",
     "contracts_sha256": "956be17761f681d8c07ad9d2b71ba93ee3ce94ed05538857f2e89044ba07e38d",
-    "rig_sha": "804f537c339d20df2dd50bc0b7a2a4ebd2078a8e",
+    "rig_sha": "b8fb79980695e0b87f5caa107afdd1795238a59f",
     "rig_version": "0.4.0-alpha.1"
   },
   "class_requested": "light",
@@ -27,7 +27,7 @@
   "p95": null,
   "iqr": null,
   "energy": null,
-  "started_at": "2026-06-14T15:48:26Z",
+  "started_at": "2026-06-14T19:39:38Z",
   "warmup_runs": 2,
   "anomalies": [
     "unsupported_here"

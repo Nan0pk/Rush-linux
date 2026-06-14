@@ -31,6 +31,13 @@ impl EnergySource {
         }
 
         let sysfs_root = get_sysfs_root();
+
+        // Prioritize RAPL if it exists and is readable by the current process
+        let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
+        if rapl.exists() && fs::read_to_string(&rapl).is_ok() {
+            return Ok(EnergySource::Rapl(rapl));
+        }
+
         let power_supply = sysfs_root.join("sys/class/power_supply");
         if let Ok(entries) = fs::read_dir(power_supply) {
             for entry in entries.filter_map(Result::ok) {
@@ -45,7 +52,7 @@ impl EnergySource {
             }
         }
 
-        let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
+        // Fallback to RAPL even if not readable (will fail on sample, which is expected)
         if rapl.exists() {
             return Ok(EnergySource::Rapl(rapl));
         }
@@ -166,6 +173,8 @@ pub fn read_on_ac() -> Option<bool> {
     let sysfs_root = get_sysfs_root();
     let entries = fs::read_dir(sysfs_root.join("sys/class/power_supply")).ok()?;
     let mut saw_battery = false;
+    let mut saw_mains = false;
+    let mut any_mains_online = false;
 
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
@@ -177,13 +186,18 @@ pub fn read_on_ac() -> Option<bool> {
         }
 
         if matches!(kind, "Mains" | "USB" | "USB_C" | "USB_PD") {
+            saw_mains = true;
             if let Ok(online) = fs::read_to_string(path.join("online")) {
-                return Some(online.trim() == "1");
+                if online.trim() == "1" {
+                    any_mains_online = true;
+                }
             }
         }
     }
 
-    if saw_battery {
+    if saw_mains {
+        Some(any_mains_online)
+    } else if saw_battery {
         Some(false)
     } else {
         None

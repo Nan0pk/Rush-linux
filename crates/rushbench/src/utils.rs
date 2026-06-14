@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub fn get_sysfs_root() -> PathBuf {
     match env::var("RUSHBENCH_SYSFS_ROOT") {
         Ok(v) => PathBuf::from(v),
-        Err(_) => PathBuf::from(""),
+        Err(_) => PathBuf::from("/"),
     }
 }
 

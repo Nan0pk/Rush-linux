@@ -79,9 +79,16 @@ pub fn write_record(
     let host_folder = get_host_folder_name();
     let utc_date = started_at.split('T').next().unwrap_or("unknown");
 
-    let results_root = find_repo_file("VERSION")
+    let default_root = find_repo_file("VERSION")
         .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
         .unwrap_or_else(|| PathBuf::from("benchmarks/results"));
+
+    // Base results directory can be overridden by RUSHBENCH_STATE_DIR for testing
+    let results_root = if let Ok(dir) = env::var("RUSHBENCH_STATE_DIR") {
+        PathBuf::from(dir)
+    } else {
+        default_root.clone()
+    };
 
     let target_dir = results_root
         .join(utc_date)
@@ -147,7 +154,7 @@ pub fn write_record(
     let json_str = serde_json::to_string_pretty(&record)
         .map_err(|e| format!("Failed to serialize RunRecord: {e}"))?;
 
-    fs::write(&target_file, json_str).map_err(|e| format!("Failed to write result file: {e}"))?;
+    fs::write(&target_file, &json_str).map_err(|e| format!("Failed to write result file: {e}"))?;
 
     println!("Wrote results to {}", target_file.display());
     Ok(())
@@ -261,6 +268,8 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     let mut probe_failed_msg = None;
     let mut unsupported_msg = None;
 
+    // Phase 1: Collect exactly n samples
+    let original_n = n; // Preserve requested sample count
     for _ in 0..n {
         match run_probe_for_metric(&metric_name) {
             ProbeResult::Success(val) => {
@@ -273,6 +282,26 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
             ProbeResult::Failed(msg) => {
                 probe_failed_msg = Some(msg);
                 break;
+            }
+        }
+    }
+
+    // Phase 2: Extend sampling for real energy source to ensure energy window advances
+    let is_real_energy = std::env::var("RUSHBENCH_MOCK_ENERGY_JOULES").is_err();
+    if unsupported_msg.is_none() && probe_failed_msg.is_none() && is_real_energy {
+        let start_instant = std::time::Instant::now();
+        let min_duration = 30.0; // seconds
+        while start_instant.elapsed().as_secs_f64() < min_duration {
+            match run_probe_for_metric(&metric_name) {
+                ProbeResult::Success(val) => samples.push(val),
+                ProbeResult::UnsupportedHere(msg) => {
+                    unsupported_msg = Some(msg);
+                    break;
+                }
+                ProbeResult::Failed(msg) => {
+                    probe_failed_msg = Some(msg);
+                    break;
+                }
             }
         }
     }
@@ -293,6 +322,8 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         None
     };
 
+    let actual_n = samples.len();
+
     if let Some(msg) = unsupported_msg {
         anomalies.push("unsupported_here".to_string());
         write_record(
@@ -300,7 +331,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
             &status.workload_class,
             &workload_name,
             &metric_name,
-            n,
+            original_n,
             None,
             energy_info,
             &start_time_str,
@@ -320,7 +351,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
             &status.workload_class,
             &workload_name,
             &metric_name,
-            n,
+            original_n,
             None,
             energy_info,
             &start_time_str,
@@ -336,7 +367,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     let mut sorted = samples.clone();
     sorted.sort_unstable();
 
-    if n < 5 {
+    if actual_n < 5 {
         anomalies.push("insufficient_n".to_string());
     }
 
@@ -345,7 +376,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         &status.workload_class,
         &workload_name,
         &metric_name,
-        n,
+        original_n,
         Some(samples),
         energy_info,
         &start_time_str,
