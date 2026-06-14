@@ -161,7 +161,7 @@ mod tests {
     use std::time::{Duration, Instant};
     use types::{HostInfo, ResolvedFloors, RunRecord, RushInfo};
     use utils::{
-        find_repo_file, get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
+        get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
         get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp,
     };
 
@@ -535,8 +535,9 @@ mod tests {
         let start = source.sample().expect("Failed to sample start energy");
 
         let start_time = Instant::now();
+        let mut counter_advanced = false;
         let mut end = start.clone();
-        
+
         // Burn CPU for up to 45 seconds or until the energy reading changes
         while start_time.elapsed() < Duration::from_secs(45) {
             let mut x = 0;
@@ -548,22 +549,36 @@ mod tests {
             if let Ok(sample) = source.sample() {
                 if sample.joules != start.joules {
                     end = sample;
+                    counter_advanced = true;
                     break;
                 }
             }
         }
 
-        match calculate_window(&source, &start, &end) {
-            Ok(info) => {
-                println!("Real energy test window info: {:?}", info);
-                assert!(info.avg_watts >= 0.0, "avg_watts was negative: {:?}", info);
-                assert!(info.window_joules >= 0.0, "window_joules was negative: {:?}", info);
-            }
-            Err(ref e) if e == "zero_duration_window" => {
-                // On AC power, energy counters may not advance; this is a known condition
-                println!("Tolerated anomaly on AC: {}", e);
-            }
-            Err(e) => panic!("Unexpected energy error: {}", e),
+        if !counter_advanced {
+            // The energy counter never changed in 45 s.
+            // This happens when there is no battery/RAPL available (AC-only, CI container,
+            // or a battery controller with very coarse resolution). Skip — do NOT claim
+            // the energy-advance logic has been verified on this host.
+            println!(
+                "test_t10: SKIP — energy counter did not advance in 45 s (no real battery/RAPL)."
+            );
+            return;
         }
+
+        // Counter advanced: now we can assert real energy semantics.
+        let info = calculate_window(&source, &start, &end)
+            .expect("calculate_window failed after counter advanced");
+        println!("Real energy test window info: {:?}", info);
+        assert!(
+            info.avg_watts > 0.0,
+            "avg_watts should be > 0 when counter advanced: {:?}",
+            info
+        );
+        assert!(
+            info.window_joules > 0.0,
+            "window_joules should be > 0 when counter advanced: {:?}",
+            info
+        );
     }
 }

@@ -195,7 +195,14 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         .map_err(|e| format!("Failed to parse optctl status JSON: {e}"))?;
 
     if status.workload_class != class {
-        // Return error without writing mismatch record
+        write_class_mismatch_record(
+            class,
+            &status.workload_class,
+            &workload_name,
+            &metric_name,
+            n,
+            power_source,
+        )?;
         return Err(format!(
             "class_mismatch: requested={}, observed={}",
             class, status.workload_class
