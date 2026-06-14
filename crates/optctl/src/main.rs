@@ -14,7 +14,7 @@ trait Optid {
     fn status(&self) -> zbus::Result<String>;
     fn explain(&self) -> zbus::Result<String>;
     fn set_mode(&self, mode: &str) -> zbus::Result<()>;
-    fn pin_application(&self, app_id: &str, mode: &str) -> zbus::Result<()>;
+    fn pin_application(&self, app_id: &str, class: &str) -> zbus::Result<()>;
     #[dbus_proxy(property)]
     fn mode(&self) -> zbus::Result<String>;
     #[dbus_proxy(property)]
@@ -23,6 +23,13 @@ trait Optid {
 
 const DEFAULT_STATE_DIR: &str = "/run/optid";
 const MODES: &[&str] = &["auto", "battery", "balanced", "performance", "realtime"];
+const CLASSES: &[&str] = &[
+    "idle",
+    "light",
+    "interactive",
+    "latency-critical",
+    "throughput",
+];
 
 fn main() {
     if let Err(err) = run(env::args().skip(1).collect()) {
@@ -149,29 +156,47 @@ fn run(args: Vec<String>) -> io::Result<()> {
         }
         "pin" => {
             let app_id = positional.get(1).map(String::as_str);
-            let mode = positional.get(2).map(String::as_str);
-            match (app_id, mode) {
-                (Some(app_id), Some(mode)) => {
-                    if !MODES.contains(&mode) {
+            let class = positional.get(2).map(String::as_str);
+            match (app_id, class) {
+                (Some(app_id), Some(class)) => {
+                    if !CLASSES.contains(&class) {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            format!("invalid mode {mode}; expected one of {}", MODES.join(", ")),
+                            format!(
+                                "invalid class {class}; expected one of {}",
+                                CLASSES.join(", ")
+                            ),
                         ));
                     }
+                    if app_id == "--global" {
+                        if let Some(ref p) = proxy {
+                            if p.pin_application(app_id, class).is_ok() {
+                                println!("Pinned global workload class to {class}");
+                                return Ok(());
+                            }
+                        }
+                        fs::write(state_dir.join("workload_class_pin"), class)?;
+                        println!("Pinned global workload class to {class} (offline)");
+                        return Ok(());
+                    }
                     if let Some(ref p) = proxy {
-                        if p.pin_application(app_id, mode).is_ok() {
-                            println!("Pinned application {app_id} to mode {mode}");
+                        if p.pin_application(app_id, class).is_ok() {
+                            println!("Pinned application {app_id} to class {class}");
                             return Ok(());
                         }
                     }
-                    println!("pin support failed or D-Bus offline");
+                    // Offline fallback (writing file directly to state_dir/pins/app_id)
+                    let pins_dir = state_dir.join("pins");
+                    fs::create_dir_all(&pins_dir)?;
+                    fs::write(pins_dir.join(app_id), class)?;
+                    println!("Pinned application {app_id} to class {class} (offline)");
                     Ok(())
                 }
                 _ => {
-                    println!("Usage: optctl pin <app_id> <mode>");
+                    println!("Usage: optctl pin <app_id> <class> or optctl pin --global <class>");
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "pin requires <app_id> and <mode>",
+                        "pin requires <app_id> and <class> (or --global and <class>)",
                     ))
                 }
             }
@@ -237,6 +262,10 @@ fn print_usage() {
 fn format_status_as_json(status_str: &str) -> Result<String, String> {
     let mut timestamp: Option<u64> = None;
     let mut mode = String::new();
+    let mut workload_class = String::new();
+    let mut workload_reason = String::new();
+    let mut cpu_wakeup_latency: Option<i64> = None;
+    let mut device_resume_latency: Option<i64> = None;
     let mut on_ac: Option<bool> = None;
     let mut battery_pct: Option<u8> = None;
     let mut thermal_c: Option<f32> = None;
@@ -349,6 +378,10 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
         match key {
             "timestamp" => timestamp = val.parse().ok(),
             "mode" => mode = val.to_string(),
+            "workload_class" => workload_class = val.to_string(),
+            "workload_reason" => workload_reason = val.to_string(),
+            "cpu_wakeup_latency" => cpu_wakeup_latency = val.parse().ok(),
+            "device_resume_latency" => device_resume_latency = val.parse().ok(),
             "on_ac" => on_ac = parse_option_bool(val),
             "battery_pct" => battery_pct = parse_option_u8(val),
             "thermal_c" => thermal_c = parse_option_f32(val),
@@ -364,6 +397,21 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
     out.push_str("{\n");
     out.push_str(&format!("  \"timestamp\": {},\n", timestamp.unwrap_or(0)));
     out.push_str(&format!("  \"mode\": \"{}\",\n", mode));
+    out.push_str(&format!("  \"workload_class\": \"{}\",\n", workload_class));
+    out.push_str(&format!(
+        "  \"workload_reason\": \"{}\",\n",
+        workload_reason
+    ));
+
+    match cpu_wakeup_latency {
+        Some(v) => out.push_str(&format!("  \"cpu_wakeup_latency\": {},\n", v)),
+        None => out.push_str("  \"cpu_wakeup_latency\": null,\n"),
+    }
+
+    match device_resume_latency {
+        Some(v) => out.push_str(&format!("  \"device_resume_latency\": {},\n", v)),
+        None => out.push_str("  \"device_resume_latency\": null,\n"),
+    }
 
     match on_ac {
         Some(b) => out.push_str(&format!("  \"on_ac\": {},\n", b)),
@@ -445,6 +493,10 @@ mod tests {
         let input = "\
 timestamp=1717500000
 mode=balanced
+workload_class=interactive
+workload_reason=pinned override for foreground app
+cpu_wakeup_latency=1000
+device_resume_latency=10000
 on_ac=Some(true)
 battery_pct=Some(95)
 thermal_c=Some(45.5)
@@ -462,6 +514,10 @@ actions:
         let result = format_status_as_json(input).unwrap();
         assert!(result.contains("\"timestamp\": 1717500000"));
         assert!(result.contains("\"mode\": \"balanced\""));
+        assert!(result.contains("\"workload_class\": \"interactive\""));
+        assert!(result.contains("\"workload_reason\": \"pinned override for foreground app\""));
+        assert!(result.contains("\"cpu_wakeup_latency\": 1000"));
+        assert!(result.contains("\"device_resume_latency\": 10000"));
         assert!(result.contains("\"on_ac\": true"));
         assert!(result.contains("\"battery_pct\": 95"));
         assert!(result.contains("\"thermal_c\": 45.50"));
@@ -500,6 +556,8 @@ actions:
         assert!(result.contains("\"thermal_c\": null"));
         assert!(result.contains("\"loadavg_1\": null"));
         assert!(result.contains("\"cpu_pressure\": null"));
+        assert!(result.contains("\"cpu_wakeup_latency\": null"));
+        assert!(result.contains("\"device_resume_latency\": null"));
         assert!(result.contains("\"reasons\": [\n  ]"));
         assert!(result.contains("\"actions\": [\n  ]"));
     }
