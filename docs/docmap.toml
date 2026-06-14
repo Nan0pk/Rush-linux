@@ -166,10 +166,10 @@ last_verified = "2026-06-10"
 [docs."docs/testing-and-benchmarks.md"]
 purpose = "Test tiers, benchmark methodology, acceptance gates"
 owner_area = "area:docs"
-covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml"]
+covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml", "crates/rushbench/src/main.rs"]
 deps = ["docs/decisions/0011-benchmark-methodology.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."docs/non-goals.md"]
 purpose = "Explicit list of what Rush Linux does NOT aim to do"
@@ -478,6 +478,22 @@ deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.m
 freshens = []
 last_verified = "2026-06-10"
 
+[docs."docs/SPEC-northstar.md"]
+purpose = "Canon specifications: objective function, lever ledger, and WP mapping"
+owner_area = "area:docs"
+covers_code = ["config/optid/contracts.toml"]
+deps = []
+freshens = ["IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-06-14"
+
+[docs."docs/strategy/COMPASS.md"]
+purpose = "Living strategic why/where doc: origin arc, drift check, visibility, verdict + course-corrections; refreshed each reassessment cycle"
+owner_area = "area:project"
+covers_code = [".github/workflows/reassess.yml"]
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-14"
+
 [docs."docs/research/0001-apple-power-stack-analysis.md"]
 purpose = "Synthesis of reverse-engineering Apple power stack and Linux blind spots"
 owner_area = "area:docs"
@@ -485,7 +501,6 @@ covers_code = []
 deps = []
 freshens = ["docs/architecture.md", "docs/adaptive-engine.md"]
 last_verified = "2026-06-13"
-
 
 [docs."docs/research/0002-rush-linux-architecture-review.md"]
 purpose = "Architecture review of Rush Linux as a unified power orchestrator"
@@ -502,13 +517,3 @@ covers_code = []
 deps = []
 freshens = []
 last_verified = "2026-06-13"
-
-
-[docs."docs/SPEC-northstar.md"]
-purpose = "Canonical objective specification for optid"
-owner_area = "area:docs"
-covers_code = []
-deps = []
-freshens = []
-last_verified = "2026-06-13"
-
