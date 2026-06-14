@@ -128,7 +128,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = ["README.md", "IMPLEMENTATION_STATUS.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 validator = "covers_optid_features"
 
 [docs."docs/kernel-policy.md"]
@@ -137,7 +137,7 @@ owner_area = "area:kernel"
 covers_code = ["distro/kernel/"]
 deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."docs/packaging-and-builds.md"]
 purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
@@ -145,7 +145,7 @@ owner_area = "area:packaging"
 covers_code = ["tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh", "recipes/"]
 deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-06-14"
 
 [docs."docs/boot-and-updates.md"]
 purpose = "UKI boot flow, systemd-sysupdate, rollback policy"

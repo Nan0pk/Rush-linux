@@ -63,7 +63,7 @@ engineering milestones.
 - Package metadata database generation (`repodata.json`) and signature validation stubs (`repodata.json.sig`).
 - Extensible rootfs generator populating output rootfs from recipe-resolved dependency trees.
 - GPT raw VM disk image compiler using native `systemd-repart` to format ext4 partition and clone rootfs trees without loop mounts or root privileges.
-- Measurement rig (`rushbench`) implemented: pure Rust workspace member that captures battery drain (BAT/energy_now or intel-rapl) and responsiveness metrics per SPEC §1 class, pinning class via `optctl` and validating resolved PM QoS floors. `contracts.toml` values remain provisional; this tool enables collecting the validation dataset, but no results are committed yet.
+- Measurement rig (`rushbench`) implemented: Rig shipped (PR #68); first evidence dataset committed [2026-06-14, i7-13700HX]. Cross-distro PPD/TLP/baseline comparison remains open under same WP row.
 
 ## Not Yet Implemented
 
@@ -92,7 +92,6 @@ engineering milestones.
 - GPU, foreground app, video call, fullscreen, and build-system detection.
 - Hardware allowlist database for unsafe device power knobs.
 - Installer and role selection UI.
-- Benchmark harness execution and published results.
 - The `Cargo.lock` file is checked in, but it still needs confirmation from
   real Cargo on Linux.
 - `optid` sysctl actuation: the per-mode `vm.*` keys (`vm_swappiness`,

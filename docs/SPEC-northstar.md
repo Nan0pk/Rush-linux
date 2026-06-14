@@ -209,7 +209,7 @@ in WP-B1 data justifies one.
 
 **Gate:** WP-B1 evidence is required before claiming any enabler "works." An
 enabler that doesn't lower avoidable energy at a fixed floor is reverted, not
-shipped. The gate is satisfied by the benchmark results dataset (evidence) produced by the `rushbench` measurement rig, not by the existence of the rig itself.
+shipped. The gate is satisfied by the benchmark results dataset (evidence) produced by the `rushbench` measurement rig, not by the existence of the rig itself. Gate first cleared by [benchmarks/results/2026-06-14/fedora/](file:///home/victus/Rush-linux/benchmarks/results/2026-06-14/fedora/).
 
 ---
 
