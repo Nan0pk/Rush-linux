@@ -48,3 +48,11 @@ Any evidence README violating this rule is rejected at review without further re
 ## PR-only Merges
 
 All merges to `main` happen via reviewed PRs. Direct pushes to `main` are not permitted except for emergency hotfixes by the human maintainer.
+
+## Agent Contract Addendum
+
+- Agents **may not** propose project direction, redefine the objective in `SPEC-northstar.md` §0, or offer "strategic pivots." Such output is auto-rejected on sight.
+- A task = implement **one ledger row** from `SPEC-northstar.md` §4 as **one WP** from §6, behind the §3 actuation rule.
+- Deliverable = code + verifier verdict (PASS/FAIL with evidence paths). Not a memo, not a roadmap.
+- Humans own the objective and the tree. Agents implement leaves.
+- Any agent claim of a created PR/branch/file must be verifiable (`gh pr view`, `git log`) or it is treated as fabricated.
