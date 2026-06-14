@@ -168,6 +168,17 @@ fn run(args: Vec<String>) -> io::Result<()> {
                             ),
                         ));
                     }
+                    if app_id == "--global" {
+                        if let Some(ref p) = proxy {
+                            if p.pin_application(app_id, class).is_ok() {
+                                println!("Pinned global workload class to {class}");
+                                return Ok(());
+                            }
+                        }
+                        fs::write(state_dir.join("workload_class_pin"), class)?;
+                        println!("Pinned global workload class to {class} (offline)");
+                        return Ok(());
+                    }
                     if let Some(ref p) = proxy {
                         if p.pin_application(app_id, class).is_ok() {
                             println!("Pinned application {app_id} to class {class}");
@@ -182,10 +193,10 @@ fn run(args: Vec<String>) -> io::Result<()> {
                     Ok(())
                 }
                 _ => {
-                    println!("Usage: optctl pin <app_id> <class>");
+                    println!("Usage: optctl pin <app_id> <class> or optctl pin --global <class>");
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "pin requires <app_id> and <class>",
+                        "pin requires <app_id> and <class> (or --global and <class>)",
                     ))
                 }
             }
