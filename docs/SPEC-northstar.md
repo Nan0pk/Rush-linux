@@ -127,13 +127,15 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 
 | Lever | Kernel interface | Role detail | Status |
 |---|---|---|---|
-| Workload-class detection | foreground/fullscreen/audio/video, PSI | Selects active contract | — |
+| Workload-class detection | foreground/fullscreen/audio/video, PSI | Selects active contract | A |
 | `optctl pin <app> <mode>` | optid state | Manual floor override | A |
-| PM QoS CPU wakeup latency | `cpu_dma_latency` / `pm_qos` | CPU floor as a number | — |
-| PM QoS per-device resume latency | per-device `pm_qos` | Device floor as a number | — |
+| PM QoS CPU wakeup latency | `cpu_dma_latency` / `pm_qos` | CPU floor as a number | **A** |
+| PM QoS per-device resume latency | per-device `pm_qos` | Device floor as a number | **A** |
 | util_clamp (`uclamp_min`) | sched util-clamp | Per-task min performance floor | — |
 | EPP (toward performance) | `energy_performance_preference` | Coarse CPU floor expression | A |
 | `platform_profile` (performance) | `platform_profile` sysfs | Coarse platform floor | A |
+
+*Note: The PM QoS enabler exit-latency check `fits_contract` is defined/available in the code, but is unconsumed until WP-N5/N6. Latency budget values are provisional pending WP-B1 validation.*
 
 ### 4.3 DEPTH-ENABLERS (go deeper within the floor)
 
@@ -142,7 +144,7 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 | EPP (toward power-save) | `energy_performance_preference` | contract | A |
 | `platform_profile` (low-power) | `platform_profile` | contract | A |
 | systemd slice weights (background) | cgroup v2 | contract | A |
-| `vm.*` sysctls (swappiness, dirty_*) | sysctl, zram-gated | contract | **P** |
+| `vm.*` sysctls (swappiness, dirty_*) | sysctl, zram-gated | contract | **A** |
 | Runtime PM autosuspend (USB/PCI/audio/camera/radio) | `runtime_pm` | contract + allowlist | — |
 | NVMe APST | nvme power states | contract + allowlist | — |
 | PCIe ASPM (L0s/L1/L1.2) | ASPM policy | contract + allowlist | — |
@@ -200,12 +202,14 @@ without first observing state and defining the contract.
 | WP-N9 | Thermal/fan budget coupling | arbitrator | Acoustic state tracks thermal headroom without floor breach |
 | WP-B1 | Benchmark harness execution vs PPD/TLP/baseline | evidence | Real numbers published in `benchmarks/results/`; losses documented honestly |
 
+*Note: WP-B1's first deliverable is the measurement rig (`rushbench`) and single-host evidence; the cross-distro PPD/TLP/baseline comparison is a follow-up under the same WP row.*
+
 `sched_ext` stays an experimental fragment with no WP until a hypothesis grounded
 in WP-B1 data justifies one.
 
 **Gate:** WP-B1 evidence is required before claiming any enabler "works." An
 enabler that doesn't lower avoidable energy at a fixed floor is reverted, not
-shipped.
+shipped. The gate is satisfied by the benchmark results dataset (evidence) produced by the `rushbench` measurement rig, not by the existence of the rig itself.
 
 ---
 
