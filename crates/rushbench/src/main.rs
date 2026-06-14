@@ -161,8 +161,8 @@ mod tests {
     use std::time::{Duration, Instant};
     use types::{HostInfo, ResolvedFloors, RunRecord, RushInfo};
     use utils::{
-        get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
-        get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp,
+        get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board, get_git_sha,
+        get_host_folder_name, get_kernel_version, get_utc_timestamp,
     };
 
     static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -268,7 +268,6 @@ mod tests {
         };
         let info = calculate_window(&mock_source, &start, &end).expect("Window calculation failed");
         assert!(info.avg_watts > 0.0, "avg_watts should be positive");
-
     }
 
     #[test]
@@ -385,7 +384,11 @@ mod tests {
             .join(host_folder)
             .join("interactive")
             .join("psi-cpu.json");
-        assert!(target_file.exists(), "Result file not found at {:?}", target_file);
+        assert!(
+            target_file.exists(),
+            "Result file not found at {:?}",
+            target_file
+        );
 
         let content = fs::read_to_string(&target_file).unwrap();
         let rec: RunRecord = serde_json::from_str(&content).unwrap();
@@ -485,7 +488,11 @@ mod tests {
 
         // Run report and verify budget_violation is present
         let target_file = results_day.join("latency-critical").join("cyclictest.json");
-        assert!(target_file.exists(), "Result file not found at {:?}", target_file);
+        assert!(
+            target_file.exists(),
+            "Result file not found at {:?}",
+            target_file
+        );
 
         // Verify that target_file itself contains the high reading
         let content = fs::read_to_string(&target_file).unwrap();
@@ -524,6 +531,65 @@ mod tests {
     }
 
     #[test]
+    fn test_t9_energy_detection_priority() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Setup temp directory
+        let rand_dir = format!(
+            "rushbench_test_sysfs_{}",
+            Instant::now().elapsed().as_nanos()
+        );
+        let temp_sysfs = env::temp_dir().join(rand_dir);
+        fs::create_dir_all(&temp_sysfs).unwrap();
+
+        let mock_bat_dir = temp_sysfs.join("sys/class/power_supply/BAT0");
+        let mock_rapl_dir = temp_sysfs.join("sys/class/powercap/intel-rapl:0");
+
+        env::set_var("RUSHBENCH_SYSFS_ROOT", &temp_sysfs);
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+
+        // Scenario A: Only battery is present
+        fs::create_dir_all(&mock_bat_dir).unwrap();
+        let bat_file = mock_bat_dir.join("energy_now");
+        fs::write(&bat_file, "1000").unwrap();
+
+        let source = EnergySource::detect().expect("Should detect battery");
+        assert!(matches!(source, EnergySource::Battery(_)));
+
+        // Scenario B: Both battery and RAPL are present, and RAPL is readable
+        fs::create_dir_all(&mock_rapl_dir).unwrap();
+        let rapl_file = mock_rapl_dir.join("energy_uj");
+        fs::write(&rapl_file, "2000").unwrap();
+
+        let source = EnergySource::detect().expect("Should detect RAPL");
+        assert!(matches!(source, EnergySource::Rapl(_)));
+
+        // Scenario C: Both battery and RAPL are present, but RAPL is NOT readable
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&rapl_file, fs::Permissions::from_mode(0o000)).unwrap();
+
+        let source =
+            EnergySource::detect().expect("Should fall back to battery when RAPL is unreadable");
+        assert!(matches!(source, EnergySource::Battery(_)));
+
+        // Scenario D: Only RAPL is present but NOT readable (remove battery)
+        fs::remove_file(&bat_file).unwrap();
+        let source = EnergySource::detect();
+        assert!(source.is_ok());
+        assert!(matches!(source.unwrap(), EnergySource::Rapl(_)));
+
+        // Scenario E: No energy counter at all
+        fs::remove_file(&rapl_file).unwrap();
+        let source = EnergySource::detect();
+        assert!(source.is_err());
+        assert_eq!(source.err().unwrap(), "no_energy_counter");
+
+        // Clean up
+        env::remove_var("RUSHBENCH_SYSFS_ROOT");
+        let _ = fs::remove_dir_all(&temp_sysfs);
+    }
+
+    #[test]
     fn test_t10_real_energy_advance() {
         let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Clear any mock env vars just in case they are set by other tests
@@ -531,7 +597,8 @@ mod tests {
         env::remove_var("RUSHBENCH_MOCK_ENERGY_JOULES");
         env::remove_var("RUSHBENCH_MOCK_ON_AC");
 
-        let source = EnergySource::detect().expect("An energy source must be available for testing");
+        let source =
+            EnergySource::detect().expect("An energy source must be available for testing");
         let start = source.sample().expect("Failed to sample start energy");
 
         let start_time = Instant::now();

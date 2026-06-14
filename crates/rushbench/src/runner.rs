@@ -292,7 +292,6 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         let start_instant = std::time::Instant::now();
         let min_duration = 30.0; // seconds
         while start_instant.elapsed().as_secs_f64() < min_duration {
-
             match run_probe_for_metric(&metric_name) {
                 ProbeResult::Success(val) => samples.push(val),
                 ProbeResult::UnsupportedHere(msg) => {

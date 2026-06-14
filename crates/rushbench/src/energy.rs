@@ -31,6 +31,13 @@ impl EnergySource {
         }
 
         let sysfs_root = get_sysfs_root();
+
+        // Prioritize RAPL if it exists and is readable by the current process
+        let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
+        if rapl.exists() && fs::read_to_string(&rapl).is_ok() {
+            return Ok(EnergySource::Rapl(rapl));
+        }
+
         let power_supply = sysfs_root.join("sys/class/power_supply");
         if let Ok(entries) = fs::read_dir(power_supply) {
             for entry in entries.filter_map(Result::ok) {
@@ -45,7 +52,7 @@ impl EnergySource {
             }
         }
 
-        let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
+        // Fallback to RAPL even if not readable (will fail on sample, which is expected)
         if rapl.exists() {
             return Ok(EnergySource::Rapl(rapl));
         }
