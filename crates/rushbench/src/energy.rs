@@ -173,6 +173,8 @@ pub fn read_on_ac() -> Option<bool> {
     let sysfs_root = get_sysfs_root();
     let entries = fs::read_dir(sysfs_root.join("sys/class/power_supply")).ok()?;
     let mut saw_battery = false;
+    let mut saw_mains = false;
+    let mut any_mains_online = false;
 
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
@@ -184,13 +186,18 @@ pub fn read_on_ac() -> Option<bool> {
         }
 
         if matches!(kind, "Mains" | "USB" | "USB_C" | "USB_PD") {
+            saw_mains = true;
             if let Ok(online) = fs::read_to_string(path.join("online")) {
-                return Some(online.trim() == "1");
+                if online.trim() == "1" {
+                    any_mains_online = true;
+                }
             }
         }
     }
 
-    if saw_battery {
+    if saw_mains {
+        Some(any_mains_online)
+    } else if saw_battery {
         Some(false)
     } else {
         None

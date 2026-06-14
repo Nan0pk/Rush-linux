@@ -600,6 +600,12 @@ mod tests {
         let source =
             EnergySource::detect().expect("An energy source must be available for testing");
         let start = source.sample().expect("Failed to sample start energy");
+        println!("test_t10: start = {:?}", start);
+
+        if matches!(source, EnergySource::Battery(_)) && start.on_ac == Some(true) {
+            println!("test_t10: SKIP — battery source on AC power (cannot measure discharging).");
+            return;
+        }
 
         let start_time = Instant::now();
         let mut counter_advanced = false;
