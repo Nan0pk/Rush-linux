@@ -485,3 +485,11 @@ covers_code = ["config/optid/contracts.toml"]
 deps = []
 freshens = ["IMPLEMENTATION_STATUS.md"]
 last_verified = "2026-06-14"
+
+[docs."docs/strategy/COMPASS.md"]
+purpose = "Living strategic why/where doc: origin arc, drift check, visibility, verdict + course-corrections; refreshed each reassessment cycle"
+owner_area = "area:project"
+covers_code = [".github/workflows/reassess.yml"]
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-14"
