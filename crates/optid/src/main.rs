@@ -51,6 +51,13 @@ impl OptidServer {
                 "invalid workload class: {class}"
             )));
         }
+        if app_id == "--global" {
+            fs::write(self.state_dir.join("workload_class_pin"), class).map_err(|e| {
+                zbus::fdo::Error::Failed(format!("failed to write global pin: {e}"))
+            })?;
+            println!("Pinned global workload class to {class}");
+            return Ok(());
+        }
         let pins_dir = self.state_dir.join("pins");
         fs::create_dir_all(&pins_dir)
             .map_err(|e| zbus::fdo::Error::Failed(format!("failed to create pins dir: {e}")))?;
@@ -131,6 +138,7 @@ fn run(args: Args) -> io::Result<()> {
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let mut snapshot = Snapshot::collect();
+        snapshot.global_pinned_class = read_global_pinned_class(&args.state_dir);
         if let Some(ref app) = snapshot.foreground_app {
             snapshot.pinned_class = read_pinned_class(&args.state_dir, app);
         }
@@ -601,6 +609,16 @@ fn read_pinned_class(state_dir: &Path, app_id: &str) -> Option<WorkloadClass> {
     WorkloadClass::parse(&text)
 }
 
+fn read_global_pinned_class(state_dir: &Path) -> Option<WorkloadClass> {
+    let pin_file = state_dir.join("workload_class_pin");
+    let text = fs::read_to_string(pin_file).ok()?;
+    let parsed = WorkloadClass::parse(&text);
+    if parsed.is_none() {
+        eprintln!("optid: ignored invalid global class pin: '{}'", text.trim());
+    }
+    parsed
+}
+
 fn discover_pm_qos_device_paths() -> Vec<PathBuf> {
     let base = Path::new("/sys/bus/pci/devices");
     let mut paths = Vec::new();
@@ -629,6 +647,7 @@ struct Snapshot {
     zram_swap_active: bool,
     foreground_app: Option<String>,
     pinned_class: Option<WorkloadClass>,
+    global_pinned_class: Option<WorkloadClass>,
     pm_qos_device_paths: Vec<PathBuf>,
 }
 
@@ -646,6 +665,7 @@ impl Snapshot {
             zram_swap_active: read_zram_swap_active(),
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: discover_pm_qos_device_paths(),
         }
     }
@@ -949,6 +969,9 @@ impl Policy {
     }
 
     fn classify(&self, snapshot: &Snapshot) -> (WorkloadClass, String) {
+        if let Some(pinned) = snapshot.global_pinned_class {
+            return (pinned, "pinned override (global)".to_string());
+        }
         if let Some(pinned) = snapshot.pinned_class {
             return (pinned, "pinned override for foreground app".to_string());
         }
@@ -1915,6 +1938,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
 
@@ -1945,6 +1969,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
 
@@ -1975,6 +2000,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
 
@@ -2060,6 +2086,7 @@ mod tests {
             zram_swap_active: true,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let decision_with = policy.decide(
@@ -2090,6 +2117,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let decision_no = policy.decide(
@@ -2140,6 +2168,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
@@ -2157,6 +2186,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
@@ -2174,6 +2204,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
@@ -2194,6 +2225,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
@@ -2214,6 +2246,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
@@ -2234,6 +2267,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: Some("doom.exe".to_string()),
             pinned_class: Some(WorkloadClass::LatencyCritical),
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let (class, reason) = policy.classify(&snap);
@@ -2279,6 +2313,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let res1 = policy.classify(&snap);
@@ -2293,7 +2328,7 @@ mod tests {
             timestamp: 0,
             on_ac: Some(true),
             battery_pct: None,
-            max_temp_millic: None,
+            max_temp_millic: Some(50_000),
             loadavg_1: Some(5.0),
             cpu_pressure: Some(Pressure {
                 avg10: 20.0,
@@ -2304,6 +2339,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let (_, reason) = policy.classify(&snap);
@@ -2325,6 +2361,7 @@ mod tests {
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let (class, _) = policy.classify(&snap);
@@ -2673,6 +2710,7 @@ device_resume_latency = 100000
             zram_swap_active: false,
             foreground_app: None,
             pinned_class: None,
+            global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
         };
         let contracts = Contracts::default();
@@ -2695,5 +2733,97 @@ device_resume_latency = 100000
         } else {
             panic!("Expected CpuDmaLatency action");
         }
+    }
+
+    #[test]
+    fn test_n1_t9_global_pin_loop_boundary_precedence() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n1_t9_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap(); // Empty policy to use defaults
+
+        // G2: write a global pin file = "latency-critical" into temp state_dir
+        let pin_file = temp_dir.join("workload_class_pin");
+        fs::write(&pin_file, "latency-critical").unwrap();
+
+        let args = Args {
+            apply: false,
+            once: false, // run in background loop
+            help: false,
+            interval_sec: 1,
+            state_dir: temp_dir.clone(),
+            config_path,
+        };
+
+        let _handle = std::thread::spawn(move || {
+            let _ = run(args);
+        });
+
+        // Wait 4 seconds for hysteresis to transition (since interval is 1s and dwell is 3s)
+        std::thread::sleep(std::time::Duration::from_secs(4));
+
+        // READ BACK state_dir/workload_class and ASSERT == "latency-critical"
+        let class_written = fs::read_to_string(temp_dir.join("workload_class")).unwrap();
+        assert_eq!(class_written.trim(), "latency-critical");
+    }
+
+    #[test]
+    fn test_n1_t10_negative_no_global_pin() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n1_t10_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        // G3: no global pin + idle signals => classify() returns signal-derived class.
+        // We will construct a snapshot with no global pin and default/idle fields.
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None, // missing pin yields non-None pinned_class should be false
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        let policy = Policy::default();
+        let (class, reason) = policy.classify(&snap);
+        assert_eq!(class, WorkloadClass::Idle);
+        assert!(reason.contains("system idle"));
+    }
+
+    #[test]
+    fn test_n1_t11_bad_input_garbage() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n1_t11_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap();
+
+        // G4: global pin file = "garbage" => pin ignored, no panic, fall back to signals.
+        let pin_file = temp_dir.join("workload_class_pin");
+        fs::write(&pin_file, "garbage").unwrap();
+
+        let args = Args {
+            apply: false,
+            once: true,
+            help: false,
+            interval_sec: 1,
+            state_dir: temp_dir.clone(),
+            config_path,
+        };
+
+        // If it runs successfully without panic, that satisfies "no panic, fall back to signals"
+        run(args).unwrap();
+
+        // Since it fell back to signals, the workload class written should be "idle"
+        let class_written = fs::read_to_string(temp_dir.join("workload_class")).unwrap();
+        assert_eq!(class_written.trim(), "idle");
     }
 }
