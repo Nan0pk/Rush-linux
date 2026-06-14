@@ -6,7 +6,7 @@
 > `docs/strategy/reassessments/`. Keep this doc honest and short; data is collected
 > via the GitHub API, only judgment lives here.
 
-**Last reassessment:** 2026-06-14 · **Verdict:** ON-TRACK (pre-visibility, R&D phase)
+**Last reassessment:** 2026-06-15 · **Verdict:** ON-TRACK (evidence complete, canon on `main`, still pre-visibility)
 
 ---
 
@@ -18,8 +18,8 @@
 2. **Research.** Deep-dives into Apple's power stack and the Linux blind spots,
    plus external architecture/power-orchestrator reviews, established the theory
    for an event-driven, dual-loop `optid` design.
-   _Cited: PR #50 (Apple power stack analysis), PR #51 (architecture & power
-   orchestrator reviews)._
+   _Cited: `docs/research/0001-apple-power-stack-analysis.md`, `0002-rush-linux-architecture-review.md`,
+   `0003-unified-power-orchestrator-paper.md` (all on `main` as of 2026-06-15)._
 3. **Project start.** Repo created 2026-05-25. A governed, evidence-first
    development model was adopted (builder/verifier/human roles; honest-claims
    policy; no claim without verifiable evidence — see `docs/how-rush-is-built.md`
@@ -27,72 +27,81 @@
 4. **Canon set.** `docs/SPEC-northstar.md` fixed the single objective function,
    the lever ledger, the actuation rule, and the WP→evidence mapping; the agent
    anti-pivot contract guards against scope drift.
-   _Cited: PR #52 (SPEC-northstar + agent protocol)._
-5. **Now.** Building the **evidence harness** (`rushbench`) and closing SPEC §6
-   acceptance gates with real, mock-free measurements:
+   _Cited: `docs/SPEC-northstar.md`, `docs/agent-protocol.md` (both on `main`)._
+5. **Now.** Both SPEC §6 evidence gates are GREEN:
    - **LATENCY gate: CLOSED** (PR #72 merged — latency evidence dataset).
-   - **ENERGY gate: OPEN** — code is clear (PR #75, CI green @ `b8fb799`); closes
-     only on a real `rushbench matrix` run on battery producing `avg_watts > 0`.
+   - **ENERGY gate: CLOSED** (PR #75 merged — code + real mock-free battery run
+     evidence at commit `557673d`; PR #79 trim landed at `4eabb42`).
 
 ## 2. New research / findings / what's been MISSED
 
-- **Landed/active research** not yet on `main`: PRs #50, #51, #52 are open. The
-  architecture canon and northstar spec are therefore not yet merged into the
-  trunk — a contributor reading `main` cannot see the formal objective function.
-  **MISSED:** merge or explicitly close these so the canon is discoverable.
-- **Energy measurement reality:** short benchmark cells (~10 s) are shorter than a
-  battery controller's `energy_now` update interval (10–60 s); RAPL is the
-  reliable short-window counter. This shaped the PR #75 30 s sampling window +
-  RAPL-priority detection. (Open item: confirm on real battery.)
-- **Watch next cycle:** sched_ext default-on (ADR 0015) status; whether any
-  installable/demoable artifact exists for outside users.
+- **Canon is now on `main`** (was the gap last cycle): research docs (0001/0002/0003),
+  SPEC-northstar, and the agent protocol addendum are all visible in the trunk.
+- **First complete evidence story:** latency + energy, both with mock-free
+  measurements, both via the `rushbench` harness. Caveat: the energy dataset
+  used a **dummy `optid --apply` shim** — proves the *probe*, not optid efficacy.
+  Real optid-applied runs are a follow-up WP.
+- **Energy measurement reality** (carried forward): short cells (~10 s) are
+  shorter than a battery controller's `energy_now` update interval (10–60 s);
+  RAPL is the reliable short-window counter. The 30 s Phase-2 sampling window +
+  RAPL-priority detection closed this for `victus`.
+- **All-zero `samples` array** in psi-cpu/psi-io (4.4 M–4.5 M entries × 0):
+  likely a sampler bug. Energy data is unaffected (independent of `samples`),
+  but a follow-up issue is the honest move. **NOT YET FILED.**
+- **Watch next cycle:** sched_ext default-on (ADR 0015) implementation status;
+  whether any installable/demoable artifact exists for outside users.
 
 ## 3. Third-person product outlook
 
 **(a) Human user's view.** Today there is **no installable image or demo** a user
-can run; the visible surface is a research+infra repo. The promise ("Apple-class
-adaptive power/perf on Linux laptops") is compelling but not yet *experienceable*.
-Conversion to interest depends on a runnable artifact or a vivid evidence story
-(e.g., the latency dataset rendered as a chart in the README).
+can run; the visible surface is a research+infra repo. The promise is
+compelling but not yet *experienceable*. The new asset — complete evidence —
+is **renderable**: latency + energy datasets can be charted in the README in
+~1 hour. Closing this is the highest-leverage unblocker for human visibility.
 
-**(b) AI-agent / contributor's view.** The repo is unusually **agent-legible**:
-explicit roles, an evidence rule, a doc registry (`docs/docmap.toml`), an agent
-bus ledger, and a northstar spec. A new agent can orient quickly. Friction: the
-northstar/architecture canon is still on branches, and the WP/evidence state lives
-in `docs/agent-bus/` on a side branch rather than `main`.
+**(b) AI-agent / contributor's view.** **Improved materially.** Two new
+agent-legible assets on `main`:
+- `.agents/skills/agent-bus/` — multi-agent protocol stashed for later reuse
+  (currently SUSPENDED in solo mode).
+- `.agents/skills/yagni-ladder/` — narrow extraction of ponytail's 6-rung
+  decision tree, opt-in only, doesn't override the WP evidence rule.
+Canon is on `main`, docmap is stable, doc-sync validator passes. A new agent
+can orient in minutes.
 
 ## 4. Reach / visibility
 
-| Metric | Value (2026-06-14) |
-|---|---|
-| Stars | 1 |
-| Forks | 0 |
-| Open issues | 30 |
-| Repo age | ~3 weeks (created 2026-05-25) |
-| Traffic (views/clones) | collected by `reassess.yml` via API each cycle |
+| Metric | 2026-06-14 | 2026-06-15 | Δ |
+|---|---|---|---|
+| Stars | 1 | 1 | — |
+| Forks | 0 | 0 | — |
+| Open issues | 30 | 26 | −4 |
+| Open PRs | 3 | 0 | −3 (all merged) |
+| Traffic views (14d) | n/a | 195 (4 unique) | first cycle |
+| Traffic clones (14d) | n/a | 2,374 (571 unique) | first cycle |
+| Repo age | ~3 weeks | ~3 weeks | — |
+| Repo size | ? | 1,833 KB | (post-trim: 311 MB → 12 KB on benchmark results) |
 
-README is concise (~111 lines) and design-rule focused; there is no landing
-page, no screenshots, no rendered evidence, and no "try it" path. Discoverability
-is effectively zero (no announcement, single star) — expected for the phase, but a
-gap once there is something to show.
+**Interpretation:** 571 unique clones vs 4 unique views is a strong signal
+that **agents/CI are engaging with this repo**, not humans. The visibility
+gap is on the human side, not the technical side. Rendered evidence in the
+README would close it.
 
 ## 5. Verdict & course-corrections
 
-**Verdict: ON-TRACK for an R&D/evidence-building project, but PRE-VISIBILITY.**
-The discipline (evidence rule, northstar, harness) is the right foundation and is
-being followed. The risk is not drift of *direction* but of *staying invisible*:
-deep infra with no outward-facing proof.
+**Verdict: ON-TRACK.** Canon on `main`, evidence complete, agent-legibility
+improved. **Still pre-visibility** — no rendered proof, no installable
+artifact, low star count.
 
 **Course-corrections (1–3):**
-1. **Close the first full evidence story.** Land the ENERGY gate (PR #75 battery
-   run) so both SPEC §6 gates (latency + energy) are green — the first complete,
-   honest proof point.
-2. **Get the canon onto `main`.** Merge or explicitly close research PRs
-   #50/#51/#52 so the objective function and architecture are visible in the trunk,
-   not stranded on branches.
-3. **Make the proof visible.** Turn the latency (and soon energy) evidence into a
-   README chart / short "what this proves" section, so a human visitor sees the
-   result, not just the rules.
+1. **Make the proof visible.** Render the latency + energy datasets in
+   `README.md` (chart or short "what this proves" section). Effort: ~1 hour.
+   Highest-leverage unblocker for human visibility.
+2. **File the all-zero `samples` sampler-bug issue** (caution #3 from the
+   WP-ENERGY-PROBE verdict). Effort: ~30 min to file.
+3. **Triage the new skills.** `.agents/skills/yagni-ladder/` is opt-in and won't
+   fire unless a verifier flags over-engineering; confirm a verifier uses it
+   on the next non-trivial PR. `.agents/skills/agent-bus/` is SUSPENDED — keep
+   it that way until multi-agent mode is re-engaged.
 
 ---
 
