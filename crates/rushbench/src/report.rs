@@ -68,7 +68,13 @@ pub fn run_report(results_dir: &str) -> Result<String, String> {
             }
         }
 
-        if r.power_source == "battery" && !status_flags.contains(&"insufficient_n") {
+        // Compare idle vs interactive power draw only when using the same workload ("cyclictest").
+        // This ensures a fair apples-to-apples comparison of the energy impact of the
+        // different optimization classes/policies under identical benchmark conditions.
+        if r.power_source == "battery"
+            && !status_flags.contains(&"insufficient_n")
+            && r.workload == "cyclictest"
+        {
             if r.class_observed == "idle" {
                 if let Some(ref e) = r.energy {
                     idle_power = Some(e.avg_watts);
