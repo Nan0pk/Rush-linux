@@ -50,7 +50,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
-            --base .
+            --root-dir .
             --no-progress
             --accept 200,206,429
             --max-concurrency 4
