@@ -65,6 +65,8 @@ flowchart TD
 
 All five modes are visible in the flow: `auto` is a resolver, while `battery`, `balanced`, `performance`, and `realtime` are concrete action profiles. Threshold names in the flow correspond directly to `config/optid/policy.toml` and the `Thresholds` struct.
 
+Automatic mode transitions are hysteresis-filtered separately from workload classification. A newly selected automatic mode must remain the candidate for `DEFAULT_MODE_DWELL_WINDOW_SEC` (6 seconds at the default 2-second loop interval) before it is committed. Critical thermal pressure bypasses this delay immediately for safety, and explicit user-selected modes are applied immediately. While a transition is pending, `optctl explain` includes a reason such as `mode hysteresis delaying transition: committed=balanced, candidate=performance`.
+
 Workload-class selection is separate from mode selection. `Policy::classify()` first honors global and foreground pins, then classifies telemetry into `idle`, `light`, `interactive`, `latency-critical`, or `throughput`. The committed class feeds PM QoS contract selection and is hysteresis-filtered before publication.
 
 ## PM QoS and Latency Budget Contracts
