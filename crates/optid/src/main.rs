@@ -1333,37 +1333,35 @@ impl Policy {
             ));
         }
 
-        // vm.swappiness
-        if let Some(mut swappiness) = mode_config.vm_swappiness {
-            if self.memory.high_swappiness_requires_zram
-                && !snapshot.zram_swap_active
-                && swappiness > 60
-            {
-                swappiness = 60;
+        if self.memory.high_swappiness_requires_zram && !snapshot.zram_swap_active {
+            reasons.push("vm.* actuation skipped: zram swap is not active".to_string());
+        } else {
+            // vm.swappiness
+            if let Some(swappiness) = mode_config.vm_swappiness {
+                actions.push(Action::vm_sysctl(
+                    PathBuf::from("/proc/sys/vm/swappiness"),
+                    swappiness.to_string(),
+                    "adjust swappiness for current mode".to_string(),
+                ));
             }
-            actions.push(Action::vm_sysctl(
-                PathBuf::from("/proc/sys/vm/swappiness"),
-                swappiness.to_string(),
-                "adjust swappiness for current mode".to_string(),
-            ));
-        }
 
-        // vm.dirty_background_bytes
-        if let Some(bytes) = mode_config.vm_dirty_background_bytes {
-            actions.push(Action::vm_sysctl(
-                PathBuf::from("/proc/sys/vm/dirty_background_bytes"),
-                bytes.to_string(),
-                "adjust dirty background bytes for current mode".to_string(),
-            ));
-        }
+            // vm.dirty_background_bytes
+            if let Some(bytes) = mode_config.vm_dirty_background_bytes {
+                actions.push(Action::vm_sysctl(
+                    PathBuf::from("/proc/sys/vm/dirty_background_bytes"),
+                    bytes.to_string(),
+                    "adjust dirty background bytes for current mode".to_string(),
+                ));
+            }
 
-        // vm.dirty_bytes
-        if let Some(bytes) = mode_config.vm_dirty_bytes {
-            actions.push(Action::vm_sysctl(
-                PathBuf::from("/proc/sys/vm/dirty_bytes"),
-                bytes.to_string(),
-                "adjust dirty bytes for current mode".to_string(),
-            ));
+            // vm.dirty_bytes
+            if let Some(bytes) = mode_config.vm_dirty_bytes {
+                actions.push(Action::vm_sysctl(
+                    PathBuf::from("/proc/sys/vm/dirty_bytes"),
+                    bytes.to_string(),
+                    "adjust dirty bytes for current mode".to_string(),
+                ));
+            }
         }
 
         if snapshot
@@ -2197,7 +2195,7 @@ mod tests {
         assert!(!temp_dir.join("intended_vm_swappiness").exists());
 
         let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap();
-        assert!(decisions.contains("vm.sysctl /proc/sys/vm/swappiness"));
+        assert!(decisions.contains("vm.* actuation skipped: zram swap is not active"));
     }
 
     #[test]
@@ -2222,6 +2220,40 @@ mod tests {
 
         revert_sysctls(&temp_dir);
         assert!(!temp_dir.join("intended_vm_swappiness").exists());
+    }
+
+    #[test]
+    fn test_t2b_vm_sysctl_writes_revert_journal_entry() {
+        let temp_dir = std::env::temp_dir().join(format!("optid_tests_t2b_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let sysctl_path = temp_dir.join("swappiness");
+        fs::write(&sysctl_path, "100").unwrap();
+
+        let mut actuator = Actuator::new(temp_dir.clone());
+        let action = Action::vm_sysctl(
+            sysctl_path.clone(),
+            "60".to_string(),
+            "test journal".to_string(),
+        );
+        actuator.apply(&action).unwrap();
+
+        // The temp path is intentionally outside the guarded sysctl allowlist, so
+        // the write may be skipped. The journal entries must still capture the
+        // original and intended values for real allowlisted vm.* paths.
+        assert_eq!(
+            fs::read_to_string(temp_dir.join("original_vm_swappiness"))
+                .unwrap()
+                .trim(),
+            "100"
+        );
+        assert_eq!(
+            fs::read_to_string(temp_dir.join("intended_vm_swappiness"))
+                .unwrap()
+                .trim(),
+            "60"
+        );
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
@@ -2283,14 +2315,15 @@ mod tests {
             "test".to_string(),
             &Contracts::default(),
         );
-        let has_60 = decision_no.actions.iter().any(|action| {
-            if let Action::VmSysctl { path, value, .. } = action {
-                path == Path::new("/proc/sys/vm/swappiness") && value == "60"
-            } else {
-                false
-            }
-        });
-        assert!(has_60);
+        let has_vm_action = decision_no
+            .actions
+            .iter()
+            .any(|action| matches!(action, Action::VmSysctl { .. }));
+        assert!(!has_vm_action);
+        assert!(decision_no
+            .reasons
+            .iter()
+            .any(|reason| reason.contains("vm.* actuation skipped")));
     }
 
     #[test]
