@@ -286,14 +286,22 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         }
     }
 
-    // Phase 2: Extend sampling for real energy source to ensure energy window advances
+    // Phase 2: Extend the energy window for real counters without changing the
+    // requested sample series. Previously this loop appended every fast-path PSI
+    // read to `samples`, producing multi-million-entry JSON arrays during the
+    // 30s energy window. Keep the benchmark sample vector bounded to the
+    // requested `n`; the extra probes only keep the measured workload active and
+    // surface unsupported/probe-failed states.
     let is_real_energy = std::env::var("RUSHBENCH_MOCK_ENERGY_JOULES").is_err();
     if unsupported_msg.is_none() && probe_failed_msg.is_none() && is_real_energy {
         let start_instant = std::time::Instant::now();
-        let min_duration = 30.0; // seconds
+        let min_duration = std::env::var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(30.0);
         while start_instant.elapsed().as_secs_f64() < min_duration {
             match run_probe_for_metric(&metric_name) {
-                ProbeResult::Success(val) => samples.push(val),
+                ProbeResult::Success(_) => {}
                 ProbeResult::UnsupportedHere(msg) => {
                     unsupported_msg = Some(msg);
                     break;
@@ -303,6 +311,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
                     break;
                 }
             }
+            std::thread::sleep(std::time::Duration::from_millis(200));
         }
     }
 
@@ -363,9 +372,6 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         )?;
         return Err(format!("Probe failed: {msg}"));
     }
-
-    let mut sorted = samples.clone();
-    sorted.sort_unstable();
 
     if actual_n < 5 {
         anomalies.push("insufficient_n".to_string());

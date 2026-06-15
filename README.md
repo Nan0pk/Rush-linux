@@ -85,7 +85,18 @@ Rush Linux operates under the **Evidence Rule**—we do not accept performance o
 
 ## 🚀 Getting Started
 
-We are currently executing the **v0.5 Image Pivot**. 
+We are currently executing the **v0.5 Image Pivot**.
+
+### One-click dev environment
+
+Open this repository in VS Code Dev Containers or GitHub Codespaces to use the checked-in [dev container](.devcontainer/devcontainer.json). It provisions Rust stable, Python 3.11+, PowerShell Core, and the recommended Rust VS Code extensions, then runs `cargo build --workspace` after creation.
+
+Inside the container, validate the repo with:
+
+```bash
+cargo test --workspace
+pwsh ./tools/validate-repo.ps1
+```
 
 ### Build the Optimizer (MVP)
 ```bash

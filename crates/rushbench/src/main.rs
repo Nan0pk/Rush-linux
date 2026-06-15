@@ -409,6 +409,63 @@ mod tests {
     }
 
     #[test]
+    fn test_t6_real_energy_extension_does_not_bloat_samples() {
+        let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let temp_root = env::temp_dir().join(format!("rushbench_t6_{suffix}"));
+        let temp_sysfs = temp_root.join("sysfs");
+        let temp_state = temp_root.join("state");
+        let rapl_dir = temp_sysfs.join("sys/class/powercap/intel-rapl:0");
+        fs::create_dir_all(&rapl_dir).unwrap();
+        fs::create_dir_all(&temp_state).unwrap();
+        fs::write(rapl_dir.join("energy_uj"), "1000000").unwrap();
+
+        env::set_var("RUSHBENCH_SYSFS_ROOT", &temp_sysfs);
+        env::set_var("RUSHBENCH_STATE_DIR", &temp_state);
+        env::set_var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC", "0.05");
+        env::set_var("RUSHBENCH_MOCK_METRIC_psi_cpu_avg10", "0");
+        env::set_var(
+            "RUSHBENCH_OPTCTL_STATUS_JSON",
+            r#"{"workload_class": "interactive", "cpu_wakeup_latency": 1000, "device_resume_latency": 10000}"#,
+        );
+        env::set_var("RUSHBENCH_OPTCTL_APPLY_OVERRIDE", "true");
+        env::set_var("RUSHBENCH_GIT_SHA", "abcdef012345");
+        env::set_var("RUSHBENCH_CONTRACTS_SHA256", "checksum123");
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_SOURCE");
+        env::remove_var("RUSHBENCH_MOCK_ENERGY_JOULES");
+        env::remove_var("RUSHBENCH_MOCK_ON_AC");
+
+        let res = run_cell("interactive", "psi-cpu", 5, true);
+        assert!(res.is_ok(), "run_cell failed: {:?}", res);
+
+        let date = get_utc_timestamp().split('T').next().unwrap().to_string();
+        let host_folder = get_host_folder_name();
+        let target_file = temp_state
+            .join(date)
+            .join(host_folder)
+            .join("interactive")
+            .join("psi-cpu.json");
+        let content = fs::read_to_string(&target_file).unwrap();
+        let rec: RunRecord = serde_json::from_str(&content).unwrap();
+        assert_eq!(rec.n, 5);
+        assert_eq!(rec.samples.unwrap().len(), 5);
+
+        env::remove_var("RUSHBENCH_SYSFS_ROOT");
+        env::remove_var("RUSHBENCH_STATE_DIR");
+        env::remove_var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC");
+        env::remove_var("RUSHBENCH_MOCK_METRIC_psi_cpu_avg10");
+        env::remove_var("RUSHBENCH_OPTCTL_STATUS_JSON");
+        env::remove_var("RUSHBENCH_OPTCTL_APPLY_OVERRIDE");
+        env::remove_var("RUSHBENCH_GIT_SHA");
+        env::remove_var("RUSHBENCH_CONTRACTS_SHA256");
+        let _ = fs::remove_dir_all(&temp_root);
+    }
+
+    #[test]
     fn test_t7_provenance_completeness() {
         let git_sha = get_git_sha().unwrap_or_else(|_| "unknown".to_string());
         let contracts_sha = get_contracts_sha256().unwrap_or_else(|_| "unknown".to_string());

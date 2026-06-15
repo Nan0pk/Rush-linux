@@ -29,6 +29,7 @@ TIMEOUT_SEC="${RUSH_BOOT_TIMEOUT:-150}"
 TEST_DIR="${ROOT}/build/rollback-test"
 LOG_DIR="${TEST_DIR}/logs"
 FIRMWARE="${OVMF_FIRMWARE:-}"
+QEMU_ACCEL_ARGS=()
 
 # Find OVMF
 if [ -z "${FIRMWARE}" ]; then
@@ -57,6 +58,13 @@ echo ""
 command -v qemu-system-x86_64 >/dev/null 2>&1 || die "qemu-system-x86_64 not found"
 command -v mcopy >/dev/null 2>&1 || die "mtools (mcopy) not found"
 
+if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+    QEMU_ACCEL_ARGS=(-enable-kvm)
+    echo "  QEMU acceleration: KVM enabled"
+else
+    echo "  QEMU acceleration: TCG (set permissions on /dev/kvm to enable KVM)"
+fi
+
 mkdir -p "${LOG_DIR}"
 
 # ── Helper: boot disk image and capture log ───────────────────────────
@@ -70,13 +78,15 @@ boot_and_log() {
 
     set +e
     timeout "${TIMEOUT_SEC}s" \
+        stdbuf -oL -eL \
         qemu-system-x86_64 \
+            "${QEMU_ACCEL_ARGS[@]}" \
             -bios "${FIRMWARE}" \
             -drive "file=${disk_path},format=raw,if=virtio" \
             -m 1G \
             -nographic \
             -no-reboot \
-        2>&1 | tee "${log_file}"
+        </dev/null 2>&1 | tee "${log_file}"
     local STATUS=${PIPESTATUS[0]}
     set -e
 
