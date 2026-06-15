@@ -54,15 +54,25 @@ echo "  firmware: ${FIRMWARE}"
 echo "  timeout:  ${TIMEOUT_SEC}s"
 echo "  log:      ${LOG}"
 
+QEMU_ACCEL_ARGS=()
+if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+    QEMU_ACCEL_ARGS=(-enable-kvm)
+    echo "  accel:    KVM enabled"
+else
+    echo "  accel:    TCG (set permissions on /dev/kvm to enable KVM)"
+fi
+
 set +e
 timeout "${TIMEOUT_SEC}s" \
+    stdbuf -oL -eL \
     qemu-system-x86_64 \
+        "${QEMU_ACCEL_ARGS[@]}" \
         -bios "${FIRMWARE}" \
         -drive "file=${DISK},format=raw,if=virtio" \
         -m 1G \
         -nographic \
         -no-reboot \
-    2>&1 | tee "${LOG}"
+    </dev/null 2>&1 | tee "${LOG}"
 QEMU_STATUS=${PIPESTATUS[0]}
 set -e
 
