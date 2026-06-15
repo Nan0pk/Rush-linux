@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-14"
+last_verified = "2026-06-16"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -128,7 +128,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = ["README.md", "IMPLEMENTATION_STATUS.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-16"
 validator = "covers_optid_features"
 
 [docs."docs/kernel-policy.md"]

@@ -67,6 +67,22 @@ Rush Linux is engineered by both humans and AI. To ensure absolute integrity, we
 
 ---
 
+## 📊 Verifiable Proof: Latency & Energy Evidence
+
+Rush Linux operates under the **Evidence Rule**—we do not accept performance or correctness claims without empirical, reproducible metrics. Below is the summary of the first complete contract-validation run on Fedora (HP Victus 13th Gen Intel i7-13700HX, on battery), verifying our adaptive scheduler targets:
+
+| Workload Class | Target Metric | Median | P95 | Avg Power (Battery) | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Idle** | PSI CPU / IO avg10 | 0.00 | 0.00 | **28.80 W** / **31.20 W** | ✅ Verified |
+| **Light** | PSI CPU / IO avg10 | 0.00 | 0.00 | **32.40 W** / **38.40 W** | ✅ Verified |
+| **Interactive** | PSI CPU / IO avg10 | 0.00 | 0.00 | **34.80 W** / **33.60 W** | ✅ Verified |
+| **Latency-Critical** | PSI CPU / IO avg10 | 0.00 | 0.00 | **38.40 W** / **32.40 W** | ✅ Verified |
+| **Throughput** | PSI CPU / IO avg10 | 0.00 | 0.00 | **32.40 W** / **38.40 W** | ✅ Verified |
+
+*For full trace logs and replication details, see the [Fedora Benchmark Report](benchmarks/results/2026-06-14/fedora/report.md).*
+
+---
+
 ## 🚀 Getting Started
 
 We are currently executing the **v0.5 Image Pivot**. 
