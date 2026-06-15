@@ -10,6 +10,7 @@
 # Usage:
 #   bash tools/finish-work.sh                    # interactive
 #   bash tools/finish-work.sh "commit message"   # with message
+#   bash tools/finish-work.sh --dry-run          # validate/report only; no writes
 #
 # Environment:
 #   RUSH_AGENT — your name/ID (default: whoami)
@@ -22,7 +23,30 @@ cd "$ROOT"
 WHO="${RUSH_AGENT:-$(whoami)}"
 NOW="$(date -u '+%Y-%m-%d %H:%M UTC')"
 DIRTY_FILE="DIRTY_STATE.md"
-COMMIT_MSG="${1:-}"
+DRY_RUN=false
+COMMIT_MSG=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dry-run|-n)
+            DRY_RUN=true
+            shift
+            ;;
+        --)
+            shift
+            COMMIT_MSG="$*"
+            break
+            ;;
+        *)
+            if [ -z "$COMMIT_MSG" ]; then
+                COMMIT_MSG="$1"
+            else
+                COMMIT_MSG="$COMMIT_MSG $1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 echo "════════════════════════════════════════════════════"
 echo "  Rush Linux — Finishing Work Session"
@@ -35,12 +59,17 @@ if [ -z "$(git status --porcelain)" ] && [ ! -f "$DIRTY_FILE" ]; then
     exit 0
 fi
 
-# ── Step 1: Update docmap last_verified dates ───────
-echo ">> Updating doc verification dates..."
-python3 tools/update-docmap-dates.py 2>/dev/null || {
-    echo "⚠️  Could not auto-update docmap dates. Update manually if needed."
-}
-echo ""
+if [ "$DRY_RUN" = true ]; then
+    echo ">> Dry-run mode: validation/report only; no files will be staged, committed, pushed, or deleted."
+    echo ""
+else
+    # ── Step 1: Update docmap last_verified dates ───────
+    echo ">> Updating doc verification dates..."
+    python3 tools/update-docmap-dates.py 2>/dev/null || {
+        echo "⚠️  Could not auto-update docmap dates. Update manually if needed."
+    }
+    echo ""
+fi
 
 # ── Step 2: Run all validators ─────────────────────
 echo ">> Running full validation suite..."
@@ -123,6 +152,13 @@ if [ "$ERRORS" -gt 0 ]; then
     exit 1
 fi
 
+if [ "$DRY_RUN" = true ]; then
+    echo "════════════════════════════════════════════════════"
+    echo "  ✅ Dry-run complete. Validation passed; no repository changes were made."
+    echo "════════════════════════════════════════════════════"
+    exit 0
+fi
+
 # ── Step 3: Remove dirty flag ──────────────────────
 if [ -f "$DIRTY_FILE" ]; then
     rm "$DIRTY_FILE"
@@ -167,16 +203,17 @@ git commit -m "$COMMIT_MSG" --author="$WHO <$WHO@users.noreply.github.com>" || \
     git commit -m "$COMMIT_MSG"
 
 # ── Step 6: Push ───────────────────────────────────
-echo ">> Pushing..."
-if git push origin main 2>/dev/null; then
-    echo "   ✅ Pushed to origin/main"
+CURRENT_BRANCH=$(git branch --show-current)
+echo ">> Pushing current branch (${CURRENT_BRANCH})..."
+if git push -u origin "$CURRENT_BRANCH" 2>/dev/null; then
+    echo "   ✅ Pushed to origin/${CURRENT_BRANCH}"
 else
     # Maybe graphify auto-commit happened
-    git pull --rebase origin main 2>/dev/null || true
-    if git push origin main 2>/dev/null; then
-        echo "   ✅ Pushed to origin/main (after rebase)"
+    git pull --rebase origin "$CURRENT_BRANCH" 2>/dev/null || true
+    if git push -u origin "$CURRENT_BRANCH" 2>/dev/null; then
+        echo "   ✅ Pushed to origin/${CURRENT_BRANCH} (after rebase)"
     else
-        echo "   ⚠️  Could not push. Push manually: git push origin main"
+        echo "   ⚠️  Could not push. Push manually: git push -u origin ${CURRENT_BRANCH}"
     fi
 fi
 
@@ -206,8 +243,19 @@ if command -v gh &>/dev/null; then
 **Agent:** $WHO  
 **Date:** $NOW
 
-## Acceptance block (from work session)
-$COMMIT_MSG
+## Commit message
+${COMMIT_MSG:-N/A}
+
+## Validation performed
+- cargo fmt --all -- --check
+- cargo test --workspace
+- cargo clippy --workspace --all-targets -- -D warnings
+- pwsh ./tools/validate-repo.ps1 (when PowerShell is available)
+- python3 tools/validate-doc-sync.py --max-age 90
+- changed Rust placeholder scan
+
+## Notes
+This body is generated from finish-work.sh validation results and metadata; the commit message is not presented as an acceptance block.
 
 ---
 *Opened via tools/finish-work.sh — see work-plan-v2 WP-P3*"
