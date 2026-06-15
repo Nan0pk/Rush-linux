@@ -203,8 +203,7 @@ fn run(args: Vec<String>) -> io::Result<()> {
         }
         "benchmark" => {
             eprintln!("optctl benchmark is removed: use rushbench binary instead.");
-            Err(io::Error::new(
-                io::ErrorKind::Other,
+            Err(io::Error::other(
                 "benchmark command removed (handled by rushbench)",
             ))
         }
