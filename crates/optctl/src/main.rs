@@ -202,12 +202,10 @@ fn run(args: Vec<String>) -> io::Result<()> {
             }
         }
         "benchmark" => {
-            println!("benchmark suite placeholder:");
-            println!("- mixed-load responsiveness: browser + build + fio");
-            println!("- battery: idle, video playback, video call, suspend/resume");
-            println!("- realtime: cyclictest/oslat + PipeWire underruns");
-            println!("- server: PostgreSQL, nginx, containers, fio, iperf3");
-            Ok(())
+            eprintln!("optctl benchmark is removed: use rushbench binary instead.");
+            Err(io::Error::other(
+                "benchmark command removed (handled by rushbench)",
+            ))
         }
         unknown => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -249,7 +247,7 @@ fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
 
 fn print_usage() {
     println!(
-        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace|benchmark>\n\
+        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace>\n\
          \n\
          Examples:\n\
            optctl status\n\
@@ -259,30 +257,51 @@ fn print_usage() {
     );
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct PressureJson {
+    avg10: f32,
+    avg60: f32,
+    avg300: f32,
+    total: u64,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct StatusReport {
+    timestamp: u64,
+    mode: String,
+    workload_class: String,
+    workload_reason: String,
+    cpu_wakeup_latency: Option<i64>,
+    device_resume_latency: Option<i64>,
+    on_ac: Option<bool>,
+    battery_pct: Option<u8>,
+    thermal_c: Option<f32>,
+    loadavg_1: Option<f32>,
+    cpu_pressure: Option<PressureJson>,
+    memory_pressure: Option<PressureJson>,
+    io_pressure: Option<PressureJson>,
+    reasons: Vec<String>,
+    actions: Vec<String>,
+}
+
 fn format_status_as_json(status_str: &str) -> Result<String, String> {
-    let mut timestamp: Option<u64> = None;
-    let mut mode = String::new();
-    let mut workload_class = String::new();
-    let mut workload_reason = String::new();
-    let mut cpu_wakeup_latency: Option<i64> = None;
-    let mut device_resume_latency: Option<i64> = None;
-    let mut on_ac: Option<bool> = None;
-    let mut battery_pct: Option<u8> = None;
-    let mut thermal_c: Option<f32> = None;
-    let mut loadavg_1: Option<f32> = None;
-
-    struct PressureJson {
-        avg10: f32,
-        avg60: f32,
-        avg300: f32,
-        total: u64,
-    }
-    let mut cpu_pressure: Option<PressureJson> = None;
-    let mut memory_pressure: Option<PressureJson> = None;
-    let mut io_pressure: Option<PressureJson> = None;
-
-    let mut reasons = Vec::new();
-    let mut actions = Vec::new();
+    let mut report = StatusReport {
+        timestamp: 0,
+        mode: String::new(),
+        workload_class: String::new(),
+        workload_reason: String::new(),
+        cpu_wakeup_latency: None,
+        device_resume_latency: None,
+        on_ac: None,
+        battery_pct: None,
+        thermal_c: None,
+        loadavg_1: None,
+        cpu_pressure: None,
+        memory_pressure: None,
+        io_pressure: None,
+        reasons: Vec::new(),
+        actions: Vec::new(),
+    };
 
     let mut current_section = "";
 
@@ -302,13 +321,13 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
 
         if current_section == "reasons" {
             if let Some(stripped) = line.strip_prefix("- ") {
-                reasons.push(stripped.to_string());
+                report.reasons.push(stripped.to_string());
             }
             continue;
         }
         if current_section == "actions" {
             if let Some(stripped) = line.strip_prefix("- ") {
-                actions.push(stripped.to_string());
+                report.actions.push(stripped.to_string());
             }
             continue;
         }
@@ -376,112 +395,24 @@ fn format_status_as_json(status_str: &str) -> Result<String, String> {
         };
 
         match key {
-            "timestamp" => timestamp = val.parse().ok(),
-            "mode" => mode = val.to_string(),
-            "workload_class" => workload_class = val.to_string(),
-            "workload_reason" => workload_reason = val.to_string(),
-            "cpu_wakeup_latency" => cpu_wakeup_latency = val.parse().ok(),
-            "device_resume_latency" => device_resume_latency = val.parse().ok(),
-            "on_ac" => on_ac = parse_option_bool(val),
-            "battery_pct" => battery_pct = parse_option_u8(val),
-            "thermal_c" => thermal_c = parse_option_f32(val),
-            "loadavg_1" => loadavg_1 = parse_option_f32(val),
-            "cpu_pressure" => cpu_pressure = parse_pressure(val),
-            "memory_pressure" => memory_pressure = parse_pressure(val),
-            "io_pressure" => io_pressure = parse_pressure(val),
+            "timestamp" => report.timestamp = val.parse().unwrap_or(0),
+            "mode" => report.mode = val.to_string(),
+            "workload_class" => report.workload_class = val.to_string(),
+            "workload_reason" => report.workload_reason = val.to_string(),
+            "cpu_wakeup_latency" => report.cpu_wakeup_latency = val.parse().ok(),
+            "device_resume_latency" => report.device_resume_latency = val.parse().ok(),
+            "on_ac" => report.on_ac = parse_option_bool(val),
+            "battery_pct" => report.battery_pct = parse_option_u8(val),
+            "thermal_c" => report.thermal_c = parse_option_f32(val),
+            "loadavg_1" => report.loadavg_1 = parse_option_f32(val),
+            "cpu_pressure" => report.cpu_pressure = parse_pressure(val),
+            "memory_pressure" => report.memory_pressure = parse_pressure(val),
+            "io_pressure" => report.io_pressure = parse_pressure(val),
             _ => {}
         }
     }
 
-    let mut out = String::new();
-    out.push_str("{\n");
-    out.push_str(&format!("  \"timestamp\": {},\n", timestamp.unwrap_or(0)));
-    out.push_str(&format!("  \"mode\": \"{}\",\n", mode));
-    out.push_str(&format!("  \"workload_class\": \"{}\",\n", workload_class));
-    out.push_str(&format!(
-        "  \"workload_reason\": \"{}\",\n",
-        workload_reason
-    ));
-
-    match cpu_wakeup_latency {
-        Some(v) => out.push_str(&format!("  \"cpu_wakeup_latency\": {},\n", v)),
-        None => out.push_str("  \"cpu_wakeup_latency\": null,\n"),
-    }
-
-    match device_resume_latency {
-        Some(v) => out.push_str(&format!("  \"device_resume_latency\": {},\n", v)),
-        None => out.push_str("  \"device_resume_latency\": null,\n"),
-    }
-
-    match on_ac {
-        Some(b) => out.push_str(&format!("  \"on_ac\": {},\n", b)),
-        None => out.push_str("  \"on_ac\": null,\n"),
-    }
-
-    match battery_pct {
-        Some(pct) => out.push_str(&format!("  \"battery_pct\": {},\n", pct)),
-        None => out.push_str("  \"battery_pct\": null,\n"),
-    }
-
-    match thermal_c {
-        Some(temp) => out.push_str(&format!("  \"thermal_c\": {:.2},\n", temp)),
-        None => out.push_str("  \"thermal_c\": null,\n"),
-    }
-
-    match loadavg_1 {
-        Some(load) => out.push_str(&format!("  \"loadavg_1\": {:.2},\n", load)),
-        None => out.push_str("  \"loadavg_1\": null,\n"),
-    }
-
-    let format_pressure_json = |p: Option<PressureJson>| -> String {
-        match p {
-            Some(pj) => format!(
-                "{{\"avg10\":{:.2},\"avg60\":{:.2},\"avg300\":{:.2},\"total\":{}}}",
-                pj.avg10, pj.avg60, pj.avg300, pj.total
-            ),
-            None => "null".to_string(),
-        }
-    };
-
-    out.push_str(&format!(
-        "  \"cpu_pressure\": {},\n",
-        format_pressure_json(cpu_pressure)
-    ));
-    out.push_str(&format!(
-        "  \"memory_pressure\": {},\n",
-        format_pressure_json(memory_pressure)
-    ));
-    out.push_str(&format!(
-        "  \"io_pressure\": {},\n",
-        format_pressure_json(io_pressure)
-    ));
-
-    out.push_str("  \"reasons\": [\n");
-    for (i, r) in reasons.iter().enumerate() {
-        let escaped = r.replace('"', "\\\"");
-        out.push_str(&format!("    \"{}\"", escaped));
-        if i + 1 < reasons.len() {
-            out.push_str(",\n");
-        } else {
-            out.push('\n');
-        }
-    }
-    out.push_str("  ],\n");
-
-    out.push_str("  \"actions\": [\n");
-    for (i, a) in actions.iter().enumerate() {
-        let escaped = a.replace('"', "\\\"");
-        out.push_str(&format!("    \"{}\"", escaped));
-        if i + 1 < actions.len() {
-            out.push_str(",\n");
-        } else {
-            out.push('\n');
-        }
-    }
-    out.push_str("  ]\n");
-
-    out.push('}');
-    Ok(out)
+    serde_json::to_string_pretty(&report).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -520,16 +451,16 @@ actions:
         assert!(result.contains("\"device_resume_latency\": 10000"));
         assert!(result.contains("\"on_ac\": true"));
         assert!(result.contains("\"battery_pct\": 95"));
-        assert!(result.contains("\"thermal_c\": 45.50"));
+        assert!(result.contains("\"thermal_c\": 45.5"));
         assert!(result.contains("\"loadavg_1\": 0.45"));
         assert!(result.contains(
-            "\"cpu_pressure\": {\"avg10\":0.01,\"avg60\":0.02,\"avg300\":0.03,\"total\":42}"
+            "\"cpu_pressure\": {\n    \"avg10\": 0.01,\n    \"avg60\": 0.02,\n    \"avg300\": 0.03,\n    \"total\": 42\n  }"
         ));
         assert!(result.contains(
-            "\"memory_pressure\": {\"avg10\":0.04,\"avg60\":0.05,\"avg300\":0.06,\"total\":84}"
+            "\"memory_pressure\": {\n    \"avg10\": 0.04,\n    \"avg60\": 0.05,\n    \"avg300\": 0.06,\n    \"total\": 84\n  }"
         ));
         assert!(result.contains(
-            "\"io_pressure\": {\"avg10\":0.07,\"avg60\":0.08,\"avg300\":0.09,\"total\":126}"
+            "\"io_pressure\": {\n    \"avg10\": 0.07,\n    \"avg60\": 0.08,\n    \"avg300\": 0.09,\n    \"total\": 126\n  }"
         ));
         assert!(result.contains("\"reasons\": [\n    \"reason 1\",\n    \"reason 2\"\n  ]"));
         assert!(result.contains("\"actions\": [\n    \"action 1\",\n    \"action 2\"\n  ]"));
@@ -558,7 +489,7 @@ actions:
         assert!(result.contains("\"cpu_pressure\": null"));
         assert!(result.contains("\"cpu_wakeup_latency\": null"));
         assert!(result.contains("\"device_resume_latency\": null"));
-        assert!(result.contains("\"reasons\": [\n  ]"));
-        assert!(result.contains("\"actions\": [\n  ]"));
+        assert!(result.contains("\"reasons\": []"));
+        assert!(result.contains("\"actions\": []"));
     }
 }
