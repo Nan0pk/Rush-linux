@@ -139,25 +139,30 @@ pub fn get_utc_timestamp() -> String {
     if let Ok(ts) = env::var("RUSHBENCH_MOCK_TIMESTAMP") {
         return ts;
     }
-    let output = std::process::Command::new("date")
-        .arg("-u")
-        .arg("+%Y-%m-%dT%H:%M:%SZ")
-        .output();
-    match output {
-        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim().to_string(),
-        _ => {
-            let secs = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            format!(
-                "2026-06-14T{:02}:{:02}:{:02}Z",
-                (secs / 3600) % 24,
-                (secs / 60) % 60,
-                secs % 60
-            )
-        }
-    }
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let days = secs / 86400;
+    let day_secs = secs % 86400;
+    let hour = day_secs / 3600;
+    let min = (day_secs % 3600) / 60;
+    let sec = day_secs % 60;
+
+    // Howard Hinnant's civil from days algorithm (1970-01-01 is epoch)
+    let z = (days as i64) + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if mp < 10 { y } else { y + 1 };
+
+    format!("{year:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}Z")
 }
 
 pub fn get_host_folder_name() -> String {
