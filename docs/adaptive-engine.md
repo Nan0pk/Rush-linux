@@ -17,6 +17,56 @@ The classification is performed by a pure function based on load average, PSI pr
 
 To prevent classification flapping under transient spikes, a hysteresis wrapper filters the decisions, committing changes only when a new workload class persists across a 3-second dwell window.
 
+## Policy Decision Flow
+
+The mode planner is intentionally small and explainable. `Policy::decide()` first resolves the requested mode, then adds actions from the selected mode plus pressure/thermal guardrails. When the requested mode is `auto`, `Policy::auto_mode()` evaluates the live snapshot with this precedence:
+
+```mermaid
+flowchart TD
+    A[optid loop collects Snapshot] --> B{Requested mode from state/mode}
+    B -->|battery| MB[Use battery mode]
+    B -->|balanced| MBal[Use balanced mode]
+    B -->|performance| MP[Use performance mode]
+    B -->|realtime| MRT[Use realtime mode]
+    B -->|auto| C{thermal_c >= critical_temp_c?}
+
+    C -->|Yes| MBal
+    C -->|No| D{on_ac == false?}
+    D -->|Yes| E{battery_pct <= low_battery_pct?}
+    E -->|Yes| MB
+    E -->|No| F{cpu.avg10 >= cpu_pressure_perf_avg10?}
+    F -->|Yes| MBal
+    F -->|No| MB
+    D -->|No or unknown| G{cpu.avg10 >= cpu_pressure_perf_avg10?}
+    G -->|Yes| MP
+    G -->|No| MBal
+
+    MB --> H[Plan battery actions: low-power EPP/profile, background weights, VM policy]
+    MBal --> I[Plan balanced actions: balanced EPP/profile, user.slice weights, VM policy]
+    MP --> J[Plan performance actions: performance EPP/profile, user.slice boost, VM policy]
+    MRT --> K[Plan realtime actions: performance EPP/profile, RT user.slice weights, PM QoS floors]
+
+    H --> L{memory.avg10 >= memory_pressure_protect_avg10?}
+    I --> L
+    J --> L
+    K --> L
+    L -->|Yes| M[Add MemoryLow for user.slice and throttle background.slice]
+    L -->|No| N{io.avg10 >= io_pressure_throttle_avg10?}
+    M --> N
+    N -->|Yes| O[Add background.slice IOWeight throttle]
+    N -->|No| P{thermal_c >= critical_temp_c?}
+    O --> P
+    P -->|Yes| Q[Add safety override: balance_power EPP]
+    P -->|No| R[Resolve workload-class contract]
+    Q --> R
+    R --> S[Add CPU/device PM QoS latency floors for committed workload class]
+    S --> T[Render decision report for optctl explain]
+```
+
+All five modes are visible in the flow: `auto` is a resolver, while `battery`, `balanced`, `performance`, and `realtime` are concrete action profiles. Threshold names in the flow correspond directly to `config/optid/policy.toml` and the `Thresholds` struct.
+
+Workload-class selection is separate from mode selection. `Policy::classify()` first honors global and foreground pins, then classifies telemetry into `idle`, `light`, `interactive`, `latency-critical`, or `throughput`. The committed class feeds PM QoS contract selection and is hysteresis-filtered before publication.
+
 ## PM QoS and Latency Budget Contracts
 
 `optid` enforces latency budgets defined in `/config/optid/contracts.toml` mapping committed workload classes to concrete latency floors:

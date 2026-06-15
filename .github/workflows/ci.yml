@@ -41,6 +41,25 @@ jobs:
       - name: Check documentation consistency
         run: python3 tools/validate-doc-sync.py --max-age 90
 
+  links:
+    name: Markdown links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --base .
+            --no-progress
+            --accept 200,206,429
+            --max-concurrency 4
+            --max-retries 2
+            --retry-wait-time 2
+            --exclude '(^|/)localhost(:|/|$)'
+            --exclude '127\.0\.0\.1'
+            './**/*.md'
+
   audit:
     name: Cargo audit (advisory)
     runs-on: ubuntu-latest

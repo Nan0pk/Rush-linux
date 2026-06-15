@@ -2368,6 +2368,209 @@ mod tests {
         assert_eq!(class, WorkloadClass::Interactive);
     }
 
+    #[test]
+    fn test_n1_t12_low_battery_on_ac_stays_balanced() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: Some(15),
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
+    }
+
+    #[test]
+    fn test_n1_t13_critical_thermal_overrides_cpu_performance() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: Some(95_000),
+            loadavg_1: Some(8.0),
+            cpu_pressure: Some(Pressure {
+                avg10: 50.0,
+                ..Pressure::default()
+            }),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
+        let decision = policy.decide(
+            &snap,
+            Mode::Auto,
+            WorkloadClass::Throughput,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert_eq!(decision.mode, Mode::Balanced);
+        assert!(decision
+            .reasons
+            .iter()
+            .any(|reason| reason.contains("critical thermal pressure")));
+        assert!(decision.actions.iter().any(|action| matches!(
+            action,
+            Action::CpuEpp { value, reason }
+                if value == "balance_power" && reason.contains("thermals are critical")
+        )));
+    }
+
+    #[test]
+    fn test_n1_t14_io_pressure_adds_background_io_throttle() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(1.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: Some(Pressure {
+                avg10: 9.0,
+                ..Pressure::default()
+            }),
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        let decision = policy.decide(
+            &snap,
+            Mode::Auto,
+            WorkloadClass::Interactive,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(decision.actions.iter().any(|action| matches!(
+            action,
+            Action::SystemdSetProperty { unit, properties, reason }
+                if unit == "background.slice"
+                    && properties.iter().any(|p| p == "IOWeight=25")
+                    && reason.contains("background I/O")
+        )));
+    }
+
+    #[test]
+    fn test_n1_t15_memory_pressure_protects_user_and_throttles_background() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(1.0),
+            cpu_pressure: None,
+            memory_pressure: Some(Pressure {
+                avg10: 6.0,
+                ..Pressure::default()
+            }),
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        let decision = policy.decide(
+            &snap,
+            Mode::Auto,
+            WorkloadClass::Interactive,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(decision.actions.iter().any(|action| matches!(
+            action,
+            Action::SystemdSetProperty { unit, properties, .. }
+                if unit == "user.slice" && properties.iter().any(|p| p == "MemoryLow=256M")
+        )));
+        assert!(decision.actions.iter().any(|action| matches!(
+            action,
+            Action::SystemdSetProperty { unit, properties, .. }
+                if unit == "background.slice"
+                    && properties.iter().any(|p| p == "MemoryHigh=75%")
+                    && properties.iter().any(|p| p == "CPUWeight=50")
+                    && properties.iter().any(|p| p == "IOWeight=50")
+        )));
+    }
+
+    #[test]
+    fn test_n1_t16_manual_performance_overrides_auto_battery() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: Some(false),
+            battery_pct: Some(10),
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: true,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        assert_eq!(policy.auto_mode(&snap), Mode::Battery);
+        let decision = policy.decide(
+            &snap,
+            Mode::Performance,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert_eq!(decision.mode, Mode::Performance);
+        assert!(decision
+            .reasons
+            .iter()
+            .any(|reason| reason == "manual mode override: performance"));
+    }
+
+    #[test]
+    fn test_n1_t17_missing_sensors_choose_safe_balanced() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 0,
+            on_ac: None,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: None,
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+
+        assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
+        assert_eq!(policy.classify(&snap).0, WorkloadClass::Idle);
+    }
+
     struct MockPmqosSink {
         cpu_latency: Option<i32>,
         device_latencies: std::collections::HashMap<PathBuf, String>,
