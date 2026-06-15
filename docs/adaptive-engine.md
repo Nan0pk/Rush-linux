@@ -77,6 +77,8 @@ Workload-class selection is separate from mode selection. `Policy::classify()` f
 
 All PM QoS writes are subject to the dry-run (`--apply`) gate, act on floor changes only to avoid thrashing, and are explainable via `optctl explain`.
 
+`vm.*` sysctl actuation is guarded by the zram-backed memory policy: when `high_swappiness_requires_zram` is enabled and no zram swap device is active, `optid` skips all `vm.*` writes and records the skip reason in the decision report. When `vm.*` writes are applied, the original and intended values are journaled in the state directory so startup/shutdown revert logic can restore prior values.
+
 ## Current MVP
 
 The current Rust implementation:
