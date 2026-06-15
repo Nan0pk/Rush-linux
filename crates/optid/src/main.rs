@@ -14,6 +14,7 @@ const DEFAULT_CONFIG_PATH: &str = "/usr/lib/optid/policy.toml";
 const DEFAULT_INTERVAL_SEC: u64 = 2;
 
 const DEFAULT_DWELL_WINDOW_SEC: u64 = 3;
+const DEFAULT_MODE_DWELL_WINDOW_SEC: u64 = DEFAULT_INTERVAL_SEC * 3;
 
 struct OptidServer {
     state_dir: PathBuf,
@@ -132,6 +133,7 @@ fn run(args: Args) -> io::Result<()> {
         .and_then(|s| WorkloadClass::parse(&s))
         .unwrap_or(WorkloadClass::Idle);
     let mut hysteresis = HysteresisState::new(initial_class);
+    let mut mode_hysteresis = ModeHysteresisState::new(Mode::Balanced);
 
     let mut actuator = Actuator::new(args.state_dir.clone());
 
@@ -148,6 +150,25 @@ fn run(args: Args) -> io::Result<()> {
         let (committed_class, _) =
             hysteresis.update(raw_class, snapshot.timestamp, DEFAULT_DWELL_WINDOW_SEC);
 
+        let resolved_mode = match override_mode {
+            Mode::Auto => {
+                let raw_mode = policy.auto_mode(&snapshot);
+                let critical_thermal = policy.is_critical_thermal(&snapshot);
+                let (mode, _, _) = mode_hysteresis.update(
+                    raw_mode,
+                    snapshot.timestamp,
+                    DEFAULT_MODE_DWELL_WINDOW_SEC,
+                    critical_thermal,
+                );
+                mode
+            }
+            explicit => {
+                mode_hysteresis.force(explicit);
+                explicit
+            }
+        };
+        let mode_hysteresis_reason = mode_hysteresis.explain_pending(snapshot.timestamp);
+
         let _ = fs::write(
             args.state_dir.join("workload_class"),
             committed_class.to_string(),
@@ -160,12 +181,14 @@ fn run(args: Args) -> io::Result<()> {
             .unwrap_or_else(|| PathBuf::from("contracts.toml"));
         let contracts = Contracts::load(&contracts_path);
 
-        let decision = policy.decide(
+        let decision = policy.decide_resolved(
             &snapshot,
             override_mode,
             committed_class,
             class_reason,
             &contracts,
+            Some(resolved_mode),
+            mode_hysteresis_reason,
         );
         let report = decision.render(&snapshot);
 
@@ -603,6 +626,109 @@ impl HysteresisState {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ModeHysteresisState {
+    committed_mode: Mode,
+    candidate_mode: Mode,
+    candidate_since: Option<u64>,
+}
+
+impl ModeHysteresisState {
+    fn new(initial_mode: Mode) -> Self {
+        Self {
+            committed_mode: initial_mode,
+            candidate_mode: initial_mode,
+            candidate_since: None,
+        }
+    }
+
+    fn force(&mut self, mode: Mode) {
+        self.committed_mode = mode;
+        self.candidate_mode = mode;
+        self.candidate_since = None;
+    }
+
+    fn update(
+        &mut self,
+        next_mode: Mode,
+        now: u64,
+        dwell_window_sec: u64,
+        bypass_hysteresis: bool,
+    ) -> (Mode, bool, Option<String>) {
+        if bypass_hysteresis {
+            let changed = self.committed_mode != next_mode;
+            self.force(next_mode);
+            return (
+                self.committed_mode,
+                changed,
+                Some(format!(
+                    "mode hysteresis bypassed for safety: committed {} immediately",
+                    self.committed_mode
+                )),
+            );
+        }
+
+        if next_mode == self.committed_mode {
+            self.candidate_mode = next_mode;
+            self.candidate_since = None;
+            return (self.committed_mode, false, None);
+        }
+
+        if next_mode != self.candidate_mode {
+            self.candidate_mode = next_mode;
+            self.candidate_since = Some(now);
+            return (
+                self.committed_mode,
+                false,
+                Some(format!(
+                    "mode hysteresis delaying transition: committed={}, candidate={}, elapsed=0s, required={}s",
+                    self.committed_mode, self.candidate_mode, dwell_window_sec
+                )),
+            );
+        }
+
+        let since = self.candidate_since.unwrap_or(now);
+        self.candidate_since = Some(since);
+        if now >= since + dwell_window_sec {
+            self.committed_mode = next_mode;
+            self.candidate_since = None;
+            return (
+                self.committed_mode,
+                true,
+                Some(format!(
+                    "mode hysteresis committed transition to {} after {}s dwell",
+                    self.committed_mode,
+                    now.saturating_sub(since)
+                )),
+            );
+        }
+
+        (
+            self.committed_mode,
+            false,
+            Some(format!(
+                "mode hysteresis delaying transition: committed={}, candidate={}, elapsed={}s, required={}s",
+                self.committed_mode,
+                self.candidate_mode,
+                now.saturating_sub(since),
+                dwell_window_sec
+            )),
+        )
+    }
+
+    fn explain_pending(&self, now: u64) -> Option<String> {
+        self.candidate_since.map(|since| {
+            format!(
+                "mode hysteresis pending: committed={}, candidate={}, elapsed={}s, required={}s",
+                self.committed_mode,
+                self.candidate_mode,
+                now.saturating_sub(since),
+                DEFAULT_MODE_DWELL_WINDOW_SEC
+            )
+        })
+    }
+}
+
 fn read_pinned_class(state_dir: &Path, app_id: &str) -> Option<WorkloadClass> {
     let pin_file = state_dir.join("pins").join(app_id);
     let text = fs::read_to_string(pin_file).ok()?;
@@ -1036,6 +1162,7 @@ impl Policy {
         )
     }
 
+    #[allow(dead_code)]
     fn decide(
         &self,
         snapshot: &Snapshot,
@@ -1044,13 +1171,39 @@ impl Policy {
         workload_reason: String,
         contracts: &Contracts,
     ) -> Decision {
-        let effective_mode = match requested {
+        self.decide_resolved(
+            snapshot,
+            requested,
+            workload_class,
+            workload_reason,
+            contracts,
+            None,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn decide_resolved(
+        &self,
+        snapshot: &Snapshot,
+        requested: Mode,
+        workload_class: WorkloadClass,
+        workload_reason: String,
+        contracts: &Contracts,
+        resolved_mode: Option<Mode>,
+        mode_hysteresis_reason: Option<String>,
+    ) -> Decision {
+        let effective_mode = resolved_mode.unwrap_or_else(|| match requested {
             Mode::Auto => self.auto_mode(snapshot),
             explicit => explicit,
-        };
+        });
 
         let mut reasons = Vec::new();
         let mut actions = Vec::new();
+
+        if let Some(reason) = mode_hysteresis_reason {
+            reasons.push(reason);
+        }
 
         if requested != Mode::Auto {
             reasons.push(format!("manual mode override: {requested}"));
@@ -1269,11 +1422,14 @@ impl Policy {
         }
     }
 
-    fn auto_mode(&self, snapshot: &Snapshot) -> Mode {
-        if snapshot
+    fn is_critical_thermal(&self, snapshot: &Snapshot) -> bool {
+        snapshot
             .thermal_c()
             .is_some_and(|temp| temp >= self.thresholds.critical_temp_c)
-        {
+    }
+
+    fn auto_mode(&self, snapshot: &Snapshot) -> Mode {
+        if self.is_critical_thermal(snapshot) {
             return Mode::Balanced;
         }
 
@@ -2296,6 +2452,71 @@ mod tests {
         // A single-sample blip at t=4 back to Idle does not immediately change committed class
         let (class, _) = hysteresis.update(WorkloadClass::Idle, 4, 3);
         assert_eq!(class, WorkloadClass::Interactive);
+    }
+
+    #[test]
+    fn test_n1_t3b_mode_hysteresis_delays_auto_transition() {
+        let mut hysteresis = ModeHysteresisState::new(Mode::Balanced);
+
+        let (mode, changed, reason) = hysteresis.update(Mode::Performance, 0, 6, false);
+        assert_eq!(mode, Mode::Balanced);
+        assert!(!changed);
+        assert!(reason.unwrap().contains("delaying transition"));
+
+        let (mode, changed, _) = hysteresis.update(Mode::Performance, 5, 6, false);
+        assert_eq!(mode, Mode::Balanced);
+        assert!(!changed);
+
+        let (mode, changed, reason) = hysteresis.update(Mode::Performance, 6, 6, false);
+        assert_eq!(mode, Mode::Performance);
+        assert!(changed);
+        assert!(reason.unwrap().contains("committed transition"));
+    }
+
+    #[test]
+    fn test_n1_t3c_mode_hysteresis_critical_thermal_bypasses_delay() {
+        let mut hysteresis = ModeHysteresisState::new(Mode::Performance);
+
+        let (mode, changed, reason) = hysteresis.update(Mode::Balanced, 10, 6, true);
+        assert_eq!(mode, Mode::Balanced);
+        assert!(changed);
+        assert!(reason.unwrap().contains("bypassed for safety"));
+    }
+
+    #[test]
+    fn test_n1_t3d_mode_hysteresis_reason_is_explainable() {
+        let policy = Policy::default();
+        let snap = Snapshot {
+            timestamp: 1,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(4.0),
+            cpu_pressure: Some(Pressure {
+                avg10: 20.0,
+                ..Pressure::default()
+            }),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+        };
+        let decision = policy.decide_resolved(
+            &snap,
+            Mode::Auto,
+            WorkloadClass::Throughput,
+            "test".to_string(),
+            &Contracts::default(),
+            Some(Mode::Balanced),
+            Some("mode hysteresis delaying transition: committed=balanced, candidate=performance, elapsed=1s, required=6s".to_string()),
+        );
+        let report = decision.render(&snap);
+        assert!(report.contains("mode=balanced"));
+        assert!(report.contains("mode hysteresis delaying transition"));
+        assert!(report.contains("candidate=performance"));
     }
 
     #[test]
