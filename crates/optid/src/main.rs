@@ -1750,13 +1750,13 @@ impl Actuator {
                 let orig_file = self.state_dir.join(format!("original_{key}"));
                 if !orig_file.exists() {
                     if let Ok(current_val) = fs::read_to_string(path) {
-                        let _ = fs::write(&orig_file, current_val.trim());
+                        let _ = atomic_write_state_file(&orig_file, current_val.trim());
                     }
                 }
 
                 // Write intended value
                 let intended_file = self.state_dir.join(format!("intended_{key}"));
-                let _ = fs::write(&intended_file, value);
+                let _ = atomic_write_state_file(&intended_file, value);
 
                 // Write new value to sysctl path
                 let old_value = fs::read_to_string(path)
@@ -1826,7 +1826,7 @@ impl Actuator {
                     if !orig_file.exists() {
                         if let Ok(current_val) = self.pmqos_sink.read_device_latency(path) {
                             let content = format!("{}\n{}", path.display(), current_val.trim());
-                            let _ = fs::write(&orig_file, content);
+                            let _ = atomic_write_state_file(&orig_file, &content);
                         }
                     }
 
@@ -1835,7 +1835,7 @@ impl Actuator {
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "0".to_string());
                     let intended_file = self.state_dir.join(format!("intended_{key}"));
-                    let _ = fs::write(&intended_file, &val_str);
+                    let _ = atomic_write_state_file(&intended_file, &val_str);
 
                     let old_value = self
                         .pmqos_sink
@@ -2091,6 +2091,22 @@ fn fmt_pressure(value: Option<Pressure>) -> String {
         ),
         None => "unavailable".to_string(),
     }
+}
+
+/// Atomic write of a state file in `/run/optid`.
+///
+/// Writes to `<path>.tmp` first, then renames into place. The rename is
+/// atomic on POSIX, so a SIGKILL between the write and the rename leaves
+/// either the previous contents (if any) or no file at all — never a
+/// truncated `original_*` or `intended_*` file that the next-boot revert
+/// would interpret as a real backup.
+fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(tmp, path)
 }
 
 fn append_log(path: &Path, text: &str) -> io::Result<()> {
