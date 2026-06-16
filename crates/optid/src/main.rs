@@ -1662,11 +1662,22 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
-                    guarded_write(&path, value)?;
-                    self.log(&format!(
-                        "write {} = {value} (was {old_value})",
-                        path.display()
-                    ))?;
+                    // Soft-fail per CPU: a hotplug or transient EBUSY on one
+                    // core should not terminate the daemon.
+                    match guarded_write(&path, value) {
+                        Ok(_) => {
+                            self.log(&format!(
+                                "write {} = {value} (was {old_value})",
+                                path.display()
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip cpu.epp {}: write failed: {e}",
+                                path.display()
+                            ))?;
+                        }
+                    }
                 }
             }
             Action::PlatformProfile { value, .. } => {
@@ -1677,11 +1688,21 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
-                    guarded_write(path, value)?;
-                    self.log(&format!(
-                        "write {} = {value} (was {old_value})",
-                        path.display()
-                    ))?;
+                    // Soft-fail: a write rejection here should not crash the
+                    // daemon. Log and move on; next cycle will retry.
+                    match guarded_write(path, value) {
+                        Ok(_) => {
+                            self.log(&format!(
+                                "write {} = {value} (was {old_value})",
+                                path.display()
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip platform.profile: write failed: {e}"
+                            ))?;
+                        }
+                    }
                 } else {
                     self.log("skip platform.profile: platform_profile is unavailable")?;
                 }
@@ -1765,14 +1786,26 @@ impl Actuator {
                         .pmqos_sink
                         .read_cpu_latency()
                         .unwrap_or_else(|_| "n/a".to_string());
-                    self.pmqos_sink.write_cpu_latency(*value)?;
-                    self.last_cpu_latency = Some(*value);
+                    // Soft-fail: missing /dev/cpu_dma_latency (e.g. running in
+                    // a container or on a kernel without it) should not crash
+                    // the daemon. Skip and log; `last_cpu_latency` is left
+                    // untouched so a future success will still take effect.
                     let val_str = value
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "n/a".to_string());
-                    self.log(&format!(
-                        "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
-                    ))?;
+                    match self.pmqos_sink.write_cpu_latency(*value) {
+                        Ok(_) => {
+                            self.last_cpu_latency = Some(*value);
+                            self.log(&format!(
+                                "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip /dev/cpu_dma_latency = {val_str}: write failed: {e} reason: {reason}"
+                            ))?;
+                        }
+                    }
                 }
             }
             Action::DeviceResumeLatency {
