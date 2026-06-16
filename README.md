@@ -1,7 +1,7 @@
 # ⚡ Rush Linux
 ### *The declarative, adaptive, and verifiable OS.*
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Pre--Alpha%20(v0.5)-orange.svg)](ROADMAP.md)
 [![Built with](https://img.shields.io/badge/built%20with-Rust-red.svg)](https://www.rust-lang.org/)
 
