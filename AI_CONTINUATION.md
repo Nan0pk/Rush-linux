@@ -12,7 +12,7 @@ Rather than relying on static, competing user-space scripts (e.g., TLP, TuneD, p
 
 ---
 
-## 🚫 Forbidden Shortcuts & Architectural Rules
+## Forbidden Shortcuts
 
 To preserve the uncompromising engineering standards of Rush Linux, you must strictly adhere to the following rules:
 - **No Derivative Slop:** Do not replace our declarative image composition plane with custom procedural ISO build scripts.
@@ -64,7 +64,7 @@ Rush Linux is transitioning from foundational Alpha R&D (`v0.4.0-alpha.1`) into 
 
 ---
 
-## 🚀 Recommended Handoff / Next Immediate Actions
+## Next Task
 
 You are taking over an exceptionally clean, highly disciplined repository. Your primary mandate is to complete the **v0.5 Image Pivot** by compiling the first officially bootable Arch Linux raw disk image (`disk.raw`).
 
