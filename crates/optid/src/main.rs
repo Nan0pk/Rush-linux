@@ -1689,6 +1689,13 @@ impl Actuator {
             Action::SystemdSetProperty {
                 unit, properties, ..
             } => {
+                // INVARIANT: `properties` must be produced by typed code paths
+                // (Action::SystemdSetProperty constructors in Decision). It is
+                // splatted directly into `systemctl set-property` argv with no
+                // shell quoting. If a future code path ever lets policy.toml or
+                // any other untrusted source feed strings into this Vec, this
+                // becomes a systemd-syntax injection vector — guard at the
+                // construction site, not here.
                 let status = Command::new("systemctl")
                     .arg("set-property")
                     .arg("--runtime")
@@ -1894,14 +1901,26 @@ fn revert_pm_qos(state_dir: &Path) {
 }
 
 fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
+    // Structural check for the per-PCI-device PM QoS resume-latency file.
+    // Must be exactly `…/power/pm_qos_resume_latency_us` — not a substring of
+    // some other file name. Compare via Path::file_name() rather than
+    // stringifying the path.
+    fn is_pm_qos_resume_latency(path: &Path) -> bool {
+        path.file_name().and_then(|n| n.to_str()) == Some("pm_qos_resume_latency_us")
+            && path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                == Some("power")
+    }
+
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
         || path == Path::new("/proc/sys/vm/dirty_background_bytes")
         || path == Path::new("/proc/sys/vm/dirty_bytes")
-        || (path.starts_with("/sys/")
-            && path.to_string_lossy().contains("pm_qos_resume_latency_us"))
-        || (cfg!(test) && path.to_string_lossy().contains("pm_qos_resume_latency_us"));
+        || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
+        || (cfg!(test) && is_pm_qos_resume_latency(path));
 
     if !allowed {
         return Err(io::Error::new(
@@ -3023,7 +3042,11 @@ device_resume_latency = 100000
             std::env::temp_dir().join(format!("optid_tests_n2_t4_{}", std::process::id()));
         let _ = fs::create_dir_all(&temp_dir);
 
-        let dev_path = temp_dir.join("device_pm_qos_resume_latency_us");
+        // Mirror real PCI structure so the structural allowlist check accepts
+        // it: parent dir must be `power`, file must be `pm_qos_resume_latency_us`.
+        let dev_dir = temp_dir.join("0000:00:1f.3").join("power");
+        fs::create_dir_all(&dev_dir).unwrap();
+        let dev_path = dev_dir.join("pm_qos_resume_latency_us");
 
         let mut mock_sink = MockPmqosSink::new();
         mock_sink.write_device_latency(&dev_path, "250").unwrap();
