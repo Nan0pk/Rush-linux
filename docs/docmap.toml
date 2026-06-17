@@ -394,6 +394,15 @@ freshens = ["docs/non-goals.md"]
 last_verified = "2026-06-14"
 validator = "status:proposed"
 
+[docs."docs/decisions/0016-retire-epic-issues-to-spec.md"]
+purpose = "ADR: migrate multi-year Epics and Work Package ledgers out of GitHub Issues"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["ROADMAP.md", "docs/SPEC-northstar.md"]
+last_verified = "2026-06-17"
+validator = "status:accepted"
+
 [docs."docs/contributing/first-pr.md"]
 purpose = "Step-by-step guide for making your first contribution"
 owner_area = "area:docs"
