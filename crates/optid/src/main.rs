@@ -2,10 +2,13 @@ use std::env;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::os::fd::AsRawFd;
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use zbus::blocking::ConnectionBuilder;
 use zbus::dbus_interface;
 
@@ -104,6 +107,22 @@ fn main() {
 fn run(args: Args) -> io::Result<()> {
     fs::create_dir_all(&args.state_dir)?;
 
+    // Single-instance exclusive lock on state_dir/optid.lock (M4)
+    let lock_file = fs::File::create(args.state_dir.join("optid.lock"))?;
+    let lock_res = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if lock_res != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "another instance of optid is already running on this state directory",
+        ));
+    }
+
+    // Register signal hooks for clean termination (H2)
+    let term = Arc::new(AtomicBool::new(false));
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term));
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term));
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGHUP, Arc::clone(&term));
+
     // Revert sysctls on startup to clean up any left-over state
     revert_sysctls(&args.state_dir);
     revert_pm_qos(&args.state_dir);
@@ -201,16 +220,27 @@ fn run(args: Args) -> io::Result<()> {
             }
         }
 
-        if args.once {
+        if args.once || term.load(Ordering::Relaxed) {
             break;
         }
 
-        thread::sleep(Duration::from_secs(args.interval_sec));
+        let sleep_dur = Duration::from_secs(args.interval_sec);
+        let start = Instant::now();
+        while start.elapsed() < sleep_dur {
+            if term.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        if term.load(Ordering::Relaxed) {
+            break;
+        }
     }
 
     // Also revert sysctls on clean exit
     revert_sysctls(&args.state_dir);
     revert_pm_qos(&args.state_dir);
+    let _ = lock_file;
 
     Ok(())
 }
@@ -1787,6 +1817,16 @@ fn revert_pm_qos(state_dir: &Path) {
 }
 
 fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "refusing to write path with directory traversal: {}",
+                path.display()
+            ),
+        ));
+    }
+
     // Structural check for the per-PCI-device PM QoS resume-latency file.
     // Must be exactly `…/power/pm_qos_resume_latency_us` — not a substring of
     // some other file name. Compare via Path::file_name() rather than

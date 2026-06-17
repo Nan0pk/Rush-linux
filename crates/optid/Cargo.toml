@@ -14,3 +14,5 @@ path = "src/main.rs"
 zbus = { version = "3.14.1", features = ["blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
+signal-hook = "0.3"
+libc = "0.2"
