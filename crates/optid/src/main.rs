@@ -1553,9 +1553,7 @@ impl Actuator {
                             ))?;
                         }
                         Err(e) => {
-                            self.log(&format!(
-                                "skip platform.profile: write failed: {e}"
-                            ))?;
+                            self.log(&format!("skip platform.profile: write failed: {e}"))?;
                         }
                     }
                 } else {
