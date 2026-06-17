@@ -832,6 +832,7 @@ struct Modes {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[allow(dead_code)]
 struct ModeConfig {
     cpu_epp: String,
     platform_profile: String,
@@ -923,7 +924,6 @@ impl Default for Policy {
 
 impl Policy {
     fn load(path: &Path) -> Self {
-        let mut policy = Self::default();
         let text = match fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => {
@@ -932,166 +932,21 @@ impl Policy {
                     path.display(),
                     e
                 );
-                return policy;
+                return Self::default();
             }
         };
 
-        let mut current_section = String::new();
-        for line in text.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if line.starts_with('[') && line.ends_with(']') {
-                current_section = line[1..line.len() - 1].trim().to_string();
-                continue;
-            }
-
-            let mut parts = line.splitn(2, '=');
-            let key = match parts.next() {
-                Some(k) => k.trim(),
-                None => continue,
-            };
-            let val = match parts.next() {
-                Some(v) => v.trim(),
-                None => continue,
-            };
-
-            let clean_str = |s: &str| -> String {
-                let s = s.trim();
-                if (s.starts_with('"') && s.ends_with('"'))
-                    || (s.starts_with('\'') && s.ends_with('\''))
-                {
-                    s[1..s.len() - 1].to_string()
-                } else {
-                    s.to_string()
-                }
-            };
-
-            match current_section.as_str() {
-                "thresholds" => match key {
-                    "cpu_pressure_perf_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.cpu_pressure_perf_avg10 = n;
-                        }
-                    }
-                    "memory_pressure_protect_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.memory_pressure_protect_avg10 = n;
-                        }
-                    }
-                    "io_pressure_throttle_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.io_pressure_throttle_avg10 = n;
-                        }
-                    }
-                    "hot_temp_c" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.hot_temp_c = n;
-                        }
-                    }
-                    "critical_temp_c" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.critical_temp_c = n;
-                        }
-                    }
-                    "low_battery_pct" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.low_battery_pct = n;
-                        }
-                    }
-                    _ => {}
-                },
-                "memory" => {
-                    if key == "high_swappiness_requires_zram" {
-                        if let Ok(b) = val.parse::<bool>() {
-                            policy.memory.high_swappiness_requires_zram = b;
-                        }
-                    }
-                }
-                "modes.battery" => match key {
-                    "cpu_epp" => policy.modes.battery.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.battery.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.battery.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.battery.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.battery.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.battery.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.battery.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.battery.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.battery.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.balanced" => match key {
-                    "cpu_epp" => policy.modes.balanced.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.balanced.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.balanced.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.balanced.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.balanced.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.balanced.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.balanced.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.balanced.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.balanced.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.performance" => match key {
-                    "cpu_epp" => policy.modes.performance.cpu_epp = clean_str(val),
-                    "platform_profile" => {
-                        policy.modes.performance.platform_profile = clean_str(val)
-                    }
-                    "background_cpu_weight" => {
-                        policy.modes.performance.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.performance.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => {
-                        policy.modes.performance.user_cpu_weight = val.parse().ok()
-                    }
-                    "user_io_weight" => policy.modes.performance.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.performance.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.performance.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.performance.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.realtime" => match key {
-                    "cpu_epp" => policy.modes.realtime.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.realtime.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.realtime.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.realtime.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.realtime.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.realtime.user_io_weight = val.parse().ok(),
-                    "requires_controlled_rt_access" => {
-                        policy.modes.realtime.requires_controlled_rt_access = val.parse().ok()
-                    }
-                    "vm_swappiness" => policy.modes.realtime.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.realtime.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.realtime.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                _ => {}
+        match toml::from_str(&text) {
+            Ok(policy) => policy,
+            Err(e) => {
+                eprintln!(
+                    "optid: failed to parse policy TOML from {}: {}. Using defaults.",
+                    path.display(),
+                    e
+                );
+                Self::default()
             }
         }
-        policy
     }
 
     fn classify(&self, snapshot: &Snapshot) -> (WorkloadClass, String) {

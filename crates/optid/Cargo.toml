@@ -13,3 +13,4 @@ path = "src/main.rs"
 [dependencies]
 zbus = { version = "3.14.1", features = ["blocking"] }
 serde = { version = "1.0", features = ["derive"] }
+toml = "0.5"
