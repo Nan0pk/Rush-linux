@@ -832,6 +832,7 @@ struct Modes {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[allow(dead_code)]
 struct ModeConfig {
     cpu_epp: String,
     platform_profile: String,
@@ -923,7 +924,6 @@ impl Default for Policy {
 
 impl Policy {
     fn load(path: &Path) -> Self {
-        let mut policy = Self::default();
         let text = match fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => {
@@ -932,166 +932,21 @@ impl Policy {
                     path.display(),
                     e
                 );
-                return policy;
+                return Self::default();
             }
         };
 
-        let mut current_section = String::new();
-        for line in text.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if line.starts_with('[') && line.ends_with(']') {
-                current_section = line[1..line.len() - 1].trim().to_string();
-                continue;
-            }
-
-            let mut parts = line.splitn(2, '=');
-            let key = match parts.next() {
-                Some(k) => k.trim(),
-                None => continue,
-            };
-            let val = match parts.next() {
-                Some(v) => v.trim(),
-                None => continue,
-            };
-
-            let clean_str = |s: &str| -> String {
-                let s = s.trim();
-                if (s.starts_with('"') && s.ends_with('"'))
-                    || (s.starts_with('\'') && s.ends_with('\''))
-                {
-                    s[1..s.len() - 1].to_string()
-                } else {
-                    s.to_string()
-                }
-            };
-
-            match current_section.as_str() {
-                "thresholds" => match key {
-                    "cpu_pressure_perf_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.cpu_pressure_perf_avg10 = n;
-                        }
-                    }
-                    "memory_pressure_protect_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.memory_pressure_protect_avg10 = n;
-                        }
-                    }
-                    "io_pressure_throttle_avg10" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.io_pressure_throttle_avg10 = n;
-                        }
-                    }
-                    "hot_temp_c" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.hot_temp_c = n;
-                        }
-                    }
-                    "critical_temp_c" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.critical_temp_c = n;
-                        }
-                    }
-                    "low_battery_pct" => {
-                        if let Ok(n) = val.parse() {
-                            policy.thresholds.low_battery_pct = n;
-                        }
-                    }
-                    _ => {}
-                },
-                "memory" => {
-                    if key == "high_swappiness_requires_zram" {
-                        if let Ok(b) = val.parse::<bool>() {
-                            policy.memory.high_swappiness_requires_zram = b;
-                        }
-                    }
-                }
-                "modes.battery" => match key {
-                    "cpu_epp" => policy.modes.battery.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.battery.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.battery.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.battery.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.battery.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.battery.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.battery.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.battery.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.battery.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.balanced" => match key {
-                    "cpu_epp" => policy.modes.balanced.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.balanced.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.balanced.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.balanced.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.balanced.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.balanced.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.balanced.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.balanced.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.balanced.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.performance" => match key {
-                    "cpu_epp" => policy.modes.performance.cpu_epp = clean_str(val),
-                    "platform_profile" => {
-                        policy.modes.performance.platform_profile = clean_str(val)
-                    }
-                    "background_cpu_weight" => {
-                        policy.modes.performance.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.performance.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => {
-                        policy.modes.performance.user_cpu_weight = val.parse().ok()
-                    }
-                    "user_io_weight" => policy.modes.performance.user_io_weight = val.parse().ok(),
-                    "vm_swappiness" => policy.modes.performance.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.performance.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.performance.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                "modes.realtime" => match key {
-                    "cpu_epp" => policy.modes.realtime.cpu_epp = clean_str(val),
-                    "platform_profile" => policy.modes.realtime.platform_profile = clean_str(val),
-                    "background_cpu_weight" => {
-                        policy.modes.realtime.background_cpu_weight = val.parse().ok()
-                    }
-                    "background_io_weight" => {
-                        policy.modes.realtime.background_io_weight = val.parse().ok()
-                    }
-                    "user_cpu_weight" => policy.modes.realtime.user_cpu_weight = val.parse().ok(),
-                    "user_io_weight" => policy.modes.realtime.user_io_weight = val.parse().ok(),
-                    "requires_controlled_rt_access" => {
-                        policy.modes.realtime.requires_controlled_rt_access = val.parse().ok()
-                    }
-                    "vm_swappiness" => policy.modes.realtime.vm_swappiness = val.parse().ok(),
-                    "vm_dirty_background_bytes" => {
-                        policy.modes.realtime.vm_dirty_background_bytes = val.parse().ok()
-                    }
-                    "vm_dirty_bytes" => policy.modes.realtime.vm_dirty_bytes = val.parse().ok(),
-                    _ => {}
-                },
-                _ => {}
+        match toml::from_str(&text) {
+            Ok(policy) => policy,
+            Err(e) => {
+                eprintln!(
+                    "optid: failed to parse policy TOML from {}: {}. Using defaults.",
+                    path.display(),
+                    e
+                );
+                Self::default()
             }
         }
-        policy
     }
 
     fn classify(&self, snapshot: &Snapshot) -> (WorkloadClass, String) {
@@ -1662,11 +1517,22 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
-                    guarded_write(&path, value)?;
-                    self.log(&format!(
-                        "write {} = {value} (was {old_value})",
-                        path.display()
-                    ))?;
+                    // Soft-fail per CPU: a hotplug or transient EBUSY on one
+                    // core should not terminate the daemon.
+                    match guarded_write(&path, value) {
+                        Ok(_) => {
+                            self.log(&format!(
+                                "write {} = {value} (was {old_value})",
+                                path.display()
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip cpu.epp {}: write failed: {e}",
+                                path.display()
+                            ))?;
+                        }
+                    }
                 }
             }
             Action::PlatformProfile { value, .. } => {
@@ -1677,11 +1543,19 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
-                    guarded_write(path, value)?;
-                    self.log(&format!(
-                        "write {} = {value} (was {old_value})",
-                        path.display()
-                    ))?;
+                    // Soft-fail: a write rejection here should not crash the
+                    // daemon. Log and move on; next cycle will retry.
+                    match guarded_write(path, value) {
+                        Ok(_) => {
+                            self.log(&format!(
+                                "write {} = {value} (was {old_value})",
+                                path.display()
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!("skip platform.profile: write failed: {e}"))?;
+                        }
+                    }
                 } else {
                     self.log("skip platform.profile: platform_profile is unavailable")?;
                 }
@@ -1729,13 +1603,13 @@ impl Actuator {
                 let orig_file = self.state_dir.join(format!("original_{key}"));
                 if !orig_file.exists() {
                     if let Ok(current_val) = fs::read_to_string(path) {
-                        let _ = fs::write(&orig_file, current_val.trim());
+                        let _ = atomic_write_state_file(&orig_file, current_val.trim());
                     }
                 }
 
                 // Write intended value
                 let intended_file = self.state_dir.join(format!("intended_{key}"));
-                let _ = fs::write(&intended_file, value);
+                let _ = atomic_write_state_file(&intended_file, value);
 
                 // Write new value to sysctl path
                 let old_value = fs::read_to_string(path)
@@ -1765,14 +1639,26 @@ impl Actuator {
                         .pmqos_sink
                         .read_cpu_latency()
                         .unwrap_or_else(|_| "n/a".to_string());
-                    self.pmqos_sink.write_cpu_latency(*value)?;
-                    self.last_cpu_latency = Some(*value);
+                    // Soft-fail: missing /dev/cpu_dma_latency (e.g. running in
+                    // a container or on a kernel without it) should not crash
+                    // the daemon. Skip and log; `last_cpu_latency` is left
+                    // untouched so a future success will still take effect.
                     let val_str = value
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "n/a".to_string());
-                    self.log(&format!(
-                        "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
-                    ))?;
+                    match self.pmqos_sink.write_cpu_latency(*value) {
+                        Ok(_) => {
+                            self.last_cpu_latency = Some(*value);
+                            self.log(&format!(
+                                "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
+                            ))?;
+                        }
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip /dev/cpu_dma_latency = {val_str}: write failed: {e} reason: {reason}"
+                            ))?;
+                        }
+                    }
                 }
             }
             Action::DeviceResumeLatency {
@@ -1793,7 +1679,7 @@ impl Actuator {
                     if !orig_file.exists() {
                         if let Ok(current_val) = self.pmqos_sink.read_device_latency(path) {
                             let content = format!("{}\n{}", path.display(), current_val.trim());
-                            let _ = fs::write(&orig_file, content);
+                            let _ = atomic_write_state_file(&orig_file, &content);
                         }
                     }
 
@@ -1802,7 +1688,7 @@ impl Actuator {
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "0".to_string());
                     let intended_file = self.state_dir.join(format!("intended_{key}"));
-                    let _ = fs::write(&intended_file, &val_str);
+                    let _ = atomic_write_state_file(&intended_file, &val_str);
 
                     let old_value = self
                         .pmqos_sink
@@ -2058,6 +1944,22 @@ fn fmt_pressure(value: Option<Pressure>) -> String {
         ),
         None => "unavailable".to_string(),
     }
+}
+
+/// Atomic write of a state file in `/run/optid`.
+///
+/// Writes to `<path>.tmp` first, then renames into place. The rename is
+/// atomic on POSIX, so a SIGKILL between the write and the rename leaves
+/// either the previous contents (if any) or no file at all — never a
+/// truncated `original_*` or `intended_*` file that the next-boot revert
+/// would interpret as a real backup.
+fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(tmp, path)
 }
 
 fn append_log(path: &Path, text: &str) -> io::Result<()> {
