@@ -32,7 +32,7 @@ or explain the problem it solves.
 policy, boot/update flow, kernel fragments, recipes, or service behavior.**
 
 - [ ] No documentation update needed (explain why below)
-- [ ] `IMPLEMENTATION_STATUS.md` updated
+- [ ] `docs/IMPLEMENTATION_STATUS.md` updated
 - [ ] Relevant docs updated (list which ones):
   - ___
 - [ ] ADR added or amended (if this changes architectural direction)

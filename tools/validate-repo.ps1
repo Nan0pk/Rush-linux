@@ -40,9 +40,9 @@ $required = @(
     'VERSION',
     'Cargo.lock',
     'RELEASES.md',
-    'PROJECT_BRIEF.md',
-    'AI_CONTINUATION.md',
-    'IMPLEMENTATION_STATUS.md',
+    'docs/PROJECT_BRIEF.md',
+    'docs/AI_CONTINUATION.md',
+    'docs/IMPLEMENTATION_STATUS.md',
     'ROADMAP.md',
     'CONTRIBUTING.md',
     'SECURITY.md',
@@ -125,9 +125,9 @@ Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
 # the source of truth for the current version value.
 Assert-Contains 'VERSION' '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?\s*$'
 Assert-Contains 'RELEASES.md' '0\.1\.0-alpha\.1'
-Assert-Contains 'AI_CONTINUATION.md' 'Forbidden Shortcuts'
-Assert-Contains 'AI_CONTINUATION.md' 'Next Task'
-Assert-Contains 'IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
+Assert-Contains 'docs/AI_CONTINUATION.md' 'Forbidden Shortcuts'
+Assert-Contains 'docs/AI_CONTINUATION.md' 'Next Task'
+Assert-Contains 'docs/IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
 Assert-Contains 'ROADMAP.md' 'v0\.1\.0-alpha\.1: Compile-Clean Core'
 Assert-Contains 'CONTRIBUTING.md' 'Documentation Is Required'
 Assert-Contains 'docs/testing-and-benchmarks.md' 'Docs are part of acceptance criteria'

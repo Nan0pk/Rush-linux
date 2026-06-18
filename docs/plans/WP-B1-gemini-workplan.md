@@ -92,7 +92,7 @@ test -f docs/SPEC-northstar.md       || { echo "MISSING canon spec — STOP"; ex
 test -f config/optid/contracts.toml  || { echo "MISSING contracts.toml — STOP"; exit 1; }
 test -f benchmarks/manifest.toml     || { echo "MISSING benchmarks manifest — STOP"; exit 1; }
 # N2 must be merged: fits_contract / pm_qos enforcement landed
-grep -q "WP-N2" IMPLEMENTATION_STATUS.md || echo "review N2 status row"
+grep -q "WP-N2" docs/IMPLEMENTATION_STATUS.md || echo "review N2 status row"
 # At least one energy counter must exist on the host the rig will eventually run on
 ls /sys/class/power_supply/BAT*/energy_now /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null \
   | grep -q . || echo "WARN: host has no energy_now or RAPL — rig will refuse to run there"

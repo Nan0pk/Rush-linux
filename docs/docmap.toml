@@ -24,7 +24,7 @@
 purpose = "Project overview, repo layout, build instructions, design rules"
 owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
-deps = ["PROJECT_BRIEF.md", "IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
 last_verified = "2026-06-16"
 validator = "no_stale_next_step"
@@ -38,7 +38,7 @@ freshens = []
 last_verified = "2026-06-11"
 validator = "contains_heading:Documentation Is Required"
 
-[docs."PROJECT_BRIEF.md"]
+[docs."docs/PROJECT_BRIEF.md"]
 purpose = "Mission statement, success criteria, engineering principles"
 owner_area = "area:docs"
 covers_code = []
@@ -46,20 +46,20 @@ deps = []
 freshens = ["README.md", "docs/architecture.md"]
 last_verified = "2026-06-14"
 
-[docs."IMPLEMENTATION_STATUS.md"]
+[docs."docs/IMPLEMENTATION_STATUS.md"]
 purpose = "Authoritative list of what is implemented and what is not"
 owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
-freshens = ["README.md", "AI_CONTINUATION.md"]
+freshens = ["README.md", "docs/AI_CONTINUATION.md"]
 last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
-[docs."AI_CONTINUATION.md"]
+[docs."docs/AI_CONTINUATION.md"]
 purpose = "Handoff document for AI agents or new maintainers continuing the project"
 owner_area = "area:docs"
 covers_code = []
-deps = ["IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
+deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
 last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
@@ -69,7 +69,7 @@ purpose = "Phase and version milestones with exit criteria"
 owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
-freshens = ["IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
 last_verified = "2026-06-14"
 validator = "version_matches:VERSION"
 
@@ -86,7 +86,7 @@ purpose = "Single file holding the current project version string"
 owner_area = "area:docs"
 covers_code = []
 deps = []
-freshens = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md", "RELEASES.md"]
+freshens = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md", "RELEASES.md"]
 last_verified = "2026-06-14"
 validator = "semver"
 
@@ -118,7 +118,7 @@ last_verified = "2026-06-14"
 purpose = "Four-layer system architecture and subsystem boundaries"
 owner_area = "area:docs"
 covers_code = []
-deps = ["PROJECT_BRIEF.md"]
+deps = ["docs/PROJECT_BRIEF.md"]
 freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
 last_verified = "2026-06-14"
 
@@ -127,7 +127,7 @@ purpose = "optid design: inputs, actions, guardrails, current MVP scope"
 owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
-freshens = ["README.md", "IMPLEMENTATION_STATUS.md"]
+freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md"]
 last_verified = "2026-06-16"
 validator = "covers_optid_features"
 
@@ -175,7 +175,7 @@ last_verified = "2026-06-14"
 purpose = "Explicit list of what Rush Linux does NOT aim to do"
 owner_area = "area:docs"
 covers_code = []
-deps = ["PROJECT_BRIEF.md"]
+deps = ["docs/PROJECT_BRIEF.md"]
 freshens = []
 last_verified = "2026-06-10"
 
@@ -451,7 +451,7 @@ validator = "optional_file"
 purpose = "Agent work plan v1: 4 tracks, 13 WPs to stabilize repo, harden optid, close v0.4, and deliver first benchmark evidence"
 owner_area = "area:project"
 covers_code = []
-deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "AI_CONTINUATION.md"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
 freshens = []
 last_verified = "2026-06-10"
 
@@ -483,7 +483,7 @@ last_verified = "2026-06-10"
 purpose = "Handover: ecosystem incorporation strategy (mkosi/Arch, sched_ext, D-Bus shims), wave plan, and first host benchmark evidence from HP Victus"
 owner_area = "area:project"
 covers_code = ["tools/bench-optid-host.sh", "tools/bench-optid-host-v2.sh", "tools/bench-optid-matrix.sh"]
-deps = ["ROADMAP.md", "IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.md", "docs/plans/action-plan-2026-06-10.md"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/testing-and-benchmarks.md", "docs/plans/action-plan-2026-06-10.md"]
 freshens = []
 last_verified = "2026-06-10"
 
@@ -492,7 +492,7 @@ purpose = "Canon specifications: objective function, lever ledger, and WP mappin
 owner_area = "area:docs"
 covers_code = ["config/optid/contracts.toml"]
 deps = []
-freshens = ["IMPLEMENTATION_STATUS.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
 last_verified = "2026-06-14"
 
 [docs."docs/strategy/COMPASS.md"]

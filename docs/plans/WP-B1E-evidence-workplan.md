@@ -281,7 +281,7 @@ Each gate has a stated kill condition. Green ≠ hollow.
 ```bash
 git checkout -b feat/wp-b1e-first-evidence-dataset
 git add benchmarks/results/<UTC-date>/<host>/
-git add docs/SPEC-northstar.md IMPLEMENTATION_STATUS.md
+git add docs/SPEC-northstar.md docs/IMPLEMENTATION_STATUS.md
 git commit -m "feat(benchmarks): first WP-B1 evidence dataset on <host>, <UTC-date>"
 git push -u origin feat/wp-b1e-first-evidence-dataset
 gh pr create --draft \

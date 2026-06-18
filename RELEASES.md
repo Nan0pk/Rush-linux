@@ -7,7 +7,7 @@ This version implements the minimal rootfs builder and package repository system
 > **Status note (governance):** `0.3.0-alpha.1` is **in progress, not complete.**
 > Its primary exit criterion — *"minimal VM boots to `multi-user.target`"* — has
 > **not yet been verified**. The bootable disk image (`disk.raw`) and the UEFI
-> UKI boot flow are not implemented (see `AI_CONTINUATION.md`). Per the Release
+> UKI boot flow are not implemented (see `docs/AI_CONTINUATION.md`). Per the Release
 > Rule below, this version must not be treated as a passed milestone until that
 > criterion is demonstrated. See `release/milestones.toml` for the per-criterion
 > verification state.

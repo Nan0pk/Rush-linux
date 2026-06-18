@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Before changing Rush Linux, read `AI_CONTINUATION.md` and the relevant docs it
+Before changing Rush Linux, read `docs/AI_CONTINUATION.md` and the relevant docs it
 links. Preserve the project guardrails: modern Linux defaults, one adaptive
 policy owner (`optid`), explainable behavior, and documentation updates in the
 same change.
