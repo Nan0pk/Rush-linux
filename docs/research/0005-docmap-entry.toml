@@ -1,0 +1,21 @@
+# Docmap entry for 0005-focus-vs-resource-pull.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — do NOT add to docmap until evidence gaps (§4) are closed.
+
+[docs."docs/research/0005-focus-vs-resource-pull.md"]
+purpose = "Resolves user-focus vs resource-pull as optid's workload-importance signal; specifies the optid-focus-bridge user-session design for Wayland compositors"
+owner_area = "area:optid"
+covers_code = []
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0003-unified-power-orchestrator-paper.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+]
+last_verified = "2026-06-18"
+validator = "status_match:WIP"
