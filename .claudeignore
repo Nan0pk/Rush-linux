@@ -1,0 +1,22 @@
+# Build artifacts — large, never useful as context
+target/
+**/*.rlib
+**/*.rmeta
+**/*.d
+**/*.pdb
+
+# Benchmark outputs
+rushbench/results/
+**/*.flamegraph.svg
+**/*.perf
+
+# Generated / cache
+.cache/
+graphify-out/
+docs/_build/
+
+# Signing keys
+config/keys/
+
+# Lock file — too large to be useful in context; read Cargo.toml instead
+Cargo.lock

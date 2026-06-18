@@ -11,3 +11,4 @@
 # to keep main history clean. Nothing under graphify-out/ is tracked on main;
 # fetch instructions live in docs/graphify-knowledge-graph.md.
 /graphify-out/
+.claude/settings.local.json

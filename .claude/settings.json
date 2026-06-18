@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_TERM_COLOR": "always"
+  },
+
+  "permissions": {
+    "allow": [
+      "Bash(cargo check -p *)",
+      "Bash(cargo check --workspace)",
+      "Bash(cargo test -p *)",
+      "Bash(cargo test --workspace)",
+      "Bash(cargo build -p *)",
+      "Bash(cargo build --workspace)",
+      "Bash(cargo fmt --all)",
+      "Bash(cargo fmt -p *)",
+      "Bash(cargo clippy -p *)",
+      "Bash(cargo clippy --workspace*)",
+      "Bash(python3 tools/validate-doc-sync.py*)",
+      "Bash(bash tools/start-work.sh*)",
+      "Bash(bash tools/finish-work.sh*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git add *)",
+      "Read(**)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo rm *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/secrets/**)",
+      "Read(**/keys/*.private.*)"
+    ]
+  },
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.sh"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(rm -rf *)",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-dangerous.sh",
+            "shell": "bash",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-validate.sh",
+        "timeout": 60
+      }
+    ]
+  },
+
+  "skillOverrides": {
+    "rust-verifier": "user-invocable-only"
+  },
+
+  "fileCheckpointingEnabled": true,
+  "autoCompactEnabled": true,
+  "includeGitInstructions": true,
+  "respectGitignore": true
+}
