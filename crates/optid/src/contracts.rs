@@ -19,7 +19,7 @@ pub(crate) struct ContractFloors {
     pub(crate) device_resume_latency: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Contracts {
     pub(crate) idle: ContractFloors,
     pub(crate) light: ContractFloors,
