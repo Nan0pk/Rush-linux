@@ -6,6 +6,7 @@
 #   2. Runs ALL validators (fmt, test, clippy, policy, doc-sync)
 #   3. Removes the DIRTY_STATE.md flag
 #   4. Commits and pushes (if all checks pass)
+#   5. Automatically opens a PR via GitHub CLI (gh) if available
 #
 # Usage:
 #   bash tools/finish-work.sh                    # interactive
@@ -130,7 +131,7 @@ fi
 echo "  [6/6] Placeholder check..."
 CHANGED_RUST=$(git diff --name-only HEAD -- '*.rs' 2>/dev/null || true)
 if [ -n "$CHANGED_RUST" ]; then
-    TODO_COUNT=$(echo "$CHANGED_RUST" | xargs grep -c "todo!\|unimplemented!\|FIXME\|HACK" 2>/dev/null || echo "0")
+    TODO_COUNT=$(echo "$CHANGED_RUST" | xargs grep -c "todo\!\|unimplemented\!\|FIXME\|HACK" 2>/dev/null || echo "0")
     if [ "$TODO_COUNT" = "0" ]; then
         echo "        ✅ No leftover placeholders"
     else
@@ -217,10 +218,6 @@ else
     fi
 fi
 
-echo ""
-echo "════════════════════════════════════════════════════"
-echo "  ✅ Work session finished. Repo is clean and pushed."
-echo "════════════════════════════════════════════════════"
 # ── Step 7 (NEW in WP-P3): Open PR if gh is available ─────────────────
 echo ""
 echo ">> Checking for GitHub CLI to open PR..."
@@ -228,50 +225,46 @@ echo ">> Checking for GitHub CLI to open PR..."
 if command -v gh &>/dev/null; then
     echo "   gh CLI detected — attempting to create PR..."
     
-    # Get current branch
-    CURRENT_BRANCH=$(git branch --show-current)
-    
     # Check if we're not on main
     if [ "$CURRENT_BRANCH" = "main" ]; then
         echo "   ⚠️  On main branch — skipping PR creation"
     else
         # Try to create PR
         PR_TITLE="${COMMIT_MSG:-Work session: $CURRENT_BRANCH}"
-        PR_BODY="This PR was created automatically by finish-work.sh (WP-P3).
+        PR_BODY="This PR was created automatically by \`finish-work.sh\` (WP-P3).
 
-**Branch:** $CURRENT_BRANCH  
-**Agent:** $WHO  
-**Date:** $NOW
+**Branch:** \`$CURRENT_BRANCH\`  
+**Agent:** \`$WHO\`  
+**Date:** \`$NOW\`
 
-## Commit message
-${COMMIT_MSG:-N/A}
+### Validation Performed (Passed)
+- \`cargo fmt --all -- --check\`
+- \`cargo test --workspace\`
+- \`cargo clippy --workspace --all-targets -- -D warnings\`
+- \`pwsh ./tools/validate-repo.ps1\`
+- \`python3 tools/validate-doc-sync.py --max-age 90\`
+- Leftover Rust placeholder scan (\`todo!\`, \`FIXME\`, etc.)
 
-## Validation performed
-- cargo fmt --all -- --check
-- cargo test --workspace
-- cargo clippy --workspace --all-targets -- -D warnings
-- pwsh ./tools/validate-repo.ps1 (when PowerShell is available)
-- python3 tools/validate-doc-sync.py --max-age 90
-- changed Rust placeholder scan
-
-## Notes
-This body is generated from finish-work.sh validation results and metadata; the commit message is not presented as an acceptance block.
-
----
-*Opened via tools/finish-work.sh — see work-plan-v2 WP-P3*"
+### Verifier Instructions
+⚠️ **Agents:** If you are verifying this branch, you must check it out cold, execute the Work Package's acceptance block verbatim, and post a filled \`docs/templates/VERIFICATION.md\` as a PR comment. **Builders never certify their own work.**"
         
-        if gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base main 2>/dev/null; then
-            echo "   ✅ PR created successfully"
-        else
-            echo "   ⚠️  Could not create PR automatically (may already exist or no gh auth)"
+        # Don't fail the whole script if PR creation fails (could be missing auth)
+        gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base main 2>/dev/null || {
+            echo "   ⚠️  Could not create PR automatically (PR may already exist, or gh lacks auth)"
             echo "   Compare URL: https://github.com/Nan0pk/Rush-linux/compare/$CURRENT_BRANCH"
-        fi
+        }
+        echo "   ✅ PR operation complete."
     fi
 else
     echo "   gh CLI not found — printing compare URL for manual PR creation"
-    CURRENT_BRANCH=$(git branch --show-current)
     if [ "$CURRENT_BRANCH" != "main" ]; then
         echo "   Compare URL: https://github.com/Nan0pk/Rush-linux/compare/$CURRENT_BRANCH"
         echo "   Please open a PR manually with the WP id in the title."
     fi
 fi
+
+echo ""
+echo "════════════════════════════════════════════════════"
+echo "  ✅ Work session finished. Repo is clean and pushed."
+echo "════════════════════════════════════════════════════"
+

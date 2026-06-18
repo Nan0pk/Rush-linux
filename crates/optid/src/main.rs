@@ -119,7 +119,8 @@ fn run(args: Args) -> io::Result<()> {
 
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
-        let mut snapshot = Snapshot::collect();
+        let paths = sensors::SysPaths::default();
+        let mut snapshot = Snapshot::collect(&paths);
         snapshot.global_pinned_class = read_global_pinned_class(&args.state_dir);
         if let Some(ref app) = snapshot.foreground_app {
             snapshot.pinned_class = read_pinned_class(&args.state_dir, app);

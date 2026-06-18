@@ -539,3 +539,7 @@ impl Policy {
         Mode::Balanced
     }
 }
+
+#[cfg(test)]
+#[path = "policy_tests.rs"]
+mod policy_tests;

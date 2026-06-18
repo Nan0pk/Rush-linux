@@ -12,6 +12,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::workload::WorkloadClass;
 
+
+#[derive(Debug, Clone)]
+pub(crate) struct SysPaths {
+    pub(crate) proc_root: PathBuf,
+    pub(crate) sys_root: PathBuf,
+}
+
+impl Default for SysPaths {
+    fn default() -> Self {
+        Self {
+            proc_root: PathBuf::from("/proc"),
+            sys_root: PathBuf::from("/sys"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Pressure {
     pub(crate) avg10: f32,
@@ -21,7 +37,7 @@ pub(crate) struct Pressure {
 }
 
 impl Pressure {
-    pub(crate) fn read(path: &str) -> Option<Self> {
+    pub(crate) fn read(path: &Path) -> Option<Self> {
         let text = fs::read_to_string(path).ok()?;
         parse_pressure(&text)
     }
@@ -45,17 +61,17 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    pub(crate) fn collect() -> Self {
+    pub(crate) fn collect(paths: &SysPaths) -> Self {
         Self {
             timestamp: now_unix(),
-            on_ac: read_on_ac(),
-            battery_pct: read_battery_pct(),
-            max_temp_millic: read_max_thermal_millic(),
-            loadavg_1: read_loadavg_1(),
-            cpu_pressure: Pressure::read("/proc/pressure/cpu"),
-            memory_pressure: Pressure::read("/proc/pressure/memory"),
-            io_pressure: Pressure::read("/proc/pressure/io"),
-            zram_swap_active: read_zram_swap_active(),
+            on_ac: read_on_ac(&paths.sys_root),
+            battery_pct: read_battery_pct(&paths.sys_root),
+            max_temp_millic: read_max_thermal_millic(&paths.sys_root),
+            loadavg_1: read_loadavg_1(&paths.proc_root),
+            cpu_pressure: Pressure::read(&paths.proc_root.join("pressure/cpu")),
+            memory_pressure: Pressure::read(&paths.proc_root.join("pressure/memory")),
+            io_pressure: Pressure::read(&paths.proc_root.join("pressure/io")),
+            zram_swap_active: read_zram_swap_active(&paths.proc_root),
             foreground_app: None,
             pinned_class: None,
             global_pinned_class: None,
@@ -134,8 +150,8 @@ pub(crate) fn discover_cpu_epp_paths() -> Vec<PathBuf> {
         .collect()
 }
 
-pub(crate) fn read_on_ac() -> Option<bool> {
-    let entries = fs::read_dir("/sys/class/power_supply").ok()?;
+pub(crate) fn read_on_ac(sys_root: &Path) -> Option<bool> {
+    let entries = fs::read_dir(sys_root.join("class/power_supply")).ok()?;
     let mut saw_battery = false;
 
     for entry in entries.filter_map(Result::ok) {
@@ -161,8 +177,8 @@ pub(crate) fn read_on_ac() -> Option<bool> {
     }
 }
 
-pub(crate) fn read_battery_pct() -> Option<u8> {
-    let entries = fs::read_dir("/sys/class/power_supply").ok()?;
+pub(crate) fn read_battery_pct(sys_root: &Path) -> Option<u8> {
+    let entries = fs::read_dir(sys_root.join("class/power_supply")).ok()?;
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
         let kind = fs::read_to_string(path.join("type")).unwrap_or_default();
@@ -174,8 +190,8 @@ pub(crate) fn read_battery_pct() -> Option<u8> {
     None
 }
 
-pub(crate) fn read_zram_swap_active() -> bool {
-    let Ok(text) = fs::read_to_string("/proc/swaps") else {
+pub(crate) fn read_zram_swap_active(proc_root: &Path) -> bool {
+    let Ok(text) = fs::read_to_string(proc_root.join("swaps")) else {
         return false;
     };
     for line in text.lines().skip(1) {
@@ -186,8 +202,8 @@ pub(crate) fn read_zram_swap_active() -> bool {
     false
 }
 
-pub(crate) fn read_max_thermal_millic() -> Option<i64> {
-    let entries = fs::read_dir("/sys/class/thermal").ok()?;
+pub(crate) fn read_max_thermal_millic(sys_root: &Path) -> Option<i64> {
+    let entries = fs::read_dir(sys_root.join("class/thermal")).ok()?;
     entries
         .filter_map(Result::ok)
         .filter(|entry| {
@@ -201,8 +217,8 @@ pub(crate) fn read_max_thermal_millic() -> Option<i64> {
         .max()
 }
 
-pub(crate) fn read_loadavg_1() -> Option<f32> {
-    let text = fs::read_to_string("/proc/loadavg").ok()?;
+pub(crate) fn read_loadavg_1(proc_root: &Path) -> Option<f32> {
+    let text = fs::read_to_string(proc_root.join("loadavg")).ok()?;
     text.split_whitespace().next()?.parse::<f32>().ok()
 }
 
