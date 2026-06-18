@@ -7,7 +7,7 @@ Use this checklist for every tagged release.
 - [ ] `VERSION` matches the planned tag without the leading `v`.
 - [ ] `RELEASES.md` contains the release entry.
 - [ ] `docs/release-plan-v1.md` milestone status is updated.
-- [ ] `IMPLEMENTATION_STATUS.md` and `AI_CONTINUATION.md` are current.
+- [ ] `docs/IMPLEMENTATION_STATUS.md` and `docs/AI_CONTINUATION.md` are current.
 - [ ] `docs/documentation-policy.md` was followed for all behavior, config,
       service, release, benchmark, or safety changes.
 - [ ] `tools/validate-repo.ps1` passes.

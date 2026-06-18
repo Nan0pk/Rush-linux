@@ -122,9 +122,9 @@ def check_version_consistency(entries):
 
     # Docs that should contain the current version
     version_docs = [
-        ("IMPLEMENTATION_STATUS.md", version.replace(".", r"\.")),
+        ("docs/IMPLEMENTATION_STATUS.md", version.replace(".", r"\.")),
         ("ROADMAP.md", version.replace(".", r"\.")),
-        ("AI_CONTINUATION.md", version.replace(".", r"\.")),
+        ("docs/AI_CONTINUATION.md", version.replace(".", r"\.")),
     ]
 
     for path, escaped in version_docs:
@@ -188,7 +188,7 @@ def check_markdown_links(entries):
     link_pattern = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
     docs_to_check = ["README.md", "CONTRIBUTING.md", "docs/architecture.md",
-                     "docs/adaptive-engine.md", "AI_CONTINUATION.md"]
+                     "docs/adaptive-engine.md", "docs/AI_CONTINUATION.md"]
 
     broken = 0
     for doc_path in docs_to_check:

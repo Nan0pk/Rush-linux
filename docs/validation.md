@@ -18,9 +18,9 @@ not a Windows-only substitute for building and testing on Linux.
 
 The validation script must fail when the core documentation layer is missing:
 
-- `PROJECT_BRIEF.md`
-- `AI_CONTINUATION.md`
-- `IMPLEMENTATION_STATUS.md`
+- `docs/PROJECT_BRIEF.md`
+- `docs/AI_CONTINUATION.md`
+- `docs/IMPLEMENTATION_STATUS.md`
 - `ROADMAP.md`
 - `CONTRIBUTING.md`
 - `SECURITY.md`

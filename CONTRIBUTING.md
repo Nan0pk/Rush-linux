@@ -93,7 +93,7 @@ or comment on the issue — we're happy to help.
 Before making significant changes, read these to understand the architecture:
 
 **Essential (read first):**
-- [PROJECT_BRIEF.md](PROJECT_BRIEF.md) — what Rush Linux is and why it exists
+- [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md) — what Rush Linux is and why it exists
 - [docs/architecture.md](docs/architecture.md) — the four-layer system design
 
 **For your area:**
@@ -103,7 +103,7 @@ Before making significant changes, read these to understand the architecture:
 - [docs/decisions/](docs/decisions/) — Architecture Decision Records (ADRs)
 
 **For context:**
-- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — what's done and what's next
+- [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) — what's done and what's next
 - [ROADMAP.md](ROADMAP.md) — the path to v1.0
 
 ---

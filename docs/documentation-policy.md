@@ -30,7 +30,7 @@ Every non-trivial change must document:
 ## Required Docs By Change Type
 
 - `optid` or `optctl` behavior: update `docs/adaptive-engine.md`,
-  `IMPLEMENTATION_STATUS.md`, and `AI_CONTINUATION.md`.
+  `docs/IMPLEMENTATION_STATUS.md`, and `docs/AI_CONTINUATION.md`.
 - systemd service/sandboxing: update `docs/adaptive-engine.md`,
   `SECURITY.md`, and validation checks when relevant.
 - kernel policy: update `docs/kernel-policy.md` and relevant ADRs.
@@ -42,7 +42,7 @@ Every non-trivial change must document:
 - version/release rules: update `VERSION`, `RELEASES.md`,
   `docs/versioning.md`, `docs/release-policy.md`, and
   `release/milestones.toml`.
-- architectural direction: update `PROJECT_BRIEF.md`, `docs/architecture.md`,
+- architectural direction: update `docs/PROJECT_BRIEF.md`, `docs/architecture.md`,
   and add or amend an ADR.
 
 ## Minimum Commit Standard
@@ -52,7 +52,7 @@ Before committing:
 - update docs in the same commit as code/config changes;
 - run `powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`;
 - include validation status in the final handoff;
-- keep `AI_CONTINUATION.md` current when the next task changes.
+- keep `docs/AI_CONTINUATION.md` current when the next task changes.
 
 ## Forbidden
 
@@ -60,4 +60,24 @@ Before committing:
 - Behavior changes without status/roadmap updates.
 - Silent safety changes to privileged services or sysfs writes.
 - Release-gate changes without updating machine-readable release manifests.
+
+## Root Directory Hygiene
+
+The project root must contain only files that tooling, GitHub, or strong
+convention requires there. Everything else belongs in `docs/`.
+
+**Permitted at root:** `README.md`, `LICENSE`, `CONTRIBUTING.md`,
+`CODE_OF_CONDUCT.md`, `SECURITY.md`, `RELEASES.md`, `ROADMAP.md`,
+`AUTHORS`, `VERSION`, `AGENTS.md`, `CLAUDE.md`, `Cargo.toml`,
+`Cargo.lock`, and dotfiles (`.gitignore`, `.gitattributes`, etc.).
+
+**Must live under `docs/`:** status reports, strategy documents,
+reanalysis reports, work plans, research notes, implementation status,
+project brief, agent handoff context, and any other prose not required
+by GitHub or external tooling at the root.
+
+**Inbox for unsorted drafts:** drop transient notes and in-progress
+reports in `docs/inbox/`. Files there are not registered in
+`docs/docmap.toml` and are not validated by CI. Sort or promote them
+before merging to main.
 
