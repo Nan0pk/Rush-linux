@@ -1075,5 +1075,4 @@ device_resume_latency = 100000
         let class_written = fs::read_to_string(temp_dir.join("workload_class")).unwrap();
         assert_eq!(class_written.trim(), "idle");
     }
-
 }
