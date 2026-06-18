@@ -1,138 +1,122 @@
-# ⚡ Rush Linux
-### *The declarative, adaptive, and verifiable OS.*
+# Rush Linux
 
-[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Pre--Alpha%20(v0.5)-orange.svg)](ROADMAP.md)
-[![Built with](https://img.shields.io/badge/built%20with-Rust-red.svg)](https://www.rust-lang.org/)
+**Adaptive Linux. One optimizer. Every decision explained and reversible.**
 
-Rush Linux is a **source-built Linux architecture** designed for a future where the operating system is declarative, adaptive, and rigorously verifiable. It is built natively for AI-human collaboration, requiring strict cryptographic-style proof for every engineering claim.
+[![Version](https://img.shields.io/badge/version-0.4.0--alpha.1-blue)](VERSION)
+[![Status](https://img.shields.io/badge/status-pre--alpha-orange)](ROADMAP.md)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-At its heart lies **`optid`**, a native optimization engine that monitors system pressure and hardware telemetry to dynamically shift OS behavior. We pair this with **`sched_ext`** for user-space scheduling, and **`mkosi`** for deterministic image composition.
+Rush Linux is an architecture-first Linux distribution built around `optid`, a native Rust daemon that continuously reads kernel pressure signals and adjusts hardware policy in real time. No fixed power profiles. No manual tuning. One explainable, reversible optimizer that proves its work.
 
----
-
-## 🌌 The Vision: Why Rush?
-
-Most distributions rely on fixed profiles and procedural build scripts. Rush Linux replaces static environments with a dynamic feedback loop, and fragile scripts with declarative truth.
-
-- **Adaptive:** Senses CPU pressure and IO bottlenecks before you feel them.
-- **Predictive:** Uses `sched_ext` (eBPF) to dynamically route workloads.
-- **Deterministic:** Built exclusively via `mkosi` on an Arch Linux base—if the build isn't reproducible, it's broken.
-- **Honest:** No marketing fluff. We operate under a strict **Evidence Rule**: no claim of performance or correctness is accepted without a literal command transcript.
-
-👉 **[Read our Provenance Manifesto: How Rush is Built](docs/how-rush-is-built.md)**
+The project is pre-alpha. The optimizer runs, a VM boots via UKI with `optid.service` active, and the measurement harness is in place. A consumer-installable distribution is the long-term goal.
 
 ---
 
-## 🧠 The Core: `optid` & `optctl`
+## How it works
 
-The brain of Rush Linux is the `optid` daemon, written in Rust for safety and minimal overhead.
-
-- **`optid`**: Ingests data from `/proc/pressure` (PSI), thermal sensors, and load averages to apply guarded policy changes.
-- **`optctl`**: The CLI to trace logic, pin applications to modes, and manually override policies.
-
-### The Adaptive Loop
-```mermaid
-graph LR
-    A[System Sensors] --> B{optid Engine}
-    B --> C[Policy Analysis]
-    C --> D[Guarded Actions]
-    D --> E[Kernel/Hardware]
-    E --> A
+```
+  Sensors               Classify                Actuate  (--apply)
+  ─────────────────     ───────────────────     ─────────────────────────
+  /proc/pressure  ─┐    idle                    /dev/cpu_dma_latency
+  /sys/power_supp  ├──► light               ──► energy_perf_preference
+  /sys/thermal     │    interactive              acpi/platform_profile
+  /proc/loadavg  ──┘    latency-critical         pci/*/pm_qos_resume_us
+                        throughput
+                              │
+                         contracts.toml
+                         (PM QoS floors per class)
 ```
 
----
+`optid` polls sensors every 2 seconds, maps the current system state to one of five workload classes, looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel.
 
-## 🛠️ The Technical Blueprint
-
-We reject legacy defaults in favor of future-facing Linux technologies:
-
-| Pillar | Technology | Why? |
-| :--- | :--- | :--- |
-| **Composition** | **mkosi & Arch Linux** | Declarative, immutable image building. No bespoke shell scripts. |
-| **Scheduling** | **sched_ext (scx_loader)** | BPF-based user-space task scheduling; EEVDF as the strict fallback. |
-| **Boot** | **Unified Kernel Images (UKI)** | Atomic, signed, and simplified boot flow via systemd-boot. |
-| **Resources** | **cgroup v2 & PSI** | Precise pressure stall information for intelligent scaling. |
-| **Display** | **Wayland & PipeWire** | Eliminating legacy X11/PulseAudio overhead. |
+`optctl pin <app> <class>` lets applications claim a class directly — a game can hold `latency-critical`, a build job can hold `throughput`.
 
 ---
 
-## ⚖️ The Governance Model
+## What's built
 
-Rush Linux is engineered by both humans and AI. To ensure absolute integrity, we enforce a strict Builder/Verifier separation.
+- **`optid` daemon** — PSI + thermal + power supply → workload classifier → PM QoS enforcement via `contracts.toml`. Applies EPP, platform profile, and cgroup slices with `--apply`. Every decision is logged and explainable.
+- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`. Machine-readable output via `--json`.
+- **`rushbench` harness** — Measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class. Structured energy window, N-sample collection, and anomaly detection. No results published yet — this is the tool that generates them.
+- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified 2026-06-08.
+- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing.
 
-**The Evidence Rule:** Any `✅` or claim of success *must* carry a literal command transcript. No claim substitutes for a transcript.
-
-👉 **[Read the Agent Protocol](docs/agent-protocol.md)** to understand the rules of engagement before contributing.
-
----
-
-## 📊 Verifiable Proof: Latency & Energy Evidence
-
-Rush Linux operates under the **Evidence Rule**—we do not accept performance or correctness claims without empirical, reproducible metrics. Below is the summary of the first complete contract-validation run on Fedora (HP Victus 13th Gen Intel i7-13700HX, on battery), verifying our adaptive scheduler targets:
-
-| Workload Class | Target Metric | Median | P95 | Avg Power (Battery) | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Idle** | PSI CPU / IO avg10 | 0.00 | 0.00 | **28.80 W** / **31.20 W** | ✅ Verified |
-| **Light** | PSI CPU / IO avg10 | 0.00 | 0.00 | **32.40 W** / **38.40 W** | ✅ Verified |
-| **Interactive** | PSI CPU / IO avg10 | 0.00 | 0.00 | **34.80 W** / **33.60 W** | ✅ Verified |
-| **Latency-Critical** | PSI CPU / IO avg10 | 0.00 | 0.00 | **38.40 W** / **32.40 W** | ✅ Verified |
-| **Throughput** | PSI CPU / IO avg10 | 0.00 | 0.00 | **32.40 W** / **38.40 W** | ✅ Verified |
-
-*For full trace logs and replication details, see the [Fedora Benchmark Report](benchmarks/results/2026-06-14/fedora/report.md).*
+Default mode is always **dry-run**. Kernel writes require explicit `--apply` on a supported host.
 
 ---
 
-## 🚀 Getting Started
+## Technology choices
 
-We are currently executing the **v0.5 Image Pivot**.
+| Layer | Choice | Why |
+|:------|:-------|:----|
+| Optimizer | `optid` (Rust) | No GC pauses; direct sysfs access; auditable actuator path |
+| Pressure sensing | PSI (`/proc/pressure`) | Kernel-native; quantifies actual CPU/IO/memory stall time |
+| Latency enforcement | PM QoS (`/dev/cpu_dma_latency`) | Hard per-class latency floors, not soft hints |
+| Image composition | mkosi + Arch Linux *(v0.5)* | Declarative, reproducible; no bespoke build scripts |
+| Scheduling | sched_ext / scx_loader *(v0.5)* | BPF user-space scheduler; EEVDF as the verified fallback |
+| Boot | UKI + systemd-boot | Atomic, signed, single-file boot entries |
+| Updates | systemd-sysupdate | Structured, rollback-aware OTA |
+| Firewall | nftables | Current kernel default; replaces iptables |
+| Desktop | Wayland + PipeWire | Native compositor and audio stack |
 
-### One-click dev environment
+---
 
-Open this repository in VS Code Dev Containers or GitHub Codespaces to use the checked-in [dev container](.devcontainer/devcontainer.json). It provisions Rust stable, Python 3.11+, PowerShell Core, and the recommended Rust VS Code extensions, then runs `cargo build --workspace` after creation.
+## The Evidence Rule
 
-Inside the container, validate the repo with:
+Rush Linux enforces a **Builder/Verifier separation**: no claim of correctness or performance is accepted without a literal command transcript. `✅ Verified` means a human or CI ran the command and the output is on record. Claims without transcripts are proposals, not facts.
+
+This applies to benchmarks, boot verification, and optimizer behavior equally. The measurement toolchain (`rushbench`) is built precisely to generate the transcripts — when results are ready, they will be committed alongside the runs that produced them.
+
+→ [Agent and contributor protocol](docs/agent-protocol.md)
+
+---
+
+## Getting started
 
 ```bash
-cargo test --workspace
-pwsh ./tools/validate-repo.ps1
-```
-
-### Build the Optimizer (MVP)
-```bash
-# Clone the repository
+# Clone and build
 git clone https://github.com/Nan0pk/Rush-linux.git
 cd Rush-linux
-
-# Build the Rust workspace
 cargo build --release
+
+# One sensor read + classify cycle (dry-run, exits after one pass)
+./target/release/optid --once
+
+# Check current status from the state directory
+./target/release/optctl status
+
+# Run the full test suite
+cargo test --workspace
 ```
 
-### Run a Simulation
-```bash
-# Run optid in trace mode to see how it interprets your current system state
-./target/release/optid --trace
-```
+Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev container](.devcontainer/devcontainer.json) provisions Rust stable, Python 3.11+, and PowerShell Core, then builds the workspace automatically.
 
 ---
 
-## 🗺️ The Journey (Roadmap)
+## Status
 
-- [x] **Phase 0: The Blueprint** (Architecture, ADRs, MVP Engine)
-- [ ] **Phase 1: The Image Pivot (v0.5)** (mkosi base images, MGLRU/zram tuning)
-- [ ] **Phase 2: The Sched-Ext Drop (v0.6)** (optid eBPF integration)
-- [ ] **Phase 3: The RT Staging (v0.7)** (Isolated PREEMPT_RT editions)
-- [ ] **Phase 4: The Benchmark Automaton (v0.8)** (Harness integration)
+| Milestone | State |
+|:----------|:------|
+| Phase 0 — repo, ADRs, CI | ✅ complete |
+| v0.1 — compile-clean core, `optid --once` | ✅ complete |
+| v0.2 — D-Bus control plane, `optctl` | ✅ complete |
+| v0.3 — rootfs builder, VM boots | ✅ complete |
+| **v0.4 — UKI boot, rollback, update signing** | ⚙ in progress |
+| v0.5 — mkosi/Arch rebase, sched_ext integration | planned |
+| v0.6 — hardware allowlist, PPD/GameMode shims | planned |
+| v0.7 — desktop / laptop / realtime editions | planned |
+| v0.8 — benchmark lab, published results | planned |
+| v1.0 — installable, benchmarked, stable | planned |
 
-👉 **[View the detailed ROADMAP](ROADMAP.md)**
+→ [Full roadmap](ROADMAP.md)
 
 ---
 
-## 🤝 Join the Rush
+## Contributing
 
-We are looking for kernel hackers, Rustaceans, and AI agents who respect verifiable engineering.
+We are looking for kernel engineers, Rustaceans, and systems programmers who value verifiable claims over marketing copy.
 
-- 📖 **Read [How Rush is Built](docs/how-rush-is-built.md)**
-- ⚖️ **Understand the [Agent Protocol](docs/agent-protocol.md)**
-- 🗺️ **Check the [ROADMAP](ROADMAP.md)**
-- 💬 **Start a [Discussion](https://github.com/Nan0pk/Rush-linux/discussions)**
+- [How Rush is built](docs/how-rush-is-built.md)
+- [Agent and contributor protocol](docs/agent-protocol.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Open a discussion](https://github.com/Nan0pk/Rush-linux/discussions)
