@@ -62,13 +62,21 @@ jobs:
           stars="$(gh api "repos/$repo" --jq .stargazers_count)"
           forks="$(gh api "repos/$repo" --jq .forks_count)"
           issues="$(gh api "repos/$repo" --jq .open_issues_count)"
+          open_prs="$(gh api "repos/$repo/pulls?state=open" --jq length 2>/dev/null || echo 0)"
           # Traffic endpoints need push access; degrade gracefully if denied.
           views="$(gh api "repos/$repo/traffic/views" --jq .count 2>/dev/null || echo n/a)"
           uviews="$(gh api "repos/$repo/traffic/views" --jq .uniques 2>/dev/null || echo n/a)"
           clones="$(gh api "repos/$repo/traffic/clones" --jq .count 2>/dev/null || echo n/a)"
+          
+          # Internal project velocity & specification metrics
+          adrs="$(ls docs/decisions/ 2>/dev/null | grep -c "\.md$" || echo 0)"
+          wip_research="$(grep -Rl 'Status: WIP' docs/research/ 2>/dev/null | wc -l || echo 0)"
+          validated_research="$(grep -Rl 'Status: Validated' docs/research/ 2>/dev/null | wc -l || echo 0)"
+
           {
-            echo "stars=$stars"; echo "forks=$forks"; echo "issues=$issues"
+            echo "stars=$stars"; echo "forks=$forks"; echo "issues=$issues"; echo "open_prs=$open_prs"
             echo "views=$views"; echo "uviews=$uviews"; echo "clones=$clones"
+            echo "adrs=$adrs"; echo "wip_research=$wip_research"; echo "validated_research=$validated_research"
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate reassessment document
@@ -85,22 +93,43 @@ jobs:
 
 Automated strategic reassessment (trigger: \`${{ github.event_name }}\`, commits since last: ${{ steps.decide.outputs.commits_since }}).
 
-## Metrics (auto-collected)
-- Stars: ${{ steps.metrics.outputs.stars }} · Forks: ${{ steps.metrics.outputs.forks }} · Open issues: ${{ steps.metrics.outputs.issues }}
-- Traffic — views: ${{ steps.metrics.outputs.views }} (unique ${{ steps.metrics.outputs.uviews }}) · clones: ${{ steps.metrics.outputs.clones }}
-- Commits to \`main\` since last reassessment: ${{ steps.decide.outputs.commits_since }}
+## Quantitative Metrics (Auto-collected)
+### Community & Traffic
+- **Stars:** ${{ steps.metrics.outputs.stars }} · **Forks:** ${{ steps.metrics.outputs.forks }}
+- **Traffic:** ${{ steps.metrics.outputs.views }} views (unique ${{ steps.metrics.outputs.uviews }}) · ${{ steps.metrics.outputs.clones }} clones
 
-## Checklist (Judgment)
-- [ ] **WHY still true?** (SPEC-northstar objective unchanged; anti-pivot contract holds)
-- [ ] **New research / findings / what's been MISSED**
-- [ ] **Product outlook** — human-user view & AI-agent/contributor view
-- [ ] **Reach / visibility** — README/landing quality, discoverability, rendered evidence
-- [ ] **Evidence gates (SPEC §6)** — LATENCY / ENERGY status
-- [ ] **Verdict**: on-track / drifting / pivot
-- [ ] **Course-corrections** (1–3 actionable items)
+### Project Velocity & Health
+- **Commits to \`main\` since last check:** ${{ steps.decide.outputs.commits_since }}
+- **Tracker:** ${{ steps.metrics.outputs.issues }} Open Issues · ${{ steps.metrics.outputs.open_prs }} Open PRs
+- **Architecture (ADRs):** ${{ steps.metrics.outputs.adrs }} active decisions
+- **Research Pipeline:** ${{ steps.metrics.outputs.wip_research }} WIP slots · ${{ steps.metrics.outputs.validated_research }} Validated slots
+
+---
+
+## Qualitative Assessment (Judgment)
+
+### 1. North Star & Anti-Pivot Contract
+- [ ] **Objective:** Are we still exclusively minimizing avoidable platform energy subject to a per-workload-class responsiveness floor?
+- [ ] **Guardrails:** Are we honoring \`docs/non-goals.md\`? (e.g., No competing daemons, no black-box ML, deterministic policies only)
+
+### 2. Implementation & Hardware Gates
+- [ ] **Hardware Allowlist Coverage:** Are our reference laptops (T14, XPS 13, Framework, Legion) fully mapped in \`docs/research/0006\` and unblocked?
+- [ ] **Telemetry Budget:** Is the observability layer (optid telemetry) strictly staying under the <0.1% CPU polling budget?
+- [ ] **Depth-Enablers (SPEC §4.3):** Are NVMe/dGPU/Display power states functioning without breaching latency floors?
+
+### 3. Pipeline & Blockers
+- [ ] **Research:** What is the most critical \`WIP\` research slot blocking runtime implementation right now?
+- [ ] **Security/Ops:** Is the reproducible-build (ADR-0012) and UKI-signing discipline being maintained?
+
+### 4. Verdict & Course Corrections
+- [ ] **Verdict:** [ On-track | Drifting | Pivot Required ]
+- [ ] **Course-corrections** (1–3 highly specific, actionable items):
+  1. 
+  2. 
+  3. 
 
 ## Output of this cycle
-1. Update \`docs/strategy/COMPASS.md\`.
+1. Update \`docs/strategy/COMPASS.md\` with any macro-shifts.
 2. Commit this file with judgments filled out.
 
 _See \`docs/strategy/COMPASS.md\` for the living view._
