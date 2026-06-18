@@ -1,32 +1,47 @@
-# Verification Report — WP-{{WP_ID}}
+# Verification Report
 
-**Branch:** {{BRANCH_NAME}}  
-**Commit:** {{COMMIT_SHA}}  
-**PR:** #{{PR_NUMBER}}  
-**Verifier:** {{VERIFIER_ID}}  
-**Date:** {{VERIFICATION_DATE}}  
-**Environment:** {{ENV_DESCRIPTION}}
+| Field | Value |
+|---|---|
+| Target PR | #[PR Number] |
+| Work Package (WP) | [WP ID] |
+| Branch | `[Branch Name]` |
+| Target Commit | `[Commit Hash]` |
+| Verifier | [Agent/Human Name] |
+| Date | YYYY-MM-DD |
 
----
+## Environment Description
+- **Host OS**: [e.g. Ubuntu 24.04 / Arch Linux]
+- **Hardware Profile**: [e.g. CI Runner / KVM / Physical Laptop]
+- **Missing Capabilities**: [State any acceptance criteria you CANNOT run, e.g. "Requires a real session bus" or "Requires KVM"]
 
-## Acceptance Criteria Results
+## Acceptance Execution
 
-| Criterion | Command | Exit Code | Verdict |
-|-----------|---------|-----------|---------|
-| {{CRITERION_1}} | `{{COMMAND_1}}` | {{EXIT_1}} | {{VERDICT_1}} |
-| {{CRITERION_2}} | `{{COMMAND_2}}` | {{EXIT_2}} | {{VERDICT_2}} |
-| {{CRITERION_3}} | `{{COMMAND_3}}` | {{EXIT_3}} | {{VERDICT_3}} |
+*Note: You must provide literal command execution logs for a criterion to be marked PASS.*
 
----
+### Criterion 1: [Name of Criterion]
+**Verdict:** ⬜ PASS | ⬜ FAIL | ⬜ UNTESTABLE
 
-## Notes
+**Command Transcript:**
+```bash
+# Literal command executed
+$ [command]
+# Literal output
+[output]
+```
 
-- Any criterion that could not be tested in this environment (e.g., requires KVM, real hardware, session bus) is explicitly marked above.
-- Failures are recorded as verdicts only — no fixes were applied by the verifier.
-- Builder and verifier were different sessions/models.
+### Criterion 2: [Name of Criterion]
+**Verdict:** ⬜ PASS | ⬜ FAIL | ⬜ UNTESTABLE
 
----
+**Command Transcript:**
+```bash
+# Literal command executed
+$ [command]
+# Literal output
+[output]
+```
 
-## Evidence Rule Compliance
+## Final Verifier Verdict
+- [ ] **REJECTED** (One or more criteria failed or failed to compile).
+- [ ] **APPROVED** (All testable criteria passed with valid evidence).
+- [ ] **PARTIAL** (Tested what was possible; requires Human to test hardware-specific gates).
 
-All checkmarks in this report are backed by literal command transcripts (command + output + date + host) as required by §2 of the work plan.

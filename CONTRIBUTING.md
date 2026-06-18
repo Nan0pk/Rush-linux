@@ -248,3 +248,11 @@ All merges to `main` happen via reviewed PRs. Direct pushes to `main` are not pe
 ---
 
 *This protocol was added as part of WP-P2 (work-plan-v2 recovery sprint).*
+
+## The Builder/Verifier Protocol & Evidence Rule
+
+To prevent false certifications and untested code from entering `main`, Rush Linux enforces a strict **Builder/Verifier Protocol**:
+
+1. **Builder Role**: A contributor or AI Agent executing a Work Package (WP) creates a branch, pushes commits, and opens a PR. A Builder **may claim completion but may never certify it**.
+2. **Verifier Role**: A separate contributor or AI Agent must check out the PR branch cold, run the WP's acceptance criteria verbatim, and log the results into a `VERIFICATION.md` template attached to the PR.
+3. **The Evidence Rule (Non-negotiable)**: An exit-criterion checkmark may only be granted if accompanied by an **embedded command transcript**: the literal command executed, its literal output (or attached log), the date, and the host description. A syntax check (`bash -n`) or compilation check is not proof of end-to-end execution.
