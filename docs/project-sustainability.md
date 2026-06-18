@@ -54,7 +54,7 @@ and CI is Linux-only.
 Resolution (in progress):
 
 - Linux (native or container) is declared canonical in `README.md`,
-  `CONTRIBUTING.md`, `docs/validation.md`, and `AI_CONTINUATION.md`.
+  `CONTRIBUTING.md`, `docs/validation.md`, and `docs/AI_CONTINUATION.md`.
 - `tools/validate-repo.ps1` is reframed as a cross-platform policy check (runs
   under `pwsh` on Linux in CI), not a Windows-only crutch.
 - Follow-up: publish a canonical dev container image (toolchain + Rust + build
