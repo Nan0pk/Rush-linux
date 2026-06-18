@@ -15,10 +15,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
-    if path
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             format!(

@@ -205,4 +205,3 @@ fn run(args: Args) -> io::Result<()> {
 
     Ok(())
 }
-

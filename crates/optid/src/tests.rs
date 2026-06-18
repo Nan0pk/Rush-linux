@@ -16,11 +16,13 @@ use crate::action::Action;
 use crate::actuator::{Actuator, PmqosSink};
 use crate::args::Args;
 use crate::contracts::{fits_contract, Contracts};
-use crate::io_util::{atomic_write_state_file, get_path_hash, guarded_write, revert_pm_qos, revert_sysctls};
+use crate::io_util::{
+    atomic_write_state_file, get_path_hash, guarded_write, revert_pm_qos, revert_sysctls,
+};
 use crate::policy::Policy;
+use crate::run;
 use crate::sensors::{parse_pressure, Pressure, Snapshot};
 use crate::workload::{HysteresisState, Mode, ModeHysteresisState, WorkloadClass};
-use crate::run;
 
 #[cfg(test)]
 mod integration_tests {

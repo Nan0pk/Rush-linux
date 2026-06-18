@@ -49,7 +49,11 @@ impl Action {
         Self::PlatformProfile { value, reason }
     }
 
-    pub(crate) fn systemd_set_property(unit: String, properties: Vec<String>, reason: String) -> Self {
+    pub(crate) fn systemd_set_property(
+        unit: String,
+        properties: Vec<String>,
+        reason: String,
+    ) -> Self {
         Self::SystemdSetProperty {
             unit,
             properties,
