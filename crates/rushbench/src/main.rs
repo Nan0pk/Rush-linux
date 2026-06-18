@@ -427,6 +427,7 @@ mod tests {
         env::set_var("RUSHBENCH_SYSFS_ROOT", &temp_sysfs);
         env::set_var("RUSHBENCH_STATE_DIR", &temp_state);
         env::set_var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC", "0.05");
+        env::set_var("RUSHBENCH_WARMUP_SEC", "0");
         env::set_var("RUSHBENCH_MOCK_METRIC_psi_cpu_avg10", "0");
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
@@ -457,6 +458,7 @@ mod tests {
         env::remove_var("RUSHBENCH_SYSFS_ROOT");
         env::remove_var("RUSHBENCH_STATE_DIR");
         env::remove_var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC");
+        env::remove_var("RUSHBENCH_WARMUP_SEC");
         env::remove_var("RUSHBENCH_MOCK_METRIC_psi_cpu_avg10");
         env::remove_var("RUSHBENCH_OPTCTL_STATUS_JSON");
         env::remove_var("RUSHBENCH_OPTCTL_APPLY_OVERRIDE");
@@ -621,15 +623,21 @@ mod tests {
         let source = EnergySource::detect().expect("Should detect RAPL");
         assert!(matches!(source, EnergySource::Rapl(_)));
 
-        // Scenario C: Both battery and RAPL are present, but RAPL is NOT readable
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&rapl_file, fs::Permissions::from_mode(0o000)).unwrap();
+        // Scenario C: Both battery and RAPL are present, but RAPL cannot be read.
+        // Use a directory at the RAPL path — read_to_string always fails on a directory,
+        // even for root (which can bypass 0o000 permission restrictions).
+        fs::remove_file(&rapl_file).unwrap();
+        fs::create_dir(&rapl_file).unwrap();
 
         let source =
             EnergySource::detect().expect("Should fall back to battery when RAPL is unreadable");
         assert!(matches!(source, EnergySource::Battery(_)));
 
-        // Scenario D: Only RAPL is present but NOT readable (remove battery)
+        // Restore RAPL as a readable file for Scenario D
+        fs::remove_dir(&rapl_file).unwrap();
+        fs::write(&rapl_file, "2000").unwrap();
+
+        // Scenario D: Only RAPL is present (battery removed)
         fs::remove_file(&bat_file).unwrap();
         let source = EnergySource::detect();
         assert!(source.is_ok());

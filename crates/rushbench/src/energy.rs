@@ -32,6 +32,36 @@ impl EnergySource {
 
         let sysfs_root = get_sysfs_root();
 
+        // Explicit source preference (e.g. RUSHBENCH_ENERGY_SOURCE=battery for laptop runs
+        // where RAPL under-counts by ~30-50% vs whole-system draw)
+        if let Ok(preferred) = env::var("RUSHBENCH_ENERGY_SOURCE") {
+            match preferred.as_str() {
+                "battery" => {
+                    let power_supply = sysfs_root.join("sys/class/power_supply");
+                    if let Ok(entries) = fs::read_dir(&power_supply) {
+                        for entry in entries.filter_map(Result::ok) {
+                            if entry.file_name().to_string_lossy().starts_with("BAT") {
+                                let path = entry.path().join("energy_now");
+                                if path.exists() {
+                                    return Ok(EnergySource::Battery(path));
+                                }
+                            }
+                        }
+                    }
+                    return Err("battery_not_available".to_string());
+                }
+                "rapl" => {
+                    let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
+                    if rapl.exists() && fs::read_to_string(&rapl).is_ok() {
+                        return Ok(EnergySource::Rapl(rapl));
+                    }
+                    return Err("rapl_not_available".to_string());
+                }
+                "auto" => {} // fall through to auto-detect below
+                other => return Err(format!("unknown RUSHBENCH_ENERGY_SOURCE: {other}")),
+            }
+        }
+
         // Prioritize RAPL if it exists and is readable by the current process
         let rapl = sysfs_root.join("sys/class/powercap/intel-rapl:0/energy_uj");
         if rapl.exists() && fs::read_to_string(&rapl).is_ok() {

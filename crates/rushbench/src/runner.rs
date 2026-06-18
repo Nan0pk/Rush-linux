@@ -34,32 +34,6 @@ pub fn resolve_workload_and_metric(w: &str) -> Result<(String, String), String> 
     }
 }
 
-pub fn write_class_mismatch_record(
-    requested: &str,
-    observed: &str,
-    workload: &str,
-    metric: &str,
-    n: usize,
-    power_source: &str,
-) -> Result<(), String> {
-    let start_time_str = get_utc_timestamp();
-    write_record(
-        requested,
-        observed,
-        workload,
-        metric,
-        n,
-        None,
-        None,
-        &start_time_str,
-        0,
-        vec!["class_mismatch".to_string()],
-        power_source,
-        -1,
-        -1,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn write_record(
     class_requested: &str,
@@ -195,14 +169,6 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         .map_err(|e| format!("Failed to parse optctl status JSON: {e}"))?;
 
     if status.workload_class != class {
-        write_class_mismatch_record(
-            class,
-            &status.workload_class,
-            &workload_name,
-            &metric_name,
-            n,
-            power_source,
-        )?;
         return Err(format!(
             "class_mismatch: requested={}, observed={}",
             class, status.workload_class
@@ -221,14 +187,6 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     if observed_cpu != expected_contract.cpu_wakeup_latency
         || observed_dev != expected_contract.device_resume_latency
     {
-        write_class_mismatch_record(
-            class,
-            &status.workload_class,
-            &workload_name,
-            &metric_name,
-            n,
-            power_source,
-        )?;
         return Err(format!(
             "class_mismatch: resolved floors do not match contracts.toml. Expected (cpu={}, dev={}), Observed (cpu={}, dev={})",
             expected_contract.cpu_wakeup_latency, expected_contract.device_resume_latency,
@@ -237,28 +195,41 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     }
 
     if !check_apply_in_effect() {
-        write_class_mismatch_record(
-            class,
-            &status.workload_class,
-            &workload_name,
-            &metric_name,
-            n,
-            power_source,
-        )?;
         return Err(
             "class_mismatch: optid is not running in enforcement mode (--apply not in effect)"
                 .to_string(),
         );
     }
 
-    let warmup_runs = 2;
-    for _ in 0..warmup_runs {
-        let _ = run_probe_for_metric(&metric_name);
-    }
+    let is_real_energy = env::var("RUSHBENCH_MOCK_ENERGY_JOULES").is_err();
+    let is_psi_workload = metric_name.starts_with("psi-");
+
+    // Time-based warmup before the energy window.
+    // PSI probes need ≥15s for real pressure to accumulate in the kernel counters.
+    // RUSHBENCH_WARMUP_SEC overrides the default (set to 0 in fast tests).
+    // Mock mode (RUSHBENCH_MOCK_ENERGY_JOULES set) uses 2 count-based iterations.
+    let warmup_runs = if is_real_energy {
+        let default_sec = if is_psi_workload { 15.0 } else { 3.0 };
+        let warmup_sec = env::var("RUSHBENCH_WARMUP_SEC")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(default_sec);
+        let warmup_start = std::time::Instant::now();
+        let mut count = 0usize;
+        while warmup_start.elapsed().as_secs_f64() < warmup_sec {
+            let _ = run_probe_for_metric(&metric_name);
+            count += 1;
+        }
+        count
+    } else {
+        for _ in 0..2 {
+            let _ = run_probe_for_metric(&metric_name);
+        }
+        2
+    };
 
     let mut samples = Vec::new();
     let mut anomalies = Vec::new();
-
     let start_time_str = get_utc_timestamp();
 
     let energy_start = energy_source
@@ -268,38 +239,16 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     let mut probe_failed_msg = None;
     let mut unsupported_msg = None;
 
-    // Phase 1: Collect exactly n samples
-    let original_n = n; // Preserve requested sample count
-    for _ in 0..n {
-        match run_probe_for_metric(&metric_name) {
-            ProbeResult::Success(val) => {
-                samples.push(val);
-            }
-            ProbeResult::UnsupportedHere(msg) => {
-                unsupported_msg = Some(msg);
-                break;
-            }
-            ProbeResult::Failed(msg) => {
-                probe_failed_msg = Some(msg);
-                break;
-            }
-        }
-    }
+    let min_duration = env::var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(30.0);
 
-    // Phase 2: Extend the energy window for real counters without changing the
-    // requested sample series. Previously this loop appended every fast-path PSI
-    // read to `samples`, producing multi-million-entry JSON arrays during the
-    // 30s energy window. Keep the benchmark sample vector bounded to the
-    // requested `n`; the extra probes only keep the measured workload active and
-    // surface unsupported/probe-failed states.
-    let is_real_energy = std::env::var("RUSHBENCH_MOCK_ENERGY_JOULES").is_err();
-    if unsupported_msg.is_none() && probe_failed_msg.is_none() && is_real_energy {
-        let start_instant = std::time::Instant::now();
-        let min_duration = std::env::var("RUSHBENCH_MIN_ENERGY_WINDOW_SEC")
-            .ok()
-            .and_then(|v| v.parse::<f64>().ok())
-            .unwrap_or(30.0);
-        while start_instant.elapsed().as_secs_f64() < min_duration {
+    // Phase 1: Filler loop — keeps the workload active for the bulk of the energy window
+    // so the system is in a representative steady state when samples are taken.
+    if is_real_energy {
+        let filler_start = std::time::Instant::now();
+        while filler_start.elapsed().as_secs_f64() < min_duration {
             match run_probe_for_metric(&metric_name) {
                 ProbeResult::Success(_) => {}
                 ProbeResult::UnsupportedHere(msg) => {
@@ -312,6 +261,25 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
+
+    // Phase 2: Collect exactly n samples at the end of the energy window.
+    if unsupported_msg.is_none() && probe_failed_msg.is_none() {
+        for _ in 0..n {
+            match run_probe_for_metric(&metric_name) {
+                ProbeResult::Success(val) => {
+                    samples.push(val);
+                }
+                ProbeResult::UnsupportedHere(msg) => {
+                    unsupported_msg = Some(msg);
+                    break;
+                }
+                ProbeResult::Failed(msg) => {
+                    probe_failed_msg = Some(msg);
+                    break;
+                }
+            }
         }
     }
 
@@ -340,7 +308,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
             &status.workload_class,
             &workload_name,
             &metric_name,
-            original_n,
+            n,
             None,
             energy_info,
             &start_time_str,
@@ -360,7 +328,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
             &status.workload_class,
             &workload_name,
             &metric_name,
-            original_n,
+            n,
             None,
             energy_info,
             &start_time_str,
@@ -382,7 +350,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
         &status.workload_class,
         &workload_name,
         &metric_name,
-        original_n,
+        n,
         Some(samples),
         energy_info,
         &start_time_str,
