@@ -47,14 +47,10 @@ fn main() {
                 i += 2;
             }
             "--out" => {
-                out = Some(
-                    args.get(i + 1)
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            eprintln!("Error: --out requires a file path");
-                            std::process::exit(1);
-                        }),
-                );
+                out = Some(args.get(i + 1).cloned().unwrap_or_else(|| {
+                    eprintln!("Error: --out requires a file path");
+                    std::process::exit(1);
+                }));
                 i += 2;
             }
             "--help" | "-h" => {

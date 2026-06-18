@@ -71,10 +71,8 @@ pub fn run(window_sec: u64) -> CollectionRecord {
     // PSI window
     let psi = match (psi_cpu_start, psi_cpu_end, psi_io_start, psi_io_end) {
         (Some(cs), Some(ce), Some(is), Some(ie)) if elapsed_us > 0 => {
-            let cpu_stall =
-                ce.saturating_sub(cs) as f64 / elapsed_us as f64 * 100.0;
-            let io_stall =
-                ie.saturating_sub(is) as f64 / elapsed_us as f64 * 100.0;
+            let cpu_stall = ce.saturating_sub(cs) as f64 / elapsed_us as f64 * 100.0;
+            let io_stall = ie.saturating_sub(is) as f64 / elapsed_us as f64 * 100.0;
             Some(PsiWindow {
                 cpu_stall_pct: round2(cpu_stall),
                 io_stall_pct: round2(io_stall),

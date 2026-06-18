@@ -155,7 +155,10 @@ pub fn read_thermal() -> ThermalSnapshot {
     let mut zones = 0usize;
 
     let Ok(entries) = fs::read_dir("/sys/class/thermal") else {
-        return ThermalSnapshot { max_celsius: None, zones_read: 0 };
+        return ThermalSnapshot {
+            max_celsius: None,
+            zones_read: 0,
+        };
     };
 
     for entry in entries.filter_map(Result::ok) {
@@ -199,14 +202,10 @@ pub fn read_freq() -> FreqSnapshot {
             let name = entry.file_name();
             let n = name.to_string_lossy();
             // Match cpu0, cpu1, … but not cpufreq, cpuidle, etc.
-            if !n.starts_with("cpu")
-                || !n[3..].chars().all(|c| c.is_ascii_digit())
-            {
+            if !n.starts_with("cpu") || !n[3..].chars().all(|c| c.is_ascii_digit()) {
                 continue;
             }
-            if let Ok(s) =
-                fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq"))
-            {
+            if let Ok(s) = fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq")) {
                 if let Ok(khz) = s.trim().parse::<u64>() {
                     total_mhz += khz / 1000;
                     count += 1;
@@ -218,7 +217,11 @@ pub fn read_freq() -> FreqSnapshot {
     FreqSnapshot {
         governor,
         max_mhz,
-        current_mhz_avg: if count > 0 { Some(total_mhz / count as u64) } else { None },
+        current_mhz_avg: if count > 0 {
+            Some(total_mhz / count as u64)
+        } else {
+            None
+        },
     }
 }
 
