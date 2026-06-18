@@ -48,7 +48,7 @@ pub fn read_chassis() -> String {
 
     match type_id {
         8 | 9 | 10 | 14 => "Notebook".to_string(),
-        3 | 4 | 5 | 6 | 7 => "Desktop".to_string(),
+        3..=7 => "Desktop".to_string(),
         17 | 23 => "Server".to_string(),
         _ => "unknown".to_string(),
     }
