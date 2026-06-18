@@ -66,7 +66,7 @@ These files must contain the current version:
 - `ROADMAP.md` — "Current project version"
 - `release/milestones.toml` — `current_version`
 - `Cargo.toml` workspace.package.version
-- `IMPLEMENTATION_STATUS.md` references
+- `docs/IMPLEMENTATION_STATUS.md` references
 
 The CI gate `tools/validate-versions.py` enforces this.
 

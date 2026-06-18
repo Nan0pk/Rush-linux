@@ -171,7 +171,7 @@ def check_stale_patterns(entries):
     if readme:
         stale_phrases = [
             ("next implementation step is replacing file-based control with a D-Bus",
-             "D-Bus is already implemented (see IMPLEMENTATION_STATUS.md)"),
+             "D-Bus is already implemented (see docs/IMPLEMENTATION_STATUS.md)"),
             ("currently talks through the state directory",
              "optctl now uses D-Bus first with file fallback"),
         ]

@@ -147,4 +147,4 @@ When a change affects important documentation or release-policy text, either:
 
 Never treat the graph as permission to skip the existing Rush Linux validation
 rules. Continue to run the Rust and policy checks documented in
-`AI_CONTINUATION.md` and `CONTRIBUTING.md`.
+`docs/AI_CONTINUATION.md` and `CONTRIBUTING.md`.

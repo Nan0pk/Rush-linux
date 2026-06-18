@@ -56,7 +56,7 @@ changes code without updating the affected docs will fail CI.
 
 1. Edit `crates/optid/src/main.rs`
 2. Update `docs/adaptive-engine.md` — add or change the feature description
-3. Update `IMPLEMENTATION_STATUS.md` — move items between Implemented/Not Yet
+3. Update `docs/IMPLEMENTATION_STATUS.md` — move items between Implemented/Not Yet
 4. Update `README.md` — if the "Current Implementation Status" section is affected
 5. In `docs/docmap.toml` — bump `last_verified` for all four docs
 
@@ -79,8 +79,8 @@ changes code without updating the affected docs will fail CI.
 1. Update `VERSION`
 2. Update `RELEASES.md` — add new entry
 3. Update `ROADMAP.md` — change "Current project version" line
-4. Update `IMPLEMENTATION_STATUS.md` — change version reference
-5. Update `AI_CONTINUATION.md` — change version reference
+4. Update `docs/IMPLEMENTATION_STATUS.md` — change version reference
+5. Update `docs/AI_CONTINUATION.md` — change version reference
 6. In `docs/docmap.toml` — bump `last_verified` for all five files
 7. Run `python3 tools/validate-doc-sync.py` to confirm
 
