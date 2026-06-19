@@ -91,3 +91,10 @@ This section has been moved to the single canonical source:
 👉 **[docs/agent-protocol.md](docs/agent-protocol.md)**
 
 Builders never certify their own work. Verification is always performed by a separate verifier session.
+
+## The Builder/Verifier Protocol & Evidence Rule
+
+Per the `v2 Work Plan`, autonomous agents must abide by the Builder/Verifier split to prevent false-certification loops:
+- **Builder Agents** execute a single Work Package, produce a branch, and open a PR. They **never certify their own work**.
+- **Verifier Agents** check out a PR cold, execute the explicit acceptance commands, and write the output into `VERIFICATION.md`. A failed command is a verdict, not a task to fix.
+- **The Evidence Rule**: A Work Package gate is only "Passed" if an embedded command transcript (literal input, literal output, host info) is provided. Saying "The script implements X" is insufficient. `bash -n` is a syntax check, not proof.
