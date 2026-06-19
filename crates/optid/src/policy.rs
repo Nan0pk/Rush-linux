@@ -525,6 +525,19 @@ impl Policy {
                     ),
                 });
             }
+
+            // WP-N7 display depth: dim the panel backlight toward the interactive
+            // floor on battery-idle. Allowlist-gated (domain backlight); the
+            // actuator floor-clamps so the screen never goes black.
+            if let Some(backlight) = &snapshot.selected_backlight {
+                actions.push(Action::Backlight {
+                    device_dir: backlight.clone(),
+                    target_pct: crate::actuators::display::DEFAULT_TARGET_PCT,
+                    reason: format!(
+                        "battery-idle backlight floor (class={workload_class}, allowlist-gated)"
+                    ),
+                });
+            }
         }
 
         if reasons.is_empty() {
