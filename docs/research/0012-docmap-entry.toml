@@ -1,0 +1,24 @@
+# Docmap entry for 0012-dtpm-powercap-outer-loop.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — PI controller tuning and AMD Ryzen Mobile powercap write experiments pending.
+
+[docs."docs/research/0012-dtpm-powercap-outer-loop.md"]
+purpose = "Specifies the RAPL/powercap PI control outer loop that enforces thermal budget as BUDGET-ARBITRATOR (WP-N7, WP-N8, WP-N9)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/powercap.rs",
+    "crates/optid/src/actuators/powercap.rs",
+    "crates/optid/src/policy.rs",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0013-thermal-fan-budget-coupling.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
