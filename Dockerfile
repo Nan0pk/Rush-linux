@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=builder /usr/src/rush-linux/target/release/optid /usr/local/bin/
 COPY --from=builder /usr/src/rush-linux/target/release/optctl /usr/local/bin/
-COPY --from=builder /usr/src/rush-linux/target/release/rush_collect /usr/local/bin/
+COPY --from=builder /usr/src/rush-linux/target/release/rush-collect /usr/local/bin/
 
 # Default policy
 RUN mkdir -p /usr/lib/optid

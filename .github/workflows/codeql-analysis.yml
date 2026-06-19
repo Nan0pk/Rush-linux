@@ -32,6 +32,9 @@ jobs:
       with:
         languages: ${{ matrix.language }}
 
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+
     - name: Install dependencies
       run: |
         sudo apt-get update

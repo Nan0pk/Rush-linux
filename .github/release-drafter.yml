@@ -3,10 +3,12 @@ tag-template: 'v$RESOLVED_VERSION'
 categories:
   - title: '🚀 Features'
     labels:
+      - 'type:feature'
       - 'feat'
       - 'feature'
   - title: '🐛 Bug Fixes'
     labels:
+      - 'type:bug'
       - 'fix'
       - 'bug'
   - title: '📖 Documentation'
@@ -18,6 +20,7 @@ categories:
       - 'test'
   - title: '🧰 Maintenance'
     labels:
+      - 'type:maintenance'
       - 'chore'
       - 'ci'
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'

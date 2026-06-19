@@ -34,7 +34,7 @@
 - [Versioning](versioning.md)
 
 ## Project
-- [Contributing](CONTRIBUTING.md)
-- [Release Plan](docs/release-plan-v1.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Release Plan](release-plan-v1.md)
 - [Roadmap](../ROADMAP.md)
 - [Security](../SECURITY.md)
