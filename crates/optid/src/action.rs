@@ -47,6 +47,23 @@ pub(crate) enum Action {
         autosuspend_delay_ms: i32,
         reason: String,
     },
+    /// WP-N6 PCIe ASPM. Toggles a PCI device's `link/l1_aspm` (L1 substates).
+    /// Allowlist-gated (domain `pci_aspm`) and reverted on stop. `device_dir`
+    /// is the PCI device sysfs directory; `enable` writes `1`/`0`.
+    PcieAspm {
+        device_dir: PathBuf,
+        enable: bool,
+        reason: String,
+    },
+    /// WP-N6 SATA ALPM. Sets a SCSI host's `link_power_management_policy`.
+    /// Allowlist-gated (domain `sata_alpm`, HWID resolved from the host's
+    /// backing PCI controller) and reverted on stop. `host_dir` is the
+    /// `/sys/class/scsi_host/hostN` directory.
+    SataAlpm {
+        host_dir: PathBuf,
+        policy: String,
+        reason: String,
+    },
 }
 
 impl Action {
@@ -128,6 +145,27 @@ impl Action {
                 format!(
                     "runtime_pm {} control=auto autosuspend_delay_ms={autosuspend_delay_ms} ({reason})",
                     device_dir.display()
+                )
+            }
+            Self::PcieAspm {
+                device_dir,
+                enable,
+                reason,
+            } => {
+                format!(
+                    "pcie_aspm {} l1_aspm={} ({reason})",
+                    device_dir.display(),
+                    if *enable { 1 } else { 0 }
+                )
+            }
+            Self::SataAlpm {
+                host_dir,
+                policy,
+                reason,
+            } => {
+                format!(
+                    "sata_alpm {} policy={policy} ({reason})",
+                    host_dir.display()
                 )
             }
         }

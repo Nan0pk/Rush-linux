@@ -555,3 +555,25 @@ freshens = [
 ]
 last_verified = "2026-06-19"
 validator = "status_match:WIP"
+
+[docs."docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md"]
+purpose = "Specifies NVMe APST, PCIe ASPM, and SATA ALPM policy; documents known-broken HWIDs and firmware version gates (WP-N6)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/storage.rs",
+    "crates/optid/src/sensors.rs",
+    "crates/optid/src/actuator.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

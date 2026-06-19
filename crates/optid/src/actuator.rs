@@ -15,8 +15,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::action::Action;
-use crate::actuators::runtime_pm;
-use crate::allowlist::{hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict};
+use crate::actuators::{runtime_pm, storage};
+use crate::allowlist::{
+    hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
+};
 use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, guarded_write};
 use crate::sensors::{discover_cpu_epp_paths, now_unix};
 
@@ -80,6 +82,10 @@ pub(crate) struct Actuator {
     /// WP-N5: last-applied autosuspend delay per device dir, to skip redundant
     /// re-writes (and journal churn) within a session.
     pub(crate) last_runtime_pm: HashMap<PathBuf, i32>,
+    /// WP-N6: last-applied PCIe ASPM enable state per device dir.
+    pub(crate) last_pcie_aspm: HashMap<PathBuf, bool>,
+    /// WP-N6: last-applied SATA ALPM policy per scsi_host dir.
+    pub(crate) last_sata_alpm: HashMap<PathBuf, String>,
     /// WP-N4 hardware allowlist gate. `None` ⇒ gate disabled (the v0.x default):
     /// the actuator behaves exactly as before. `Some(_)` ⇒ depth-enabler writes
     /// are default-denied unless the device HWID is allowlisted, and every
@@ -99,6 +105,8 @@ impl Actuator {
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
             last_runtime_pm: HashMap::new(),
+            last_pcie_aspm: HashMap::new(),
+            last_sata_alpm: HashMap::new(),
             allowlist: None,
         }
     }
@@ -115,6 +123,8 @@ impl Actuator {
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
             last_runtime_pm: HashMap::new(),
+            last_pcie_aspm: HashMap::new(),
+            last_sata_alpm: HashMap::new(),
             allowlist: None,
         }
     }
@@ -505,6 +515,118 @@ impl Actuator {
                         self.log(&format!(
                             "skip runtime_pm {}: control write failed: {e}",
                             device_dir.display()
+                        ))?;
+                    }
+                }
+            }
+            Action::PcieAspm {
+                device_dir,
+                enable,
+                reason,
+            } => {
+                // WP-N6 PCIe ASPM, gated on the N4 allowlist (domain pci_aspm).
+                if !self.allowlist_permits(
+                    "pci_aspm",
+                    hwid_from_device_dir(device_dir),
+                    0,
+                    device_dir,
+                )? {
+                    return Ok(());
+                }
+                // §1.4: CNVi radios are not standard PCIe endpoints; their link
+                // PM is firmware-managed and l1_aspm writes do not apply. Skip.
+                if storage::is_cnvi(device_dir) {
+                    self.log(&format!(
+                        "skip pcie_aspm {}: CNVi device (link PM is firmware-managed)",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
+                if self.last_pcie_aspm.get(device_dir) == Some(enable) {
+                    return Ok(());
+                }
+
+                let aspm_path = device_dir.join("link").join("l1_aspm");
+                let hash = get_path_hash(device_dir);
+                let orig_file = self.state_dir.join(format!("original_aspm_{hash}"));
+                if !orig_file.exists() {
+                    let orig = fs::read_to_string(&aspm_path)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_else(|| "0".to_string());
+                    let _ = atomic_write_state_file(
+                        &orig_file,
+                        &format!("{}\n{orig}", device_dir.display()),
+                    );
+                }
+                let val = if *enable { "1" } else { "0" };
+                let intended_file = self.state_dir.join(format!("intended_aspm_{hash}"));
+                let _ = atomic_write_state_file(&intended_file, val);
+
+                match guarded_write(&aspm_path, val) {
+                    Ok(_) => {
+                        self.last_pcie_aspm.insert(device_dir.clone(), *enable);
+                        self.log(&format!(
+                            "write {} l1_aspm={val} reason: {reason}",
+                            aspm_path.display()
+                        ))?;
+                    }
+                    Err(e) => {
+                        self.log(&format!(
+                            "skip pcie_aspm {}: write failed: {e}",
+                            device_dir.display()
+                        ))?;
+                    }
+                }
+            }
+            Action::SataAlpm {
+                host_dir,
+                policy,
+                reason,
+            } => {
+                // WP-N6 SATA ALPM, gated on the N4 allowlist (domain sata_alpm).
+                // The scsi_host has no modalias of its own — resolve the backing
+                // PCI controller's HWID by walking ancestors.
+                if !self.allowlist_permits(
+                    "sata_alpm",
+                    hwid_from_ancestors(host_dir),
+                    0,
+                    host_dir,
+                )? {
+                    return Ok(());
+                }
+                if self.last_sata_alpm.get(host_dir).map(String::as_str) == Some(policy.as_str()) {
+                    return Ok(());
+                }
+
+                let policy_path = host_dir.join("link_power_management_policy");
+                let hash = get_path_hash(host_dir);
+                let orig_file = self.state_dir.join(format!("original_alpm_{hash}"));
+                if !orig_file.exists() {
+                    let orig = fs::read_to_string(&policy_path)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_else(|| "max_performance".to_string());
+                    let _ = atomic_write_state_file(
+                        &orig_file,
+                        &format!("{}\n{orig}", host_dir.display()),
+                    );
+                }
+                let intended_file = self.state_dir.join(format!("intended_alpm_{hash}"));
+                let _ = atomic_write_state_file(&intended_file, policy);
+
+                match guarded_write(&policy_path, policy) {
+                    Ok(_) => {
+                        self.last_sata_alpm.insert(host_dir.clone(), policy.clone());
+                        self.log(&format!(
+                            "write {} policy={policy} reason: {reason}",
+                            policy_path.display()
+                        ))?;
+                    }
+                    Err(e) => {
+                        self.log(&format!(
+                            "skip sata_alpm {}: write failed: {e}",
+                            host_dir.display()
                         ))?;
                     }
                 }

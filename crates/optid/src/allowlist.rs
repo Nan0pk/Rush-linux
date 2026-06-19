@@ -344,6 +344,26 @@ pub(crate) fn hwid_from_device_dir(device_dir: &Path) -> Option<String> {
     read_modalias(device_dir)
 }
 
+/// Resolve an HWID by walking up from `start` toward the filesystem root,
+/// returning the first ancestor (including `start`) that has a readable
+/// `modalias`. Used by the WP-N6 SATA ALPM path: a `scsi_host` directory has no
+/// modalias of its own, but its backing AHCI/PCI controller (an ancestor) does.
+/// The walk is bounded by the path depth, so it always terminates.
+pub(crate) fn hwid_from_ancestors(start: &Path) -> Option<String> {
+    // Resolve symlinks first: `/sys/class/scsi_host/hostN` is a symlink farm;
+    // the real controller (with the modalias) is the canonical path's ancestor.
+    // canonicalize is a no-op on the plain directory trees tests use.
+    let real = fs::canonicalize(start).unwrap_or_else(|_| start.to_path_buf());
+    let mut cur = Some(real.as_path());
+    while let Some(dir) = cur {
+        if let Some(hwid) = read_modalias(dir) {
+            return Some(hwid);
+        }
+        cur = dir.parent();
+    }
+    None
+}
+
 fn read_modalias(device_dir: &Path) -> Option<String> {
     let raw = fs::read_to_string(device_dir.join("modalias")).ok()?;
     let trimmed = raw.trim();

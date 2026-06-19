@@ -53,6 +53,20 @@ pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
         parent_is_power && matches!(name, Some("control") | Some("autosuspend_delay_ms"))
     }
 
+    // WP-N6 storage/link PM attributes. `…/link/l1_aspm` (per-device PCIe ASPM)
+    // must be a direct child of a `link` directory; `link_power_management_policy`
+    // (SATA ALPM) is a scsi_host attribute matched by file name. Additional
+    // ADR-0009 write-allowlist entries; existing entries are untouched.
+    fn is_storage_pm_attr(path: &Path) -> bool {
+        let name = path.file_name().and_then(|n| n.to_str());
+        let parent_is_link = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            == Some("link");
+        (parent_is_link && name == Some("l1_aspm")) || name == Some("link_power_management_policy")
+    }
+
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
@@ -60,8 +74,10 @@ pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
         || path == Path::new("/proc/sys/vm/dirty_bytes")
         || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
         || (path.starts_with("/sys/") && is_runtime_pm_attr(path))
+        || (path.starts_with("/sys/") && is_storage_pm_attr(path))
         || (cfg!(test) && is_pm_qos_resume_latency(path))
-        || (cfg!(test) && is_runtime_pm_attr(path));
+        || (cfg!(test) && is_runtime_pm_attr(path))
+        || (cfg!(test) && is_storage_pm_attr(path));
 
     if !allowed {
         return Err(io::Error::new(
@@ -182,6 +198,59 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
         let hash = name_str.strip_prefix("original_rpm_").unwrap_or("");
         if !hash.is_empty() {
             let _ = fs::remove_file(state_dir.join(format!("intended_rpm_{hash}")));
+        }
+    }
+}
+
+/// WP-N6: restore PCIe ASPM (`link/l1_aspm`) and SATA ALPM
+/// (`link_power_management_policy`) to their journaled originals on
+/// startup/shutdown. Each `original_aspm_<hash>` / `original_alpm_<hash>` file
+/// holds two lines: the base directory and the original attribute value.
+pub(crate) fn revert_storage(state_dir: &Path) {
+    let Ok(entries) = fs::read_dir(state_dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        let (prefix, rel): (&str, &[&str]) = if name_str.starts_with("original_aspm_") {
+            ("original_aspm_", &["link", "l1_aspm"])
+        } else if name_str.starts_with("original_alpm_") {
+            ("original_alpm_", &["link_power_management_policy"])
+        } else {
+            continue;
+        };
+        let orig_path = entry.path();
+        if let Ok(content) = fs::read_to_string(&orig_path) {
+            let mut lines = content.lines();
+            if let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) {
+                let mut target = Path::new(base).to_path_buf();
+                for seg in rel {
+                    target = target.join(seg);
+                }
+                if let Err(e) = guarded_write(&target, orig_val.trim()) {
+                    eprintln!(
+                        "optid: failed to revert storage PM for {}: {e}",
+                        target.display()
+                    );
+                } else {
+                    println!(
+                        "optid: reverted storage PM for {} to {}",
+                        target.display(),
+                        orig_val.trim()
+                    );
+                }
+            }
+        }
+        let _ = fs::remove_file(&orig_path);
+        let hash = name_str.strip_prefix(prefix).unwrap_or("");
+        if !hash.is_empty() {
+            let intended_prefix = if prefix == "original_aspm_" {
+                "intended_aspm_"
+            } else {
+                "intended_alpm_"
+            };
+            let _ = fs::remove_file(state_dir.join(format!("{intended_prefix}{hash}")));
         }
     }
 }

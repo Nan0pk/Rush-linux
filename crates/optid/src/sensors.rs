@@ -46,6 +46,12 @@ pub(crate) struct Snapshot {
     /// `power/control` attribute — i.e. candidates for WP-N5 runtime-PM
     /// autosuspend. The actuator still gates each one on the N4 HWID allowlist.
     pub(crate) runtime_pm_device_paths: Vec<PathBuf>,
+    /// PCI device directories that expose `link/l1_aspm` — WP-N6 PCIe ASPM
+    /// candidates. Allowlist-gated (domain `pci_aspm`) in the actuator.
+    pub(crate) pcie_aspm_device_paths: Vec<PathBuf>,
+    /// SCSI host directories that expose `link_power_management_policy` — WP-N6
+    /// SATA ALPM candidates. Allowlist-gated (domain `sata_alpm`).
+    pub(crate) sata_alpm_host_paths: Vec<PathBuf>,
 }
 
 impl Snapshot {
@@ -65,6 +71,8 @@ impl Snapshot {
             global_pinned_class: None,
             pm_qos_device_paths: discover_pm_qos_device_paths(),
             runtime_pm_device_paths: discover_runtime_pm_device_paths(),
+            pcie_aspm_device_paths: discover_pcie_aspm_device_paths(),
+            sata_alpm_host_paths: discover_sata_alpm_host_paths(),
         }
     }
 
@@ -133,6 +141,40 @@ pub(crate) fn discover_runtime_pm_device_paths() -> Vec<PathBuf> {
             if dev.join("power").join("control").exists() {
                 paths.push(dev);
             }
+        }
+    }
+    paths
+}
+
+/// Enumerate PCI devices exposing `link/l1_aspm` (kernel ≥ 5.2) — WP-N6 PCIe
+/// ASPM candidates. The actuator narrows this to the allowlisted set.
+pub(crate) fn discover_pcie_aspm_device_paths() -> Vec<PathBuf> {
+    let base = Path::new("/sys/bus/pci/devices");
+    let mut paths = Vec::new();
+    let Ok(entries) = fs::read_dir(base) else {
+        return paths;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let dev = entry.path();
+        if dev.join("link").join("l1_aspm").exists() {
+            paths.push(dev);
+        }
+    }
+    paths
+}
+
+/// Enumerate SCSI hosts exposing `link_power_management_policy` — WP-N6 SATA
+/// ALPM candidates.
+pub(crate) fn discover_sata_alpm_host_paths() -> Vec<PathBuf> {
+    let base = Path::new("/sys/class/scsi_host");
+    let mut paths = Vec::new();
+    let Ok(entries) = fs::read_dir(base) else {
+        return paths;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let host = entry.path();
+        if host.join("link_power_management_policy").exists() {
+            paths.push(host);
         }
     }
     paths
