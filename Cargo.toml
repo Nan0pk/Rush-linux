@@ -4,7 +4,6 @@ members = [
     "crates/optctl",
     "crates/rushbench",
     "crates/rush_collect",
-    "crates/rush_telemetry",
 ]
 resolver = "2"
 
