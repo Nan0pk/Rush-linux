@@ -42,6 +42,10 @@ pub(crate) struct Snapshot {
     pub(crate) pinned_class: Option<WorkloadClass>,
     pub(crate) global_pinned_class: Option<WorkloadClass>,
     pub(crate) pm_qos_device_paths: Vec<PathBuf>,
+    /// Device directories (under /sys/bus/{pci,usb}/devices/*) that expose a
+    /// `power/control` attribute — i.e. candidates for WP-N5 runtime-PM
+    /// autosuspend. The actuator still gates each one on the N4 HWID allowlist.
+    pub(crate) runtime_pm_device_paths: Vec<PathBuf>,
 }
 
 impl Snapshot {
@@ -60,6 +64,7 @@ impl Snapshot {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: discover_pm_qos_device_paths(),
+            runtime_pm_device_paths: discover_runtime_pm_device_paths(),
         }
     }
 
@@ -108,6 +113,26 @@ pub(crate) fn discover_pm_qos_device_paths() -> Vec<PathBuf> {
         let path = entry.path().join("power").join("pm_qos_resume_latency_us");
         if path.exists() {
             paths.push(path);
+        }
+    }
+    paths
+}
+
+/// Enumerate runtime-PM-capable device directories: any device under
+/// `/sys/bus/{pci,usb}/devices/` that exposes a writable `power/control`
+/// attribute. The list is intentionally broad — the actuator narrows it to the
+/// allowlisted set. Non-blocking directory reads only (per the optid invariant).
+pub(crate) fn discover_runtime_pm_device_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for bus in ["/sys/bus/pci/devices", "/sys/bus/usb/devices"] {
+        let Ok(entries) = fs::read_dir(bus) else {
+            continue;
+        };
+        for entry in entries.filter_map(Result::ok) {
+            let dev = entry.path();
+            if dev.join("power").join("control").exists() {
+                paths.push(dev);
+            }
         }
     }
     paths

@@ -485,6 +485,24 @@ impl Policy {
             });
         }
 
+        // WP-N5: runtime-PM autosuspend. Conservative "battery-idle" trigger
+        // (Decision B): only nominate devices when on battery AND the workload
+        // class is idle. The actuator gates each device on the N4 allowlist,
+        // skips network devices with an active link, preserves wakeup, and
+        // journals for revert-on-stop — so nominating broadly here is safe.
+        if snapshot.on_ac == Some(false) && workload_class == WorkloadClass::Idle {
+            for device_dir in &snapshot.runtime_pm_device_paths {
+                actions.push(Action::RuntimePm {
+                    device_dir: device_dir.clone(),
+                    autosuspend_delay_ms:
+                        crate::actuators::runtime_pm::DEFAULT_AUTOSUSPEND_DELAY_MS,
+                    reason: format!(
+                        "battery-idle runtime PM (class={workload_class}, allowlist-gated)"
+                    ),
+                });
+            }
+        }
+
         if reasons.is_empty() {
             reasons.push("default adaptive policy".to_string());
         }

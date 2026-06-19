@@ -337,6 +337,13 @@ pub(crate) fn hwid_from_attr_path(attr_path: &Path) -> Option<String> {
     read_modalias(device_dir)
 }
 
+/// Resolve a device's canonical HWID directly from its sysfs device directory
+/// (e.g. `/sys/bus/usb/devices/1-1`). Used by the WP-N5 runtime-PM actuator,
+/// which works at device-directory granularity rather than per-attribute.
+pub(crate) fn hwid_from_device_dir(device_dir: &Path) -> Option<String> {
+    read_modalias(device_dir)
+}
+
 fn read_modalias(device_dir: &Path) -> Option<String> {
     let raw = fs::read_to_string(device_dir.join("modalias")).ok()?;
     let trimmed = raw.trim();

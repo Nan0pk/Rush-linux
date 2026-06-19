@@ -115,3 +115,29 @@ tested_on = "Realtek RTL8821CE (multiple lkml reports)"
 reason = "L1.2 causes firmware assert"
 added_in = "v0.4.0-alpha.1"
 verified = false
+
+# ── Runtime PM autosuspend (WP-N5) ───────────────────────────────────────────
+# domain = "runtime_pm" gates `power/control=auto` + `autosuspend_delay_ms`.
+# These are USB HID receivers with no wakeup-latency issues reported. NOTE: HWIDs
+# are matched EXACTLY against the device's full kernel modalias, so these seeded
+# entries only match on hardware whose modalias matches byte-for-byte; broader
+# matching is future work (see 0006 §1.1). Until then, admins add their own
+# tested devices via `optctl allow runtime_pm <dev-path>`.
+
+[[entry]]
+domain = "runtime_pm"
+hwid = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00"
+action = "allow"
+tested_on = "Logitech Unifying Receiver (community reports)"
+reason = "USB HID receiver; wakeup preserved; no observed wake-latency issues"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "runtime_pm"
+hwid = "usb:v045Ep00DBd0001dc00dsc00dp00ic03isc01ip01in00"
+action = "allow"
+tested_on = "Microsoft USB keyboard (community reports)"
+reason = "USB HID keyboard; wakeup preserved; safe to autosuspend when idle"
+added_in = "v0.4.0-alpha.1"
+verified = false

@@ -38,6 +38,15 @@ pub(crate) enum Action {
         value: Option<i32>,
         reason: String,
     },
+    /// WP-N5 runtime-PM autosuspend. Enables `power/control=auto` and sets
+    /// `power/autosuspend_delay_ms` on a device directory. Allowlist-gated
+    /// (domain `runtime_pm`) and reverted on stop. `device_dir` is the device's
+    /// sysfs directory (e.g. `/sys/bus/usb/devices/1-1`), not an attribute file.
+    RuntimePm {
+        device_dir: PathBuf,
+        autosuspend_delay_ms: i32,
+        reason: String,
+    },
 }
 
 impl Action {
@@ -109,6 +118,16 @@ impl Action {
                 format!(
                     "device_resume_latency {}={val_str} ({reason})",
                     path.display()
+                )
+            }
+            Self::RuntimePm {
+                device_dir,
+                autosuspend_delay_ms,
+                reason,
+            } => {
+                format!(
+                    "runtime_pm {} control=auto autosuspend_delay_ms={autosuspend_delay_ms} ({reason})",
+                    device_dir.display()
                 )
             }
         }

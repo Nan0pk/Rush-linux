@@ -354,11 +354,20 @@ complexity; revisit if carrier state flip introduces > 4s autosuspend lag].
 ## 7. Next Steps
 
 **Immediate**
-- Implement `crates/optid/src/actuators/runtime_pm.rs`: enumerate devices with candidate
-  `control=auto`; check allowlist; verify wakeup attribute; apply delay from §1.2 table;
-  journal writes.
-- Wire `runtime_status`, `runtime_suspended_time`, `runtime_active_time` into 0018
-  telemetry sensor at 2s poll cadence.
+- [x] Implement the runtime-PM actuator (WP-N5 focused core): `Action::RuntimePm` in the
+  `actuator.rs` single write funnel, with device-class guards in
+  `crates/optid/src/actuators/runtime_pm.rs`. Enumerates `power/control` candidates
+  (`sensors::discover_runtime_pm_device_paths`), gates each on the N4 allowlist
+  (`domain = "runtime_pm"`), skips network devices whose carrier is up (§1.6), warns but
+  never modifies `power/wakeup` (§1.3), journals originals, and reverts on stop
+  (`io_util::revert_runtime_pm`). Policy nominates devices only on **battery + idle**
+  (Decision B). — **landed**
+  - **Deferred (tracked follow-ups, several need §4 hardware):** per-class delay table
+    (uses one conservative 2000 ms default for now), USB-audio active-stream / camera-fd
+    checks, WoL `ethtool` parsing, `runtime_status=error` dmesg handling, dynamic
+    re-disable when returning to AC, and the 0018 telemetry wiring below.
+- [ ] Wire `runtime_status`, `runtime_suspended_time`, `runtime_active_time` into 0018
+  telemetry sensor at 2s poll cadence (re-adds the 0018 docmap dependency).
 
 **Short-term**
 - Populate allowlist with known-safe USB HID vendors (Logitech, Microsoft, Apple Magic,

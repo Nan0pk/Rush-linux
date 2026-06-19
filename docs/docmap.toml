@@ -535,3 +535,23 @@ freshens = [
 ]
 last_verified = "2026-06-19"
 validator = "status_match:WIP"
+
+[docs."docs/research/0009-runtime-pm-autosuspend-policy.md"]
+purpose = "Specifies per-device-class autosuspend delay policy, wakeup protection, carrier-aware skip, and revert for the Linux runtime PM framework (WP-N5)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/runtime_pm.rs",
+    "crates/optid/src/policy.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
