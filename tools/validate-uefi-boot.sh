@@ -55,13 +55,12 @@ echo "  timeout:  ${TIMEOUT_SEC}s"
 echo "  log:      ${LOG}"
 
 set +e
+QEMU_ARGS=("-bios" "${FIRMWARE}" "-drive" "file=${DISK},format=raw,if=virtio" "-m" "1G" "-nographic" "-no-reboot")
+if [ -w /dev/kvm ]; then
+    QEMU_ARGS+=("-enable-kvm")
+fi
 timeout "${TIMEOUT_SEC}s" \
-    qemu-system-x86_64 \
-        -bios "${FIRMWARE}" \
-        -drive "file=${DISK},format=raw,if=virtio" \
-        -m 1G \
-        -nographic \
-        -no-reboot \
+    stdbuf -oL -eL qemu-system-x86_64 "${QEMU_ARGS[@]}" < /dev/null \
     2>&1 | tee "${LOG}"
 QEMU_STATUS=${PIPESTATUS[0]}
 set -e

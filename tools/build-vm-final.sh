@@ -252,7 +252,7 @@ cp "${STUB}" "${BUILD}/linuxx64.efi.stub"
 cp "${BOOTLD}" "${BUILD}/systemd-bootx64.efi"
 cd "${REPO_ROOT}"; rm -rf "${EFI_W}"
 
-CMDLINE="systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=1 zswap.enabled=1 root=/dev/vda2 rw console=ttyS0,115200"
+CMDLINE="systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=1 zswap.enabled=1 root=/dev/vda2 rw console=ttyS0,115200 systemd.firstboot=no"
 echo -n "${CMDLINE}" > "${BUILD}/cmdline.txt"
 mkdir -p "${BUILD}/uki_staging/EFI/Linux" "${BUILD}/uki_staging/loader/entries"
 objcopy \

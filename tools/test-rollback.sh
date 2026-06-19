@@ -69,13 +69,12 @@ boot_and_log() {
     rm -f "${log_file}"
 
     set +e
+    local qemu_args=("-bios" "${FIRMWARE}" "-drive" "file=${disk_path},format=raw,if=virtio" "-m" "1G" "-nographic" "-no-reboot")
+    if [ -w /dev/kvm ]; then
+        qemu_args+=("-enable-kvm")
+    fi
     timeout "${TIMEOUT_SEC}s" \
-        qemu-system-x86_64 \
-            -bios "${FIRMWARE}" \
-            -drive "file=${disk_path},format=raw,if=virtio" \
-            -m 1G \
-            -nographic \
-            -no-reboot \
+        stdbuf -oL -eL qemu-system-x86_64 "${qemu_args[@]}" < /dev/null \
         2>&1 | tee "${log_file}"
     local STATUS=${PIPESTATUS[0]}
     set -e
@@ -168,6 +167,9 @@ echo "━━━ Test 2: Three rollback entries are retained ━━━"
 
 echo "  Simulating 3 update cycles to build rollback entries..."
 
+# Clean any previous test artefacts to avoid interactive overwrite prompts
+rm -f "${TEST_DIR}"/original.efi "${TEST_DIR}"/prev.efi "${TEST_DIR}"/entry-*.conf "${TEST_DIR}"/test-disk.raw
+
 # Make a working copy of the disk image
 cp "${DISK}" "${TEST_DIR}/test-disk.raw"
 TEST_DISK="${TEST_DIR}/test-disk.raw"
@@ -176,19 +178,20 @@ TEST_DISK="${TEST_DIR}/test-disk.raw"
 ESP_OFFSET=1048576  # 2048 sectors * 512 bytes (standard 1MiB alignment)
 
 # Get the original UKI for reuse
-mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux/rush-linux.efi "${TEST_DIR}/original.efi"
+mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux/rush-linux.efi "${TEST_DIR}/original.efi"
 
 # Simulate 3 update cycles: each renames the current UKI to a versioned
 # rollback entry and installs a "new" one (we reuse the same binary)
 for i in 1 2 3; do
     echo "  Update cycle ${i}: rotating UKI entry..."
     TIMESTAMP="$(date +%Y%m%d%H%M%S)"
-    # Rename current main UKI to a rollback entry
+    # Rename current main UKI to a rollback entry (rm first to avoid host-side overwrite prompt)
+    rm -f "${TEST_DIR}/prev.efi"
     mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux/rush-linux.efi \
         "${TEST_DIR}/prev.efi" 2>/dev/null || true
     # Copy it back as a versioned rollback entry
     if [ -f "${TEST_DIR}/prev.efi" ]; then
-        mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/prev.efi" \
+        mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/prev.efi" \
             "::/EFI/Linux/rush-linux-0.3.0-alpha.1-${TIMESTAMP}.efi"
         # Create corresponding loader entry
         ENTRY_CONF="${TEST_DIR}/entry-${i}.conf"
@@ -197,11 +200,11 @@ title Rush Linux (rollback ${i})
 version 0.3.0-alpha.1-${TIMESTAMP}
 efi /EFI/Linux/rush-linux-0.3.0-alpha.1-${TIMESTAMP}.efi
 EOF
-        mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" "${ENTRY_CONF}" \
+        mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "${ENTRY_CONF}" \
             "::/loader/entries/rush-linux-rollback-${i}.conf"
     fi
     # Reinstall the original UKI as the new "main" entry
-    mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/original.efi" \
+    mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/original.efi" \
         ::/EFI/Linux/rush-linux.efi
 done
 
