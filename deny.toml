@@ -1,33 +1,27 @@
 [advisories]
-version = 2
-vulnerability = "warn"
-unmaintained = "warn"
-unsound = "warn"
-notice = "warn"
+yanked = "deny"
+unmaintained = "workspace"
+unsound = "all"
+ignore = []
 
 [licenses]
-version = 2
-unlicensed = "warn"
-copyleft = "warn"
 allow = [
     "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
     "MIT",
     "BSD-3-Clause",
     "BSD-2-Clause",
-    "ISC",
-    "Zlib",
-    "Unicode-DFS-2016",
-    "0BSD",
-    "BSL-1.0",
-    "MPL-2.0",
+    "Unicode-3.0",
 ]
+confidence-threshold = 0.8
 
 [bans]
-version = 2
 multiple-versions = "warn"
-wildcards = "warn"
+wildcards = "deny"
+highlight = "all"
 
 [sources]
-version = 2
-unknown-registry = "warn"
-unknown-git = "warn"
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
