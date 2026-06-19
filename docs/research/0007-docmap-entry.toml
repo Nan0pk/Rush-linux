@@ -1,0 +1,25 @@
+# Docmap entry for 0007-display-panel-backlight-psr-vrr-dpms.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — PSR/VRR energy measurements pending.
+
+[docs."docs/research/0007-display-panel-backlight-psr-vrr-dpms.md"]
+purpose = "Specifies backlight selection, PSR/VRR observability, DPST/ABM control, and DPMS sequencing for display power management (WP-N1a, WP-N2, WP-N5)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/display.rs",
+    "crates/optid/src/actuators/display.rs",
+    "packaging/modprobe/optid-i915.conf",
+    "packaging/modprobe/optid-amdgpu.conf",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/research/0018-telemetry-runtime-state-observability.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
