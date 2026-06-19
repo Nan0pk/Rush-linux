@@ -64,6 +64,16 @@ pub(crate) enum Action {
         policy: String,
         reason: String,
     },
+    /// WP-N7 display depth: reduce panel backlight to `target_pct` of
+    /// `max_brightness` on battery-idle. Allowlist-gated (domain `backlight`,
+    /// HWID resolved from the backing GPU), floor-clamped so the screen never
+    /// goes black, journaled, and reverted on stop. `device_dir` is a
+    /// `/sys/class/backlight/<name>` directory.
+    Backlight {
+        device_dir: PathBuf,
+        target_pct: u8,
+        reason: String,
+    },
 }
 
 impl Action {
@@ -166,6 +176,16 @@ impl Action {
                 format!(
                     "sata_alpm {} policy={policy} ({reason})",
                     host_dir.display()
+                )
+            }
+            Self::Backlight {
+                device_dir,
+                target_pct,
+                reason,
+            } => {
+                format!(
+                    "backlight {} target={target_pct}% ({reason})",
+                    device_dir.display()
                 )
             }
         }

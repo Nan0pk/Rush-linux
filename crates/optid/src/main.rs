@@ -38,7 +38,9 @@ use args::{
 };
 use contracts::Contracts;
 use dbus::OptidServer;
-use io_util::{append_log, revert_pm_qos, revert_runtime_pm, revert_storage, revert_sysctls};
+use io_util::{
+    append_log, revert_display, revert_pm_qos, revert_runtime_pm, revert_storage, revert_sysctls,
+};
 use policy::Policy;
 use sensors::Snapshot;
 use workload::{
@@ -91,6 +93,7 @@ fn run(args: Args) -> io::Result<()> {
     revert_pm_qos(&args.state_dir);
     revert_runtime_pm(&args.state_dir);
     revert_storage(&args.state_dir);
+    revert_display(&args.state_dir);
 
     let state_dir_clone = args.state_dir.clone();
     thread::spawn(move || {
@@ -226,6 +229,7 @@ fn run(args: Args) -> io::Result<()> {
     revert_pm_qos(&args.state_dir);
     revert_runtime_pm(&args.state_dir);
     revert_storage(&args.state_dir);
+    revert_display(&args.state_dir);
     let _ = lock_file;
 
     Ok(())

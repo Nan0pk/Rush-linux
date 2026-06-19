@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::action::Action;
-use crate::actuators::{runtime_pm, storage};
+use crate::actuators::{display, runtime_pm, storage};
 use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
@@ -86,6 +86,8 @@ pub(crate) struct Actuator {
     pub(crate) last_pcie_aspm: HashMap<PathBuf, bool>,
     /// WP-N6: last-applied SATA ALPM policy per scsi_host dir.
     pub(crate) last_sata_alpm: HashMap<PathBuf, String>,
+    /// WP-N7: last-applied raw backlight value per backlight device dir.
+    pub(crate) last_backlight: HashMap<PathBuf, u64>,
     /// WP-N4 hardware allowlist gate. `None` ⇒ gate disabled (the v0.x default):
     /// the actuator behaves exactly as before. `Some(_)` ⇒ depth-enabler writes
     /// are default-denied unless the device HWID is allowlisted, and every
@@ -107,6 +109,7 @@ impl Actuator {
             last_runtime_pm: HashMap::new(),
             last_pcie_aspm: HashMap::new(),
             last_sata_alpm: HashMap::new(),
+            last_backlight: HashMap::new(),
             allowlist: None,
         }
     }
@@ -125,6 +128,7 @@ impl Actuator {
             last_runtime_pm: HashMap::new(),
             last_pcie_aspm: HashMap::new(),
             last_sata_alpm: HashMap::new(),
+            last_backlight: HashMap::new(),
             allowlist: None,
         }
     }
@@ -627,6 +631,70 @@ impl Actuator {
                         self.log(&format!(
                             "skip sata_alpm {}: write failed: {e}",
                             host_dir.display()
+                        ))?;
+                    }
+                }
+            }
+            Action::Backlight {
+                device_dir,
+                target_pct,
+                reason,
+            } => {
+                // WP-N7 backlight, gated on the N4 allowlist (domain backlight,
+                // HWID from the backing GPU via ancestor-walk).
+                if !self.allowlist_permits(
+                    "backlight",
+                    hwid_from_ancestors(device_dir),
+                    0,
+                    device_dir,
+                )? {
+                    return Ok(());
+                }
+                let max = match display::read_max_brightness(device_dir) {
+                    Some(m) if m > 0 => m,
+                    _ => {
+                        self.log(&format!(
+                            "skip backlight {}: no usable max_brightness",
+                            device_dir.display()
+                        ))?;
+                        return Ok(());
+                    }
+                };
+                // Floor-clamped target — never black, never below the interactive floor.
+                let target = display::compute_target_brightness(max, *target_pct);
+                if self.last_backlight.get(device_dir) == Some(&target) {
+                    return Ok(());
+                }
+
+                let bright_path = device_dir.join("brightness");
+                let hash = get_path_hash(device_dir);
+                let orig_file = self.state_dir.join(format!("original_bl_{hash}"));
+                if !orig_file.exists() {
+                    let orig = fs::read_to_string(&bright_path)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_default();
+                    let _ = atomic_write_state_file(
+                        &orig_file,
+                        &format!("{}\n{orig}", device_dir.display()),
+                    );
+                }
+                let target_str = target.to_string();
+                let intended_file = self.state_dir.join(format!("intended_bl_{hash}"));
+                let _ = atomic_write_state_file(&intended_file, &target_str);
+
+                match guarded_write(&bright_path, &target_str) {
+                    Ok(_) => {
+                        self.last_backlight.insert(device_dir.clone(), target);
+                        self.log(&format!(
+                            "write {} brightness={target_str} (target {target_pct}% of {max}) reason: {reason}",
+                            bright_path.display()
+                        ))?;
+                    }
+                    Err(e) => {
+                        self.log(&format!(
+                            "skip backlight {}: write failed: {e}",
+                            device_dir.display()
                         ))?;
                     }
                 }

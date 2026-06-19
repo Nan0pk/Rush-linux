@@ -132,6 +132,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let decision_with = policy.decide(
             &snapshot_with_zram,
@@ -166,6 +167,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let decision_no = policy.decide(
             &snapshot_no_zram,
@@ -207,6 +209,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
 
@@ -228,6 +231,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
 
@@ -249,6 +253,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
 
@@ -273,6 +278,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
 
@@ -297,6 +303,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
     }
@@ -321,6 +328,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let (class, reason) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::LatencyCritical);
@@ -350,6 +358,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let decision = policy.decide_resolved(
             &snap,
@@ -386,6 +395,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let res1 = policy.classify(&snap);
         let res2 = policy.classify(&snap);
@@ -415,6 +425,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let (_, reason) = policy.classify(&snap);
         assert!(reason.contains("high load") && reason.contains("high pressure"));
@@ -440,6 +451,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let (class, _) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::Interactive);
@@ -465,6 +477,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -493,6 +506,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -538,6 +552,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         let decision = policy.decide(
@@ -579,6 +594,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         let decision = policy.decide(
@@ -623,6 +639,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Battery);
@@ -660,6 +677,7 @@ mod integration_tests {
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -1204,6 +1222,7 @@ device_resume_latency = 100000
             runtime_pm_device_paths: vec![PathBuf::from("/sys/bus/usb/devices/1-1")],
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         let has_rpm = |d: &crate::decision::Decision| {
@@ -1448,6 +1467,7 @@ device_resume_latency = 100000
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: vec![PathBuf::from("/sys/bus/pci/devices/0000:01:00.0")],
             sata_alpm_host_paths: vec![PathBuf::from("/sys/class/scsi_host/host0")],
+            selected_backlight: None,
         };
         let has_storage = |d: &crate::decision::Decision| {
             d.actions.iter().any(|a| {
@@ -1475,6 +1495,176 @@ device_resume_latency = 100000
             &Contracts::default(),
         );
         assert!(!has_storage(&ac), "on AC should not nominate storage PM");
+    }
+
+    // ── WP-N7: backlight depth ───────────────────────────────────────────────
+
+    #[test]
+    fn test_n7_backlight_allows_floor_clamps_and_reverts() {
+        let temp = std::env::temp_dir().join(format!("optid_n7_bl_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v00008086p00009A49sv000017AAsd000022C0bc03sc00i00";
+        // backlight class dir with a sibling `device` holding the GPU modalias,
+        // arranged so an ancestor-walk from the backlight dir finds it.
+        let gpu = temp.join("0000:00:02.0");
+        let bl = gpu.join("backlight").join("intel_backlight");
+        fs::create_dir_all(&bl).unwrap();
+        fs::write(gpu.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(bl.join("max_brightness"), "1000\n").unwrap();
+        fs::write(bl.join("brightness"), "900\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n7 test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        // 40% of 1000 = 400.
+        actuator
+            .apply(&Action::Backlight {
+                device_dir: bl.clone(),
+                target_pct: 40,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(bl.join("brightness")).unwrap().trim(),
+            "400"
+        );
+        let hash = get_path_hash(&bl);
+        assert!(temp.join(format!("original_bl_{hash}")).exists());
+
+        crate::io_util::revert_display(&temp);
+        assert_eq!(
+            fs::read_to_string(bl.join("brightness")).unwrap().trim(),
+            "900"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n7_backlight_never_goes_black() {
+        // An aggressive 0% request is floored to MIN_FLOOR_PCT (10%) -> 100.
+        let temp = std::env::temp_dir().join(format!("optid_n7_floor_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v00008086p00009A49sv000017AAsd000022C0bc03sc00i00";
+        let gpu = temp.join("0000:00:02.0");
+        let bl = gpu.join("backlight").join("intel_backlight");
+        fs::create_dir_all(&bl).unwrap();
+        fs::write(gpu.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(bl.join("max_brightness"), "1000\n").unwrap();
+        fs::write(bl.join("brightness"), "800\n").unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"floor\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+        actuator
+            .apply(&Action::Backlight {
+                device_dir: bl.clone(),
+                target_pct: 0,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(bl.join("brightness")).unwrap().trim(),
+            "100",
+            "must clamp to the 10% floor, never black"
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n7_backlight_default_deny_audits() {
+        let temp = std::env::temp_dir().join(format!("optid_n7_deny_{}", std::process::id()));
+        fs::create_dir_all(&temp).unwrap();
+        let gpu = temp.join("0000:00:02.0");
+        let bl = gpu.join("backlight").join("intel_backlight");
+        fs::create_dir_all(&bl).unwrap();
+        fs::write(gpu.join("modalias"), "pci:vFFFFpFFFFbc03sc00i00\n").unwrap();
+        fs::write(bl.join("max_brightness"), "1000\n").unwrap();
+        fs::write(bl.join("brightness"), "900\n").unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+        actuator
+            .apply(&Action::Backlight {
+                device_dir: bl.clone(),
+                target_pct: 40,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        // Denied: brightness untouched, denial audited.
+        assert_eq!(
+            fs::read_to_string(bl.join("brightness")).unwrap().trim(),
+            "900"
+        );
+        let audit = fs::read_to_string(temp.join("audit.jsonl")).unwrap();
+        assert!(audit.contains("\"domain\":\"backlight\""), "{audit}");
+        assert!(audit.contains("hwid_not_in_allowlist"), "{audit}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n7_policy_emits_backlight_only_on_battery_idle() {
+        let policy = Policy::default();
+        let make = |on_ac: Option<bool>| Snapshot {
+            timestamp: 0,
+            on_ac,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
+            selected_backlight: Some(PathBuf::from("/sys/class/backlight/intel_backlight")),
+        };
+        let has_bl = |d: &crate::decision::Decision| {
+            d.actions
+                .iter()
+                .any(|a| matches!(a, Action::Backlight { .. }))
+        };
+
+        let battery = policy.decide(
+            &make(Some(false)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(has_bl(&battery), "battery+idle should nominate backlight");
+
+        let ac = policy.decide(
+            &make(Some(true)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(!has_bl(&ac), "on AC should not nominate backlight");
     }
 
     #[test]
@@ -1588,6 +1778,7 @@ device_resume_latency = 100000
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
         let contracts = Contracts::default();
         let decision = policy.decide(
@@ -1670,6 +1861,7 @@ device_resume_latency = 100000
             runtime_pm_device_paths: Vec::new(),
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
         };
 
         let policy = Policy::default();

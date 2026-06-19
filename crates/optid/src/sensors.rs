@@ -52,6 +52,9 @@ pub(crate) struct Snapshot {
     /// SCSI host directories that expose `link_power_management_policy` — WP-N6
     /// SATA ALPM candidates. Allowlist-gated (domain `sata_alpm`).
     pub(crate) sata_alpm_host_paths: Vec<PathBuf>,
+    /// The active backlight device dir (`/sys/class/backlight/<name>`) selected
+    /// by the §1.1 heuristic — WP-N7. `None` when no backlight is present.
+    pub(crate) selected_backlight: Option<PathBuf>,
 }
 
 impl Snapshot {
@@ -73,6 +76,9 @@ impl Snapshot {
             runtime_pm_device_paths: discover_runtime_pm_device_paths(),
             pcie_aspm_device_paths: discover_pcie_aspm_device_paths(),
             sata_alpm_host_paths: discover_sata_alpm_host_paths(),
+            selected_backlight: crate::actuators::display::select_backlight(
+                &discover_backlight_devices(),
+            ),
         }
     }
 
@@ -175,6 +181,23 @@ pub(crate) fn discover_sata_alpm_host_paths() -> Vec<PathBuf> {
         let host = entry.path();
         if host.join("link_power_management_policy").exists() {
             paths.push(host);
+        }
+    }
+    paths
+}
+
+/// Enumerate backlight device directories under `/sys/class/backlight/` —
+/// WP-N7 candidates. Selection among them is `display::select_backlight`.
+pub(crate) fn discover_backlight_devices() -> Vec<PathBuf> {
+    let base = Path::new("/sys/class/backlight");
+    let mut paths = Vec::new();
+    let Ok(entries) = fs::read_dir(base) else {
+        return paths;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let dev = entry.path();
+        if dev.join("brightness").exists() {
+            paths.push(dev);
         }
     }
     paths

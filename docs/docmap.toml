@@ -577,3 +577,25 @@ freshens = [
 ]
 last_verified = "2026-06-19"
 validator = "status_match:WIP"
+
+[docs."docs/research/0007-display-panel-backlight-psr-vrr-dpms.md"]
+purpose = "Specifies backlight selection/dimming, PSR/VRR observability, DPST/ABM, and DPMS sequencing for display power management (WP-N7 panel side)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/display.rs",
+    "crates/optid/src/sensors.rs",
+    "crates/optid/src/actuator.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

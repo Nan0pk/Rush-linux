@@ -425,10 +425,17 @@ add `pwm_low_freq=true` to allowlist entry and document the brightness floor.
 ## 7. Next Steps
 
 ### Immediate (no hardware needed)
-- [ ] Draft `org.rush.Optid.DisplayHint` D-Bus interface XML
-- [ ] Add `crates/optid-session-bridges/src/display.rs` skeleton
-- [ ] Implement backlight device selection heuristic (§1.1)
-- [ ] Implement `crates/optid/src/display.rs` policy module skeleton
+- [x] Implement the backlight depth actuator (WP-N7 focused core): `Action::Backlight` in the
+  `actuator.rs` single write funnel, with `crates/optid/src/actuators/display.rs` holding the
+  §1.1 device-selection heuristic and the floor-clamp (`compute_target_brightness`). Discovery
+  + selection live in `sensors.rs` (`discover_backlight_devices` → `select_backlight`). Gated on
+  the N4 allowlist (`domain = "backlight"`, HWID resolved from the backing GPU by ancestor-walk),
+  floor-clamped so the panel never goes black (the "fixed interactive floor"), journaled, and
+  reverted on stop (`io_util::revert_display`). Policy nominates on **battery + idle**. — **landed**
+  - **Deferred (tracked; need a compositor bridge and/or §4 hardware):** the
+    `org.rush.Optid.DisplayHint` D-Bus interface and the `optid-session-bridges` user service
+    (Decision 1), PSR observability, VRR/DPMS/ABM/DPST hints, ALS floor cooperation, and
+    per-HWID PWM-flicker floors. optid does not enable/disable PSR or call KMS ioctls (§5).
 
 ### Short-term (needs hardware)
 - [ ] Run §4.1 PSR2 wake latency on T14 Gen 4

@@ -175,3 +175,18 @@ tested_on = "Intel Sunrise Point-LP AHCI (SSD, community reports)"
 reason = "med_power_with_dipm safe for flash storage; no head-park risk"
 added_in = "v0.4.0-alpha.1"
 verified = false
+
+# ── Display backlight (WP-N7) ────────────────────────────────────────────────
+# domain = "backlight" gates panel `brightness` dimming. HWID is the backing GPU
+# modalias (resolved by ancestor-walk from the backlight device). The actuator
+# floor-clamps so the screen never goes black; per-HWID PWM-flicker floors are a
+# future allowlist field (0007 §1.3). verified=false pending 0007 §4 measurement.
+
+[[entry]]
+domain = "backlight"
+hwid = "pci:v00008086p00009A49sv000017AAsd000022C0bc03sc00i00"
+action = "allow"
+tested_on = "Intel Iris Xe (Tiger Lake) intel_backlight (community reports)"
+reason = "DC-dimming panel; safe to dim toward the interactive floor on battery-idle"
+added_in = "v0.4.0-alpha.1"
+verified = false

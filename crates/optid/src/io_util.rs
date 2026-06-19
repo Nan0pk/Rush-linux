@@ -67,6 +67,20 @@ pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
         (parent_is_link && name == Some("l1_aspm")) || name == Some("link_power_management_policy")
     }
 
+    // WP-N7 backlight: `…/backlight/<name>/brightness`. The file must be named
+    // `brightness` and its grandparent directory must be `backlight`, so it can
+    // never match an unrelated `brightness` file elsewhere in sysfs. Additional
+    // ADR-0009 write-allowlist entry; existing entries are untouched.
+    fn is_backlight_attr(path: &Path) -> bool {
+        path.file_name().and_then(|n| n.to_str()) == Some("brightness")
+            && path
+                .parent()
+                .and_then(|p| p.parent())
+                .and_then(|gp| gp.file_name())
+                .and_then(|n| n.to_str())
+                == Some("backlight")
+    }
+
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
@@ -75,9 +89,11 @@ pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
         || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
         || (path.starts_with("/sys/") && is_runtime_pm_attr(path))
         || (path.starts_with("/sys/") && is_storage_pm_attr(path))
+        || (path.starts_with("/sys/") && is_backlight_attr(path))
         || (cfg!(test) && is_pm_qos_resume_latency(path))
         || (cfg!(test) && is_runtime_pm_attr(path))
-        || (cfg!(test) && is_storage_pm_attr(path));
+        || (cfg!(test) && is_storage_pm_attr(path))
+        || (cfg!(test) && is_backlight_attr(path));
 
     if !allowed {
         return Err(io::Error::new(
@@ -251,6 +267,46 @@ pub(crate) fn revert_storage(state_dir: &Path) {
                 "intended_alpm_"
             };
             let _ = fs::remove_file(state_dir.join(format!("{intended_prefix}{hash}")));
+        }
+    }
+}
+
+/// WP-N7: restore panel backlight `brightness` to its journaled original on
+/// startup/shutdown. Each `original_bl_<hash>` file holds two lines: the
+/// backlight device directory and the original raw brightness value.
+pub(crate) fn revert_display(state_dir: &Path) {
+    let Ok(entries) = fs::read_dir(state_dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("original_bl_") {
+            continue;
+        }
+        let orig_path = entry.path();
+        if let Ok(content) = fs::read_to_string(&orig_path) {
+            let mut lines = content.lines();
+            if let (Some(dev_dir), Some(orig_val)) = (lines.next(), lines.next()) {
+                let target = Path::new(dev_dir).join("brightness");
+                if let Err(e) = guarded_write(&target, orig_val.trim()) {
+                    eprintln!(
+                        "optid: failed to revert backlight for {}: {e}",
+                        target.display()
+                    );
+                } else {
+                    println!(
+                        "optid: reverted backlight for {} to {}",
+                        target.display(),
+                        orig_val.trim()
+                    );
+                }
+            }
+        }
+        let _ = fs::remove_file(&orig_path);
+        let hash = name_str.strip_prefix("original_bl_").unwrap_or("");
+        if !hash.is_empty() {
+            let _ = fs::remove_file(state_dir.join(format!("intended_bl_{hash}")));
         }
     }
 }
