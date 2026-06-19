@@ -1,9 +1,11 @@
 [advisories]
 version = 2
+vulnerability = "warn"
 ignore = []
 
 [licenses]
 version = 2
+unlicensed = "warn"
 confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
