@@ -483,9 +483,17 @@ last_verified = "2026-06-14"
 purpose = "Living strategic why/where doc: origin arc, drift check, visibility, verdict + course-corrections; refreshed each reassessment cycle"
 owner_area = "area:project"
 covers_code = [".github/workflows/reassess.yml"]
-deps = ["docs/SPEC-northstar.md"]
+deps = ["docs/SPEC-northstar.md", "docs/strategy/strategic-plan-v1.2.md"]
 freshens = []
 last_verified = "2026-06-14"
+
+[docs."docs/strategy/strategic-plan-v1.2.md"]
+purpose = "Long-horizon consolidated strategic plan (v1.2): core plan, AI capability integration, AI Council governance transition, synchronization layer, revision history"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = ["docs/strategy/COMPASS.md"]
+last_verified = "2026-06-19"
 
 
 [docs."docs/research/0001-apple-power-stack-analysis.md"]
