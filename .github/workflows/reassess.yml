@@ -5,9 +5,10 @@ name: Strategic Reassessment
 #   CHANGE-BASED: every push to main, but only fires once >= N commits have
 #                 landed since the last reassessment (counter file below).
 #   MANUAL:       workflow_dispatch.
-# When it fires it opens (or comments on) a "Strategic Reassessment" issue from
-# .github/ISSUE_TEMPLATE/reassessment.md, pre-filled with API-collected metrics.
-# Judgment (COMPASS.md update + dated snapshot) is left to a human/agent.
+# When it fires, it auto-generates a dated snapshot skeleton in 
+# docs/strategy/reassessments/ pre-filled with API-collected metrics,
+# complying with ADR-0016 (no GitHub issues for strategic tasks).
+# Judgment (COMPASS.md update) is left to a human/agent via subsequent PR.
 
 on:
   schedule:
@@ -17,12 +18,10 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write # update the merge counter
-  issues: write # open/comment the reassessment issue
+  contents: write # update the merge counter and create reassessment markdown
 
 env:
   REASSESS_EVERY_N_MERGES: "10"
-  LABEL: "strategic-reassessment"
   COUNTER_FILE: ".github/reassess-counter.txt"
 
 jobs:
@@ -63,63 +62,84 @@ jobs:
           stars="$(gh api "repos/$repo" --jq .stargazers_count)"
           forks="$(gh api "repos/$repo" --jq .forks_count)"
           issues="$(gh api "repos/$repo" --jq .open_issues_count)"
+          open_prs="$(gh api "repos/$repo/pulls?state=open" --jq length 2>/dev/null || echo 0)"
           # Traffic endpoints need push access; degrade gracefully if denied.
           views="$(gh api "repos/$repo/traffic/views" --jq .count 2>/dev/null || echo n/a)"
           uviews="$(gh api "repos/$repo/traffic/views" --jq .uniques 2>/dev/null || echo n/a)"
           clones="$(gh api "repos/$repo/traffic/clones" --jq .count 2>/dev/null || echo n/a)"
+          
+          # Internal project velocity & specification metrics
+          adrs="$(ls docs/decisions/ 2>/dev/null | grep -c "\.md$" || echo 0)"
+          wip_research="$(grep -Rl 'Status: WIP' docs/research/ 2>/dev/null | wc -l || echo 0)"
+          validated_research="$(grep -Rl 'Status: Validated' docs/research/ 2>/dev/null | wc -l || echo 0)"
+
           {
-            echo "stars=$stars"; echo "forks=$forks"; echo "issues=$issues"
+            echo "stars=$stars"; echo "forks=$forks"; echo "issues=$issues"; echo "open_prs=$open_prs"
             echo "views=$views"; echo "uviews=$uviews"; echo "clones=$clones"
+            echo "adrs=$adrs"; echo "wip_research=$wip_research"; echo "validated_research=$validated_research"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Open or update reassessment issue
+      - name: Generate reassessment document
         if: steps.decide.outputs.fire == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           date_utc="$(date -u +%Y-%m-%d)"
-          title="Strategic Reassessment — ${date_utc}"
-          gh label create "$LABEL" --color 5319e7 \
-            --description "Periodic compass / drift check" 2>/dev/null || true
+          doc_path="docs/strategy/reassessments/${date_utc}.md"
+          
+          mkdir -p docs/strategy/reassessments/
+          
+          cat <<EOF > "$doc_path"
+# Strategic Reassessment — ${date_utc}
 
-          body="$(cat <<EOF
-          Automated strategic reassessment (trigger: \`${{ github.event_name }}\`, commits since last: ${{ steps.decide.outputs.commits_since }}).
+Automated strategic reassessment (trigger: \`${{ github.event_name }}\`, commits since last: ${{ steps.decide.outputs.commits_since }}).
 
-          ## Metrics (auto-collected)
-          - Stars: ${{ steps.metrics.outputs.stars }} · Forks: ${{ steps.metrics.outputs.forks }} · Open issues: ${{ steps.metrics.outputs.issues }}
-          - Traffic — views: ${{ steps.metrics.outputs.views }} (unique ${{ steps.metrics.outputs.uviews }}) · clones: ${{ steps.metrics.outputs.clones }}
-          - Commits to \`main\` since last reassessment: ${{ steps.decide.outputs.commits_since }}
+## Quantitative Metrics (Auto-collected)
+### Community & Traffic
+- **Stars:** ${{ steps.metrics.outputs.stars }} · **Forks:** ${{ steps.metrics.outputs.forks }}
+- **Traffic:** ${{ steps.metrics.outputs.views }} views (unique ${{ steps.metrics.outputs.uviews }}) · ${{ steps.metrics.outputs.clones }} clones
 
-          ## Checklist (answer the judgment parts)
-          - [ ] WHY still true? (SPEC-northstar objective unchanged; anti-pivot contract holds)
-          - [ ] New research / findings / what's been MISSED
-          - [ ] Product outlook — human-user view & AI-agent/contributor view
-          - [ ] Reach / visibility — README/landing quality, discoverability, rendered evidence
-          - [ ] Evidence gates (SPEC §6) — LATENCY / ENERGY status
-          - [ ] Verdict: on-track / drifting / pivot
-          - [ ] Course-corrections (1–3)
+### Project Velocity & Health
+- **Commits to \`main\` since last check:** ${{ steps.decide.outputs.commits_since }}
+- **Tracker:** ${{ steps.metrics.outputs.issues }} Open Issues · ${{ steps.metrics.outputs.open_prs }} Open PRs
+- **Architecture (ADRs):** ${{ steps.metrics.outputs.adrs }} active decisions
+- **Research Pipeline:** ${{ steps.metrics.outputs.wip_research }} WIP slots · ${{ steps.metrics.outputs.validated_research }} Validated slots
 
-          ## Output of this cycle
-          1. Update \`docs/strategy/COMPASS.md\`.
-          2. Add a dated snapshot \`docs/strategy/reassessments/${date_utc}.md\`.
-          3. Post the verdict + course-corrections as a comment here.
+---
 
-          _See \`docs/strategy/COMPASS.md\` for the living view._
-          EOF
-          )"
+## Qualitative Assessment (Judgment)
 
-          existing="$(gh issue list --label "$LABEL" --state open \
-            --json number --jq '.[0].number' 2>/dev/null || echo "")"
-          if [ -n "$existing" ]; then
-            echo "Updating existing reassessment issue #$existing"
-            gh issue comment "$existing" --body "$body"
-          else
-            echo "Creating new reassessment issue"
-            gh issue create --title "$title" --label "$LABEL" --body "$body"
-          fi
+### 1. North Star & Anti-Pivot Contract
+- [ ] **Objective:** Are we still exclusively minimizing avoidable platform energy subject to a per-workload-class responsiveness floor?
+- [ ] **Guardrails:** Are we honoring \`docs/non-goals.md\`? (e.g., No competing daemons, no black-box ML, deterministic policies only)
 
-      - name: Reset merge counter
+### 2. Implementation & Hardware Gates
+- [ ] **Hardware Allowlist Coverage:** Are our reference laptops (T14, XPS 13, Framework, Legion) fully mapped in \`docs/research/0006\` and unblocked?
+- [ ] **Telemetry Budget:** Is the observability layer (optid telemetry) strictly staying under the <0.1% CPU polling budget?
+- [ ] **Depth-Enablers (SPEC §4.3):** Are NVMe/dGPU/Display power states functioning without breaching latency floors?
+
+### 3. Pipeline & Blockers
+- [ ] **Research:** What is the most critical \`WIP\` research slot blocking runtime implementation right now?
+- [ ] **Security/Ops:** Is the reproducible-build (ADR-0012) and UKI-signing discipline being maintained?
+
+### 4. Verdict & Course Corrections
+- [ ] **Verdict:** [ On-track | Drifting | Pivot Required ]
+- [ ] **Course-corrections** (1–3 highly specific, actionable items):
+  1. 
+  2. 
+  3. 
+
+## Output of this cycle
+1. Update \`docs/strategy/COMPASS.md\` with any macro-shifts.
+2. Commit this file with judgments filled out.
+
+_See \`docs/strategy/COMPASS.md\` for the living view._
+EOF
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$doc_path"
+          
+      - name: Reset merge counter & commit
         if: steps.decide.outputs.fire == 'true'
         run: |
           set -euo pipefail
@@ -128,5 +148,5 @@ jobs:
           git rev-parse HEAD > "$COUNTER_FILE"
           git add "$COUNTER_FILE"
           # [skip ci] prevents this bookkeeping push from re-triggering the workflow.
-          git commit -m "chore(reassess): reset merge counter after reassessment [skip ci]" || exit 0
+          git commit -m "docs(strategy): auto-generate reassessment for \$(date -u +%Y-%m-%d) [skip ci]" || exit 0
           git push || echo "counter push skipped (branch protection?) — non-fatal"
