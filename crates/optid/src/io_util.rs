@@ -38,13 +38,30 @@ pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
                 == Some("power")
     }
 
+    // WP-N5 runtime-PM attributes: `…/power/control` and
+    // `…/power/autosuspend_delay_ms`. Same structural check as above — the file
+    // must be a direct child of a `power` directory, matched via file_name()
+    // (never a substring of some other path). These are additional ADR-0009
+    // write-allowlist entries; they do not relax any existing entry.
+    fn is_runtime_pm_attr(path: &Path) -> bool {
+        let name = path.file_name().and_then(|n| n.to_str());
+        let parent_is_power = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            == Some("power");
+        parent_is_power && matches!(name, Some("control") | Some("autosuspend_delay_ms"))
+    }
+
     let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
         || path.starts_with("/sys/devices/system/cpu/")
         || path == Path::new("/proc/sys/vm/swappiness")
         || path == Path::new("/proc/sys/vm/dirty_background_bytes")
         || path == Path::new("/proc/sys/vm/dirty_bytes")
         || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
-        || (cfg!(test) && is_pm_qos_resume_latency(path));
+        || (path.starts_with("/sys/") && is_runtime_pm_attr(path))
+        || (cfg!(test) && is_pm_qos_resume_latency(path))
+        || (cfg!(test) && is_runtime_pm_attr(path));
 
     if !allowed {
         return Err(io::Error::new(
@@ -114,6 +131,57 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
                 let intended_path = state_dir.join(format!("intended_dev_{hash}"));
                 let _ = fs::remove_file(intended_path);
             }
+        }
+    }
+}
+
+/// WP-N5: restore runtime-PM `power/control` and `power/autosuspend_delay_ms`
+/// to their journaled originals on startup/shutdown. Mirrors `revert_pm_qos`.
+///
+/// Each `original_rpm_<hash>` file holds three lines: the device directory, the
+/// original `control` value, and the original `autosuspend_delay_ms` value (or
+/// the literal `n/a` when the device had no `autosuspend_delay_ms` attribute).
+pub(crate) fn revert_runtime_pm(state_dir: &Path) {
+    let Ok(entries) = fs::read_dir(state_dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("original_rpm_") {
+            continue;
+        }
+        let orig_path = entry.path();
+        if let Ok(content) = fs::read_to_string(&orig_path) {
+            let mut lines = content.lines();
+            if let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) {
+                let dev_dir = Path::new(dev_dir);
+                let control_path = dev_dir.join("power").join("control");
+                if let Err(e) = guarded_write(&control_path, orig_control.trim()) {
+                    eprintln!(
+                        "optid: failed to revert runtime PM control for {}: {e}",
+                        dev_dir.display()
+                    );
+                } else {
+                    println!(
+                        "optid: reverted runtime PM control for {} to {}",
+                        dev_dir.display(),
+                        orig_control.trim()
+                    );
+                }
+                if let Some(orig_delay) = lines.next() {
+                    let orig_delay = orig_delay.trim();
+                    if orig_delay != "n/a" {
+                        let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
+                        let _ = guarded_write(&delay_path, orig_delay);
+                    }
+                }
+            }
+        }
+        let _ = fs::remove_file(&orig_path);
+        let hash = name_str.strip_prefix("original_rpm_").unwrap_or("");
+        if !hash.is_empty() {
+            let _ = fs::remove_file(state_dir.join(format!("intended_rpm_{hash}")));
         }
     }
 }

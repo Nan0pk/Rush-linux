@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::action::Action;
-use crate::allowlist::{hwid_from_attr_path, Allowlist, Verdict};
+use crate::actuators::runtime_pm;
+use crate::allowlist::{hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict};
 use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, guarded_write};
 use crate::sensors::{discover_cpu_epp_paths, now_unix};
 
@@ -76,6 +77,9 @@ pub(crate) struct Actuator {
     pub(crate) pmqos_sink: Box<dyn PmqosSink>,
     pub(crate) last_cpu_latency: Option<Option<i32>>,
     pub(crate) last_device_latencies: HashMap<PathBuf, Option<i32>>,
+    /// WP-N5: last-applied autosuspend delay per device dir, to skip redundant
+    /// re-writes (and journal churn) within a session.
+    pub(crate) last_runtime_pm: HashMap<PathBuf, i32>,
     /// WP-N4 hardware allowlist gate. `None` ⇒ gate disabled (the v0.x default):
     /// the actuator behaves exactly as before. `Some(_)` ⇒ depth-enabler writes
     /// are default-denied unless the device HWID is allowlisted, and every
@@ -94,6 +98,7 @@ impl Actuator {
             pmqos_sink: Box::new(RealPmqosSink::new()),
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
+            last_runtime_pm: HashMap::new(),
             allowlist: None,
         }
     }
@@ -109,6 +114,7 @@ impl Actuator {
             pmqos_sink: sink,
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
+            last_runtime_pm: HashMap::new(),
             allowlist: None,
         }
     }
@@ -120,15 +126,18 @@ impl Actuator {
     }
 
     /// The WP-N4 safety gate (SPEC §3 clause 2). Returns `true` when actuation
-    /// on `attr_path` for `domain` is permitted. When the gate is disabled this
-    /// is a no-op that returns `true`. On denial it appends an audit record and
-    /// a human-readable line to the action log, then returns `false` so the
+    /// for `domain` on the device identified by `hwid` is permitted. `hwid` is
+    /// resolved by the caller (`None` ⇒ unresolved modalias ⇒ default-deny);
+    /// `context_path` is only used for the human-readable log line. When the
+    /// gate is disabled this is a no-op that returns `true`. On denial it
+    /// appends an audit record and a log line, then returns `false` so the
     /// caller skips the write — default-deny, denial logged with reason.
     fn allowlist_permits(
         &mut self,
         domain: &str,
-        attr_path: &Path,
+        hwid: Option<String>,
         requested_state: u32,
+        context_path: &Path,
     ) -> io::Result<bool> {
         // Resolve the verdict while only borrowing the allowlist, so the
         // subsequent &mut self logging calls don't conflict with the borrow.
@@ -136,7 +145,7 @@ impl Actuator {
             None => None,
             Some(al) => {
                 let version = al.version().to_string();
-                match hwid_from_attr_path(attr_path) {
+                match hwid {
                     Some(hwid) => {
                         let verdict = al.check(domain, &hwid, requested_state);
                         Some((hwid, verdict, version))
@@ -163,7 +172,7 @@ impl Actuator {
         self.audit_denied(&hwid, domain, requested_state, &reason, &version)?;
         self.log(&format!(
             "deny {domain} on {} ({hwid}): {reason}",
-            attr_path.display()
+            context_path.display()
         ))?;
         Ok(false)
     }
@@ -360,7 +369,7 @@ impl Actuator {
                 // before any write. Default-deny when the gate is enabled and
                 // the HWID is unknown; skip (no write) on denial. Disabled by
                 // default, in which case this is a no-op.
-                if !self.allowlist_permits("runtime_pm", path, 0)? {
+                if !self.allowlist_permits("runtime_pm", hwid_from_attr_path(path), 0, path)? {
                     return Ok(());
                 }
                 let should_apply = match self.last_device_latencies.get(path) {
@@ -409,6 +418,94 @@ impl Actuator {
                                 path.display()
                             ))?;
                         }
+                    }
+                }
+            }
+            Action::RuntimePm {
+                device_dir,
+                autosuspend_delay_ms,
+                reason,
+            } => {
+                // WP-N5 safety gate: enabling autosuspend is a depth-enabler, so
+                // it must clear the N4 allowlist (domain runtime_pm). Default-deny
+                // + skip when the HWID is unknown. No-op when the gate is off.
+                if !self.allowlist_permits(
+                    "runtime_pm",
+                    hwid_from_device_dir(device_dir),
+                    0,
+                    device_dir,
+                )? {
+                    return Ok(());
+                }
+
+                // §1.6: never autosuspend a network device whose link is up — it
+                // would silently drop packets. Re-checked every cycle.
+                if runtime_pm::network_carrier_up(device_dir) {
+                    self.log(&format!(
+                        "skip runtime_pm {}: network carrier up",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
+
+                // §1.3: warn (do not modify) when autosuspending an input device
+                // whose wakeup is disabled. optid never writes power/wakeup.
+                if let Some(warning) = runtime_pm::wakeup_warning(device_dir) {
+                    self.log(&format!("warn runtime_pm: {warning}"))?;
+                }
+
+                // Idempotence: skip redundant re-writes within the session.
+                if self.last_runtime_pm.get(device_dir) == Some(autosuspend_delay_ms) {
+                    return Ok(());
+                }
+
+                let control_path = device_dir.join("power").join("control");
+                let delay_path = device_dir.join("power").join("autosuspend_delay_ms");
+                let delay_str = autosuspend_delay_ms.to_string();
+
+                // Journal originals once (device dir + control + delay) so
+                // revert_runtime_pm can restore them on stop.
+                let hash = get_path_hash(device_dir);
+                let orig_file = self.state_dir.join(format!("original_rpm_{hash}"));
+                if !orig_file.exists() {
+                    let orig_control = fs::read_to_string(&control_path)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_else(|| "on".to_string());
+                    let orig_delay = fs::read_to_string(&delay_path)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_else(|| "n/a".to_string());
+                    let content = format!("{}\n{orig_control}\n{orig_delay}", device_dir.display());
+                    let _ = atomic_write_state_file(&orig_file, &content);
+                }
+                let intended_file = self.state_dir.join(format!("intended_rpm_{hash}"));
+                let _ = atomic_write_state_file(&intended_file, &format!("auto\n{delay_str}"));
+
+                // Set the delay first (harmless while control is still "on"),
+                // then enable autosuspend. Soft-fail each write independently.
+                if delay_path.exists() {
+                    if let Err(e) = guarded_write(&delay_path, &delay_str) {
+                        self.log(&format!(
+                            "skip runtime_pm delay {}: write failed: {e}",
+                            device_dir.display()
+                        ))?;
+                    }
+                }
+                match guarded_write(&control_path, "auto") {
+                    Ok(_) => {
+                        self.last_runtime_pm
+                            .insert(device_dir.clone(), *autosuspend_delay_ms);
+                        self.log(&format!(
+                            "write {} control=auto autosuspend_delay_ms={delay_str} reason: {reason}",
+                            device_dir.display()
+                        ))?;
+                    }
+                    Err(e) => {
+                        self.log(&format!(
+                            "skip runtime_pm {}: control write failed: {e}",
+                            device_dir.display()
+                        ))?;
                     }
                 }
             }

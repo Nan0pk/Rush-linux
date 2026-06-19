@@ -19,6 +19,7 @@ use zbus::blocking::ConnectionBuilder;
 
 mod action;
 mod actuator;
+mod actuators;
 mod allowlist;
 mod args;
 mod contracts;
@@ -37,7 +38,7 @@ use args::{
 };
 use contracts::Contracts;
 use dbus::OptidServer;
-use io_util::{append_log, revert_pm_qos, revert_sysctls};
+use io_util::{append_log, revert_pm_qos, revert_runtime_pm, revert_sysctls};
 use policy::Policy;
 use sensors::Snapshot;
 use workload::{
@@ -88,6 +89,7 @@ fn run(args: Args) -> io::Result<()> {
     // Revert sysctls on startup to clean up any left-over state
     revert_sysctls(&args.state_dir);
     revert_pm_qos(&args.state_dir);
+    revert_runtime_pm(&args.state_dir);
 
     let state_dir_clone = args.state_dir.clone();
     thread::spawn(move || {
@@ -221,6 +223,7 @@ fn run(args: Args) -> io::Result<()> {
     // Also revert sysctls on clean exit
     revert_sysctls(&args.state_dir);
     revert_pm_qos(&args.state_dir);
+    revert_runtime_pm(&args.state_dir);
     let _ = lock_file;
 
     Ok(())

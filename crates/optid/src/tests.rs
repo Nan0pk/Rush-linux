@@ -129,6 +129,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let decision_with = policy.decide(
             &snapshot_with_zram,
@@ -160,6 +161,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let decision_no = policy.decide(
             &snapshot_no_zram,
@@ -198,6 +200,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
 
@@ -216,6 +219,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
 
@@ -234,6 +238,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
 
@@ -255,6 +260,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
 
@@ -276,6 +282,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
     }
@@ -297,6 +304,7 @@ mod integration_tests {
             pinned_class: Some(WorkloadClass::LatencyCritical),
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let (class, reason) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::LatencyCritical);
@@ -323,6 +331,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let decision = policy.decide_resolved(
             &snap,
@@ -356,6 +365,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let res1 = policy.classify(&snap);
         let res2 = policy.classify(&snap);
@@ -382,6 +392,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let (_, reason) = policy.classify(&snap);
         assert!(reason.contains("high load") && reason.contains("high pressure"));
@@ -404,6 +415,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let (class, _) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::Interactive);
@@ -426,6 +438,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -451,6 +464,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -493,6 +507,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         let decision = policy.decide(
@@ -531,6 +546,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         let decision = policy.decide(
@@ -572,6 +588,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Battery);
@@ -606,6 +623,7 @@ mod integration_tests {
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -971,6 +989,225 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
+    // ── WP-N5: runtime-PM autosuspend actuator ──────────────────────────────
+
+    /// Build a synthetic sysfs device dir with a modalias and power/control.
+    fn n5_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
+        let dev = temp.join(name);
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "-1\n").unwrap();
+        dev
+    }
+
+    #[test]
+    fn test_n5_runtime_pm_allows_journals_and_reverts() {
+        let temp = std::env::temp_dir().join(format!("optid_n5_allow_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = n5_device(&temp, "1-1", modalias);
+        let power = dev.join("power");
+        fs::write(power.join("wakeup"), "enabled\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        let action = Action::RuntimePm {
+            device_dir: dev.clone(),
+            autosuspend_delay_ms: 2000,
+            reason: "test".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        // Enabled: control=auto, delay applied.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+        // Wakeup is never touched.
+        assert_eq!(
+            fs::read_to_string(power.join("wakeup")).unwrap().trim(),
+            "enabled"
+        );
+        // Original journaled for revert.
+        let hash = get_path_hash(&dev);
+        let orig = temp.join(format!("original_rpm_{hash}"));
+        assert!(orig.exists());
+
+        // Revert on stop restores control + delay and clears the journal.
+        crate::io_util::revert_runtime_pm(&temp);
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "-1"
+        );
+        assert!(!orig.exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n5_runtime_pm_default_deny_skips_and_audits() {
+        let temp = std::env::temp_dir().join(format!("optid_n5_deny_{}", std::process::id()));
+        fs::create_dir_all(&temp).unwrap();
+        // A modalias not present in the seeded baseline for runtime_pm.
+        let dev = n5_device(&temp, "2-1", "usb:vFFFFpFFFFd0001dc00ic03");
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        // Default-deny: control left untouched, nothing journaled.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        // Denial audited with reason + domain.
+        let audit = fs::read_to_string(temp.join("audit.jsonl")).unwrap();
+        assert!(audit.contains("\"event\":\"actuation_denied\""), "{audit}");
+        assert!(audit.contains("\"domain\":\"runtime_pm\""), "{audit}");
+        assert!(audit.contains("hwid_not_in_allowlist"), "{audit}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n5_runtime_pm_skips_network_carrier_up() {
+        let temp = std::env::temp_dir().join(format!("optid_n5_carrier_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v00008086p000015F2sv00008086sd00000000bc02sc00i00";
+        let dev = n5_device(&temp, "0000:00:1f.6", modalias);
+        let power = dev.join("power");
+        // Active network link behind this device.
+        let iface = dev.join("net").join("enp0s31f6");
+        fs::create_dir_all(&iface).unwrap();
+        fs::write(iface.join("carrier"), "1\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 carrier test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        // Allowlisted, but skipped because the link is up — control untouched.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(actions.contains("network carrier up"), "{actions}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n5_policy_emits_runtime_pm_only_on_battery_idle() {
+        let policy = Policy::default();
+        let make = |on_ac: Option<bool>| Snapshot {
+            timestamp: 0,
+            on_ac,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: vec![PathBuf::from("/sys/bus/usb/devices/1-1")],
+        };
+
+        let has_rpm = |d: &crate::decision::Decision| {
+            d.actions
+                .iter()
+                .any(|a| matches!(a, Action::RuntimePm { .. }))
+        };
+
+        // Battery + idle -> RuntimePm nominated.
+        let on_battery = policy.decide(
+            &make(Some(false)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(
+            has_rpm(&on_battery),
+            "battery+idle should nominate runtime PM"
+        );
+
+        // On AC -> no RuntimePm.
+        let on_ac = policy.decide(
+            &make(Some(true)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(!has_rpm(&on_ac), "on AC should not nominate runtime PM");
+
+        // Battery but non-idle -> no RuntimePm.
+        let busy = policy.decide(
+            &make(Some(false)),
+            Mode::Balanced,
+            WorkloadClass::Interactive,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(!has_rpm(&busy), "non-idle should not nominate runtime PM");
+    }
+
     #[test]
     fn test_n2_t5_fd_release() {
         let temp_dir =
@@ -1079,6 +1316,7 @@ device_resume_latency = 100000
             pinned_class: None,
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
         let contracts = Contracts::default();
         let decision = policy.decide(
@@ -1158,6 +1396,7 @@ device_resume_latency = 100000
             pinned_class: None,
             global_pinned_class: None, // missing pin yields non-None pinned_class should be false
             pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
         };
 
         let policy = Policy::default();
