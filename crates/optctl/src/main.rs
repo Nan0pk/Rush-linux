@@ -3,11 +3,11 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use zbus::blocking::Connection;
-use zbus::dbus_proxy;
+use zbus::proxy;
 
 mod allow;
 
-#[dbus_proxy(
+#[proxy(
     interface = "io.rushlinux.Optid1",
     default_service = "io.rushlinux.Optid",
     default_path = "/io/rushlinux/Optid"
@@ -17,9 +17,9 @@ trait Optid {
     fn explain(&self) -> zbus::Result<String>;
     fn set_mode(&self, mode: &str) -> zbus::Result<()>;
     fn pin_application(&self, app_id: &str, class: &str) -> zbus::Result<()>;
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn mode(&self) -> zbus::Result<String>;
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn version(&self) -> zbus::Result<String>;
 }
 
