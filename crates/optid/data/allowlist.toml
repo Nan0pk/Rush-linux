@@ -141,3 +141,37 @@ tested_on = "Microsoft USB keyboard (community reports)"
 reason = "USB HID keyboard; wakeup preserved; safe to autosuspend when idle"
 added_in = "v0.4.0-alpha.1"
 verified = false
+
+# ── PCIe ASPM / SATA ALPM (WP-N6) ────────────────────────────────────────────
+# domain = "pci_aspm" gates per-device `link/l1_aspm`; domain = "sata_alpm" gates
+# a scsi_host's `link_power_management_policy` (HWID resolved from the backing
+# PCI controller). Known-broken L1.2 devices are DENY entries reinforcing
+# default-deny; safe devices need explicit ALLOW entries (exact-modalias match,
+# per 0006 §1.1). Entries below are verified=false pending the 0008 §4 experiments.
+
+[[entry]]
+domain = "pci_aspm"
+hwid = "pci:v000010ECp00008125sv000010ECsd00008125bc02sc00i00"
+action = "deny"
+tested_on = "Realtek RTL8125B 2.5GbE (kernel bugzilla #215968)"
+reason = "L1.2 causes PCIe link-down on wake on some Ryzen laptops; not fixed as of 6.8"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "pci_aspm"
+hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02"
+action = "allow"
+tested_on = "Samsung PM9A1 NVMe (community reports)"
+reason = "L1/L1.1 ASPM stable on this controller; broadly safe link PM"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "sata_alpm"
+hwid = "pci:v00008086p00009D03sv000017AAsd0000222Ebc01sc06i01"
+action = "allow"
+tested_on = "Intel Sunrise Point-LP AHCI (SSD, community reports)"
+reason = "med_power_with_dipm safe for flash storage; no head-park risk"
+added_in = "v0.4.0-alpha.1"
+verified = false

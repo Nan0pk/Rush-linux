@@ -6,3 +6,4 @@
 //! here so it can be unit-tested without touching real sysfs.
 
 pub(crate) mod runtime_pm;
+pub(crate) mod storage;

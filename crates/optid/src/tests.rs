@@ -130,6 +130,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let decision_with = policy.decide(
             &snapshot_with_zram,
@@ -162,6 +164,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let decision_no = policy.decide(
             &snapshot_no_zram,
@@ -201,6 +205,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
 
@@ -220,6 +226,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
 
@@ -239,6 +247,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
 
@@ -261,6 +271,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
 
@@ -283,6 +295,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
     }
@@ -305,6 +319,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let (class, reason) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::LatencyCritical);
@@ -332,6 +348,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let decision = policy.decide_resolved(
             &snap,
@@ -366,6 +384,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let res1 = policy.classify(&snap);
         let res2 = policy.classify(&snap);
@@ -393,6 +413,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let (_, reason) = policy.classify(&snap);
         assert!(reason.contains("high load") && reason.contains("high pressure"));
@@ -416,6 +438,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let (class, _) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::Interactive);
@@ -439,6 +463,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -465,6 +491,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -508,6 +536,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         let decision = policy.decide(
@@ -547,6 +577,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         let decision = policy.decide(
@@ -589,6 +621,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Battery);
@@ -624,6 +658,8 @@ mod integration_tests {
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -1166,6 +1202,8 @@ device_resume_latency = 100000
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: vec![PathBuf::from("/sys/bus/usb/devices/1-1")],
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         let has_rpm = |d: &crate::decision::Decision| {
@@ -1206,6 +1244,237 @@ device_resume_latency = 100000
             &Contracts::default(),
         );
         assert!(!has_rpm(&busy), "non-idle should not nominate runtime PM");
+    }
+
+    // ── WP-N6: PCIe ASPM + SATA ALPM actuators ───────────────────────────────
+
+    #[test]
+    fn test_n6_pcie_aspm_allows_journals_and_reverts() {
+        let temp = std::env::temp_dir().join(format!("optid_n6_aspm_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
+        let dev = temp.join("0000:01:00.0");
+        let link = dev.join("link");
+        fs::create_dir_all(&link).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(dev.join("class"), "0x010802\n").unwrap(); // NVMe, not CNVi
+        fs::write(link.join("l1_aspm"), "0\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        actuator
+            .apply(&Action::PcieAspm {
+                device_dir: dev.clone(),
+                enable: true,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(link.join("l1_aspm")).unwrap().trim(),
+            "1"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(temp.join(format!("original_aspm_{hash}")).exists());
+
+        crate::io_util::revert_storage(&temp);
+        assert_eq!(
+            fs::read_to_string(link.join("l1_aspm")).unwrap().trim(),
+            "0"
+        );
+        assert!(!temp.join(format!("original_aspm_{hash}")).exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n6_pcie_aspm_default_deny_audits() {
+        let temp = std::env::temp_dir().join(format!("optid_n6_aspmdeny_{}", std::process::id()));
+        fs::create_dir_all(&temp).unwrap();
+        let dev = temp.join("0000:02:00.0");
+        let link = dev.join("link");
+        fs::create_dir_all(&link).unwrap();
+        fs::write(dev.join("modalias"), "pci:vFFFFpFFFFbc02sc00i00\n").unwrap();
+        fs::write(link.join("l1_aspm"), "0\n").unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+
+        actuator
+            .apply(&Action::PcieAspm {
+                device_dir: dev.clone(),
+                enable: true,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(link.join("l1_aspm")).unwrap().trim(),
+            "0",
+            "denied ASPM must not write"
+        );
+        let audit = fs::read_to_string(temp.join("audit.jsonl")).unwrap();
+        assert!(audit.contains("\"domain\":\"pci_aspm\""), "{audit}");
+        assert!(audit.contains("hwid_not_in_allowlist"), "{audit}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n6_pcie_aspm_skips_cnvi() {
+        let temp = std::env::temp_dir().join(format!("optid_n6_cnvi_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v00008086p0000A0F0sv00008086sd00000074bc02sc80i00";
+        let dev = temp.join("0000:00:14.3");
+        let link = dev.join("link");
+        fs::create_dir_all(&link).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(dev.join("class"), "0x028000\n").unwrap(); // CNVi
+        fs::write(link.join("l1_aspm"), "0\n").unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"cnvi\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        actuator
+            .apply(&Action::PcieAspm {
+                device_dir: dev.clone(),
+                enable: true,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        // Allowlisted but skipped as CNVi — l1_aspm untouched.
+        assert_eq!(
+            fs::read_to_string(link.join("l1_aspm")).unwrap().trim(),
+            "0"
+        );
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(actions.contains("CNVi"), "{actions}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n6_sata_alpm_allows_journals_and_reverts() {
+        let temp = std::env::temp_dir().join(format!("optid_n6_alpm_{}", std::process::id()));
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "pci:v00008086p00009D03sv000017AAsd0000222Ebc01sc06i01";
+        // Backing controller (has modalias) -> ata1 -> host0 (has the policy attr).
+        let controller = temp.join("0000:00:17.0");
+        let host = controller.join("ata1").join("host0");
+        fs::create_dir_all(&host).unwrap();
+        fs::write(controller.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(
+            host.join("link_power_management_policy"),
+            "max_performance\n",
+        )
+        .unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"sata_alpm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 sata\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        actuator
+            .apply(&Action::SataAlpm {
+                host_dir: host.clone(),
+                policy: crate::actuators::storage::DEFAULT_ALPM_POLICY.to_string(),
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(host.join("link_power_management_policy"))
+                .unwrap()
+                .trim(),
+            "med_power_with_dipm"
+        );
+        let hash = get_path_hash(&host);
+        assert!(temp.join(format!("original_alpm_{hash}")).exists());
+
+        crate::io_util::revert_storage(&temp);
+        assert_eq!(
+            fs::read_to_string(host.join("link_power_management_policy"))
+                .unwrap()
+                .trim(),
+            "max_performance"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_n6_policy_emits_storage_pm_only_on_battery_idle() {
+        let policy = Policy::default();
+        let make = |on_ac: Option<bool>| Snapshot {
+            timestamp: 0,
+            on_ac,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: vec![PathBuf::from("/sys/bus/pci/devices/0000:01:00.0")],
+            sata_alpm_host_paths: vec![PathBuf::from("/sys/class/scsi_host/host0")],
+        };
+        let has_storage = |d: &crate::decision::Decision| {
+            d.actions.iter().any(|a| {
+                matches!(a, Action::PcieAspm { .. }) || matches!(a, Action::SataAlpm { .. })
+            })
+        };
+
+        let battery = policy.decide(
+            &make(Some(false)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(
+            has_storage(&battery),
+            "battery+idle should nominate storage PM"
+        );
+
+        let ac = policy.decide(
+            &make(Some(true)),
+            Mode::Balanced,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+        );
+        assert!(!has_storage(&ac), "on AC should not nominate storage PM");
     }
 
     #[test]
@@ -1317,6 +1586,8 @@ device_resume_latency = 100000
             global_pinned_class: None,
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
         let contracts = Contracts::default();
         let decision = policy.decide(
@@ -1397,6 +1668,8 @@ device_resume_latency = 100000
             global_pinned_class: None, // missing pin yields non-None pinned_class should be false
             pm_qos_device_paths: Vec::new(),
             runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
         };
 
         let policy = Policy::default();

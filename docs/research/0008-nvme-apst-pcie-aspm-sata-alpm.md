@@ -316,11 +316,22 @@ the only way to distinguish safe from unsafe Samsung 970 EVO units].
 ## 7. Next Steps
 
 **Immediate**
-- Implement `crates/optid/src/sensors/storage.rs`: enumerate NVMe controllers and read
-  APST capability (`nvme id-ctrl`); enumerate PCIe devices and read ASPM capability
-  (`PCI_EXP_LNKCAP`); enumerate SATA hosts and read current ALPM policy.
-- Implement `crates/optid/src/actuators/storage.rs`: apply per-device ASPM, SATA ALPM,
-  NVMe runtime PM, all with journal write and exit-latency gate.
+- [x] Implement the storage link-PM actuators (WP-N6 focused core): `Action::PcieAspm`
+  (per-device `link/l1_aspm`) and `Action::SataAlpm` (`link_power_management_policy`) in the
+  `actuator.rs` single write funnel, with `crates/optid/src/actuators/storage.rs` holding the
+  CNVi-skip guard (§1.4) and the safe `med_power_with_dipm` default (§1.3). Discovery lives in
+  `sensors.rs` (`discover_pcie_aspm_device_paths` / `discover_sata_alpm_host_paths`). Both are
+  gated on the N4 allowlist (`pci_aspm` / `sata_alpm` — the SATA HWID is resolved from the
+  backing PCI controller by ancestor-walk), journal originals, and revert on stop
+  (`io_util::revert_storage`). Policy nominates on **battery + idle**. — **landed**
+- [x] **NVMe APST** is delivered via the WP-N5 `runtime_pm` actuator: per §1.1 / Decision A the
+  preferred path to drive an NVMe controller into deep non-operational states is runtime-PM
+  autosuspend on the controller device, which N5 already enables (allowlist-gated, reverting).
+  No separate APST knob is added here. — **covered by N5**
+  - **Deferred (tracked; several need §4 hardware):** reading `PCI_EXP_LNKCAP` / NVMe `EXLAT`
+    to enforce the exit-latency-vs-floor gate per device (the allowlist is the active safety
+    gate today), NVMe firmware-revision gating (Decision D), HDD `min_power` head-park
+    protection, and seeding verified per-model PS3/PS4 boundaries.
 
 **Short-term**
 - Seed allowlist with ≥ 5 NVMe models (Samsung PM9A1, WD SN850X, SK Hynix P41, Micron

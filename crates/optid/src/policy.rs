@@ -501,6 +501,30 @@ impl Policy {
                     ),
                 });
             }
+
+            // WP-N6 PCIe ASPM: enable L1 substates on battery-idle. Allowlist-gated
+            // (domain pci_aspm); CNVi devices are skipped in the actuator.
+            for device_dir in &snapshot.pcie_aspm_device_paths {
+                actions.push(Action::PcieAspm {
+                    device_dir: device_dir.clone(),
+                    enable: true,
+                    reason: format!(
+                        "battery-idle PCIe ASPM (class={workload_class}, allowlist-gated)"
+                    ),
+                });
+            }
+
+            // WP-N6 SATA ALPM: med_power_with_dipm on battery-idle. Allowlist-gated
+            // (domain sata_alpm via the host's backing PCI controller).
+            for host_dir in &snapshot.sata_alpm_host_paths {
+                actions.push(Action::SataAlpm {
+                    host_dir: host_dir.clone(),
+                    policy: crate::actuators::storage::DEFAULT_ALPM_POLICY.to_string(),
+                    reason: format!(
+                        "battery-idle SATA ALPM (class={workload_class}, allowlist-gated)"
+                    ),
+                });
+            }
         }
 
         if reasons.is_empty() {
