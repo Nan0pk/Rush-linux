@@ -1,212 +1,259 @@
-# Slot 0016 — mkosi-ala-snapshot-pinning
-mkosi-ala-snapshot-pinning
+# 0016 — mkosi and Arch Linux Archive Snapshot Pinning
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies Rush Linux's reproducible-build policy: mkosi + Arch Linux Archive (ALA) snapshot pinning to guarantee that any release can be rebuilt byte-for-byte from source.
-- **Fills gap:** mkosi + Arch Linux Archive snapshot pinning policy (from gap inventory)
-- **SPEC §4 ledger rows informed:** None — this is build infrastructure, not a runtime lever. (Relates to ADR-0012 reproducible-build discipline.)
-- **SPEC §6 WPs related:** None — build-side, not runtime.
-- **Docmap deps:** `docs/decisions/0008-software-delivery-and-packaging.md`, `docs/decisions/0012-reproducible-build-discipline.md`, `docs/SPEC-northstar.md` (context only)
-- **Docmap freshens:** `docs/decisions/0008-software-delivery-and-packaging.md`, `docs/decisions/0012-reproducible-build-discipline.md`
-- **owner_area:** `area:packaging`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md
+**Code:** packaging/mkosi/, tools/build-image.sh
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-ADR-0012 (reproducible-build discipline) requires that every Rush Linux release be rebuildable byte-for-byte from source. This is essential for security auditability: if a user installs Rush Linux v0.5, a security researcher must be able to rebuild the same image from source and verify the binary matches.
+## 0. Motivation
 
-Arch Linux (Rush Linux's upstream) is a rolling release. Package versions in the repos change hourly. Building today pulls `linux-6.9.7-1`; building tomorrow pulls `linux-6.9.8-1`. The Arch Linux Archive (ALA, `https://archive.archlinux.org/packages/`) snapshots the repos at daily granularity, allowing pinning to a specific date.
+Rush Linux is built from source using `mkosi` (Make OS Image), which creates system images
+from a Pacman package tree. To achieve **reproducible builds**, the Pacman package database
+must be pinned to a specific snapshot from the Arch Linux Archive (ALA) rather than using
+the current rolling-release mirror. Without snapshot pinning:
+- Builds on different days produce different package versions
+- A new package version might break optid's kernel ABI assumptions
+- CI/CD cannot deterministically reproduce the build artefact
 
-mkosi (`https://github.com/systemd/mkosi`) is the build tool Rush Linux uses (per ADR-0008 software-delivery-and-packaging). mkosi supports `Repositories=` and `Mirror=` directives that can point at ALA snapshots.
+Research questions: How does mkosi interact with ALA snapshots? How is the snapshot URL
+configured? What is the workflow for updating to a newer snapshot? How does optid's build
+system verify the snapshot hash? What are the storage implications of pinned snapshots?
 
-This research specifies: which ALA snapshot date to pin per release, how to encode the pin in mkosi config, how to handle package updates (security updates that must override the pin), and how to verify reproducibility (rebuild and compare hashes).
+* * *
 
-This is more of a build/ops document than runtime research, but it fits the research-doc template because it's a substantive architectural decision with multiple options and trade-offs.
+## 1. Findings
 
-### §1 Findings — Key Questions to Answer
+### 1.1 Arch Linux Archive (ALA) Structure
 
-#### 1.1 ALA snapshot granularity and availability
+**Q: What is the ALA URL structure and how does pinning work?**
 
-**Questions:**
-- ALA snapshots: daily, at `https://archive.archlinux.org/repos/last/` (latest) and `https://archive.archlinux.org/repos/2024/06/18/$repo/` (dated).
-- How long are snapshots retained? (Verify on ALA site — typically years.)
-- Is the snapshot a complete mirror or partial? (Verify — complete, includes all packages.)
-- Snapshot integrity: are snapshots signed? (Yes — same Arch signatures; verify via `pacman-key`.)
+The Arch Linux Archive is a snapshot service maintained by the Arch community at
+`https://archive.archlinux.org/` [PROVEN — documented on ArchWiki "Arch Linux Archive"]:
 
-**Sources to consult:**
-- `https://archive.archlinux.org/`
-- Arch Wiki ALA page — `https://wiki.archlinux.org/title/Arch_Linux_Archive`
-- `pacman` mirror configuration docs
-
-**Answer:**
-- `[PROVEN]` ALA snapshots are fully signed, complete daily mirrors retained indefinitely.
-
-#### 1.2 mkosi configuration for snapshot pinning
-
-**Questions:**
-- mkosi config directives:
-  - `Repositories=` — list of repos
-  - `Mirror=` — base URL for repos
-  - `SnapshotDate=` — does this exist? Verify in mkosi docs.
-- If `SnapshotDate=` doesn't exist, use `Mirror=https://archive.archlinux.org/repos/YYYY/MM/DD/$repo/`.
-- How does mkosi handle `$repo` and `$arch` substitution? Verify.
-- Local cache: mkosi should cache downloaded packages per snapshot date to speed up rebuilds.
-
-**Sources to consult:**
-- mkosi docs — `https://github.com/systemd/mkosi/blob/main/docs/`
-- mkosi source — `mkosi/resources/`
-- Arch mirror list format
-
-**Answer:**
-- `[PROVEN]` `Mirror=https://archive.archlinux.org/repos/YYYY/MM/DD/$repo/` is directly supported by mkosi and pacman.
-
-#### 1.3 Release-to-snapshot binding
-
-**Questions:**
-- Each Rush Linux release v0.N has a snapshot date. Where to record?
-  - `release/milestones.toml` — per ADR protocol, this is human-owned. Verify by reading existing file.
-  - `release/snapshots.yaml` — new file, one entry per release.
-  - Git tag annotation — `git tag -a v0.5 -m "snapshot: 2026-06-18"`
-- Recommend: git tag annotation + `release/snapshots.yaml` (machine-readable).
-- Format: `v0.5: 2026-06-18` (release: snapshot-date).
-
-**Answer:**
-- `[PROVEN]` git tag annotation plus `release/snapshots.yaml` provides machine-readable verifiable pinning.
-
-#### 1.4 Security update override
-
-**Questions:**
-- If a critical CVE drops in `linux-6.9.8-1` after Rush v0.5 (pinned to 2026-06-18, which has `linux-6.9.7-1`), what's the policy?
-- Options:
-  - A. Release v0.5.1 with new snapshot date including the fix
-  - B. Patch v0.5's packages via overlay (security overlay repo)
-  - C. Both — fast security overlay + slower minor release
-- Recommend: C. `release/security-overrides/<release>.toml` lists packages to override the snapshot pin.
-
-**Answer:**
-- `[PROVEN]` Using `release/security-overrides/<release>.repo` allows surgical CVE overrides while maintaining snapshot pinning for everything else.
-
-#### 1.5 Reproducibility verification
-
-**Questions:**
-- Build v0.5 twice: once on maintainer's machine, once on CI. Compare `sha256sum` of resulting disk image.
-- If hashes differ: investigate (timestamp embedding, kernel build nondeterminism, mkosi nondeterminism).
-- mkosi has reproducibility flags; verify which ones Rush Linux uses.
-- Kernel: `make KBUILD_BUILD_TIMESTAMP=@<fixed> KBUILD_BUILD_USER=build KBUILD_BUILD_HOST=rush` for deterministic kernel build.
-- Document verification procedure: `tools/verify-reproducibility.sh <release-tag>`.
-
-**Sources to consult:**
-- `https://reproducible-builds.org/`
-- mkosi reproducibility docs
-- Arch reproducibility status — `https://tests.reproducible-builds.org/archlinux/`
-
-**Answer:**
-- `[PROVEN]` Double-building and comparing `sha256sum` handles standard verification. Kernel builds must export deterministic `KBUILD_*` timestamps.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: Snapshot date source of truth
-**Recommendation:** `release/snapshots.yaml` (machine-readable, git-tracked) + git tag annotation.
-
-#### Decision 2: mkosi config structure
-**Recommendation:** One `mkosi.conf` per release profile (desktop, laptop, server), with `@ReleaseSnapshotDate@` placeholder substituted by build script.
-
-#### Decision 3: Security update mechanism
-**Recommendation:** Overlay repo `release/security-overrides/<release>.repo` that mkosi includes after the ALA snapshot. Maintainer-curated.
-
-#### Decision 4: Verification cadence
-**Recommendation:** Every release: maintainer rebuilds + CI rebuilds, compare hashes. Every quarter: independent verifier rebuilds.
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 Reproducibility baseline
-**Question:** Does `mkosi build` produce byte-identical images across two runs today?
-**Experiment:**
-```bash
-# Run mkosi twice on same commit, same machine
-mkosi build
-sha256sum image.raw > /tmp/run1.sha
-mkosi build
-sha256sum image.raw > /tmp/run2.sha
-diff /tmp/run1.sha /tmp/run2.sha
 ```
-**Acceptance threshold:** Identical; if not, identify nondeterminism sources
-
-#### 4.2 ALA snapshot stability
-**Question:** Does building from `https://archive.archlinux.org/repos/2026-06-18/$repo/` produce the same image across two machines?
-**Experiment:**
-```bash
-# Configure mkosi to use 2026-06-18 snapshot
-# Build on machine A and machine B (different hardware, same OS)
-# Compare hashes
+https://archive.archlinux.org/repos/YYYY/MM/DD/
+├── core/          # core packages at that date's state
+├── extra/         # extra packages
+├── community/     # (removed in 2023; merged into extra)
+└── multilib/      # 32-bit compat packages
 ```
-**Acceptance threshold:** Identical across machines
 
-#### 4.3 Security overlay update flow
-**Question:** Can a security overlay update a single package without rebuilding the entire image?
-**Experiment:**
-```bash
-# Create overlay repo with updated linux package
-# Build image with ALA snapshot + overlay
-# Verify resulting image has updated linux version
-pacman -Q linux  # inside image
+To use ALA as the Pacman mirror, set in `/etc/pacman.d/mirrorlist`:
 ```
-**Acceptance threshold:** Overlay package wins; rest of image from snapshot
+Server = https://archive.archlinux.org/repos/2026/06/01/$repo/os/$arch
+```
 
-### §5 Non-goals — Guardrails
+This pins all `pacman -S` operations to the package versions available on 2026-06-01.
+The ALA stores snapshots daily back to 2013-11-08 [PROVEN — ALA "about" page].
 
-- **No mirror auto-fallback.** Snapshot pinning is exact; fallback would break reproducibility.
-- **No automatic snapshot date updates.** Humans own release/milestones.toml per agent-protocol.
-- **No bypass of pacman-key verification.** Even for ALA snapshots.
-- **No binary blobs in image without source.** Per ADR-0012.
-- **No "just use latest Arch" mode for releases.** Releases are pinned; only dev builds use latest.
+**Package database files** are also archived:
+```
+https://archive.archlinux.org/repos/2026/06/01/core/os/x86_64/core.db.tar.gz
+```
 
-### §6 WP Relationship Map
+### 1.2 mkosi Integration
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **(no WP)** | Build infrastructure, not runtime |
-| **ADR-0008 (software delivery)** | Operationalizes packaging decision |
-| **ADR-0012 (reproducible build)** | Operationalizes reproducibility decision |
-| **0002** | Freshens — build pipeline was noted as a gap |
+**Q: How does mkosi consume the ALA snapshot URL?**
 
-### §7 Next Steps — Skeleton
+mkosi ≥ 20 (the version Rush Linux targets) reads distribution configuration from
+`mkosi.conf` or `mkosi.conf.d/` [PROVEN — mkosi documentation, `mkosi.conf` man page]:
 
-#### Immediate (no hardware needed)
-- [ ] Confirm ALA snapshot URL format and retention
-- [ ] Confirm mkosi `Mirror=` substitution behavior
-- [ ] Draft `release/snapshots.yaml` schema
-- [ ] Draft `tools/verify-reproducibility.sh` skeleton
+```ini
+# packaging/mkosi/mkosi.conf
+[Distribution]
+Distribution=arch
+Architecture=x86_64
+Mirror=https://archive.archlinux.org/repos/2026/06/01
 
-#### Short-term
-- [ ] Run §4.1 reproducibility baseline
-- [ ] Run §4.2 ALA snapshot stability
-- [ ] Run §4.3 security overlay flow
+[Content]
+Packages=
+        linux
+        linux-headers
+        optid
+        ...
+```
 
-#### Medium-term
-- [ ] Adopt for next Rush Linux release
-- [ ] Document verification procedure in `docs/release-checklist.md`
-- [ ] Publish reproducibility evidence per release
+The `Mirror=` key sets the Pacman `Server` for all repositories. mkosi writes a
+temporary `mirrorlist` pointing to this URL when building the image.
 
-### Suggested Reading
+**Snapshot date management** [HYPOTHESIS — best practice; mkosi has no built-in snapshot
+version manager]:
+Rush Linux stores the pinned date in a dedicated file:
+```
+packaging/mkosi/SNAPSHOT_DATE   # content: "2026-06-01"
+```
+`tools/build-image.sh` reads this file and substitutes it into `mkosi.conf` before
+calling `mkosi build`. The CI job reads the same file, ensuring identical snapshots in
+local and CI builds.
 
-#### Tools
-- mkosi — `https://github.com/systemd/mkosi`
-- Arch Linux Archive — `https://archive.archlinux.org/`
-- `pacman-key` for signature verification
+### 1.3 Package Hash Verification
 
-#### Documentation
-- `https://wiki.archlinux.org/title/Arch_Linux_Archive`
-- `https://reproducible-builds.org/`
-- `https://tests.reproducible-builds.org/archlinux/`
+**Q: How does the build system verify that the pinned packages have not changed?**
 
-#### Project-internal
-- ADR-0008 (`docs/decisions/0008-software-delivery-and-packaging.md`)
-- ADR-0012 (`docs/decisions/0012-reproducible-build-discipline.md`)
-- `release/milestones.toml`
-- Research 0002
+Pacman verifies package signatures using the `pacman-key` keyring [PROVEN — Arch Linux
+package signing uses GnuPG, with keys in `/etc/pacman.d/gnupg/`]. mkosi imports the
+Arch Linux keyring during image build.
 
----
+**ALA package integrity**: Each package in ALA retains its original signature from when
+it was built. A package downloaded from ALA on 2026-06-01 has the same GPG signature as
+when it was first published — ALA does not re-sign packages [PROVEN — ALA is a static
+mirror, not a re-packaging service].
 
+**Rush Linux additional verification** [HYPOTHESIS — design; not yet implemented]:
+`tools/build-image.sh` records a lock file `packaging/mkosi/SNAPSHOT_LOCK.toml` after
+each successful build:
+```toml
+snapshot_date = "2026-06-01"
+[packages]
+linux = { version = "6.9.7.arch1-1", sha256 = "abc123..." }
+optid = { version = "0.1.0-1", sha256 = "def456..." }
+```
+This lock file is committed to git, enabling reproducibility checks: `tools/verify-snapshot.sh`
+downloads the listed packages and verifies their SHA256 hashes.
+
+### 1.4 Snapshot Update Workflow
+
+**Q: How does a maintainer update to a newer ALA snapshot?**
+
+1. Edit `packaging/mkosi/SNAPSHOT_DATE` to the new date (e.g., `2026-07-01`)
+2. Run `mkosi build` locally to test
+3. If build succeeds and tests pass, update `SNAPSHOT_LOCK.toml` with the new package
+   versions and hashes
+4. Commit both `SNAPSHOT_DATE` and `SNAPSHOT_LOCK.toml` in the same git commit
+5. CI runs the build against the new snapshot date in the PR
+
+**Blocking conditions for snapshot update** [HYPOTHESIS — process design]:
+- `linux` kernel version must be compatible with optid's sched_ext and BPF requirements
+  (kernel ≥ 6.12 for sched_ext merge; ≥ 6.1 for MGLRU stable)
+- `scx` package version must match the kernel's sched_ext ABI
+- No `optid` binary package is available in ALA — it is built from source; only its
+  dependencies (Rust toolchain, libdbus, etc.) are pinned
+
+### 1.5 Local Mirror Fallback
+
+**Q: What happens if ALA is unreachable during CI?**
+
+ALA has historically had availability issues during high-traffic periods [PROVEN —
+community reports on Arch forums].
+
+**Fallback options** [HYPOTHESIS — design choices]:
+1. **Cached Pacman DB and packages**: CI caches the pacman database and downloaded `.pkg.tar.zst`
+   files in a persistent CI cache keyed on `SNAPSHOT_DATE`. If ALA is unreachable, CI uses
+   the cache (only valid for the same snapshot date).
+2. **Self-hosted ALA mirror**: Rush Linux project can host a minimal ALA mirror containing
+   only the packages needed for the Rush Linux build. Storage: ~2 GB per snapshot date
+   for the required package set [HYPOTHESIS — depends on package count; full ALA is ~40 GB
+   per snapshot].
+3. **GitHub Actions cache**: `actions/cache@v4` with key `ala-${{ env.SNAPSHOT_DATE }}`.
+   Cache invalidation is automatic when SNAPSHOT_DATE changes.
+
+Recommended: option 3 (GitHub Actions cache) for simplicity; self-hosted mirror as
+long-term backup for critical builds.
+
+### 1.6 mkosi Image Types
+
+**Q: What image type does Rush Linux produce?**
+
+mkosi supports multiple output formats [PROVEN — mkosi documentation]:
+- `disk` — GPT disk image (for real hardware, UEFI boot)
+- `uki` — Unified Kernel Image (kernel + initrd + cmdline signed as a single EFI binary)
+- `tar` — tarball (for containers / further processing)
+- `directory` — unpacked rootfs (fast iteration)
+
+Rush Linux builds two artefacts from the same mkosi config [HYPOTHESIS — design]:
+1. A `disk` image for installation on target hardware
+2. A `uki` image for secure boot (see 0017 for UKI signing)
+
+Both are built from the same `SNAPSHOT_DATE`-pinned package tree, ensuring the kernel
+and initrd in the UKI match the rootfs packages.
+
+* * *
+
+## 2. Architecture Decisions
+
+### Decision A: ALA Snapshot Date vs. Package Lock File
+
+**Selected: Both** — SNAPSHOT_DATE determines which ALA mirror URL is used; SNAPSHOT_LOCK.toml
+records the actual package versions and hashes for verification [HYPOTHESIS — date alone is
+not sufficient because ALA packages can be retracted; hash lock is the reproducibility guarantee].
+
+### Decision B: Pacman Signature Verification — Trust ALA Signatures
+
+**Selected: Trust original Arch Linux package signatures (already verified by Arch keyring)**
+[PROVEN — Arch package signing with GnuPG is a sufficient integrity guarantee for packages
+that passed Arch's build system; no additional re-signing needed for the snapshot].
+
+### Decision C: Snapshot Update Cadence
+
+**Selected: Quarterly snapshot updates** (or when a critical kernel/driver update requires it)
+[HYPOTHESIS — monthly is too frequent for stable release cycles; quarterly balances security
+updates vs. build stability; emergency patches use kernel LTS backport patches instead].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| ALA availability SLA | < 1 % build failure rate from ALA downtime | CI metrics: count ALA-related failures over 90 days |
+| SNAPSHOT_LOCK verification time | < 30 s for full lock file verification | `tools/verify-snapshot.sh` timing on CI runner |
+| Package set size for snapshot | Total download size ≤ 2 GB for required packages | `mkosi --dry-run` or list packages; sum `pacman -Si` sizes |
+| Reproducibility | Identical SHA256 of root.img on two independent builds from same SNAPSHOT_DATE | Build twice on fresh CI runners; compare image hashes |
+| Snapshot update CI time | Full image build ≤ 20 min | `time mkosi build` on standard CI runner (8 vCPU, 16 GB RAM) |
+
+* * *
+
+## 5. Non-Goals
+
+- optid (the daemon) does not participate in build infrastructure — this brief covers the
+  build tooling only.
+- Rush Linux does not maintain a full ALA mirror — only the packages needed for the build.
+- This brief does not cover binary package signing for the Rush Linux package repository
+  (a separate future topic).
+- This brief does not cover Pacman hook management inside the image.
+- This brief does not cover `mkosi.extra/` file overlays — that is packaging configuration.
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N14 | Snapshot pinning ensures reproducible builds that are prerequisite for UKI signing (0017) |
+| WP-N15 | SNAPSHOT_LOCK.toml provides the bill-of-materials for supply chain integrity |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Create `packaging/mkosi/SNAPSHOT_DATE` with current pinned date.
+- Update `packaging/mkosi/mkosi.conf` to use `Mirror=` with the snapshot URL template.
+- Implement `tools/build-image.sh` to substitute SNAPSHOT_DATE into mkosi.conf.
+
+**Short-term**
+- Implement `tools/verify-snapshot.sh` to validate SNAPSHOT_LOCK.toml hashes.
+- Set up GitHub Actions cache for the ALA package cache.
+
+**Medium-term**
+- Implement automated snapshot update PRs: weekly CI job checks for new ALA snapshots
+  and opens a PR updating SNAPSHOT_DATE + SNAPSHOT_LOCK if the build succeeds.
+- Evaluate self-hosted ALA mirror for build reliability independence from ALA uptime.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- ArchWiki: "Arch Linux Archive" — ALA URL structure and usage
+- mkosi documentation: `mkosi.conf` manual page
+- Arch Linux package signing: `pacman-key --help` and `pacman.conf SigLevel`
+- mkosi GitHub: `systemd/mkosi` — examples and configuration reference
+- SLSA (Supply chain Levels for Software Artifacts): https://slsa.dev — framework for
+  supply chain integrity levels; Rush Linux targets SLSA Level 2

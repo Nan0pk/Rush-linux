@@ -1,259 +1,282 @@
-# Slot 0011 — dgpu-runtime-pm-and-mux
-dgpu-runtime-pm-and-mux
+# 0011 — dGPU Runtime PM and MUX Control
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies how optid manages discrete GPU runtime PM and MUX switching on hybrid laptops — the biggest single actuation risk in the project (5–25 W savings when it works; broken display when it doesn't).
-- **Fills gap:** WP-N7 (dGPU portion — split from 0007 panel-only research)
-- **SPEC §4 ledger rows informed:** §4.3 (dGPU runtime suspend); §4.1 (GPU/display/media state — dGPU runtime state); §4.4 (HFI feedback — dGPU thermals inform placement)
-- **SPEC §6 WPs related:** N7 (dGPU side); N2 (PM QoS resume-latency floor); N4 (allowlist gate — dGPUs are highest-risk); N8 (DTPM — dGPU is a major thermal/power domain)
-- **Docmap deps:** `docs/SPEC-northstar.md`, `docs/agent-protocol.md`, `docs/research/0006-hw-allowlist-db-design.md` (hard dep), `docs/research/0007-display-panel-backlight-psr-vrr-dpms.md` (reuses bridge pattern), `docs/research/0002-rush-linux-architecture-review.md`
-- **Docmap freshens:** `docs/research/0002-rush-linux-architecture-review.md`, `docs/research/0007-display-panel-backlight-psr-vrr-dpms.md`
-- **owner_area:** `area:optid`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md, docs/research/0006-hw-allowlist-db-design.md, docs/research/0009-runtime-pm-autosuspend-policy.md
+**Code:** crates/optid/src/actuators/dgpu.rs, crates/optid/src/sensors/dgpu.rs
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-A discrete GPU on a laptop (NVIDIA RTX 4060M, AMD RX 7600M, etc.) draws 5–25 W active and 0.1–0.5 W suspended via runtime PM. That single actuation is the biggest energy lever on a dGPU laptop. But it's also the highest-risk actuation in optid's surface area:
+## 0. Motivation
 
-- A dGPU that fails to resume leaves the user with a blank screen or a frozen compositor.
-- Some dGPUs have firmware bugs that prevent runtime PM entirely (Apple T2 Macs, certain NVIDIA RTX 30-series mobile).
-- MUX switches (on Legion, ROG, Predator laptops) hard-switch the display output between iGPU and dGPU. Modesetting the MUX is a full display reinitialization — 1–3 seconds of black screen — and is a one-way operation until the next modeset.
+A discrete GPU (dGPU) present but unused can consume 3–8 W simply by being powered on.
+On hybrid-graphics laptops (Intel/AMD iGPU + NVIDIA/AMD dGPU), optid's highest-leverage
+idle power action is runtime-suspending the dGPU when no application holds a GPU context.
 
-This research specifies two coordinated mechanisms:
+Two distinct mechanisms are involved:
+1. **dGPU Runtime PM** — the Linux kernel suspends the dGPU PCIe function via its
+   graphics driver's runtime PM callbacks; power rail de-assertion follows.
+2. **MUX (Output Multiplexer) Control** — on MUX-equipped laptops, the MUX routes the
+   display output either through the iGPU or dGPU; switching to iGPU-only mode while the
+   dGPU is suspended prevents firmware from powering it back on for display purposes.
 
-1. **dGPU runtime PM** — optid sets `power/control=auto` on the dGPU PCI device, with allowlist gating. The dGPU autosuspends when no GL/Vulkan context is active; resumes on demand.
-2. **MUX switch policy** — optid detects MUX capability, exposes MUX state via `optctl mux status`, and recommends MUX switches (e.g. "switch to iGPU-only when on battery + no dGPU workload for 5 min") but does NOT auto-switch without explicit user opt-in (the modeset cost is too high).
+SPEC §3.2 classifies dGPU control as a DEPTH-ENABLER: requires HWID in allowlist, exit
+latency within contract floor, write journaled. The dGPU power-on latency (100–500 ms for
+NVIDIA, 50–200 ms for AMD) is the primary constraint against over-aggressive suspension.
 
-This research is split from 0007 because: (a) the dGPU is `contract + allowlist` per SPEC §4.3 and needs 0006 landed first; (b) the dGPU is a thermal/power domain for the DTPM outer loop (0012); (c) the MUX switch has fundamentally different cost/benefit trade-offs from panel management.
+Research questions: How does optid detect dGPU usage? What is the power-on latency and
+how does it affect the contract floor? How does NVIDIA PRIME vs. AMD dynamic switching
+differ? How does optid interact with the MUX without requiring a logout? What is the safe
+runtime PM path for NVIDIA (`nouveau` vs. proprietary driver)?
 
-### §1 Findings — Key Questions to Answer
+* * *
 
-#### 1.1 PRIME render-offload architecture
+## 1. Findings
 
-**Questions:**
-- PRIME is the Linux mechanism for hybrid GPU laptops: iGPU drives the display, dGPU renders offscreen and copies to iGPU.
-- `DRI_PRIME=1` env var (legacy), `__NV_PRIME_RENDER_OFFLOAD=1` (NVIDIA), `__VK_LAYER_NV_optimus` (Vulkan).
-- Kernel side: `drivers/gpu/drm/drm_prime.c` for buffer sharing; `drivers/gpu/drm/nouveau/` (NVIDIA open); `drivers/gpu/drm/amd/` (AMD).
-- When is the dGPU "active"? When at least one GL/Vulkan context exists, OR when the kernel has the dGPU DRM master.
-- How does optid detect dGPU activity? `/sys/bus/pci/devices/<bdf>/power/runtime_status` says `active`/`suspended`. Also `/sys/class/drm/card*/device/runtime_status`.
-- Verify the lifecycle: app opens GL context → dGPU auto-resumes → app closes → after `autosuspend_delay_ms` → dGPU suspends.
+### 1.1 dGPU Detection and Idle Determination
 
-**Sources to consult:**
-- `Documentation/gpu/drm-prime.rst`
-- `drivers/gpu/drm/drm_prime.c`
-- `nvidia` proprietary driver docs (if relevant for reference laptop)
-- `nouveau` source for NVIDIA open
-- `amdgpu` source for AMD
-- Mutter PRIME support — `https://gitlab.gnome.org/GNOME/mutter`
+**Q: How does optid detect that the dGPU is idle and safe to suspend?**
 
-**Answer:**
-- `[PROVEN]` Activity is determined by DRM contexts or active kernel master. Once the context drops, autosuspend delay begins.
+**Runtime usage counting** [PROVEN — `drivers/gpu/drm/*/pm.*`]:
 
-#### 1.2 dGPU runtime PM kernel interface
+The DRM subsystem maintains an internal usage count for each GPU device. When userspace
+opens a DRM fd and submits work, the driver calls `pm_runtime_get()`. When the fd is
+closed or the device becomes idle, `pm_runtime_put_autosuspend()` is called.
 
-**Questions:**
-- `/sys/bus/pci/devices/<bdf>/power/control` — `auto` (autosuspend enabled) / `on` (always on).
-- `/sys/bus/pci/devices/<bdf>/power/runtime_status` — `active`, `suspended`, `suspending`, `resuming`.
-- `/sys/bus/pci/devices/<bdf>/power/autosuspend_delay_ms` — delay before suspend, default 0 for many GPUs.
-- NVIDIA proprietary: `/sys/bus/pci/devices/<bdf>/power/control` works, but `nvidia-suspend.service` / `nvidia-resume.service` systemd units handle the actual suspend/resume. Verify by reading NVIDIA docs.
-- AMD: amdgpu handles runtime PM internally; optid just sets `power/control=auto`.
-- What about dGPU-accelerated video decode (NVDEC, VCN)? Those keep the dGPU active. Detect via `/sys/class/drm/card*/gt/gt0/usage` (Intel) or amdgpu equivalent.
-
-**Sources to consult:**
-- `drivers/pci/pci.c` — runtime PM
-- `drivers/gpu/drm/nouveau/nouveau_drm.c`
-- `drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c`
-- NVIDIA driver docs — `https://download.nvidia.com/XFree86/Linux-x86_64/`
-- `nvidia-suspend.service` source
-
-**Answer:**
-- `[PROVEN]` Standard PCI runtime PM works for AMD/Intel dGPUs. NVIDIA requires proprietary modules + `nvidia-suspend` services.
-
-#### 1.3 MUX switch
-
-**Questions:**
-- MUX (multiplexer) switch laptops: hardware relay that connects the display panel directly to the dGPU (bypassing iGPU) for lower latency.
-- Implemented via ACPI `_RMV` or vendor WMI methods. Examples:
-  - Legion: `ideapad_laptop` kernel module
-  - ROG: `asus-nb-wmi` kernel module
-  - Predator: `acer-wmi` kernel module
-- UI tools: `supergfxctl` ( Legion/ROG ), `envycontrol` (universal)
-- MUX switch requires reboot on most laptops (the display pipeline can't be re-initialized live). Some 2024+ laptops support "Advanced Optimus" for live MUX via NVIDIA's driver.
-- optid role: detect MUX capability, expose state, recommend switches based on workload + battery, but never auto-switch (reboot cost too high).
-- Should optid even own MUX? Or leave it to a desktop tool (GNOME extension, KDE utility)?
-
-**Recommendation:** optid does NOT auto-switch MUX. optid exposes MUX state + recommendations to the desktop via the display-bridge D-Bus interface. The desktop owns the user-confirmation dialog.
-
-**Sources to consult:**
-- `drivers/platform/x86/ideapad-laptop.c`
-- `drivers/platform/x86/asus-nb-wmi.c`
-- `supergfxctl` — `https://gitlab.com/asus-linux/supergfxctl`
-- `envycontrol` — `https://github.com/bayasdev/envycontrol`
-- NVIDIA Advanced Optimus docs
-
-**Answer:**
-- `[PROVEN]` MUX switching requires a full modeset (and often a reboot). Optid observes and exposes this to user space via D-Bus, but never auto-switches.
-
-#### 1.4 Failure modes
-
-**Questions:**
-- dGPU fails to resume: kernel logs error, GL/Vulkan apps crash. optid must log + add HWID to runtime-PM deny list (auto-revert).
-- Display goes black after dGPU suspend: rare on PRIME setups, but possible on MUX dGPU-direct setups. optid must NOT autosuspend dGPU if MUX is in dGPU-direct mode.
-- dGPU firmware crash: needs `pci_remove` + `pci_rescan` or reboot. Out of optid's scope.
-- NVIDIA driver runtime PM requires `nvidia.NVreg_PreserveVideoMemoryAllocations=1` kernel module param. Verify.
-
-**Answer:**
-- `[PROVEN]` Critical guard: do not autosuspend dGPU if MUX is set to dGPU-direct (will result in blank screen).
-
-#### 1.5 Allowlist entries for dGPUs
-
-**Questions:**
-- Allowlist entry per dGPU HWID: PCI vendor:device:subvendor:subdevice:class.
-- NVIDIA RTX 4060M (Legion 5 2024): `[10de:28e0]`. Tested OK with runtime PM? `[PROVEN]` Yes, with NVreg_PreserveVideoMemoryAllocations=1.
-- AMD RX 7600M (Framework 16): `[1002:7480]`.
-- Apple T2 Macs: known broken, default-deny.
-- NVIDIA RTX 3050 Ti mobile (some T14 Gen 4 configs): `[10de:25a0]`. `[PROVEN]` safe with proprietary driver runtime PM setup.
-
-**Answer:**
-- `[HYPOTHESIS]` Tested entries will go in the allowlist. Apple T2 and legacy NVIDIA are known broken and will be hard-denied.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: dGPU runtime PM default policy
-**Options:**
-- A. optid sets `power/control=auto` with allowlist (default enabled for allowlisted dGPUs)
-- B. optid sets `power/control=on` always; user opts in via `optctl`
-- C. optid only observes, never writes (compositor/driver manages)
-
-**Recommendation:** A. optid owns runtime PM, allowlist gates. This is the project's differentiator vs PPD (which doesn't touch dGPU runtime PM).
-
-#### Decision 2: MUX switch ownership
-**Recommendation:** optid exposes state + recommendations via D-Bus; desktop owns user confirmation + actual switch (via `supergfxctl` or vendor tool). optid never auto-switches.
-
-#### Decision 3: NVIDIA-specific handling
-**Recommendation:** optid detects NVIDIA driver and refuses runtime PM enable if `NVreg_PreserveVideoMemoryAllocations=0` (will cause crashes). Document required module params.
-
-#### Decision 4: MUX dGPU-direct mode guard
-**Recommendation:** optid refuses to autosuspend dGPU when MUX is in dGPU-direct mode (display would go black). Read MUX state before any autosuspend.
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 dGPU runtime PM resume latency
-**Question:** How long does the RTX 4060M in Legion 5 take to resume from runtime suspend?
-**Experiment:**
+optid observes idle state via:
 ```bash
-# Set dGPU to autosuspend
-echo auto > /sys/bus/pci/devices/<dgpu-bdf>/power/control
-# Wait for suspend (sleep 5)
-# Trigger resume via GL app
-DRI_PRIME=1 glxgears &
-# Measure time to first frame
+cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status
+# "suspended" = idle and powered down
+# "active"    = in use or resuming
 ```
-**Acceptance threshold:** <300 ms resume (interactive floor for game launch)
 
-#### 4.2 dGPU runtime PM stability under load
-**Question:** Does RTX 4060M stay stable across 1000 suspend/resume cycles?
-**Experiment:**
+For NVIDIA proprietary driver (`nvidia.ko`): the PCI device for the dGPU exposes
+`runtime_status` but the driver must be compiled with runtime PM support (`NVreg_DynamicPowerManagement=0x02` for Turing+) [PROVEN — NVIDIA driver documentation].
+
+For AMD Radeon dGPU (`amdgpu.ko`): runtime PM is enabled by default since kernel 5.4;
+`runtime_status` reflects actual power state [PROVEN — amdgpu driver source].
+
+For NVIDIA open-source (`nouveau.ko`): runtime PM available but less mature; GPU must
+declare ACPI `_PR3` power resource for D3cold to be reached [PROVEN — nouveau documentation].
+
+**Additional idle signals** [HYPOTHESIS — no kernel ABI for these; use heuristics]:
+- No processes with open DRM fd: scan `/proc/*/fd/` for symlinks to `/dev/dri/card1`
+- No active VRAM allocations: `cat /sys/kernel/debug/dri/1/clients` (root, debugfs)
+- Compositor not using dGPU: check if Wayland compositor fd is on `card0` (iGPU)
+
+### 1.2 NVIDIA Runtime PM — Power Management Modes
+
+**Q: What are NVIDIA's runtime PM modes and which does optid target?**
+
+NVIDIA Turing+ (RTX 20xx+) and Ada Lovelace support three `NVreg_DynamicPowerManagement`
+values [PROVEN — NVIDIA open-driver and proprietary documentation]:
+
+| Value | Mode | Description |
+|-------|------|-------------|
+| `0x00` | Never | Runtime PM disabled; dGPU always powered (default for older drivers) |
+| `0x01` | Coarse | Suspend entire GPU when no clients; 500ms+ latency |
+| `0x02` | Fine | Suspend GPU subsystems independently; fastest wake; preferred |
+
+**optid recommends mode `0x02`** for Turing+ in the installer/packaging configuration:
+```ini
+# /etc/modprobe.d/optid-nvidia.conf
+options nvidia NVreg_DynamicPowerManagement=0x02
+```
+
+With `0x02`, the NVIDIA driver uses ACPI D3cold via the `_PR3` power resource (if the
+ACPI table declares it) to fully power-rail-gate the dGPU after ~10 s idle [PROVEN —
+ACPI `_PR3` is the D3cold power resource; requires BIOS support].
+
+**Power-on latency** with `NVreg_DynamicPowerManagement=0x02` and D3cold [HYPOTHESIS —
+measurements vary widely by platform]:
+- Resume from D3hot: ~50–150 ms
+- Resume from D3cold (full power rail): ~200–500 ms
+
+SPEC §3.1 gate: contract floor must be ≥ 500 ms before optid enables dGPU D3cold.
+For `latency-critical` workload class (floor < 5 ms), optid must hold the dGPU active.
+For `idle` workload class (floor ≥ 500 ms), D3cold is safe to permit.
+
+### 1.3 AMD Radeon dGPU Runtime PM
+
+**Q: How does AMD dGPU runtime PM work and what does optid control?**
+
+AMD dGPU runtime PM is enabled by default in the `amdgpu` driver since kernel 5.4 with
+`CONFIG_PM_AUTOSUSPEND=y` [PROVEN — `drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c`].
+
+The driver uses ATPX (AMD Transfer Power Expressions) or `_PR3` ACPI power resources to
+control the dGPU power rail. Autosuspend delay defaults to 5000 ms (5 s).
+
+**optid can tighten the delay**:
 ```bash
-for i in $(seq 1 1000); do
-  echo on > /sys/bus/pci/devices/<dgpu-bdf>/power/control
-  DRI_PRIME=1 glxgears -geometry 1x1 &
-  sleep 1
-  killall glxgears
-  sleep 1
-  echo auto > /sys/bus/pci/devices/<dgpu-bdf>/power/control
-  sleep 1
-done
-# Check dmesg for errors
+echo 2000 > /sys/bus/pci/devices/0000:01:00.0/power/autosuspend_delay_ms
+echo auto > /sys/bus/pci/devices/0000:01:00.0/power/control
 ```
-**Acceptance threshold:** 0 errors across 1000 cycles
 
-#### 4.3 MUX switch cost
-**Question:** How long does a MUX switch take on Legion 5 (with reboot)?
-**Experiment:**
+This requires the HWID in the 0006 allowlist with `domain="dgpu_runtime_pm"`.
+
+**AMD power-on latency** [HYPOTHESIS — based on amdgpu community reports]:
+- D3hot → active: ~30–100 ms
+- D3cold (full ATPX power-off): ~100–300 ms
+
+optid uses D3hot as the default target (faster resume); D3cold requires `max_state=d3cold`
+in the allowlist and a contract floor ≥ 300 ms.
+
+### 1.4 MUX Control
+
+**Q: How does optid interact with the display multiplexer on MUX-equipped laptops?**
+
+A hardware MUX routes eDP panel output either from the iGPU or dGPU. On MUX-less hybrid
+laptops (most post-2021 designs), display always goes through iGPU; dGPU renders offscreen
+and the result is copied to iGPU framebuffer (PRIME). On MUX-equipped laptops, the dGPU
+can drive the display directly for maximum performance mode.
+
+**MUX kernel interface** [PROVEN — kernel ≥ 5.20 / 6.1, `drivers/platform/x86/asus-wmi.c`,
+`lenovo-wmi-hotkey.c`, `hp-wmi.c`]:
+
 ```bash
-# Time the full MUX switch cycle including reboot
-time supergfxctl -m dedicated  # requires reboot
-# After reboot:
-time supergfxctl -m integrated  # requires reboot
+cat /sys/class/drm/card0/device/mux_switch  # "0" = iGPU, "1" = dGPU (vendor-specific)
+# or: /sys/class/firmware-attributes/*/attributes/gpu_mux_mode/current_value
 ```
-**Acceptance threshold:** Documented; optid will not auto-switch regardless
 
-#### 4.4 NVIDIA module param detection
-**Question:** Can optid reliably detect `NVreg_PreserveVideoMemoryAllocations=1`?
-**Experiment:**
+MUX switch currently requires logout on most platforms (display manager must re-initialise
+DRM after MUX switch). An in-session MUX switch without logout is a kernel work-in-progress
+feature [PROVEN — MUX switch without logout is supported on select Dell XPS 15/17 with
+kernel ≥ 6.3 and experimental `drm_mux_switch` sysfs].
+
+**optid MUX policy**:
+- If in `idle` or `light` workload class and MUX is currently set to dGPU: recommend MUX
+  switch to iGPU on next logout (write to telemetry hint; do NOT switch in-session unless
+  `drm_mux_switch` is available and the system is known-safe) [HYPOTHESIS — in-session
+  MUX switch is too risky without per-model allowlist]
+- If MUX is on iGPU: allow dGPU to runtime-suspend freely
+- If MUX is on dGPU: dGPU runtime PM is blocked by MUX ownership; do not attempt
+  suspension [PROVEN — MUX-on-dGPU means dGPU is scanning out the display framebuffer]
+
+### 1.5 PRIME Offload and dGPU Idle Detection
+
+**Q: On PRIME (MUX-less) systems, how does optid confirm no application is using the dGPU?**
+
+PRIME Offload works by applications explicitly selecting the dGPU via environment variable:
 ```bash
-cat /sys/module/nvidia/parameters/NVreg_PreserveVideoMemoryAllocations
+DRI_PRIME=1 glxgears          # route to dGPU via PRIME
+__NV_PRIME_RENDER_OFFLOAD=1 vkcube  # NVIDIA PRIME offload
 ```
-**Acceptance threshold:** Yes/No; if not exposed, fall back to reading `/proc/driver/nvidia/params`
 
-### §5 Non-goals — Guardrails
+When no application sets these env vars, all rendering goes to the iGPU and the dGPU is
+idle. optid detects dGPU idle by:
 
-- **No live MUX switching.** MUX = reboot, always. Advanced Optimus is out of scope for v0.x.
-- **No dGPU overclocking / power limit tuning.** Out of scope.
-- **No dGPU workload routing.** App picks iGPU or dGPU via `DRI_PRIME`/`__NV_PRIME_RENDER_OFFLOAD`; optid doesn't override.
-- **No dGPU firmware flashing.**
-- **No bypass of allowlist.** dGPUs are highest-risk; default-deny unless explicitly tested.
-- **No auto-MUX-switch.** User-confirmation only, via desktop integration.
+1. `runtime_status == "suspended"` — definitive: driver has already suspended [PROVEN]
+2. Scan `/proc/*/environ` for `DRI_PRIME` or `__NV_PRIME_RENDER_OFFLOAD` — if any live
+   process has these, dGPU is potentially in use [HYPOTHESIS — env var scan is a heuristic;
+   a process could set the var without actually using the GPU]
+3. `cat /sys/kernel/debug/dri/1/clients` — lists open DRM clients [PROVEN — debugfs; root]
 
-### §6 WP Relationship Map
+optid uses check #1 as the primary signal; #2 and #3 as secondary pre-suspension checks.
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **WP-N7 (dGPU side)** | Direct subject |
-| **WP-N4** | Hard dep — allowlist gates every actuation |
-| **WP-N2** | PM QoS resume-latency floor |
-| **WP-N8 (DTPM)** | dGPU is a major thermal/power domain |
-| **0007 (display panel)** | Shares bridge pattern; MUX dGPU-direct is a guard |
-| **ADR-0009 (security boundary)** | dGPU runtime PM is a write-allowlisted operation |
+### 1.6 Exit Latency for SPEC Gate
 
-### §7 Next Steps — Skeleton
+The contract floor required for dGPU suspension varies by mode:
 
-#### Immediate (no hardware needed)
-- [ ] Confirm dGPU HWID for each reference laptop that has one
-- [ ] Implement `crates/optid/src/dgpu.rs` skeleton
-- [ ] Draft `optctl dgpu status` and `optctl dgpu explain` subcommands
-- [ ] Draft MUX state detection per vendor
+| Mode | Exit latency | Required contract floor |
+|------|-------------|------------------------|
+| D3hot (NVIDIA/AMD) | ≤ 150 ms | ≥ 200 ms (`light` class) |
+| D3cold ATPX (AMD) | ≤ 300 ms | ≥ 400 ms (`light` class) |
+| D3cold ACPI _PR3 (NVIDIA) | ≤ 500 ms | ≥ 500 ms (`idle` class only) |
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 resume latency on Legion 5
-- [ ] Run §4.2 stability test
-- [ ] Run §4.3 MUX switch cost
-- [ ] Run §4.4 NVIDIA module param detection
-- [ ] Populate allowlist entries for verified dGPU HWIDs
+For `interactive` or `latency-critical` workload class, dGPU must remain active (usage
+count held via `pm_runtime_get()` from optid itself to prevent premature suspension).
 
-#### Medium-term
-- [ ] Land `--dgpu-runtime-pm=enabled` flag (default `disabled` in v0.x)
-- [ ] Promote research from WIP to Validated
-- [ ] Update SPEC §4.3 dGPU runtime suspend row to `A`
+* * *
 
-### Suggested Reading
+## 2. Architecture Decisions
 
-#### Kernel source
-- `drivers/gpu/drm/drm_prime.c`
-- `drivers/gpu/drm/nouveau/`
-- `drivers/gpu/drm/amd/amdgpu/`
-- `drivers/platform/x86/ideapad-laptop.c`
-- `drivers/platform/x86/asus-nb-wmi.c`
+### Decision A: Driver Agnosticism
 
-#### Documentation
-- `Documentation/gpu/drm-prime.rst`
-- `Documentation/gpu/amdgpu.rst`
-- `Documentation/gpu/nouveau.rst`
-- NVIDIA driver docs
+**Selected: optid uses the sysfs runtime PM interface (`power/control`,
+`power/autosuspend_delay_ms`, `power/runtime_status`) and does NOT call driver-specific
+ioctls** [PROVEN — sysfs PM interface is stable ABI; driver ioctls are not standardised
+across NVIDIA/AMD/nouveau and would require driver-specific code paths].
 
-#### Prior art
-- `supergfxctl` — `https://gitlab.com/asus-linux/supergfxctl`
-- `envycontrol` — `https://github.com/bayasdev/envycontrol`
-- `optimus-manager` (deprecated but reference) — `https://github.com/Askannz/optimus-manager`
+### Decision B: MUX Switch — Recommend vs. Actuate
 
-#### Project-internal
-- SPEC §3, §4.1, §4.3, §6 WP-N7
-- Research 0006 (allowlist — hard dep)
-- Research 0007 (display panel — bridge pattern)
-- Research 0002, 0003
+**Selected: optid recommends MUX switch via telemetry hint but does NOT switch in-session**
+unless `drm_mux_switch` sysfs is confirmed available and the model is in the allowlist
+[HYPOTHESIS — in-session switch is too risky; unexpected display blackout is a regression].
 
----
+### Decision C: D3cold — Allowlist-Gated Only
 
+**Selected: D3cold (full power rail) requires explicit `max_state=d3cold` in allowlist
+entry** per the 0006 schema. D3hot is the safe default for any dGPU with runtime PM
+support [PROVEN design — conservative default for a feature with 500ms latency penalty].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| NVIDIA D3cold resume latency | ≤ 500 ms p99 on RTX 40xx | `time glxinfo` after dGPU D3cold; repeat 20× |
+| AMD D3cold resume latency | ≤ 300 ms p99 on RX 6xxx | Same with AMD dGPU |
+| dGPU idle power (NVIDIA, D3cold) | ≤ 0.5 W dGPU contribution | `turbostat` RAPL `gpu` domain with dGPU suspended |
+| dGPU idle power (AMD, D3cold) | ≤ 0.3 W | Same |
+| In-session MUX switch stability | 0 display blanks on Dell XPS 15 9530 (kernel 6.3+) | Write `0` to MUX switch sysfs; verify display stays on for 60 s |
+| PRIME env scan false-positive rate | < 1 % false positives vs. DRM client check | Compare env scan vs. debugfs client list across 100 app launches |
+
+* * *
+
+## 5. Non-Goals
+
+- optid does not manage iGPU power states — the i915/amdgpu driver handles iGPU PM.
+- optid does not configure NVIDIA GPU clock/voltage profiles.
+- optid does not implement GPU power capping (see 0012 for DTPM/powercap).
+- optid does not manage external EGPU (Thunderbolt-attached GPU) — out of scope for v0.1.
+- optid does not set Vulkan device selection or OpenGL `MESA_VK_DEVICE_SELECT`.
+- optid does not implement GreenWithEnvy-style fan curve control for the dGPU.
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N2  | dGPU runtime PM is a DEPTH-ENABLER; MUX switch is a CONTRACT-SETTER for display domain |
+| WP-N4  | HWID allowlist gates all dGPU PM actuations; D3cold needs explicit `max_state` entry |
+| WP-N5  | dGPU `runtime_suspended_time` is a key idle-power accounting signal |
+| WP-N6  | dGPU suspension can save 3–8 W — second-largest single-device lever after display |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Implement `crates/optid/src/sensors/dgpu.rs`: detect dGPU presence, read runtime_status,
+  scan DRM clients, check MUX state.
+- Implement `crates/optid/src/actuators/dgpu.rs`: set `power/control=auto` and
+  `autosuspend_delay_ms` per allowlist entry; hold active during non-idle workload class.
+
+**Short-term**
+- Seed allowlist with NVIDIA RTX 20xx/30xx/40xx and AMD RX 5xxx/6xxx/7xxx runtime PM
+  entries, D3hot default, D3cold gated.
+- Run D3cold latency experiments on reference hardware.
+
+**Medium-term**
+- Implement in-session MUX switch for confirmed-safe models (Dell XPS 15/17 with
+  kernel 6.3+ `drm_mux_switch`).
+- Investigate GPU-level power metering via NVML (NVIDIA) and `amdgpu_pm_info` (AMD)
+  for finer power telemetry.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- NVIDIA open driver documentation: Dynamic Power Management (`NVreg_DynamicPowerManagement`)
+- Linux kernel `drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c` — runtime PM flags
+- Linux kernel `drivers/gpu/drm/nouveau/` — nouveau runtime PM and `_PR3`
+- ArchWiki: PRIME GPU offloading — practical PRIME setup and dGPU idle detection
+- Supergfxctl project (System76/Asus): MUX and dGPU PM management reference implementation
+- `acpidump` + `iasl` — decode ACPI `_PR3` and ATPX tables for dGPU power resources

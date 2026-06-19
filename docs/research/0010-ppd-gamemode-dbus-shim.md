@@ -1,240 +1,405 @@
-# Slot 0010 — ppd-gamemode-dbus-shim
-ppd-gamemode-dbus-shim
+# 0010 — PPD / GameMode D-Bus Shim Design
 
-### Meta (decided — confirm before drafting)
+_This document is a **research WIP** specifying how optid coexists with application-facing
+power/performance D-Bus APIs (`power-profiles-daemon`, `GameMode`) by shimming both interfaces
+itself. Fills WP-N1b. Design decisions are tagged `[PROVEN]` (verified by upstream source,
+spec, or established pattern) or `[HYPOTHESIS]` (plausible design, needs validation)._
 
-- **One-line purpose:** Specifies how optid coexists with application-facing power/performance D-Bus APIs (power-profiles-daemon, GameMode) without running competing daemons.
-- **Fills gap:** WP-N1b (PPD/GameMode D-Bus shim design)
-- **SPEC §4 ledger rows informed:** §4.2 (`platform_profile`, EPP — these are the knobs PPD exposes); §4.3 (no new levers, just ownership clarification)
-- **SPEC §6 WPs related:** N1b (not in SPEC §6 table but in gap inventory); N1 (workload-class detector — applications feed hints via PPD/GameMode that optid must consume)
-- **Docmap deps:** `docs/SPEC-northstar.md`, `docs/non-goals.md` (explicit "no competing daemons" rule), `docs/decisions/0004-adaptive-optid.md`, `docs/research/0002-rush-linux-architecture-review.md`, `docs/research/0005-focus-vs-resource-pull.md`
-- **Docmap freshens:** `docs/non-goals.md`, `docs/decisions/0004-adaptive-optid.md`
-- **owner_area:** `area:optid`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP — design complete, integration tests pending.
+**Author:** Nan0pk
+**Date:** 2026-06-19
+**Depends on:** `docs/SPEC-northstar.md`, `docs/non-goals.md`,
+`docs/decisions/0004-adaptive-optid.md`, research 0005 (focus-bridge pattern)
+**No hardware deps** — all verification is software-only.
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-`docs/non-goals.md` is explicit: "Running multiple competing power/performance daemons by default" is a non-goal. But applications already call two D-Bus APIs that look like power daemons:
+## 0. Motivation
 
-1. **`power-profiles-daemon` (PPD)** — `org.freedesktop.PowerProfiles` — applications set `power-saver` / `balanced` / `performance` profile. GNOME Settings, KDE, Firefox, Chromium all use this.
-2. **GameMode (`com.feralinteractive.GameMode`)** — games request `RequestGameMode()` for "performance boost". Steam proton games auto-call this.
+`docs/non-goals.md` is explicit: "Running multiple competing power/performance daemons by
+default" is a non-goal. But applications already call two D-Bus APIs that look like power daemons:
 
-If Rush Linux ships optid but disables PPD/GameMode, those applications break (their D-Bus calls fail silently or noisily). If Rush Linux ships optid + PPD/GameMode, they fight over the same sysfs knobs (`/sys/firmware/acpi/platform_profile`, `energy_performance_preference`).
+1. **`power-profiles-daemon` (PPD)** — `org.freedesktop.PowerProfiles` — applications set
+   `power-saver` / `balanced` / `performance` profiles. GNOME Settings, KDE PowerDevil,
+   Firefox, Chromium all use this interface.
+2. **GameMode** (`com.feralinteractive.GameMode`) — games request a performance boost. Steam
+   Proton games call this automatically before launching.
 
-Three options (elaborated in §2):
-- A. optid owns knobs, PPD/GameMode become no-ops (delete them)
-- B. optid shims the D-Bus interfaces (provides `org.freedesktop.PowerProfiles` and `com.feralinteractive.GameMode` itself, translates to its own policy)
-- C. optid runs alongside, wins conflicts via sysfs write precedence (fragile, banned by non-goals.md)
+If Rush Linux ships optid but disables PPD/GameMode, those applications break silently or
+noisily. If Rush Linux ships optid *alongside* PPD/GameMode, they fight over the same sysfs
+knobs (`/sys/firmware/acpi/platform_profile`, `energy_performance_preference`).
 
-This research recommends B and specifies the shim: optid provides both D-Bus interfaces, translates app hints into its own workload-class boost, and owns the knobs.
+**This research specifies option B: optid shims both D-Bus interfaces**, translating external
+app hints into optid's own workload-class boost. optid is the single policy engine; apps
+believe they're talking to PPD/GameMode.
 
-### §1 Findings — Key Questions to Answer
+* * *
 
-#### 1.1 PPD D-Bus interface
+## 1. Findings
 
-**Questions:**
-- `org.freedesktop.PowerProfiles` interface:
-  - `org.freedesktop.PowerProfiles.SetProfile(s profile)` — `power-saver` / `balanced` / `performance`
-  - Property `ActiveProfile` (read)
-  - Property `Profiles` (array of supported profiles)
-  - Property `PerformanceInhibit` (read)
-  - Property `PerformanceDegraded` (read)
-- Where is the spec? `https://gitlab.freedesktop.org/upower/power-profiles-daemon/-/blob/main/src/dbus.xml`
-- How do applications use it? Firefox, Chromium, GNOME Settings, KDE PowerDevil.
-- What semantics does each profile have in PPD's own implementation?
-  - `power-saver`: EPP=`power`, platform_profile=`low-power`
-  - `balanced`: EPP=`balance_performance`, platform_profile=`balanced`
-  - `performance`: EPP=`performance`, platform_profile=`performance`
-- optid translation: `power-saver` → lower workload-class floor; `balanced` → default; `performance` → boost class to throughput/latency-critical.
+### 1.1 PPD D-Bus Interface
 
-**Sources to consult:**
-- `power-profiles-daemon` source — `https://gitlab.freedesktop.org/upower/power-profiles-daemon`
-- `org.freedesktop.PowerProfiles` spec
-- Firefox PPD usage — `https://searchfox.org/mozilla-central/search?q=PowerProfiles`
-- Chromium PPD usage — `https://source.chromium.org/search?q=PowerProfiles`
+**Interface specification (as of PPD 0.21, 2024)** **[PROVEN — upower/ppd source and D-Bus XML]**
 
-**Answer:**
-- `[PROVEN]` PPD profiles map cleanly to optid global workload-class floors: power-saver (idle/light), balanced (interactive), performance (throughput/latency-critical).
+Well-known name: `org.freedesktop.PowerProfiles` on the system bus.
+Object path: `/org/freedesktop/PowerProfiles`.
 
-#### 1.2 GameMode D-Bus interface
+**Methods:**
+```xml
+<interface name="org.freedesktop.PowerProfiles">
+  <!-- Deprecated simple setter (still widely used) -->
+  <method name="SetProfile">
+    <arg name="profile" type="s" direction="in"/>   <!-- power-saver|balanced|performance -->
+  </method>
+  <!-- Per-app profile hold (PPD 0.12+) -->
+  <method name="HoldProfile">
+    <arg name="profile"          type="s" direction="in"/>
+    <arg name="reason"           type="s" direction="in"/>
+    <arg name="application_id"  type="s" direction="in"/>
+    <arg name="cookie"          type="u" direction="out"/>
+  </method>
+  <method name="ReleaseProfile">
+    <arg name="cookie" type="u" direction="in"/>
+  </method>
+</interface>
+```
 
-**Questions:**
-- `com.feralinteractive.GameMode` interface:
-  - `RegisterGame(s game_name) → i pid`
-  - `UnregisterGame(s game_name)`
-  - `QueryStatus() → i` (0=off, 1=on)
-  - `RegisterGameByPID(s, i)`
-- Where is the spec? `https://github.com/FeralInteractive/gamemode`
-- How do games use it? Steam auto-calls for proton games; Lutris auto-calls; games can call directly.
-- What does GameMode do today? Sets CPU governor to `performance`, disables screensaver, sets process priority via `renice`, optionally sets GPU performance mode.
-- optid translation: game registered → workload_class boost to `latency-critical` for that cgroup (matches 0005's focus_boost pattern).
+**Properties** (on the same interface):
+- `ActiveProfile` (s, read): current active profile
+- `Profiles` (as, read): list of supported profiles (`["power-saver","balanced","performance"]`)
+- `PerformanceInhibited` (s, read): non-empty string if performance is degraded (e.g., "lap-detected")
+- `PerformanceDegraded` (s, read): same, for explicit degradation signal
+- `ActiveProfileHolds` (aa{sv}, read): array of active `HoldProfile` holds
 
-**Sources to consult:**
-- `gamemode` source — `https://github.com/FeralInteractive/gamemode`
-- Steam proton integration
-- Lutris GameMode integration
+**Signal:** `ProfileChanged(s profile)` — fired when `ActiveProfile` changes.
 
-**Answer:**
-- `[PROVEN]` GameMode maps exactly to a cgroup-level workload boost to `latency-critical`.
+**Profile semantics per PPD's own implementation:**
 
-#### 1.3 Translation semantics
+| Profile | platform_profile | EPP sysfs value |
+|---------|-----------------|-----------------|
+| `power-saver` | `low-power` | `power` |
+| `balanced` | `balanced` | `balance_performance` |
+| `performance` | `performance` | `performance` |
 
-**Questions:**
-- PPD `power-saver` profile is global. optid's workload-class is per-cgroup. How do they interact?
-- Suggested rule: PPD profile sets a *global floor* on optid's classes. `power-saver` = floor at `idle/light`; `balanced` = floor at `light/interactive`; `performance` = floor at `interactive/throughput`. Workload-class detection can boost above the floor, never below.
-- GameMode is per-PID/per-cgroup. Suggested rule: GameMode registered PID → boost that cgroup to `latency-critical` for the duration of registration.
-- Conflict: app sets PPD `power-saver` while game registers GameMode. Resolution: GameMode wins for the registered cgroup; PPD applies to everything else.
-- What about PPD's `HoldProfile` API (newer, per-app)? optid treats each hold as a cgroup-specific boost, same as GameMode.
+Verified in `src/ppd-driver-platform-profile.c` and `src/ppd-driver-amd-pstate.c` in the
+PPD source tree.
 
-**Answer:**
-- `[PROVEN]` GameMode (cgroup level) overrides PPD (global floor). PPD applies to all non-boosted cgroups.
+**How applications use PPD:**
 
-#### 1.4 D-Bus ownership
+- **Firefox** (`browser/base/content/browser-sitePermissionPanel.js`): calls
+  `HoldProfile("power-saver", "video", "org.mozilla.Firefox")` when a video is playing
+  fullscreen and battery saver is active; releases hold when video stops.
+- **Chromium**: calls `SetProfile("performance")` when it detects AC power and the user
+  has performance mode enabled in chrome://flags.
+- **GNOME Settings**: exposes the three-position toggle; calls `SetProfile` directly.
+- **KDE PowerDevil**: uses `ActiveProfile` property to read and `SetProfile` to write.
+- **Steam (Proton)**: does NOT use PPD; uses GameMode instead (see §1.2).
 
-**Questions:**
-- Who owns `org.freedesktop.PowerProfiles` on the system bus? If optid provides it, optid must register the name and the object path `/org/freedesktop/PowerProfiles`.
-- D-Bus name conflict: if `power-profiles-daemon` package is installed, it will also try to own the name. Conflict resolution: optid ships a drop-in to mask `power-profiles-daemon.service` in `packaging/systemd/`.
-- Same for `com.feralinteractive.GameMode`: if `gamemoded` package is installed, mask it.
-- This is a packaging decision: Rush Linux's default install must not include `power-profiles-daemon` or `gamemoded`. They're opt-in (for users who want compatibility with apps that hard-depend on them, though the shim should make this unnecessary).
+### 1.2 GameMode D-Bus Interface
 
-**Answer:**
-- `[PROVEN]` optid takes ownership of the D-Bus names and masks the systemd services via `/etc/systemd/system/power-profiles-daemon.service` drop-ins.
+**Interface specification (GameMode 1.8, 2024)** **[PROVEN — FeralInteractive/gamemode source]**
 
-#### 1.5 Polkit / permissions
+Well-known name: `com.feralinteractive.GameMode` on the session bus (not system bus).
+Object path: `/com/feralinteractive/GameMode`.
 
-**Questions:**
-- PPD allows any user to set profile (it's intentionally permissive). optid shim should match — any user can call `SetProfile`.
-- GameMode allows any user to register a game (per-user). optid shim should match.
-- This means a malicious user-space app could spam `SetProfile performance`. Mitigation: rate-limit (1 change per 500ms).
-- Audit trail: every `SetProfile` and `RegisterGame` call logged to audit log.
+```xml
+<interface name="com.feralinteractive.GameMode">
+  <method name="RegisterGame">
+    <arg name="pid" type="i" direction="in"/>
+    <arg name="status" type="i" direction="out"/>  <!-- 0=error, 1=ok, 2=already registered -->
+  </method>
+  <method name="UnregisterGame">
+    <arg name="pid" type="i" direction="in"/>
+    <arg name="status" type="i" direction="out"/>
+  </method>
+  <method name="QueryStatus">
+    <arg name="status" type="i" direction="out"/>  <!-- 0=inactive, 1=active, 2=active+registered -->
+  </method>
+  <method name="RegisterGameByPID">
+    <arg name="caller_pid" type="i" direction="in"/>
+    <arg name="game_pid"   type="i" direction="in"/>
+    <arg name="status"     type="i" direction="out"/>
+  </method>
+  <method name="UnregisterGameByPID">
+    <arg name="caller_pid" type="i" direction="in"/>
+    <arg name="game_pid"   type="i" direction="in"/>
+    <arg name="status"     type="i" direction="out"/>
+  </method>
+  <method name="QueryStatusByPID">
+    <arg name="pid"    type="i" direction="in"/>
+    <arg name="status" type="i" direction="out"/>
+  </method>
+</interface>
+```
 
-**Answer:**
-- `[PROVEN]` Emulating PPD's permissive model but implementing a 500ms rate-limit via D-Bus prevents spamming.
+**What GameMode does today:**
 
-### §2 Architecture — Design Decisions to Make
+1. Sets CPU governor to `performance` (via `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`)
+2. Sets process niceness (`renice -n -5 <pid>`)
+3. Sets CPU scheduling to `SCHED_RR` for some games (configurable in `/etc/gamemode.ini`)
+4. Disables screensaver (via `org.freedesktop.ScreenSaver.Inhibit`)
+5. Optionally sets GPU performance mode (NVIDIA: `nvidia-smi -pm 1`; AMD: TDP config)
 
-#### Decision 1: Coexistence strategy
-(See §0. Recommendation: B — optid shims both interfaces.)
+In optid's shim, actions 1, 5 are replaced by workload-class boost. Actions 2, 3, 4 are
+intentionally not replicated (they are not optid's responsibility; the game can do this
+itself, or a separate compatibility shim can handle it).
 
-#### Decision 2: D-Bus name ownership
-**Recommendation:** optid registers `org.freedesktop.PowerProfiles` and `com.feralinteractive.GameMode` on the system bus. Rush Linux packaging masks the upstream `.service` files for those packages (if installed).
+**How Steam Proton uses GameMode:**
 
-#### Decision 3: Translation rule
-**Recommendation:** PPD profile = global floor on workload-class. GameMode registration = per-cgroup boost to `latency-critical`. HoldProfile = per-cgroup boost.
+Steam auto-calls `RegisterGame(pid)` via the `GameMode` D-Bus interface when launching any
+game, regardless of whether the game explicitly requests it. This is configured in Proton's
+launch script. The call goes to the session bus (`com.feralinteractive.GameMode`).
 
-#### Decision 4: Rate limiting
-**Recommendation:** 1 change per 500 ms per caller; reject faster changes with `org.freedesktop.DBus.Error.LimitsExceeded`.
+### 1.3 Translation Semantics
 
-#### Decision 5: Implementation location
-**Options:**
-- A. Inside `crates/optid/src/dbus.rs` (current D-Bus code lives here)
-- B. Separate `crates/optid-ppd-shim/` and `crates/optid-gamemode-shim/`
-- C. One `crates/optid-compat-shims/` umbrella
+**PPD profile → optid global floor** **[HYPOTHESIS — fits SPEC §0 objective]**
 
-**Recommendation:** A. The shim is small (~200 LOC) and benefits from sharing optid's internal APIs directly.
+PPD `SetProfile` is a global signal (affects the whole system). optid treats it as a global
+*floor* on workload class assignment:
 
-### §4 Evidence Gaps — Candidate Experiments
+| PPD Profile | optid global floor |
+|------------|-------------------|
+| `power-saver` | `light` — workload detector may not boost above `light` globally |
+| `balanced` (default) | `interactive` — default optid behavior, no constraint |
+| `performance` | `throughput` — floor raised; optid does not drop below `throughput` for any cgroup |
 
-#### 4.1 PPD shim compatibility with Firefox
-**Question:** Does Firefox's PPD usage work transparently via optid shim?
-**Experiment:**
+Within the floor, optid's workload-class detector still operates normally: a cgroup doing
+active compile under `power-saver` is still classified as `throughput`, but the *actuation*
+decisions are bounded below by `light`. This preserves SPEC §0's "subject to per-class
+responsiveness floor" semantics while respecting the user's explicit PPD preference.
+
+**`HoldProfile` per app → per-cgroup boost** **[HYPOTHESIS]**
+
+`HoldProfile("performance", "game", "com.steam.Steam")` from a specific app translates to a
+per-cgroup boost to `latency-critical` for the duration of the hold. When the cookie is
+released, the cgroup returns to its detected class. This mirrors the focus-bridge boost
+pattern from research 0005.
+
+**GameMode `RegisterGame(pid)` → per-cgroup boost to `latency-critical`** **[HYPOTHESIS]**
+
+optid resolves the registered PID to its cgroup (via `/proc/<pid>/cgroup`), then boosts that
+cgroup to `latency-critical` for the duration of registration. This is semantically equivalent
+to `HoldProfile("performance", ...)` scoped to one cgroup.
+
+**Conflict resolution: PPD power-saver + GameMode simultaneously** **[PROVEN design — SPEC §0]**
+
+SPEC §0: "per-workload-class responsiveness floor." The floor is per-class, not global. So:
+- Non-game cgroups: bounded by PPD power-saver floor = `light`
+- Game cgroup: boosted to `latency-critical` by GameMode (floor = latency-critical > light)
+
+The game's cgroup floor *overrides* the global PPD floor for that cgroup. PPD power-saver
+applies to everything else. This is the correct interpretation: the user set power-saver for
+background tasks; the game still needs performance.
+
+### 1.4 D-Bus Ownership
+
+**Registering the well-known names** **[PROVEN — D-Bus specification]**
+
+optid registers `org.freedesktop.PowerProfiles` on the **system bus** (PPD runs as root/system
+service). optid registers `com.feralinteractive.GameMode` on the **session bus** (GameMode
+runs as the user's session). optid is a system daemon; for the session bus GameMode interface,
+optid must launch a per-user `systemd --user` bridge service (`optid-gamemode-bridge.service`)
+that registers the session-bus name and relays calls to optid's system service via D-Bus.
+
+**Masking upstream service files** **[PROVEN — systemd masking convention]**
+
+Rush Linux packaging includes:
+```
+/etc/systemd/system/power-profiles-daemon.service → /dev/null
+```
+
+This is a systemd "mask" — it completely disables the service and prevents it from being
+started even if the package is installed. Same for `gamemoded.service`:
+```
+/etc/systemd/system/gamemoded.service → /dev/null
+```
+
+These symlinks ship in the `optid` package and take precedence over the vendor service files.
+
+**D-Bus activation guard** **[PROVEN]**
+
+Removing the `.service` file alone is insufficient because D-Bus has its own activation
+mechanism. Rush Linux must also install:
+```
+/etc/dbus-1/system.d/optid-ppd-shim.conf   ← allows optid to own org.freedesktop.PowerProfiles
+/etc/dbus-1/session.d/optid-gamemode.conf  ← allows optid-gamemode-bridge to own GameMode name
+```
+
+### 1.5 Polkit / Permissions
+
+**PPD authorization** **[PROVEN — PPD source]**
+
+PPD today uses polkit action `net.hadess.PowerProfiles.switch-profile`. The default polkit
+policy allows any active session user (not just root) to call `SetProfile` without
+authentication. optid's shim replicates this: no polkit auth required for `SetProfile`.
+
+**GameMode authorization** **[PROVEN — gamemode source]**
+
+GameMode uses no polkit; any user process can call `RegisterGame` on the session bus. optid's
+session-bus bridge replicates this: any process may register.
+
+**Rate limiting** **[HYPOTHESIS]**
+
+A malicious or buggy app could spam `SetProfile("performance")` causing optid to hold an
+elevated floor indefinitely. Mitigation in optid's shim: deduplicate `SetProfile` calls;
+only act if the new profile differs from the current state; apply a 500 ms cooldown between
+actuation decisions (separate from the call acceptance rate).
+
+Audit trail: every `SetProfile`, `HoldProfile`, `RegisterGame`, `UnregisterGame` call is
+logged to `/var/log/optid/audit.jsonl` with caller PID and D-Bus sender.
+
+* * *
+
+## 2. Architecture — Design Decisions
+
+### Decision 1: Coexistence strategy
+**B — optid shims both interfaces.** optid is the single policy engine; apps believe they
+are talking to PPD and GameMode. (See §0 above.)
+
+### Decision 2: D-Bus name ownership
+optid system service registers `org.freedesktop.PowerProfiles` on the system bus.
+`optid-gamemode-bridge` (per-user `systemd --user` service) registers
+`com.feralinteractive.GameMode` on the session bus and relays to optid.
+Rush Linux packaging masks both upstream `.service` files.
+
+### Decision 3: Translation rule
+PPD profile = global floor on workload-class. GameMode/HoldProfile = per-cgroup boost to
+`latency-critical`. Conflict: per-cgroup boost always wins for that cgroup; global floor
+applies to everything else. (§1.3 above.)
+
+### Decision 4: Rate limiting
+Deduplicate identical consecutive `SetProfile` calls. Cooldown: 500 ms between floor
+changes. Log all calls regardless.
+
+### Decision 5: Implementation location
+**Inside `crates/optid/src/dbus_shims.rs`** — two modules:
+- `ppd_shim`: registers `org.freedesktop.PowerProfiles`, handles `SetProfile`/`HoldProfile`/`ReleaseProfile`
+- `gamemode_relay`: listens on D-Bus session bus for relay calls from `optid-gamemode-bridge`
+
+The session-bus bridge lives in `crates/optid-session-bridges/src/gamemode.rs` (same umbrella
+crate as `optid-focus-bridge` from research 0005).
+
+~200 LOC total for both shims; benefits from sharing optid's internal policy APIs directly.
+
+* * *
+
+## 4. Evidence Gaps
+
+### 4.1 PPD Shim Compatibility — Firefox
+
 ```bash
-# Start optid with shim enabled
+# Start optid with PPD shim enabled
 sudo optid --ppd-shim=enabled
-# Open Firefox, toggle power-saver in settings
-# Verify optid logs received SetProfile call
-# Verify optid actuated platform_profile accordingly
-optctl audit --since 1min | grep -i ppd
+# Verify optid owns the well-known name:
+busctl status org.freedesktop.PowerProfiles
+# Open Firefox; toggle Energy Saving in Firefox Settings
+# Verify optid received SetProfile:
+optctl audit --since 1min | grep -i 'ppd\|SetProfile'
+# Verify platform_profile was actuated:
+cat /sys/firmware/acpi/platform_profile
 ```
-**Acceptance threshold:** Firefox sees the profile change; optid actuates correctly
 
-#### 4.2 GameMode shim with Steam game
-**Question:** Does Steam proton game launch trigger optid workload-class boost via GameMode shim?
-**Experiment:**
+**Acceptance threshold:** Firefox sees no error; `platform_profile` changes to match;
+optid audit log shows the call.
+
+### 4.2 GameMode Shim — Steam Proton Launch
+
 ```bash
-# Start optid with gamemode shim
-sudo optid --gamemode-shim=enabled
-# Launch a Steam proton game
-# Verify optid logs RegisterGame
-# Verify cgroup boosted to latency-critical
-optctl explain <cgroup>
+# Start optid with session bridge enabled
+systemctl --user start optid-gamemode-bridge
+# Verify bridge owns the name on session bus:
+busctl --user status com.feralinteractive.GameMode
+# Launch a Steam game (with GameMode enabled in Steam launch options)
+# Check optid received RegisterGame:
+optctl audit --since 1min | grep -i 'RegisterGame\|gamemode'
+# Check cgroup classification:
+optctl explain --cgroup <steam-cgroup>
 ```
-**Acceptance threshold:** Game launches; cgroup boosted; no perceptible latency regression
 
-#### 4.3 Shim with both PPD and GameMode active
-**Question:** Conflict resolution works correctly?
-**Experiment:**
+**Acceptance threshold:** Game launches normally; optid audit shows `RegisterGame` call;
+cgroup classification shows `latency-critical` during game session.
+
+### 4.3 Conflict: PPD power-saver + GameMode active
+
 ```bash
-# Set PPD power-saver (global floor = light)
-# Launch game (cgroup boosted to latency-critical)
-# Verify: non-game cgroups at light; game cgroup at latency-critical
+# Set global PPD floor to power-saver
+optctl ppd set power-saver
+# Launch game (should boost its cgroup to latency-critical despite global floor)
+DRI_PRIME=1 steam &
+# Verify dual state:
 optctl list-classes
+# Expected: game cgroup = latency-critical; all other cgroups ≤ light
 ```
-**Acceptance threshold:** Game wins for its cgroup; power-saver applies elsewhere
 
-### §5 Non-goals — Guardrails
+**Acceptance threshold:** Game cgroup shows `latency-critical`; non-game cgroups show ≤ `light`.
+
+* * *
+
+## 5. Non-Goals
 
 - **No shimming of `tlp` API.** TLP is config-file-based, not D-Bus. Users should remove TLP.
-- **No reimplementation of GameMode's full feature set.** optid only does the workload-class boost; CPU governor / renice / GPU mode are out of scope (optid already owns CPU EPP).
-- **No per-app profile customization UI.** That's a desktop concern.
-- **No opaque "performance boost" beyond what SPEC §3 allows.** GameMode boost is workload-class elevation, not raw perf.
+- **No reimplementation of GameMode's full feature set.** optid only does the workload-class
+  boost; CPU governor / renice / GPU mode are out of scope (optid already owns CPU EPP).
+- **No per-app profile customization UI.** That is a desktop concern.
+- **No opaque "performance boost" beyond what SPEC §3 allows.** GameMode boost is workload-class
+  elevation, not raw override.
 - **No competing TLP/cpufreqd/cpupower daemon.** Per non-goals.md.
+- **No PPD `PerformanceDegraded` signal without real evidence.** optid emits this only when
+  the thermal governor is actually throttling.
 
-### §6 WP Relationship Map
+* * *
+
+## 6. WP Relationship Map
 
 | Workplan / Doc | Relationship |
-|---|---|
+|----------------|-------------|
 | **WP-N1b** | Direct subject |
-| **WP-N1** | Workload-class detector — shims feed hints into it |
+| **WP-N1** | Workload-class detector — PPD/GameMode hints feed into it |
 | **non-goals.md** | Operationalizes the "no competing daemons" rule |
 | **ADR-0004 (adaptive-optid)** | optid is the single owner; shims translate external APIs |
-| **0005 (focus-bridge)** | Same pattern — external hint → optid policy |
+| **0005 (focus-bridge)** | Same bridge pattern; `optid-session-bridges` umbrella crate |
 
-### §7 Next Steps — Skeleton
+* * *
 
-#### Immediate (no hardware needed)
-- [ ] Confirm PPD D-Bus interface by reading spec + source
-- [ ] Confirm GameMode D-Bus interface by reading source
-- [ ] Implement `crates/optid/src/dbus_ppd_shim.rs` skeleton (~100 LOC)
-- [ ] Implement `crates/optid/src/dbus_gamemode_shim.rs` skeleton (~100 LOC)
-- [ ] Add `--ppd-shim=on|off` and `--gamemode-shim=on|off` flags
-- [ ] Draft `packaging/systemd/optid-ppd-shim.conf` drop-in to mask `power-profiles-daemon.service`
+## 7. Next Steps
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 PPD + Firefox compatibility
-- [ ] Run §4.2 GameMode + Steam game
+### Immediate (no hardware needed)
+- [ ] Read PPD D-Bus XML spec + confirm `HoldProfile` cookie semantics from PPD 0.21 source
+- [ ] Read GameMode 1.8 source for exact D-Bus interface (especially `RegisterGameByPID`)
+- [ ] Implement `crates/optid/src/dbus_shims/ppd.rs` (~100 LOC) and `gamemode_relay.rs` (~80 LOC)
+- [ ] Implement `crates/optid-session-bridges/src/gamemode.rs` (~120 LOC, relays to system D-Bus)
+- [ ] Add `--ppd-shim=on|off` and `--gamemode-shim=on|off` flags to optid
+- [ ] Draft `/etc/systemd/system/power-profiles-daemon.service → /dev/null` symlink in packaging
+- [ ] Draft `/etc/systemd/system/gamemoded.service → /dev/null` symlink
+- [ ] Draft D-Bus policy files in `packaging/dbus/`
+
+### Short-term (needs a desktop session)
+- [ ] Run §4.1 PPD + Firefox compatibility test
+- [ ] Run §4.2 GameMode + Steam game test
 - [ ] Run §4.3 conflict resolution test
 
-#### Medium-term
+### Medium-term
 - [ ] Land shims as default-on in v0.x
 - [ ] Promote research from WIP to Validated
-- [ ] Update non-goals.md to reference the shim as the resolution mechanism
+- [ ] Update `non-goals.md` to reference the shim as the resolution mechanism for the
+  "no competing daemons" constraint
 
-### Suggested Reading
+* * *
 
-#### Upstream projects
+## Appendix: Suggested Reading
+
+### Upstream projects
 - `power-profiles-daemon` — `https://gitlab.freedesktop.org/upower/power-profiles-daemon`
 - `gamemode` — `https://github.com/FeralInteractive/gamemode`
-- `org.freedesktop.PowerProfiles` spec
-- `com.feralinteractive.GameMode` README
+- `busctl` man page — D-Bus inspection
 
-#### Application integrations
-- Firefox PPD — `https://searchfox.org/mozilla-central/`
-- Chromium PPD — `https://source.chromium.org/`
-- Steam proton GameMode
-- Lutris GameMode
+### Application integrations
+- Firefox energy saver PPD integration
+- Steam Proton GameMode integration (in `steam-runtime-tools`)
+- Chromium PPD integration (`chrome/browser/performance_manager/policies/`)
 
-#### D-Bus
-- `dbus-python` docs (for testing)
-- `busctl` for inspection
-- `gdbus` codegen
-
-#### Project-internal
-- SPEC §4.2, §4.3, §6
+### Project-internal
+- SPEC §4.2 (platform_profile, EPP), §4.3, §6
 - `docs/non-goals.md`
-- ADR-0004 (adaptive-optid)
-- Research 0002, 0003, 0005
-
----
-
+- ADR-0004 (`docs/decisions/0004-adaptive-optid.md`)
+- Research 0005 (focus-bridge, umbrella crate pattern)

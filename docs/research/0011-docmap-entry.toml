@@ -1,3 +1,26 @@
-slug = "dgpu-runtime-pm-and-mux"
-status_match = "WIP"
-author = ""
+# Docmap entry for 0011-dgpu-runtime-pm-and-mux.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — D3cold latency measurements and MUX switch safety experiments pending.
+
+[docs."docs/research/0011-dgpu-runtime-pm-and-mux.md"]
+purpose = "Specifies dGPU runtime PM (D3hot/D3cold) and MUX control policy; covers NVIDIA and AMD hybrid graphics (WP-N2, WP-N4, WP-N6)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/dgpu.rs",
+    "crates/optid/src/actuators/dgpu.rs",
+    "crates/optid/data/allowlist.toml",
+    "packaging/modprobe/optid-nvidia.conf",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/research/0009-runtime-pm-autosuspend-policy.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

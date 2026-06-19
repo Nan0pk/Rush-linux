@@ -1,3 +1,24 @@
-slug = "telemetry-runtime-state-observability"
-status_match = "WIP"
-author = ""
+# Docmap entry for 0018-telemetry-runtime-state-observability.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — overhead profiling and C-state accuracy experiments pending.
+
+[docs."docs/research/0018-telemetry-runtime-state-observability.md"]
+purpose = "Fills SPEC §4.1 observability gaps: wakeup sources, runtime PM state, C-state residency, PM QoS (WP-N3)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/wakeup.rs",
+    "crates/optid/src/sensors/runtime_pm.rs",
+    "crates/optid/src/sensors/cstate.rs",
+    "crates/optid/src/sensors/pmqos.rs",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+]
+freshens = [
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+    "docs/research/0002-rush-linux-architecture-review.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

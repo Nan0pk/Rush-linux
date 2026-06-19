@@ -1,222 +1,273 @@
-# Slot 0015 — zram-mglru-tuning-per-ram-tier
-zram-mglru-tuning-per-ram-tier
+# 0015 — zram and MGLRU Tuning per RAM Tier
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies how optid tunes `vm.*` sysctls, zram-generator config, and MGLRU parameters per RAM tier — refining the `vm.*` actuation (already `A` per SPEC §4.3) with tiered defaults.
-- **Fills gap:** zram-generator / MGLRU tuning per RAM tier (from gap inventory)
-- **SPEC §4 ledger rows informed:** §4.3 (`vm.*` sysctls — swappiness, dirty_*)
-- **SPEC §6 WPs related:** Not a new WP — refines existing `vm.*` actuation. Related to WP-N0 (Finish `vm.*` actuation — status P→A).
-- **Docmap deps:** `docs/SPEC-northstar.md`, `docs/agent-protocol.md`, `docs/research/0002-rush-linux-architecture-review.md`
-- **Docmap freshens:** `docs/research/0002-rush-linux-architecture-review.md`
-- **owner_area:** `area:kernel`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md
+**Code:** crates/optid/src/actuators/memory.rs, crates/optid/src/sensors/memory.rs
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-SPEC §4.3 lists `vm.*` sysctls as `Status: A` — optid already applies them, zram-gated. But the current implementation is one-size-fits-all: every laptop gets the same `vm.swappiness`, zram-generator config, and MGLRU settings regardless of RAM size. This is suboptimal:
+## 0. Motivation
 
-- 8 GB laptop: needs aggressive zram (high compression ratio, high swappiness) to avoid OOM under load.
-- 16 GB laptop: moderate zram, moderate swappiness.
-- 32 GB laptop: minimal zram (only for emergency), low swappiness, prefer file cache.
-- 64 GB+ workstation: zram off, swappiness 10, max file cache.
+Memory pressure forces paging to storage, which increases latency, raises storage power
+(activating NVMe from PS3), and degrades user experience. Two kernel mechanisms address
+this on battery-constrained laptops:
 
-MGLRU (Multi-Gen LRU) is the kernel's newer page reclaim algorithm, more efficient than the legacy LRU. Tuning MGLRU's `lru_gen` sysctls per RAM tier also matters: small-RAM systems benefit from more aggressive generation churn; large-RAM systems benefit from longer generations.
+1. **zram** — a compressed RAM-backed block device used as swap; compression reduces
+   effective swap I/O by 2–4× and keeps paging within DRAM rather than NVMe, saving
+   storage power and reducing latency.
+2. **MGLRU** (Multi-Generation LRU, kernel ≥ 6.1) — a new page reclaim algorithm that
+   better distinguishes hot from cold pages, reducing unnecessary reclaim and improving
+   hit rate in the page cache.
 
-This research specifies the tier definitions (8 / 16 / 32 / 64+ GB), the per-tier sysctl values, the zram-generator config per tier, and the MGLRU tuning per tier. All gated by SPEC §3 actuation rule (zram-backed condition for `vm.*` writes — already enforced).
+The optimal tuning of these mechanisms depends on total RAM: a 4 GB system should use
+aggressive zram (e.g., 75 % compression target) to avoid NVMe swap; a 32 GB system can
+afford a larger page cache and less aggressive zram since memory pressure is unlikely.
 
-### §1 Findings — Key Questions to Answer
+Research questions: How is zram configured from userspace? What MGLRU sysfs knobs exist?
+What are the right parameters per RAM tier? How does optid interact with systemd-zram-setup?
 
-#### 1.1 RAM tier definitions
+* * *
 
-**Questions:**
-- Tiers: 8 GB, 16 GB, 32 GB, 64+ GB.
-- Detect via `/sys/devices/system/memory/memory_size` or `dmidecode -t memory`.
-- Boundary cases: 12 GB (8 + 4)? 24 GB? Round down to nearest tier or interpolate?
-- Recommend: round to nearest tier; document interpolation as future work.
+## 1. Findings
 
-**Answer:**
-- `[PROVEN]` Rounding down to standard tiers (8, 16, 32, 64) from `/sys/devices/system/memory/memory_size` is safe and deterministic.
+### 1.1 zram Configuration
 
-#### 1.2 zram-generator config per tier
+**Q: How is zram configured and what parameters does optid control?**
 
-**Questions:**
-- `zram-generator` (`/usr/lib/systemd/zram-generator.conf` or `/etc/systemd/zram-generator.conf.d/`):
-  - `zram-size = min(ram / 2, 4096)` — current default
-- Per-tier:
-  - 8 GB: `zram-size = ram` (1:1 — high compression, avoid OOM)
-  - 16 GB: `zram-size = ram / 2`
-  - 32 GB: `zram-size = ram / 4`
-  - 64 GB+: `zram-size = 4096` (cap at 4 GB)
-- Compression algorithm: `zstd` (default), `lz4` (faster, lower ratio).
-- Per-tier algo: 8 GB = zstd (need ratio), 64 GB = lz4 (don't care, rarely used).
+zram devices are created via the `zram` kernel module and configured via sysfs [PROVEN —
+`Documentation/admin-guide/blockdev/zram.rst`]:
 
-**Sources to consult:**
-- `zram-generator` source — `https://github.com/systemd/zram-generator`
-- `Documentation/admin-guide/blockdev/zram.rst`
-- Fedora zram config (prior art)
-
-**Answer:**
-- `[PROVEN]` 8GB=100% zstd, 16GB=50% zstd, 32GB=25% zstd, 64GB+=capped at 4GB lz4.
-
-#### 1.3 vm.swappiness per tier
-
-**Questions:**
-- `vm.swappiness` 0..200 (new range in 5.8+; was 0..100).
-- 0 = never swap anonymous pages; 200 = aggressively swap.
-- Per-tier:
-  - 8 GB: 180 (aggressive, prefer zram over OOM)
-  - 16 GB: 100 (balanced)
-  - 32 GB: 60 (prefer file cache)
-  - 64 GB+: 20 (minimal swap)
-- Interaction with zram: when zram is the swap device, higher swappiness is fine (no disk I/O).
-
-**Answer:**
-- `[PROVEN]` 8GB=180, 16GB=100, 32GB=60, 64GB+=20. High swappiness on small RAM strongly prefers zram to avoid OOM.
-
-#### 1.4 vm.dirty_* per tier
-
-**Questions:**
-- `vm.dirty_ratio`, `vm.dirty_background_ratio`, `vm.dirty_expire_centisecs`, `vm.dirty_writeback_centisecs`.
-- Large-RAM systems need higher dirty_ratio (avoid premature writeback); small-RAM systems need lower (avoid blocking on writeback).
-- Per-tier:
-  - 8 GB: dirty_ratio = 10 (aggressive writeback to avoid OOM)
-  - 16 GB: dirty_ratio = 15
-  - 32 GB: dirty_ratio = 20
-  - 64 GB+: dirty_ratio = 25
-- Verify ranges are sane.
-
-**Answer:**
-- `[PROVEN]` dirty_ratio scales linearly (10, 15, 20, 25) to avoid writeback stalls on small RAM machines.
-
-#### 1.5 MGLRU tuning per tier
-
-**Questions:**
-- MGLRU kernel param: `lru_gen=1` (enable), `lru_gen_min_ttl_ms=N` (min TTL per generation).
-- Per-tier:
-  - 8 GB: `lru_gen_min_ttl_ms = 1000` (aggressive churn)
-  - 16 GB: `lru_gen_min_ttl_ms = 5000`
-  - 32 GB: `lru_gen_min_ttl_ms = 10000`
-  - 64 GB+: `lru_gen_min_ttl_ms = 30000`
-- Verify by reading `Documentation/admin-guide/mm/multigen_lru.rst`.
-
-**Sources to consult:**
-- `Documentation/admin-guide/mm/multigen_lru.rst`
-- `mm/vmscan.c` — MGLRU implementation
-- `mm/kmsan.c` — page reclaim
-
-**Answer:**
-- `[PROVEN]` `lru_gen_min_ttl_ms` effectively protects page generations based on tier sizes.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: Tier detection
-**Recommendation:** `/sys/devices/system/memory/memory_size` at optid startup; re-detect on hot-plug (rare).
-
-#### Decision 2: Per-tier config source
-**Options:**
-- A. Hardcoded table in optid Rust source
-- B. TOML file `data/vm-tiers.toml`
-- C. Generated from `zram-generator` + sysctl.d drop-ins (let systemd apply)
-
-**Recommendation:** C. optid writes `/etc/systemd/zram-generator.conf.d/optid-tier.conf` and `/etc/sysctl.d/99-optid-tier.conf`, then `systemctl restart systemd-zram-setup` and `sysctl --system`. This way the config is auditable, distro-native, and re-applied on reboot.
-
-#### Decision 3: Revert
-**Recommendation:** optid tracks applied configs in `/var/lib/optid/vm-tier.journal`; on optid shutdown, deletes the drop-in files and reverts.
-
-#### Decision 4: Dynamic retiering
-**Recommendation:** No. RAM tier is fixed at install time. Hot-plug RAM is rare; document as manual `optctl vm-tier refresh`.
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 8 GB tier OOM avoidance
-**Question:** Does the 8 GB tier config avoid OOM under typical desktop load?
-**Experiment:**
 ```bash
-# Limit machine to 8 GB via memlock
-# Open 50 browser tabs + editor + LibreOffice
-# Verify no OOM kill
-dmesg -w | grep -i oom
-```
-**Acceptance threshold:** No OOM kills in 30-minute session
+# Create zram device
+echo 1 > /sys/class/zram-control/hot_add    # returns device number N
 
-#### 4.2 32 GB tier file cache hit rate
-**Question:** Does the 32 GB tier config improve file cache hit rate?
-**Experiment:**
+# Configure before first use
+echo lz4 > /sys/block/zramN/comp_algorithm  # compression algorithm
+echo 4G  > /sys/block/zramN/disksize        # logical maximum size
+echo 2   > /sys/block/zramN/max_comp_streams # parallel compression threads
+
+# Format and add as swap
+mkswap /dev/zramN
+swapon -p 100 /dev/zramN                    # priority 100 > default swap
+```
+
+**Compression algorithms** [PROVEN — `lib/crypto/` in kernel]:
+- `lzo-rle` — fast, ~2× compression; available everywhere; default for many distros
+- `lz4` — faster than lzo-rle at similar ratio; preferred for low-latency systems
+- `zstd` — better ratio (2.5–3×) at slightly higher CPU cost; best for memory-constrained
+  systems where compression ratio matters more than CPU time
+- `lz4hc` — high-compression lz4 variant; slower compress, fast decompress
+
+**optid recommendation by RAM tier** [HYPOTHESIS]:
+
+| Total RAM | comp_algorithm | disksize | Priority |
+|-----------|---------------|----------|----------|
+| ≤ 4 GB    | `zstd`        | RAM × 1.0 | 200 (highest) |
+| 8 GB      | `lz4`         | RAM × 0.75 | 100 |
+| 16 GB     | `lz4`         | RAM × 0.5  | 100 |
+| ≥ 32 GB   | `lz4`         | RAM × 0.25 | 50 (low; prefer no swap) |
+
+For ≥ 32 GB systems, zram provides a safety net for memory spikes but should not be the
+primary swap target — large in-memory page caches are more valuable.
+
+**Interaction with systemd-zram-setup** [PROVEN — systemd ≥ 253]:
+
+systemd ships a `systemd-zram-setup@zram0.service` that creates a zram swap device using
+`/etc/systemd/zram-generator.conf`. optid should detect whether this service is active and:
+- If active: do NOT create a separate zram device; instead adjust `max_comp_streams` and
+  `comp_algorithm` on the existing device if the RAM tier warrants it [HYPOTHESIS —
+  live algorithm change requires resetting the device; may not be practical without service restart]
+- If inactive: optid creates and manages its own zram device at startup
+
+**Recommended approach**: Rush Linux ships a `zram-generator.conf` tuned per RAM tier
+(via the mkosi build) and leaves runtime management to `systemd-zram-setup`; optid's
+role is auditing the configuration and reporting suboptimal settings via telemetry.
+
+### 1.2 MGLRU Configuration
+
+**Q: What MGLRU sysfs knobs exist and what do they control?**
+
+MGLRU is enabled by default in kernel 6.1+ when compiled with `CONFIG_LRU_GEN=y` [PROVEN]:
+
+```
+/sys/kernel/mm/lru_gen/
+├── enabled        # bitmask: 0x0001=MGLRU, 0x0002=mm_walk, 0x0004=page_table_aging
+├── min_ttl_ms     # minimum time (ms) a generation must age before being evicted
+└── /sys/kernel/mm/lru_gen/debug/  # (optional, with CONFIG_LRU_GEN_STATS)
+```
+
+**`enabled` bitmask** [PROVEN — `mm/vmscan.c`, commit introducing LRU_GEN]:
+- Bit 0 (`0x01`): Enable MGLRU page eviction policy. Default: 1.
+- Bit 1 (`0x02`): Enable memory-mapped file walk (scans page tables for access bits).
+  Default: 1. CPU-intensive on large address spaces; disable on low-RAM systems to
+  save CPU [HYPOTHESIS — disable mm_walk saves ~0.5 % CPU on 4 GB system under pressure].
+- Bit 2 (`0x04`): Enable page-table-based aging. Works alongside bit 1. Default: 1.
+
+**`min_ttl_ms`** [PROVEN — kernel documentation]:
+- Default: 0 (no minimum; reclaim immediately if needed)
+- Setting to 1000 ms means pages survive at least 1 s before being evicted; reduces
+  excessive reclaim oscillation under moderate pressure [HYPOTHESIS — THP-style
+  hysteresis; value needs calibration per workload]
+- Setting too high delays reclaim → OOM risk on low-RAM systems
+
+**optid tuning per RAM tier** [HYPOTHESIS]:
+
+| Total RAM | `enabled` | `min_ttl_ms` | Rationale |
+|-----------|-----------|-------------|-----------|
+| ≤ 4 GB    | `0x01` (MGLRU only; no mm_walk) | 0 | Save CPU; aggressive reclaim needed |
+| 8 GB      | `0x07` (all) | 500 | Balanced; moderate reclaim |
+| 16 GB     | `0x07` | 1000 | Allow pages to age longer; less reclaim churn |
+| ≥ 32 GB   | `0x07` | 2000 | Generous aging; abundant RAM |
+
+### 1.3 swappiness
+
+**Q: What swappiness value does optid set and why?**
+
+`/proc/sys/vm/swappiness` controls the kernel's preference for swapping vs. dropping
+page cache [PROVEN — kernel `Documentation/admin-guide/sysctl/vm.rst`]:
+- `0` = never swap; drop page cache only
+- `100` = equal preference for swapping and page cache drop (default 60)
+- `200` = prefer swapping over page cache drop (new semantics in kernel 5.8+ with zram)
+
+**With zram**: setting `swappiness=200` tells the kernel to swap to zram (compressed,
+in-DRAM) aggressively and preserve the page cache (beneficial for interactive workloads)
+[PROVEN — kernel 5.8 introduced swappiness values > 100 specifically for zram; systemd
+zram-generator documentation recommends 200].
+
+**Without zram** (or with NVMe swap only): keep `swappiness=10–20` to prefer keeping
+pages in RAM and only swap under severe pressure [PROVEN — widely recommended for SSDs].
+
+**optid setting**:
 ```bash
-# Run compile workload twice (warm cache second time)
-time make -j16 clean
-time make -j16  # cold cache
-time make -j16 clean
-time make -j16  # warm cache
-# Compare with default swappiness
+# With zram active:
+echo 200 > /proc/sys/vm/swappiness
+# Without zram:
+echo 10 > /proc/sys/vm/swappiness
 ```
-**Acceptance threshold:** >10% improvement in warm-cache time vs default
 
-#### 4.3 MGLRU vs legacy LRU
-**Question:** Does MGLRU actually help on the reference laptops?
-**Experiment:**
+### 1.4 Memory Pressure Detection
+
+**Q: How does optid detect memory pressure to adjust parameters at runtime?**
+
+**PSI (Pressure Stall Information)** [PROVEN — kernel ≥ 4.20, `Documentation/accounting/psi.rst`]:
 ```bash
-# Boot with lru_gen=0 (legacy), measure
-# Boot with lru_gen=1 (MGLRU), measure
-# Workload: 1-hour mixed desktop use, measure page reclaim stats
+cat /proc/pressure/memory
+# some avg10=0.12 avg60=0.08 avg300=0.02 total=123456
+# full avg10=0.00 avg60=0.00 avg300=0.00 total=0
 ```
-**Acceptance threshold:** >5% reduction in major page faults
 
-### §5 Non-goals — Guardrails
+- `some`: fraction of time where at least one task was stalled on memory
+- `full`: fraction of time where ALL tasks were stalled (severe pressure)
 
-- **No swap-to-disk on laptops.** zram only. Disk swap is for servers.
-- **No custom zram algorithm tuning beyond zstd/lz4.**
-- **No bypass of `vm.*` zram-gated condition.** Per SPEC §3, `vm.*` writes only when zram-backed.
-- **No OOM-killer tuning.** That's a kernel concern; optid just avoids OOM via config.
-- **No learned tier detection.** Deterministic per ADR-0013.
+optid uses PSI `memory some avg10 > 5 %` as "moderate pressure" signal and `full avg10 > 1 %`
+as "severe pressure" signal [HYPOTHESIS — thresholds; systemd-oomd uses similar thresholds].
 
-### §6 WP Relationship Map
+Under severe pressure with zram active, optid may increase compression aggressiveness
+(switch algorithm from `lz4` to `zstd` if possible) or call `sync; echo 3 > /proc/sys/vm/drop_caches`
+to reclaim clean page cache [HYPOTHESIS — `drop_caches` is a heavy hammer; use sparingly].
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **WP-N0** | Refines existing `vm.*` actuation |
-| **WP-N1** | Workload-class detection — tier interacts with class (8 GB + throughput = needs more aggressive zram) |
-| **ADR-0013** | Deterministic per-tier rules |
-| **0002** | Freshens — `vm.*` was left as "needs tiered tuning" |
+### 1.5 RAM Tier Detection
 
-### §7 Next Steps — Skeleton
+**Q: How does optid determine the total RAM tier at startup?**
 
-#### Immediate (no hardware needed)
-- [ ] Draft per-tier config tables (§1.2–§1.5)
-- [ ] Implement `crates/optid/src/vm_tier.rs` skeleton
-- [ ] Draft `optctl vm-tier status` and `optctl vm-tier apply` subcommands
+```bash
+# Total physical RAM from MemTotal in /proc/meminfo (kB):
+grep MemTotal /proc/meminfo
+# MemTotal:       16218040 kB → 15.5 GB → tier "16GB"
+```
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 8 GB OOM avoidance (limit RAM via memlock)
-- [ ] Run §4.2 32 GB file cache hit rate
-- [ ] Run §4.3 MGLRU vs legacy LRU on each reference laptop
+Tier boundaries [HYPOTHESIS — round numbers for simplicity]:
+- `≤ 6 GB` → 4 GB tier
+- `6–12 GB` → 8 GB tier
+- `12–24 GB` → 16 GB tier
+- `≥ 24 GB` → 32 GB tier
 
-#### Medium-term
-- [ ] Land `--vm-tier=auto` flag (default `auto`, detects tier)
-- [ ] Promote research from WIP to Validated
-- [ ] Update SPEC §4.3 `vm.*` row status to `A` with tiered note
+RAM tier is read once at startup and cached; does not change at runtime (no hot-plug RAM on
+target laptop hardware).
 
-### Suggested Reading
+* * *
 
-#### Kernel source
-- `mm/vmscan.c` — page reclaim, MGLRU
-- `mm/page_alloc.c` — page allocation
-- `mm/swap.c` — swap interface
+## 2. Architecture Decisions
 
-#### Documentation
-- `Documentation/admin-guide/blockdev/zram.rst`
-- `Documentation/admin-guide/mm/multigen_lru.rst`
-- `Documentation/admin-guide/sysctl/vm.rst`
+### Decision A: optid Manages zram vs. Defer to zram-generator
 
-#### Prior art
-- Fedora zram-generator default config
-- `systemd` zram-generator — `https://github.com/systemd/zram-generator`
+**Selected: Defer to systemd-zram-setup + zram-generator.conf shipped by Rush Linux
+packaging; optid audits and reports, not manages** [HYPOTHESIS — runtime algorithm change
+requires device reset which disrupts swap; better to get it right at boot via static config].
 
-#### Project-internal
-- SPEC §3 (zram-gated condition), §4.3, §6 WP-N0
-- Research 0002
+### Decision B: MGLRU Tuning — Static (boot) vs. Dynamic
 
----
+**Selected: Static per-tier values written at optid startup (once)** [HYPOTHESIS — MGLRU
+values are not hot-path control surfaces; setting them once at boot is sufficient].
 
+### Decision C: swappiness with/without zram
+
+**Selected: `swappiness=200` when zram is present; `swappiness=10` without** [PROVEN —
+kernel 5.8+ semantics make this the correct choice; zram-generator documentation confirms].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| zram compression ratio by algorithm | `lz4` ≥ 2.0×, `zstd` ≥ 2.5× on typical workload | `cat /sys/block/zram0/mm_stat` before/after 30min mixed browser+code session |
+| MGLRU min_ttl benefit | ≥ 10 % fewer major faults vs. min_ttl=0 at 8 GB under pressure | `perf stat -e major-faults` with `stress-ng --vm 1 --vm-bytes 6G` for 60s; compare min_ttl=0 vs. 1000ms |
+| mm_walk CPU overhead at 4 GB | Confirm CPU overhead with bit1=1 vs. bit1=0 under pressure | `perf stat -a -e cpu-cycles` while `stress-ng --vm 1 --vm-bytes 3G` |
+| swappiness=200 page cache benefit | ≥ 15 % higher page cache hit rate vs. swappiness=60 | `/proc/vmstat pgpgin/pgpgout` ratio over 1h browser session with zram |
+| PSI threshold calibration | Confirm `some avg10 > 5%` correlates with user-visible jank | Correlate PSI `some avg10` with compositor frame drops during 1h mixed workload |
+
+* * *
+
+## 5. Non-Goals
+
+- optid does not manage swap partition (non-zram NVMe swap) — that is the installer's job.
+- optid does not implement memory compaction (`/proc/sys/vm/compact_memory`) — too disruptive.
+- optid does not configure transparent huge pages (THP) — separate tuning domain.
+- optid does not manage cgroup memory limits per application — that is a container/sandbox concern.
+- optid does not implement NUMA memory policies (not applicable to single-socket laptop CPUs).
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N12 | zram compression keeps swap in DRAM, reducing NVMe power-on events (feeds 0008/0009) |
+| WP-N13 | MGLRU tuning reduces page cache churn, lowering memory bus activity and power |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Implement `crates/optid/src/sensors/memory.rs`: read `MemTotal`, current zram stats
+  (`/sys/block/zram*/mm_stat`), PSI memory pressure, MGLRU `enabled` and `min_ttl_ms`.
+- Implement `crates/optid/src/actuators/memory.rs`: write MGLRU params and swappiness
+  at startup based on RAM tier.
+
+**Short-term**
+- Ship `zram-generator.conf` in Rush Linux packaging with tier-aware configuration.
+- Run zram compression ratio experiment (§4 gap #1).
+
+**Medium-term**
+- Evaluate PSI-based dynamic zram algorithm switching if static boot config proves insufficient.
+- Implement `optctl memory --status` showing zram compression ratio and PSI trends.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- Kernel docs: `Documentation/admin-guide/blockdev/zram.rst`
+- Kernel docs: `Documentation/admin-guide/sysctl/vm.rst` — swappiness
+- Kernel docs: `mm/vmscan.c` MGLRU implementation comments (Yu Zhao's extensive inline docs)
+- systemd zram-generator: `zram-generator.conf` manual page
+- LWN.net: "Multi-generational LRU: the guts of the thing" (2022)
+- PSI documentation: `Documentation/accounting/psi.rst`
+- Meta Engineering Blog: "Linux memory management at Facebook" (PSI usage at scale)

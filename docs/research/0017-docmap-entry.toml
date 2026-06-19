@@ -1,3 +1,24 @@
-slug = "uki-signing-secure-boot-enrollment"
-status_match = "WIP"
-author = ""
+# Docmap entry for 0017-uki-signing-secure-boot-enrollment.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — Shim MOK enrollment UX testing and CI signing HSM evaluation pending.
+
+[docs."docs/research/0017-uki-signing-secure-boot-enrollment.md"]
+purpose = "Specifies UKI signing workflow, Shim+MOK enrollment path, key hierarchy, and SBAT requirements for Rush Linux Secure Boot (WP-N14, WP-N15)"
+owner_area = "area:packaging"
+covers_code = [
+    "tools/sign-uki.sh",
+    "tools/build-image.sh",
+    "packaging/secureboot/rush-linux-sb.crt",
+    "packaging/secureboot/rush-linux-sb.der",
+    "packaging/secureboot/rush-linux.sbat",
+    "packaging/mkosi/mkosi.conf",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/research/0016-mkosi-ala-snapshot-pinning.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

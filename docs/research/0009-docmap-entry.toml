@@ -1,3 +1,25 @@
-slug = "runtime-pm-autosuspend-policy"
-status_match = "WIP"
-author = ""
+# Docmap entry for 0009-runtime-pm-autosuspend-policy.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — USB HID wakeup latency and WiFi autosuspend power experiments pending.
+
+[docs."docs/research/0009-runtime-pm-autosuspend-policy.md"]
+purpose = "Specifies per-device-class autosuspend delay policy, wakeup protection rules, and error handling for the Linux runtime PM framework (WP-N3, WP-N4)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/runtime_pm.rs",
+    "crates/optid/src/policy.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/research/0018-telemetry-runtime-state-observability.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

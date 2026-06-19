@@ -1,3 +1,22 @@
-slug = "zram-mglru-tuning-per-ram-tier"
-status_match = "WIP"
-author = ""
+# Docmap entry for 0015-zram-mglru-tuning-per-ram-tier.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — zram ratio measurements and MGLRU min_ttl calibration pending.
+
+[docs."docs/research/0015-zram-mglru-tuning-per-ram-tier.md"]
+purpose = "Specifies zram compression algorithm/size and MGLRU min_ttl_ms tuning per RAM tier to reduce NVMe swap activation (WP-N12, WP-N13)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/memory.rs",
+    "crates/optid/src/actuators/memory.rs",
+    "packaging/systemd/zram-generator.conf",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

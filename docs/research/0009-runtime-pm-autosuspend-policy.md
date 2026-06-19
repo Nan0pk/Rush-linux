@@ -1,227 +1,386 @@
-# Slot 0009 — runtime-pm-autosuspend-policy
-runtime-pm-autosuspend-policy
+# 0009 — Runtime PM Autosuspend Policy
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies optid's per-device runtime PM autosuspend policy — which devices (USB hubs, audio codecs, cameras, radios, card readers) can autosuspend, with what delay, gated by the allowlist from 0006.
-- **Fills gap:** WP-N5 (Runtime PM autosuspend policy)
-- **SPEC §4 ledger rows informed:** §4.3 (Runtime PM autosuspend, USB autosuspend / port power / wake); §4.1 (per-device runtime PM state + failures observability)
-- **SPEC §6 WPs related:** N5 (direct subject); N2 (PM QoS per-device resume-latency floor); N3 (wakeup-source telemetry — devices that never autosuspend); N4 (allowlist gate, hard dep)
-- **Docmap deps:** `docs/SPEC-northstar.md`, `docs/agent-protocol.md`, `docs/research/0006-hw-allowlist-db-design.md` (after 0006 lands), `docs/research/0002-rush-linux-architecture-review.md`
-- **Docmap freshens:** `docs/research/0002-rush-linux-architecture-review.md`
-- **owner_area:** `area:optid`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md, docs/research/0006-hw-allowlist-db-design.md, docs/research/0018-telemetry-runtime-state-observability.md
+**Code:** crates/optid/src/actuators/runtime_pm.rs, crates/optid/src/policy.rs
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-Beyond NVMe and PCIe links, every laptop has a long tail of peripheral devices: USB hubs, Bluetooth radios, audio codecs, webcams, fingerprint readers, SD card readers, IR cameras, ambient light sensors, accelerometers. Each draws 50–500 mW idle if runtime PM is not engaged. With runtime PM autosuspend, idle devices drop to <5 mW. Sum across the long tail and you save 1–3 W on a typical laptop — comparable to NVMe APST in magnitude.
+## 0. Motivation
 
-The kernel has runtime PM infrastructure (`/sys/bus/.../devices/<dev>/power/control`, `autosuspend_delay_ms`). What's missing is *policy*: which devices should autosuspend, with what delay, and which devices must NOT autosuspend because they're broken (the classic "USB keyboard that drops keystrokes after autosuspend" problem).
+The Linux kernel's Runtime PM framework provides a unified mechanism for any bus-attached
+device to autonomously enter a low-power state after an idle period and wake on demand.
+Unlike system suspend (S3/S0ix), runtime PM is transparent to userspace: devices suspend
+and resume individually without stopping the CPU or freezing userspace processes.
 
-SPEC §3 actuation rule applies: deepest state whose exit latency ≤ floor AND HWID allowlisted. For runtime PM, the "deepest state" is `suspended` (vs `active`), and the exit latency is the device's resume time. optid's job is to set `power/control=auto` with the right `autosuspend_delay_ms` per device, gated by the allowlist.
+For optid, runtime PM is both a **DEPTH-ENABLER** (optid tightens `autosuspend_delay_ms`
+and enables `control=auto` to save power) and a **telemetry source** (0018 reads
+`runtime_status` and `runtime_suspended_time` per device). SPEC §3.2 requires optid to
+gate runtime PM deepening on the HWID allowlist (0006 schema) and to journal every write.
 
-This research specifies the device-class taxonomy (which device types get which default policy), the per-HWID allowlist overrides, the autosuspend-delay tuning, and the observability layer (`optctl pm list` shows what's suspended, what's active, and why).
+Research questions: What is the correct autosuspend delay per device class? How does optid
+avoid breaking devices that need wakeup capability? What is the interaction with udev rules
+that also set autosuspend? How does optid handle devices that fail to suspend? What is the
+network device edge case with Wake-on-LAN and carrier state?
 
-Hard dep on 0006: every `power/control=auto` write is allowlisted.
+* * *
 
-### §1 Findings — Key Questions to Answer
+## 1. Findings
 
-#### 1.1 Runtime PM kernel interface
+### 1.1 Kernel Runtime PM Architecture
 
-**Questions:**
-- `/sys/bus/usb/devices/<dev>/power/control` — `auto` (kernel decides) vs `on` (always on).
-- `/sys/bus/usb/devices/<dev>/power/autosuspend_delay_ms` — delay before autosuspend, in ms. Default -1 (never) for USB unless driver opts in.
-- `/sys/bus/usb/devices/<dev>/power/runtime_status` — `active`, `suspended`, `suspending`, `resuming`.
-- Confirm by reading `Documentation/power/runtime_pm.rst` and `drivers/base/power/runtime.c`.
-- For PCI devices: same interface but path is `/sys/bus/pci/devices/<bdf>/power/`.
-- For platform devices: `/sys/bus/platform/devices/<dev>/power/`.
-- How does optid write atomically? Single `write(open(path), "auto")` is atomic enough.
+**Q: How does Linux runtime PM work at the sysfs interface level?**
 
-**Sources to consult:**
-- `Documentation/power/runtime_pm.rst`
-- `drivers/base/power/runtime.c` — `rpm_suspend()`, `rpm_resume()`
-- `drivers/usb/core/driver.c` — USB autosuspend
-- `drivers/pci/pci.c` — PCI runtime PM
+Every device that supports runtime PM exposes these sysfs attributes under
+`/sys/bus/<bus>/devices/<dev>/power/` [PROVEN — `Documentation/power/runtime_pm.rst`]:
 
-**Answer:**
-- `[PROVEN]` Atomic writes to `/sys/bus/.../power/control` with `auto` and configuring `autosuspend_delay_ms` is the correct approach.
-
-#### 1.2 Device-class taxonomy
-
-
-
-| Class | Default policy | Default delay | Allowlist required? | Notes |
-|---|---|---|---|---|
-| USB hub (root, internal) | autosuspend | 2000 ms | yes | Some hubs fail to resume |
-| USB hub (external) | autosuspend | 2000 ms | yes | |
-| USB keyboard | on (no suspend) | — | — | Drops keystrokes (classic) |
-| USB mouse | autosuspend | 500 ms | yes | Wake on movement |
-| USB webcam | autosuspend | 3000 ms | yes | App opens → resume |
-| USB BT adapter | autosuspend | 2000 ms | yes | Wake on event |
-| Audio codec (HDA) | on | — | — | Pops/clicks on resume |
-| Audio codec (USB) | autosuspend | 2000 ms | yes | |
-| Fingerprint reader | autosuspend | 1000 ms | yes | |
-| SD card reader | autosuspend | 3000 ms | yes | Realtek RTS5227 is buggy |
-| Ambient light sensor (IIO) | autosuspend | 1000 ms | yes | |
-| Accelerometer (IIO) | autosuspend | 1000 ms | yes | |
-| IR camera | autosuspend | 3000 ms | yes | |
-| PCIe wifi (Intel AX210) | autosuspend | 200 ms | yes | L1.2 must be set too |
-| PCIe dGPU | autosuspend | 1000 ms | yes | Slot 0011 covers this |
-
-**Questions:**
-- Verify each default by stability testing on reference laptops.
-- Are there device classes I'm missing? (Thunderbolt controllers, NFC, smart card readers, modems, etc.)
-- How to detect device class? PCI class code, USB device class, or modalias matching?
-
-**Answer:**
-- `[PROVEN]` The default table is correct. Keyboards must stay `on`, mice to `500ms`, webcams/SD readers to `3000ms`. Allowlist required for most hubs.
-
-#### 1.3 Autosuspend delay tuning
-
-**Questions:**
-- `autosuspend_delay_ms` trades off energy vs. resume latency. Too short → device thrashes; too long → device never suspends.
-- Default 2000 ms is conservative. Can be tuned per device class:
-  - Mouse: 500 ms (user moves it, then 500 ms idle, then suspend)
-  - Webcam: 3000 ms (app closes, wait 3s, suspend)
-  - USB hub: 2000 ms
-- What about workload-class interaction? When class=interactive, can we delay autosuspend further to avoid resume latency?
-- Should autosuspend_delay be a function of (device_class, workload_class)? E.g. webcam during video call = no autosuspend regardless.
-
-**Answer:**
-- `[HYPOTHESIS]` Delay multipliers based on workload class (e.g., interactive = 2x delay) will significantly improve user experience.
-
-#### 1.4 Wakeup-source interaction
-
-**Questions:**
-- A device that's a wakeup source (keyboard, mouse, network) can wake the system from suspend. Setting it to autosuspend doesn't disable wakeup.
-- `/sys/bus/usb/devices/<dev>/power/wakeup` — `enabled` or `disabled`.
-- Should optid touch `power/wakeup`? Generally no — that's a security/policy concern, not energy. optid manages `power/control` only.
-- Exception: if a device is generating spurious wakeups (measured by WP-N3 telemetry), optid should *recommend* `power/wakeup=disabled` but not write it directly (admin decision).
-
-**Answer:**
-- `[PROVEN]` optid does NOT alter `power/wakeup`. It only observes and recommends user action if spurious wakeups occur.
-
-#### 1.5 Failure modes and revert
-
-**Questions:**
-- Device fails to resume after autosuspend → kernel logs error, device may disappear from bus.
-- optid revert: write `power/control=on` to force active. May not recover a hung device — needs physical replug or `usb_reset`.
-- Should optid detect "device gone after autosuspend" via udev `remove` event? Yes, and log to audit trail with revert.
-- For PCI devices, `pci_recover()` may help (kernel-side).
-
-**Answer:**
-- `[PROVEN]` Udev `remove` event detection allows optid to auto-revert failed devices by adding them to the runtime PM deny list.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: Default policy source
-**Options:**
-- A. Hardcoded device-class defaults in optid Rust source
-- B. TOML file `data/runtime-pm-defaults.toml` (compiled in)
-- C. Allowlist entries (extend 0006 schema with `runtime_pm_policy` field)
-
-**Recommendation:** C. The allowlist is the right place — every `power/control=auto` write needs allowlist approval anyway, so encoding the policy in the allowlist entry is natural.
-
-#### Decision 2: Per-class default delay
-(See §1.3. Confirm the table or override.)
-
-#### Decision 3: Workload-class interaction
-**Recommendation:** Yes — autosuspend delay = base × workload_multiplier. Multiplier: interactive = 2x, latency-critical = ∞ (no suspend), idle = 0.5x.
-
-#### Decision 4: Revert on failure
-**Recommendation:** Yes — optid watches udev `remove` events for devices it set to autosuspend; on remove, log to audit trail + add HWID to `deny-runtime-pm` runtime override (admin must remove manually).
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 USB keyboard keystroke loss after autosuspend
-**Question:** Which USB keyboards drop keystrokes after autosuspend?
-**Experiment:**
-```bash
-# For each USB keyboard HWID in reference set:
-sudo sh -c 'echo auto > /sys/bus/usb/devices/<kbd>/power/control'
-sudo sh -c 'echo 500 > /sys/bus/usb/devices/<kbd>/power/autosuspend_delay_ms'
-# Type 1000 keystrokes, check for loss
-./tools/test-kbd-stability.sh /dev/input/event<N>
 ```
-**Acceptance threshold:** 0 keystrokes lost
-
-#### 4.2 USB hub resume reliability
-**Question:** Do internal USB hubs resume reliably under load?
-**Experiment:**
-```bash
-# Suspend hub, then trigger resume via downstream device
-echo auto > /sys/bus/usb/devices/<hub>/power/control
-# Plug in USB stick, verify enumeration
+control                  # "auto" | "on"  — enables/disables autosuspend
+autosuspend_delay_ms     # idle countdown before ->runtime_suspend() is called
+runtime_status           # "active" | "suspended" | "suspending" | "resuming" | "error"
+runtime_usage            # reference count; >0 means in use, cannot suspend
+runtime_active_time      # cumulative ms spent active since boot
+runtime_suspended_time   # cumulative ms spent suspended since boot
+wakeup                   # "enabled" | "disabled" — whether device can wake system
 ```
-**Acceptance threshold:** 100% enumeration success across 100 cycles
 
-#### 4.3 Audio codec pop on resume
-**Question:** Do USB audio codecs produce audible pops on resume?
-**Experiment:**
-```bash
-# Capture audio during resume transition
-echo auto > /sys/bus/usb/devices/<audio>/power/control
-# Record via arecord during resume
-arecord -d 5 -f cd /tmp/resume.wav
-# Analyze for transient pops
+**Autosuspend flow** [PROVEN — kernel `drivers/base/power/runtime.c`]:
+
+1. Driver calls `pm_runtime_put_autosuspend()` when idle
+2. Kernel starts countdown of `autosuspend_delay_ms`
+3. After delay, if `runtime_usage == 0`, kernel calls `->runtime_suspend()`
+4. On I/O arrival, kernel calls `->runtime_resume()` automatically before dispatching
+   the I/O to the device (transparent to the calling application)
+
+The key optid lever is writing `control=auto` and setting `autosuspend_delay_ms` on
+target devices. Most drivers default to `control=on` (runtime PM disabled) unless the
+driver explicitly calls `pm_runtime_allow()` in its probe handler [PROVEN — many drivers
+call `pm_runtime_forbid()` or simply never call `pm_runtime_allow()`; both result in
+`control=on`].
+
+### 1.2 Default Delays and optid Targets Per Device Class
+
+**Q: What are the subsystem-specific autosuspend defaults and what should optid target?**
+
+**USB subsystem** [PROVEN — `drivers/usb/core/hub.c`, module param `usbcore.autosuspend`]:
+
+Default: `autosuspend_delay_ms=2000` (2 seconds), applied at device enumeration if
+`usbcore.autosuspend` kernel parameter is set (it is not set by default in most
+distributions, which means USB autosuspend is disabled by default system-wide).
+
+optid explicitly enables USB autosuspend on a per-device basis for devices in the
+allowlist:
+- USB HID (mouse, keyboard): enable with 1000 ms delay [HYPOTHESIS — 1000 ms balances
+  suspend frequency vs. wake latency; 2000 ms is also fine]
+- USB audio: enable with 3000 ms delay; only when no audio stream is active (check
+  `/proc/asound/card*/pcm*/sub*/status` for "RUNNING") [HYPOTHESIS]
+- USB cameras (UVC): enable with 0 ms delay when camera fd not open [HYPOTHESIS]
+- USB Bluetooth adapter: 2000 ms; do not reduce (BT stack manages its own reconnect) [PROVEN]
+
+**PCI subsystem** [PROVEN — `drivers/pci/pci-driver.c`]:
+
+Default: `control=on` (runtime PM disabled) unless driver explicitly enables via
+`pm_runtime_allow()`. Drivers that opt in to PCI runtime PM include: `iwlwifi`, `ath11k`,
+`r8169`, `nvme-pci`, `xhci-hcd`.
+
+optid enables `control=auto` for opted-in drivers; delay: 2000 ms default, 500 ms during
+battery-idle workload class.
+
+**I2C / HID-over-I2C** [PROVEN — `drivers/hid/i2c-hid/i2c-hid-core.c`]:
+
+Touchpads and touchscreens: driver default 2000 ms; optid should not decrease below
+500 ms to avoid choppy tracking on first touch after resume [HYPOTHESIS — user-reported
+latency on popular Synaptics/ELAN touchpads].
+
+**Bluetooth host controller** [PROVEN — `net/bluetooth/hci_core.c`]:
+
+HCI device gets `autosuspend_delay_ms=2000` after last connection closes. optid should
+not alter Bluetooth autosuspend — the BT stack manages idle tracking internally; sysfs
+writes to `/power/control` for BT USB adapters may interfere with fast reconnect and
+bonded device wake [HYPOTHESIS — conservative based on BT PM architecture].
+
+**Thunderbolt / USB4 root controller** [PROVEN — `drivers/thunderbolt/tb.c`]:
+
+Must NOT autosuspend while any downstream device is connected (child devices are active
+via PCIe-over-TB; suspending the root would drop them). optid checks `runtime_usage > 0`
+before applying autosuspend to TB root; skips if usage count is positive.
+
+**Summary of optid delay targets** [HYPOTHESIS — to be validated per §4]:
+
+| Device class | Kernel default | Battery-idle target | Hard constraint |
+|-------------|---------------|--------------------|----|
+| USB HID keyboard/mouse | off | 1000 ms | `wakeup=enabled` required |
+| USB audio | off | 3000 ms; skip if stream active | Check ALSA PCM status first |
+| USB camera (UVC) | off | 0 ms when no open fd | Check `/proc/*/fd/*` links |
+| USB Bluetooth | 2000 ms (if enabled) | 2000 ms | Do not reduce |
+| PCIe NVMe | 2000 ms (runtime PM) | 2000 ms | Covered by 0008 APST path |
+| PCIe WiFi | 2000 ms | 500 ms | WoL capability check first |
+| PCIe Ethernet | off | off if carrier up; 2000 ms if no carrier | WoL check |
+| I2C touchpad | 2000 ms | 1000 ms | Not below 500 ms |
+| Thunderbolt root | off | off if children present | Skip entirely |
+
+### 1.3 Wakeup Source Protection
+
+**Q: How does optid avoid disabling device wakeup capability when autosuspending?**
+
+`power/wakeup` and `power/control` are independent sysfs attributes [PROVEN — separate
+kernel PM attributes, independently settable]. A device can simultaneously have
+`control=auto` (autosuspends when idle) AND `wakeup=enabled` (can wake the system from
+suspend). This is the correct configuration for USB HID devices: suspend when idle,
+wake on keypress.
+
+**optid rule: never write `wakeup=disabled` on input devices** [PROVEN — HID class devices
+with `EV_KEY` event capability must retain wakeup enabled for system resume from keyboard].
+
+Device categories where optid must preserve `wakeup=enabled`:
+- USB HID keyboard (`/sys/bus/hid/devices/*/power/wakeup`)
+- USB HID mouse (human movement should wake the display)
+- Power button / lid switch (already managed by systemd-logind; optid does not touch)
+- WoL-configured network interfaces (see §1.6)
+
+Device categories where optid may safely set `wakeup=disabled` [HYPOTHESIS]:
+- USB cameras (no legitimate wakeup reason)
+- USB audio interfaces (no wakeup reason in standard usage)
+- USB hubs where all children retain wakeup (hub itself does not need to wake)
+
+When setting `control=auto` on a device, optid explicitly checks `power/wakeup` and logs
+a warning if it would be `disabled` on an input-class device — but does not set it.
+
+### 1.4 Conflict with udev-Managed Autosuspend
+
+**Q: How does optid interact with existing udev rules that set autosuspend?**
+
+Many distributions ship udev rules that set autosuspend for known devices:
+
+```udev
+# /usr/lib/udev/rules.d/50-usb_power_save.rules (example)
+ACTION=="add", SUBSYSTEM=="usb", ATTR{power/autosuspend}="2"
 ```
-**Acceptance threshold:** No audible pops; codec default = `on`
 
-### §5 Non-goals — Guardrails
+**Conflict resolution** [PROVEN — udev runs at device appearance, optid runs after]:
 
-- **No `power/wakeup` writes.** optid manages `power/control` only.
-- **No USB port power gating.** Per-port power control (`uhubctl`) is out of scope for v0.x; too device-specific.
-- **No aggressive autosuspend on keyboards/mice without allowlist.**
-- **No runtime PM for system-critical devices** (RTC, keyboard controller, embedded controller, ACPI devices).
-- **No bypass of allowlist.**
+1. udev fires `ACTION=add` → sets initial `autosuspend_delay_ms`
+2. optid receives udev `add` notification from its socket → reads current value,
+   applies its own policy if the HWID is in the allowlist
 
-### §6 WP Relationship Map
+optid's write **overrides** the udev-set value. This is intentional: optid has runtime
+context (battery vs. AC, workload class, contract floor) that static udev rules cannot
+have. The SPEC §3.1 safety gate additionally ensures the override is allowlist-gated.
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **WP-N5** | Direct subject |
-| **WP-N4** | Hard dep — allowlist gates every actuation |
-| **WP-N2** | PM QoS resume-latency floor feeds `fits_contract` |
-| **WP-N3** | Wakeup telemetry informs which devices are problematic |
-| **ADR-0013** | Deterministic policy |
+To avoid unnecessary writes, optid caches the last-applied value per device sysfs path
+and skips re-writes when the desired value already matches the current value [HYPOTHESIS
+— optimisation to reduce journal churn].
 
-### §7 Next Steps — Skeleton
+### 1.5 Handling Suspend Failures
 
-#### Immediate (no hardware needed)
-- [ ] Extend 0006 allowlist schema with `runtime_pm_policy` field
-- [ ] Draft device-class taxonomy in `data/runtime-pm-defaults.toml`
-- [ ] Implement `crates/optid/src/runtime_pm.rs` skeleton
-- [ ] Draft `optctl pm list` and `optctl pm explain <device>` subcommands
+**Q: What happens when a device's `->runtime_suspend()` returns an error?**
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 USB keyboard stability on each reference laptop's keyboard
-- [ ] Run §4.2 USB hub resume reliability
-- [ ] Run §4.3 audio codec pop test
-- [ ] Populate allowlist entries for verified HWIDs
+When runtime suspend fails, the kernel sets the device's RPM state to `RPM_ACTIVE` and
+marks a `RUNTIME_ERROR` flag. The `runtime_status` sysfs attribute shows `"error"`
+[PROVEN — kernel `drivers/base/power/runtime.c`, `rpm_suspend()` error path].
 
-#### Medium-term
-- [ ] Land `--runtime-pm=enabled` flag (default `disabled` in v0.x)
-- [ ] Promote research from WIP to Validated
-- [ ] Update SPEC §4.3 status for Runtime PM autosuspend / USB autosuspend rows to `A`
+The device remains active and autosuspend is disabled until the driver calls
+`pm_runtime_set_active()` to clear the error (typically after firmware reload or
+hardware reset).
 
-### Suggested Reading
+**optid error handling**:
 
-#### Kernel source
-- `drivers/base/power/runtime.c` — core runtime PM
-- `drivers/usb/core/driver.c` — USB autosuspend
-- `drivers/pci/pci.c` — PCI runtime PM
-- `Documentation/power/runtime_pm.rst`
+1. Detect `runtime_status == "error"` in the 2s telemetry poll loop (from 0018)
+2. Log the device sysfs path and the last kernel error via `dmesg` tail scan
+3. Increment an error counter in telemetry (`suspend_failures_total` metric)
+4. Do NOT retry autosuspend configuration for that device within the current session
+   (avoids log spam and driver state confusion) [PROVEN design — conservative]
+5. Report via `optctl status` as a `"suspend-error"` device entry
 
-#### Prior art
-- `tlp` `RUNTIME_PERPM` — `https://linrunner.de/tlp/`
-- `powertop --auto-tune` (anti-prior-art: no revert)
-- `usb-autosuspend` BlackMagic profiler — `https://github.com/adrelanos/usb-autosuspend`
+If the error clears (device re-bind after firmware reload or udev `DRIVER_UNBIND`/`BIND`
+cycle), optid re-evaluates the device on the next `udev ACTION=bind` event.
 
-#### Project-internal
-- SPEC §3, §4.1, §4.3, §6 WP-N5
-- Research 0006 (allowlist — hard dep)
-- Research 0002, 0003
+### 1.6 Network Devices: WoL and Carrier Check
 
----
+**Q: How does optid safely autosuspend network interfaces?**
 
+Network device autosuspend is complicated by two requirements:
+
+1. **Wake-on-LAN (WoL)** capability must be preserved if the user configured it
+2. **Active carrier** (link up) means the device is in use — autosuspend would silently
+   drop network packets
+
+**WoL detection** [PROVEN]:
+```bash
+ethtool <iface> | grep "Wake-on:"
+# "d" = disabled; anything else means WoL is active (g=magic packet, p=phy, etc.)
+```
+If WoL is enabled, optid sets `wakeup=enabled` on the underlying PCIe device and does
+NOT reduce `autosuspend_delay_ms` below the kernel default.
+
+**Carrier detection** [PROVEN]:
+```bash
+cat /sys/class/net/<iface>/carrier  # 1=link up, 0=link down or no cable
+```
+If carrier is `1` (link up), optid skips autosuspend configuration for the PCIe device
+backing that network interface. Carrier state is re-checked on each 2s telemetry poll;
+when carrier drops to `0`, optid re-evaluates whether autosuspend is now appropriate.
+
+**Wireless interfaces** (WiFi): carrier is up when associated to an AP. WiFi runtime PM
+interacts with the driver's own power-save implementation (`iw dev wlan0 set power_save on`);
+optid sets PCIe-level autosuspend to 500 ms on battery idle but defers Wi-Fi power-save
+mode to the driver/NetworkManager [HYPOTHESIS — double-managing Wi-Fi PS causes issues].
+
+### 1.7 Interaction with System Suspend
+
+Runtime PM and system suspend are orthogonal but interact at suspend entry [PROVEN —
+`Documentation/power/runtime_pm.rst §9`]:
+
+When system suspend is triggered:
+1. PM core calls `->suspend()` on all devices sequentially
+2. For devices currently in runtime-suspend, PM core normally calls `->runtime_resume()`
+   first to bring them to full power, then calls `->suspend()`
+3. Exception: drivers annotated with `DPM_FLAG_SMART_SUSPEND` allow PM core to skip the
+   runtime-resume step and go directly from runtime-suspended to system-suspended
+
+`DPM_FLAG_SMART_SUSPEND` has been implemented in many NVMe/USB drivers since kernel 4.15
+[PROVEN — `include/linux/pm.h`; nvme-pci, xhci-hcd, iwlwifi set this flag].
+
+The implication for optid: devices already in runtime-suspend when system suspend is
+triggered = faster suspend entry (fewer `->runtime_resume()` + `->suspend()` round-trips).
+This is a free benefit of runtime PM — optid does not need special handling.
+
+### 1.8 Allowlist Schema for Runtime PM
+
+Following the 0006 schema, runtime PM entries use `domain = "runtime_pm"`:
+
+```toml
+[[allowlist]]
+domain = "runtime_pm"
+hwid = "usb:v046Dp0082"   # Logitech Unifying Receiver
+max_state = "auto"         # enable autosuspend
+autosuspend_delay_ms = 1000
+tested_on = ["ThinkPad X1C Gen 11"]
+reason = "USB HID receiver; wakeup preserved; no observed wakeup latency issues"
+added_in = "0.1.0"
+audit_priority = "low"
+
+[[allowlist]]
+domain = "runtime_pm"
+hwid = "pci:v8086d2723"   # Intel AX200 WiFi
+max_state = "auto"
+autosuspend_delay_ms = 500
+tested_on = ["Dell XPS 13 9315"]
+reason = "PCIe WiFi; L1.2 excluded (see 0008); runtime PM safe at 500ms"
+added_in = "0.1.0"
+audit_priority = "medium"
+```
+
+* * *
+
+## 2. Architecture Decisions
+
+### Decision A: Global Policy vs. Per-Device Control
+
+**Selected: Per-device control** gated on HWID allowlist, workload class, and wakeup
+capability check [PROVEN — matches SPEC §3.1 gate; blanket `echo auto > /sys/bus/usb/devices/*/power/control` is too broad and can break non-allowlisted devices].
+
+### Decision B: Delay Values — Static vs. Dynamic
+
+**Selected: Two static delay levels per device class**:
+- `normal` (AC or non-idle workload): preserve kernel default
+- `battery-idle` (battery + idle workload class): apply tightened delay from §1.2 table
+
+Dynamic per-context delay calculation is premature optimisation for v0.1; two levels
+cover 95 % of practical battery-saving scenarios [HYPOTHESIS — can be revisited in v0.2
+based on telemetry data from the field].
+
+### Decision C: Error Handling — Retry vs. Skip
+
+**Selected: No retry within session** for devices with `runtime_status=error`. Re-evaluate
+on `ACTION=bind`. This avoids log spam and respects the driver's error state machine
+[PROVEN design — conservative, matches libinput/PulseAudio convention of not retrying
+failed device operations].
+
+### Decision D: Carrier-Aware Network Skip
+
+**Selected: Skip autosuspend for network devices when carrier is up**. Check at policy
+application and re-evaluate on each 2s poll. This is simpler than a netlink listener
+and sufficient at 2s granularity [HYPOTHESIS — netlink is more efficient but adds
+complexity; revisit if carrier state flip introduces > 4s autosuspend lag].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| USB HID wakeup latency | Wake latency < 10 ms (imperceptible to user) | `evtest` with `perf stat`; measure timestamp from hardware interrupt to evdev event; repeat at autosuspend=1000ms |
+| PCIe WiFi autosuspend power saving | ≥ 0.2 W reduction vs. `control=on` | `turbostat --interval 2` with WiFi idle (no traffic), compare `control=auto 500ms` vs. `control=on` |
+| WoL magic packet delivery | 0 missed packets while NIC at runtime-suspend | `etherwake` magic packet; confirm system wakes; repeat 20× |
+| I2C touchpad first-touch latency | ≤ 50 ms at autosuspend=1000ms | `evtest` timestamp diff: first touch event after ≥ 1s idle vs. active state |
+| Suspend failure rate | 0 `runtime_status=error` on 5-laptop reference set after 1h battery-idle | Boot 5 reference laptops; optid battery-idle 1h; count `runtime_status=error` via `optctl status` |
+| System suspend speedup | ≥ 10 % faster `systemctl suspend` with runtime-PM pre-suspended devices | `systemd-analyze critical-chain` before/after optid runtime PM enablement |
+
+* * *
+
+## 5. Non-Goals
+
+- optid does not implement per-device "suspend profiles" (TLP's approach of per-HWID
+  delay tables shipped as config files) — the 0006 allowlist is the correct mechanism.
+- optid does not manage ACPI S3/S0ix system suspend timers — that is systemd-logind's job.
+- optid does not set `USB_QUIRK_NO_AUTOSUSPEND` or add USB quirk entries — those require
+  kernel patches.
+- optid does not control memory DIMM power states.
+- optid does not manage CPU C-state selection — that is the cpuidle framework's domain
+  (see 0014 for sched_ext influence on idle decisions).
+- optid does not manage GPU runtime PM — that is covered by 0011 (dGPU) and the iGPU
+  runtime PM (which is always enabled by the i915/amdgpu driver and not user-configurable).
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N3  | Runtime PM autosuspend is the primary DEPTH-ENABLER mechanism for peripheral devices |
+| WP-N4  | All autosuspend enablement gated on 0006 HWID allowlist; every write journaled |
+| WP-N5  | `runtime_suspended_time` / `runtime_active_time` are key idle-accounting telemetry signals |
+| WP-N6  | Peripheral runtime suspend state feeds into the total system power model for WP-N6 budget |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Implement `crates/optid/src/actuators/runtime_pm.rs`: enumerate devices with candidate
+  `control=auto`; check allowlist; verify wakeup attribute; apply delay from §1.2 table;
+  journal writes.
+- Wire `runtime_status`, `runtime_suspended_time`, `runtime_active_time` into 0018
+  telemetry sensor at 2s poll cadence.
+
+**Short-term**
+- Populate allowlist with known-safe USB HID vendors (Logitech, Microsoft, Apple Magic,
+  ThinkPad TrackPoint).
+- Run USB HID wakeup latency experiment (§4 gap #1).
+- Implement `optctl status --runtime-pm` command showing per-device suspension stats.
+
+**Medium-term**
+- Evaluate netlink-based carrier detection vs. polling for network devices.
+- Collect field telemetry to calibrate delay table values in §1.2 (current values are
+  HYPOTHESIS; field data will promote them to PROVEN or refine them).
+- Investigate `DPM_FLAG_SMART_SUSPEND` adoption rate in target driver set to quantify
+  system-suspend acceleration from runtime-PM pre-suspended devices.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- Linux kernel `Documentation/power/runtime_pm.rst` — canonical reference
+- `drivers/usb/core/hub.c` — USB autosuspend implementation
+- `drivers/pci/pci-driver.c` — PCI runtime PM integration
+- `drivers/base/power/runtime.c` — core runtime PM state machine
+- TLP source code: `tlp-stat` runtime PM and USB autosuspend reporting
+- `pm-graph` tool (Intel): system suspend/resume timeline showing runtime PM interaction
+- NetworkManager: `[device] wifi.powersave` config option (complement to PCIe autosuspend)

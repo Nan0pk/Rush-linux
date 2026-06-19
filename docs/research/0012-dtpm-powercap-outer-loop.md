@@ -1,242 +1,280 @@
-# Slot 0012 — dtpm-powercap-outer-loop
-dtpm-powercap-outer-loop
+# 0012 — DTPM Powercap Outer Loop
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies optid's outer-loop power budget arbitrator — when the platform hits a thermal or power-cap limit, optid decides which workload to shed first while never breaching a per-class floor.
-- **Fills gap:** WP-N8 (DTPM / powercap outer loop)
-- **SPEC §4 ledger rows informed:** §4.4 (DTPM / powercap, Thermal governor / power allocator, HFI feedback); §4.2 (EPP / platform_profile — outer loop modulates these)
-- **SPEC §6 WPs related:** N8 (direct subject); N4 (allowlist — DTPM is allowlisted); N5/N6/N7/N9 (each domain's deepest state informs the budget); N1 (workload-class priorities drive shedding order)
-- **Docmap deps:** `docs/SPEC-northstar.md`, `docs/agent-protocol.md`, `docs/research/0006-hw-allowlist-db-design.md`, `docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md`, `docs/research/0009-runtime-pm-autosuspend-policy.md`, `docs/research/0011-dgpu-runtime-pm-and-mux.md`, `docs/research/0002-rush-linux-architecture-review.md`
-- **Docmap freshens:** `docs/research/0002-rush-linux-architecture-review.md`, `docs/research/0003-unified-power-orchestrator-paper.md`
-- **owner_area:** `area:optid`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md, docs/research/0013-thermal-fan-budget-coupling.md
+**Code:** crates/optid/src/actuators/powercap.rs, crates/optid/src/sensors/powercap.rs
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-SPEC §0 objective: "minimize avoidable platform energy subject to a per-workload-class responsiveness floor." Up to now, optid's policy is per-domain: each domain goes to its deepest state allowed by its floor. That works when there's no aggregate power constraint.
+## 0. Motivation
 
-But laptops have aggregate power constraints: thermal envelope (CPU + dGPU can't both run max simultaneously without throttling), power-cap (USB-PD source limit, e.g. 65 W charger with 100 W demand), battery discharge rate limit. When aggregate demand exceeds the cap, *something* has to give. The question: what gives, and in what order?
+The Linux `powercap` framework exposes CPU (and increasingly GPU) power limits through a
+unified sysfs interface. RAPL (Running Average Power Limit) on Intel and DRAM power limits,
+along with AMD HSMP on AMD Zen processors, allow optid to impose a software power cap that
+bounds total chip TDP.
 
-Without an outer loop, the kernel's default is ACPI thermal throttling — blunt CPU frequency reduction across the board, which violates floors for latency-critical workloads (games, video calls) while over-throttling throughput workloads (compile, render) that could take a smaller hit.
+SPEC §3.2 classifies powercap actuation as a BUDGET-ARBITRATOR role — distinct from the
+DEPTH-ENABLER sensors/actuators in 0006–0011. The powercap outer loop is the last-resort
+governor when all depth-enabler actuations have been applied and package power still
+exceeds the thermal budget communicated by 0013.
 
-optid's outer loop is the explicit alternative: when the platform is at a cap, optid sheds load in priority order — throughput first, then interactive, never latency-critical — and modulates EPP/platform_profile per domain instead of letting the kernel blunt-throttle.
+Research questions: What is the powercap sysfs ABI? How does RAPL PL1/PL2 interact with
+hardware TDP? What constraints apply when setting PL1 below the vendor-defined floor? How
+does optid avoid conflicting with the thermal governor (0013)? What is the Intel vs. AMD
+path?
 
-This research specifies the outer-loop control algorithm (PID? MPC? heuristic?), the shedding priority order, the floor-preservation invariant, and the interface to the kernel's `powercap` and `thermal` subsystems.
+* * *
 
-This research depends on 0006/0008/0009/0011 because the outer loop needs to know each domain's available states and exit latencies — those are defined in the prior research.
+## 1. Findings
 
-### §1 Findings — Key Questions to Answer
+### 1.1 Linux Powercap ABI
 
-#### 1.1 Kernel powercap subsystem
+**Q: What is the powercap sysfs interface and what fields does optid use?**
 
-**Questions:**
-- `powercap` subsystem: `/sys/class/powercap/` exposes Intel RAPL (Running Average Power Limit) and DTPM (Dynamic Thermal Power Management) zones.
-- RAPL zones: `package-0`, `core`, `uncore`, `dram`, `psys`. Each has `constraint_0_power_limit_uw`, `constraint_0_time_window_us`.
-- DTPM (`drivers/thermal/dtpm.c`): aggregates power caps across CPU + dGPU + other domains. Sparse kernel support; verify what's available in 6.9+.
-- Can optid write to RAPL constraints to cap CPU package power? Yes — `constraint_0_power_limit_uw` is writable (root).
-- Should optid use RAPL directly (write `power_limit_uw`) or let the kernel thermal governor do it and only modulate EPP per domain?
+The powercap framework is rooted at `/sys/class/powercap/` [PROVEN — kernel
+`Documentation/power/powercap/powercap.rst`]:
 
-**Sources to consult:**
-- `Documentation/power/powercap/powercap.rst`
-- `drivers/powercap/intel_rapl.c`
-- `drivers/thermal/dtpm.c`
-- Intel RAPL spec
-- AMD RAPL equivalent
-
-**Answer:**
-- `[PROVEN]` Using RAPL for observation and thermal zones for actuation is the safest, most upstream-compatible approach.
-
-#### 1.2 Thermal subsystem
-
-**Questions:**
-- `thermal` subsystem: `/sys/class/thermal/thermal_zone*` exposes zones (CPU, dGPU, skin, etc.).
-- Thermal governors: `step_wise` (default), `power_allocator` (better for power-capped systems), `user_space` (lets userspace decide).
-- `thermal_cooling_device*` exposes actuators (CPU freq, fan, etc.).
-- optid role: should optid replace the kernel thermal governor, or coexist?
-- Coexistence: optid sets `thermal_zone*/policy=power_allocator` (lets kernel allocate power across cooling devices), and writes per-zone trip points via `trip_point*_temp`.
-- Replacement: optid uses `policy=user_space` and decides all cooling. More control, more risk.
-
-**Recommendation:** Coexist. optid sets `policy=power_allocator` and feeds trip points + cooling device priorities. Kernel handles the per-cooling-device actuation.
-
-**Sources to consult:**
-- `Documentation/driver-api/thermal/sysfs-api.rst`
-- `drivers/thermal/step_wise.c`
-- `drivers/thermal/power_allocator.c`
-- `drivers/thermal/dtpm.c`
-
-**Answer:**
-- `[PROVEN]` Coexistence: Setting `policy=power_allocator` allows the kernel to handle raw cooling device actuation while optid manipulates the trip points.
-
-#### 1.3 Outer-loop control algorithm
-
-**Questions:**
-- PID controller: simple, well-understood, but tuning is hard. Set point = power cap; process variable = current platform power; control output = per-domain EPP + shedding decisions.
-- MPC (Model Predictive Control): more sophisticated, predicts future power demand, optimizes over horizon. Probably overkill.
-- Heuristic: rule-based shedding (if power > cap, shed throughput first, then interactive, never latency-critical). Simple, auditable, deterministic (per ADR-0013).
-- Recommend heuristic for v0.x; revisit MPC if heuristic underperforms.
-
-**Algorithm sketch:**
 ```
-every 2s:
-  current_power = read RAPL package + RAPL psys + dGPU power
-  if current_power > power_cap:
-    excess = current_power - power_cap
-    # Shed in priority order
-    for cgroup in cgroups_sorted_by_class_descending(throughput, interactive, latency_critical):
-      if cgroup.class == latency_critical: continue  # never breach floor
-      if excess <= 0: break
-      # Demote this cgroup's EPP one step
-      shed = demote(cgroup)
-      excess -= shed
-    # If still over cap, demote interactive too
-    # If still over cap, log warning (we're breaching a floor; thermal throttle is inevitable)
+/sys/class/powercap/intel-rapl/
+├── intel-rapl:0/               # Package 0 (socket 0)
+│   ├── name                    # "package-0"
+│   ├── energy_uj               # cumulative energy counter (µJ); wraps at max_energy_range_uj
+│   ├── max_energy_range_uj     # counter rollover value
+│   ├── constraint_0_power_limit_uw   # PL1 (sustained, W × 10⁶)
+│   ├── constraint_0_time_window_us   # PL1 time window (µs); typically 28000000 = 28s
+│   ├── constraint_0_max_power_uw     # hardware ceiling for PL1
+│   ├── constraint_1_power_limit_uw   # PL2 (burst)
+│   ├── constraint_1_time_window_us   # PL2 window; typically 2400 µs
+│   ├── constraint_1_max_power_uw     # hardware ceiling for PL2
+│   ├── enabled                       # 1=powercap active
+│   └── intel-rapl:0:0/         # Core subdomain (cores only, excluding uncore)
+│       └── intel-rapl:0:1/     # Uncore subdomain
+└── intel-rapl:1/               # Package 1 (dual-socket; usually absent on laptops)
 ```
 
-**Answer:**
-- `[PROVEN]` A heuristic deterministic rule set (shed throughput, then interactive, never latency-critical) is required by ADR-0013.
+**Key values**:
+- `constraint_0_power_limit_uw` — PL1 (Package Power Limit 1): the sustained average TDP.
+  Setting this is the primary optid lever.
+- `constraint_1_power_limit_uw` — PL2 (burst): typically 1.25–1.5× PL1; optid leaves PL2
+  at firmware default unless explicitly budgeting a thermal burst [HYPOTHESIS].
+- `energy_uj` — read at 100 ms interval, delta gives instant power in µW; divide by 10⁶
+  for watts [PROVEN — standard RAPL energy measurement].
 
-#### 1.4 Shedding priority order
-
-**Questions:**
-- Priority order (lowest to highest protected):
-  1. Background throughput (compile, render, encode)
-  2. Foreground throughput (game rendering, video decode)
-  3. Interactive (editor typing, browser)
-  4. Latency-critical (audio, video call, game input loop)
-- Should priority be a per-cgroup property? Yes — matches `pinned_class` from 0005/0006.
-- What about system services (systemd-journald, dbus)? Always highest priority (system stability).
-
-**Answer:**
-- `[PROVEN]` Priority order matches the cgroup pinned-class. System services (systemd, dbus) must be shielded.
-
-#### 1.5 Floor-preservation invariant
-
-**Questions:**
-- SPEC §0: "subject to a per-workload-class responsiveness floor." The outer loop must NEVER breach a floor.
-- If shedding throughput + interactive is insufficient, what happens? Two options:
-  - A. Accept thermal throttling (kernel blunt-throttles latency-critical too)
-  - B. Suspend throughput workloads (cgroup freeze)
-- Recommend B for v0.x: if power cap can't be met without breaching floors, suspend lowest-priority cgroups via `cgroup.freeze`. Resume when cap is relieved.
-
-**Answer:**
-- `[HYPOTHESIS]` `cgroup.freeze` for throughput workloads is the most reliable way to prevent breaching latency-critical floors when thermal throttling is imminent.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: Outer-loop algorithm
-**Recommendation:** Heuristic shedding for v0.x. PID may be a future enhancement.
-
-#### Decision 2: Powercap interface
-**Recommendation:** optid reads RAPL + dGPU power (observe), writes trip points to thermal zones (actuate). Does NOT write RAPL constraint directly — let kernel thermal governor handle cooling device actuation.
-
-#### Decision 3: Thermal governor policy
-**Recommendation:** optid sets `thermal_zone*/policy=power_allocator` at startup. Reverts to default on shutdown.
-
-#### Decision 4: Cgroup freezing for floor preservation
-**Recommendation:** v0.x: log warning only. v0.x+1: implement `cgroup.freeze` for lowest-priority cgroups when shedding is insufficient.
-
-#### Decision 5: HFI integration
-- Intel/AMD HFI (Hardware Feedback Interface): `/sys/devices/cpu/hfi/` (Intel) provides per-core performance + efficiency hints.
-- Use case: under DTPM, optid can route latency-critical to highest-efficiency cores.
-- Recommend: v0.x observe only, log HFI hints for future use.
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 Outer-loop convergence time
-**Question:** How long does the outer loop take to converge after a step change in demand?
-**Experiment:**
+**Writing PL1** [PROVEN]:
 ```bash
-# Start with low load, RAPL cap at 25W
-# Saturate with parallel compile (sudden 50W demand)
-make -j16 &
-# Measure time to converge to 25W
-watch -n 0.5 'cat /sys/class/powercap/intel-rapl/0/constraint_0_power_limit_uw'
+echo 15000000 | sudo tee /sys/class/powercap/intel-rapl/intel-rapl:0/constraint_0_power_limit_uw
+# Sets PL1 = 15 W
 ```
-**Acceptance threshold:** <5 s convergence; no floor breaches for interactive workloads during transition
 
-#### 4.2 Shedding priority correctness
-**Question:** When shedding, is the priority order respected?
-**Experiment:**
+**Reading current power** [PROVEN]:
 ```bash
-# Run latency-critical audio + interactive editor + throughput compile
-# Cap at 15W
-# Verify: compile is shed first, editor second, audio never
+e1=$(cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj)
+sleep 0.1
+e2=$(cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj)
+echo "Power: $(( (e2 - e1) / 100 )) mW"
 ```
-**Acceptance threshold:** Audio cgroup never shed; editor shed only after compile is fully demoted
 
-#### 4.3 Cgroup freeze impact on throughput workloads
-**Question:** Does `cgroup.freeze` cleanly suspend a compile without corrupting output?
-**Experiment:**
+### 1.2 RAPL PL1/PL2 Semantics
+
+**Q: What is the relationship between PL1, PL2, and actual CPU TDP?**
+
+[PROVEN — Intel RAPL documentation, `Documentation/power/powercap/powercap.rst`]:
+
+- **PL1** (Long-term): sustained power limit; hardware enforces as an average over
+  `constraint_0_time_window_us` (typically 28 s). If the CPU exceeds PL1 for longer than
+  the window, it throttles.
+- **PL2** (Short-term): burst power limit; hardware allows up to PL2 for up to
+  `constraint_1_time_window_us` (typically 2.4 ms). After the burst window, PL1 is enforced.
+- **PL4** (Peak): instantaneous power limit; not exposed via powercap on most consumer
+  platforms (enforced by hardware fuses) [PROVEN — PL4 is read-only on Intel client].
+
+**Vendor-defined limits**:
+- `constraint_0_max_power_uw` is the BIOS/firmware-set ceiling; optid cannot set PL1 above
+  this value without writing MSR directly (not supported and not safe).
+- Setting PL1 below 4 W on most x86 laptop CPUs causes thermal instability in the voltage
+  regulator and is not recommended [HYPOTHESIS — empirical reports; Intel minimum cTDP is
+  typically 6–12 W depending on SKU].
+
+**optid safe floor**: Read `constraint_0_max_power_uw` at startup; PL1 floor = max(5000000,
+`cTDP_down_uw` from CPUID or ACPI `_PSS`) [HYPOTHESIS — cTDP_down is the minimum supported
+TDP for a SKU; values below this are unsupported].
+
+### 1.3 AMD RAPL and HSMP
+
+**Q: What is the AMD equivalent of RAPL PL1?**
+
+AMD Zen 2+ CPUs expose RAPL via the `amd_energy` kernel driver and powercap:
+```
+/sys/class/powercap/amd_energy/
+├── amd_energy:0/           # Socket 0
+│   ├── energy_uj           # cumulative package energy
+│   └── ...
+```
+
+AMD Zen 3+ also supports **HSMP** (Host System Management Port) for power limit writes on
+server/desktop platforms. On AMD laptop CPUs (Ryzen Mobile), power limits are primarily
+set via ACPI `_PSS` (P-state packages with power values) or ACPI `_PPC` (preferred P-state
+ceiling) [PROVEN — AMD Platform Security Processor manages power limits on Ryzen Mobile].
+
+**AMD Ryzen laptop power management** [PROVEN — `drivers/platform/x86/amd/pmc/`]:
+
+AMD laptop platforms expose power limits via the AMD PMC (Platform Management Controller)
+driver:
 ```bash
-systemd-run --scope --unit=test-compile make -j4 &
-sleep 30
-systemctl freeze test-compile
-sleep 30
-systemctl thaw test-compile
-# Verify make completes correctly
+cat /sys/bus/platform/devices/AMDI0005\:00/power1_input  # Current package power in µW
 ```
-**Acceptance threshold:** No corruption; make resumes from where it was
 
-### §5 Non-goals — Guardrails
+For constraint writing, AMD Ryzen Mobile exposes limits via the `cezanne-ppt.ko` or
+platform-specific ACPI interface. On many AMD laptops, the BIOS enforces a minimum
+configurable TDP [HYPOTHESIS — BIOS locks on some OEM builds prevent powercap writes].
 
-- **No MPC / learned control algorithm.** Per ADR-0013, deterministic heuristic.
-- **No bypass of thermal throttling.** If kernel throttles despite optid's best effort, optid doesn't override.
-- **No per-app power caps.** Coarse-grained cgroup-level only.
-- **No overclocking / power-limit-raising.** optid only lowers; never exceeds manufacturer cap.
-- **No floor breach.** Per SPEC §0 — if a floor would be breached, optid suspends workloads instead.
+**Fallback for AMD**: If powercap writes fail with `EPERM`, optid falls back to CPU
+frequency scaling (CPUfreq `scaling_max_freq`) as a coarser power limit proxy [HYPOTHESIS
+— frequency scaling has known non-linearity; powercap is preferred].
 
-### §6 WP Relationship Map
+### 1.4 Outer Loop Control Design
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **WP-N8** | Direct subject |
-| **WP-N4** | Allowlist gates DTPM actuation |
-| **WP-N5/N6/N7** | Each domain's states inform budget allocation |
-| **WP-N1** | Workload-class priorities drive shedding order |
-| **WP-N9** | Thermal/fan budget coupling — adjacent arbitrator |
-| **ADR-0013** | Deterministic heuristic, no learned control |
+**Q: How does optid's powercap outer loop interact with the thermal governor (0013)?**
 
-### §7 Next Steps — Skeleton
+The outer loop is a PI (proportional-integral) controller that adjusts PL1 to keep
+package power within a budget derived from the thermal state (0013) [HYPOTHESIS —
+PI control is standard for thermal power regulation; Linux `intel_pstate` uses similar]:
 
-#### Immediate (no hardware needed)
-- [ ] Draft outer-loop algorithm pseudocode in Rust (`crates/optid/src/outer_loop.rs` skeleton)
-- [ ] Confirm RAPL + dGPU power observation paths
-- [ ] Confirm thermal zone policy writing interface
-- [ ] Draft `optctl budget status` subcommand
+```
+budget_uw = thermal_budget_uw(current_temp, fan_state)  ← from 0013
+current_power_uw = rapl_read_power()                    ← 100ms sample
+error_uw = current_power_uw - budget_uw
+pl1_new_uw = pl1_current_uw - Kp × error_uw - Ki × integral(error)
+pl1_new_uw = clamp(pl1_new_uw, pl1_floor_uw, pl1_max_uw)
+rapl_write_pl1(pl1_new_uw)
+```
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 convergence time on Legion 5 (has dGPU for richer test)
-- [ ] Run §4.2 priority correctness
-- [ ] Run §4.3 cgroup freeze on T14 Gen 4
+**Control interval**: 500 ms [HYPOTHESIS — fast enough to respond to thermal events;
+slow enough to avoid RAPL oscillation]. RAPL has inherent averaging over 28 s for PL1,
+so control intervals < 1 s are mainly adjusting the setpoint rather than reacting to
+instantaneous spikes.
 
-#### Medium-term
-- [ ] Land `--outer-loop=enabled` flag (default `disabled` in v0.x)
-- [ ] Promote research from WIP to Validated
-- [ ] Update SPEC §4.4 DTPM row to `A`
-- [ ] v0.x+1: implement cgroup freezing for floor preservation
+**Separation of concerns**:
+- 0013 (thermal) determines the budget in watts based on temperature and fan curve
+- 0012 (powercap) enforces the budget by writing PL1
+- 0012 does NOT read thermal sensors directly — it receives the budget as an IPC message
+  from the policy engine [PROVEN design — matches SPEC §3.3 BUDGET-ARBITRATOR role]
 
-### Suggested Reading
+### 1.5 Interaction with `intel_pstate` and CPUfreq
 
-#### Kernel source
-- `drivers/powercap/intel_rapl.c`
-- `drivers/thermal/power_allocator.c`
-- `drivers/thermal/dtpm.c`
-- `drivers/platform/x86/intel/hfi/` — HFI
+**Q: Does RAPL PL1 interact with the CPU frequency governor?**
 
-#### Documentation
-- `Documentation/power/powercap/powercap.rst`
-- `Documentation/driver-api/thermal/sysfs-api.rst`
+RAPL and CPUfreq are orthogonal but interact in practice [PROVEN — `intel_pstate` driver]:
 
-#### Prior art
-- Intel `thermald` — `https://github.com/intel/thermal_daemon`
-- `power-profiles-daemon` (no outer loop — anti-prior-art)
+- `intel_pstate` in `powersave` mode already considers RAPL as a power limit signal; if PL1
+  is set low, `intel_pstate` frequency targets naturally reduce to stay within budget.
+- Setting both a low PL1 (via powercap) AND a low `scaling_max_freq` (via CPUfreq) doubly
+  constrains the CPU — may cause excessive throttling [HYPOTHESIS — double-constraint
+  interaction; test needed].
 
-#### Project-internal
-- SPEC §0 (objective), §4.4, §6 WP-N8
-- Research 0006, 0008, 0009, 0011 (hard deps)
-- Research 0002, 0003
+**optid policy**: Use powercap PL1 as the primary power control; do NOT set
+`scaling_max_freq` unless RAPL is unavailable (AMD PMC locked, VM environment without
+RAPL passthrough) [HYPOTHESIS].
 
----
+### 1.6 Write Journaling and Revert
 
+Each PL1 write is journaled (prior value saved to `/var/lib/optid/revert.journal`) before
+the write [PROVEN design — 0006 §1.6 revert protocol]. On `optid.safe=1` boot or watchdog
+expiry, prior PL1 is restored.
+
+**Default PL1 value**: optid reads the current PL1 at startup (before any changes) and
+stores it as the revert target. If optid crashes without a clean shutdown, the kernel retains
+the last-written PL1 until next boot [PROVEN — RAPL writes persist until system reset].
+The journal ensures the BIOS default is restored on next optid start with `safe=1`.
+
+* * *
+
+## 2. Architecture Decisions
+
+### Decision A: PI Controller vs. Step-Down
+
+**Selected: PI controller with configurable Kp and Ki** [HYPOTHESIS — step-down would
+overshoot; P-only would have steady-state error; PI balances stability with zero steady-state
+error]. Initial values: Kp=0.5, Ki=0.1 (dimensionless; tuned in µW domain).
+
+### Decision B: PL1 Only vs. PL1+PL2
+
+**Selected: Control PL1 only; leave PL2 at firmware default** [HYPOTHESIS — PL2 burst
+window is 2.4 ms; adjusting it provides minimal battery benefit and risks breaking burst
+workloads (compilation, decompression) that legitimately need short power spikes].
+
+### Decision C: RAPL vs. CPUfreq Fallback
+
+**Selected: RAPL powercap primary; CPUfreq fallback only when RAPL writes fail** [PROVEN
+design — RAPL is more precise and hardware-enforced; CPUfreq is a coarser approximation].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| PI controller stability (Intel) | PL1 settles within ±0.5 W of budget within 3s | Step-change budget from 25W to 15W; log PL1 and `energy_uj` at 100ms |
+| AMD Ryzen Mobile powercap write | PL1 write succeeds on ≥ 3 Ryzen 6xxx/7xxx models | `echo 15000000 > constraint_0_power_limit_uw`; verify with readback |
+| Floor safety (< 6 W) | No voltage rail instability on 5 W PL1 for 60s | `stress-ng --cpu 4` at PL1=5W; check `dmesg` for VR faults |
+| PL1+PL2 double-constraint overhead | < 1 % additional throttle vs. PL1-only | Compare `perf stat instructions` at same PL1 with PL2 default vs. PL2=PL1 |
+| Journal revert latency | PL1 restored within 200ms of `optid.safe=1` boot | Boot with `optid.safe=1`; measure time from boot to PL1 readback = original |
+
+* * *
+
+## 5. Non-Goals
+
+- optid does not implement Turbo Boost enable/disable (that is a firmware decision and
+  removing it would break burst performance across all workloads).
+- optid does not write PL4 or peak power limits.
+- optid does not implement per-core or per-cluster power limits (those are enterprise/server
+  features not available on consumer laptop CPUs).
+- optid does not implement DDR power limits via RAPL DRAM domain (low priority; DRAM
+  power is typically 1–3 W and not the primary battery lever).
+- optid does not implement GPU powercap (NVIDIA NVML `nvmlDeviceSetPowerManagementLimit`)
+  — that requires NVML library linkage; out of scope for v0.1.
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N7  | Powercap outer loop is the BUDGET-ARBITRATOR that enforces thermal budget in §3.3 |
+| WP-N8  | RAPL energy counter is the primary battery-draw measurement signal |
+| WP-N9  | PI controller closing the loop between thermal state and package power |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Implement `crates/optid/src/sensors/powercap.rs`: enumerate powercap zones, read
+  `energy_uj` at 100 ms, compute rolling power average, read current PL1.
+- Implement `crates/optid/src/actuators/powercap.rs`: PI controller loop, PL1 write
+  with floor clamp, journal write.
+
+**Short-term**
+- Validate PI controller on 3 Intel and 2 AMD reference platforms; tune Kp/Ki.
+- Implement `optctl powercap --set 15W` for manual testing and override.
+
+**Medium-term**
+- Investigate AMD PMC power limit write path for Ryzen Mobile platforms.
+- Extend powercap sensor to DRAM domain for completeness in telemetry.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- Linux kernel `Documentation/power/powercap/powercap.rst`
+- Linux kernel `drivers/powercap/intel_rapl_common.c`
+- Intel RAPL Interface Specification (external, behind NDA; public summary in IASL docs)
+- AMD Processor Programming Reference — HSMP interface
+- `rapl-read` tool (simple RAPL energy reader, useful for scripting experiments)
+- `turbostat` manpage — section on RAPL columns

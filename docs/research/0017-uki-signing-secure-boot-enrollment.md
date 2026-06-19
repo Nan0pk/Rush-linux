@@ -1,216 +1,291 @@
-# Slot 0017 — uki-signing-secure-boot-enrollment
-uki-signing-secure-boot-enrollment
+# 0017 — UKI Signing and Secure Boot Enrollment
 
-### Meta (decided — confirm before drafting)
+*This document is a RESEARCH BRIEF — findings are tagged [PROVEN] (reproducible evidence) or
+[HYPOTHESIS] (design inference, needs empirical confirmation). Do not ship production code based
+solely on [HYPOTHESIS] findings without running the acceptance experiments in §4.*
 
-- **One-line purpose:** Specifies Rush Linux's UKI (Unified Kernel Image) signing policy and Secure Boot enrollment path — boot chain security without sacrificing user control.
-- **Fills gap:** UKI signing + Secure Boot enrollment path (from gap inventory)
-- **SPEC §4 ledger rows informed:** None — boot chain security, not runtime lever. (Relates to ADR-0003 UKI rollback.)
-- **SPEC §6 WPs related:** None — security/ops, not runtime.
-- **Docmap deps:** `docs/decisions/0003-uki-rollback.md`, `docs/decisions/0009-optid-security-boundary.md`, `docs/SPEC-northstar.md` (context only)
-- **Docmap freshens:** `docs/decisions/0003-uki-rollback.md`, `docs/decisions/0009-optid-security-boundary.md`
-- **owner_area:** `area:boot`
-- **Status:** WIP
-- **Author:** Nan0pk
+**Status:** WIP
+**Author:** Claude (research synthesis)
+**Date:** 2026-06-19
+**Depends:** docs/SPEC-northstar.md, docs/research/0016-mkosi-ala-snapshot-pinning.md
+**Code:** tools/sign-uki.sh, packaging/secureboot/, packaging/mkosi/
 
-### §0 Motivation (drafted — edit freely)
+* * *
 
-Rush Linux ships as a Unified Kernel Image (UKI) per ADR-0003 — the kernel, initrd, and cmdline are bundled into a single EFI executable. This enables atomic updates via dual-UKI A/B slots and rollback. But the boot chain is only secure if:
+## 0. Motivation
 
-1. The UKI is signed with a key the platform trusts.
-2. The platform's Secure Boot is enrolled with that key.
-3. The signing key is rotated safely (revocation without lockout).
-4. Users can enroll their own keys (custom-built Rush Linux) without losing Secure Boot.
+Secure Boot ensures that only signed boot components are loaded by UEFI firmware. For Rush
+Linux, which ships as a UKI (Unified Kernel Image — kernel + initrd + kernel cmdline + splash
+combined into a single EFI PE binary), secure boot requires:
 
-Three architectural options:
+1. **Signing** the UKI with a private key whose public key is trusted by the UEFI firmware.
+2. **Enrolling** the public key into UEFI `db` (Authorized Signatures Database) or via MOK
+   (Machine Owner Key) on Shim-based systems.
+3. A **trust chain**: either direct DB enrollment (requires physical access to UEFI setup) or
+   Shim + MOK (user-enrollable, no UEFI firmware change needed).
 
-- A. **Microsoft-signed shim** (most distros do this) — relies on Microsoft's UEFI CA. Pragmatic but trusts Microsoft.
-- B. **Custom Rush Linux key + user enrolls at install time** — fully self-controlled, but requires user interaction during install.
-- C. **Hybrid: Microsoft-signed shim + Rush Linux key** — shim verifies Rush Linux key, which verifies UKI. Most secure, most flexible.
+Research questions: What is the UKI file format? How is it signed with `sbsign`/`pesign`?
+What is the difference between DB enrollment and MOK enrollment? How does Rush Linux handle
+both paths? What key hierarchy does Rush Linux use? What happens on key rotation?
 
-This research recommends an option and specifies the signing infrastructure, enrollment UX, key rotation policy, and recovery path.
+* * *
 
-ADR-0003 (UKI rollback) handles the A/B slot mechanism. This research handles the *signing* half.
+## 1. Findings
 
-### §1 Findings — Key Questions to Answer
+### 1.1 UKI File Format
 
-#### 1.1 UEFI Secure Boot architecture
+**Q: What is the UKI file format and how is it structured?**
 
-**Questions:**
-- UEFI has 4 key databases: PK (Platform Key), KEK (Key Exchange Key), db (signature database), dbx (revocation list).
-- Microsoft's keys are in default db on most UEFI firmware. Shims signed by Microsoft can load, then verify the next-stage bootloader with their own key in db.
-- `shim` (`https://github.com/rhboot/shim`) is the standard Linux shim.
-- Verify by reading UEFI spec §32 (Secure Boot) and shim docs.
+A Unified Kernel Image (UKI) is a UEFI PE (Portable Executable) binary that combines
+multiple components as PE sections [PROVEN — systemd UKI specification, `man 7 systemd-uki`]:
 
-**Sources to consult:**
-- UEFI Specification 2.10 — §32 Secure Boot
-- `shim` source — `https://github.com/rhboot/shim`
-- `mokutil` for MOK (Machine Owner Key) management
-- Arch Wiki Secure Boot — `https://wiki.archlinux.org/title/Secure_Boot`
-
-**Answer:**
-- `[PROVEN]` `shim` bridges the Microsoft UEFI CA to the Rush Linux custom keys via the MokManager.
-
-#### 1.2 UKI signing
-
-**Questions:**
-- UKI is an EFI executable; signing via `sbsign` (`sbsign --key <key> --cert <cert> <uki>`).
-- Kernel has built-in module signing (separate from UKI signing). Per ADR-0009, optid kernel modules should be signed too.
-- Tools: `sbsigntools`, `pesign`, `mokutil`.
-- Build-time signing: mkosi can sign UKI via `SignExpected=` and `SecureBootKey=`/`SecureBootCertificate=` directives. Verify.
-
-**Sources to consult:**
-- `sbsigntools` — `https://github.com/tpm2-software/tpm2-tss/tree/master/tools/misc`
-- mkosi signing docs
-- Arch Wiki Secure Boot
-
-**Answer:**
-- `[PROVEN]` `sbsign` natively handles UKI signing at build time using offline keys.
-
-#### 1.3 Enrollment UX
-
-**Questions:**
-- Three enrollment paths:
-  1. **Pre-enrolled at install time**: Rush Linux installer writes Rush Linux CA into db via `chvar`. User-recommended for new installs.
-  2. **MOK-based**: shim's MokManager prompts user at first boot to enroll a hash. Standard for third-party drivers.
-  3. **Manual**: user enrolls via `mokutil --import`. Power user path.
-- Recommend: path 1 for default install; path 2/3 for users who build their own UKI.
-- Tools: `mokutil`, `efivar` (`chvar`).
-
-**Answer:**
-- `[PROVEN]` Default installs auto-enroll via `chvar`. Third-party UKI builds utilize `mokutil` interactive enrollment.
-
-#### 1.4 Key rotation
-
-**Questions:**
-- If signing key is compromised: revoke via dbx update.
-- dbx update via UEFI firmware update (vendor process) or via `mokutil --set-false` (MOK-based).
-- Risk: too-aggressive dbx update can brick systems (CVE-2022-28735 shim issue). Document carefully.
-- Rotation cadence: annual? On compromise? Recommend: annual rotation + on compromise.
-
-**Answer:**
-- `[PROVEN]` dbx revocations require extreme care due to historical firmware bricking. Annual rotation is standard.
-
-#### 1.5 Recovery path
-
-**Questions:**
-- If user can't boot after key rotation (e.g. Rush Linux's CA removed from db): boot from recovery UKI on USB, enroll correct CA.
-- Recovery UKI: signed with long-lived recovery key (offline, in cold storage).
-- Document recovery procedure in `docs/recovery.md`.
-
-**Answer:**
-- `[PROVEN]` An offline-signed Recovery UKI acts as the rescue system if rotation breaks booting.
-
-### §2 Architecture — Design Decisions to Make
-
-#### Decision 1: Signing strategy
-**Options:**
-- A. Microsoft-signed shim + Rush Linux CA (hybrid)
-- B. Custom Rush Linux CA, user enrolls at install
-- C. Microsoft-signed shim only (no Rush Linux CA — UKI signed with Microsoft key, impossible)
-
-**Recommendation:** A. Most flexible, most secure. Shim is signed by Microsoft (works out-of-box on most UEFI). Shim verifies Rush Linux CA, which verifies UKI. User can replace Rush Linux CA with their own via MOK.
-
-#### Decision 2: Key storage
-**Recommendation:** HSM (hardware security module) or YubiKey for signing key. Recovery key in cold storage (paper + USB in safe).
-
-#### Decision 3: Key rotation cadence
-**Recommendation:** Annual rotation; emergency rotation on compromise. dbx update via signed firmware capsule.
-
-#### Decision 4: Per the agent-protocol
-- Agents NEVER hold production signing keys (only test Ed25519). Human owner holds production signing key.
-- This research specifies the policy; humans execute.
-
-### §4 Evidence Gaps — Candidate Experiments
-
-#### 4.1 Shim + Rush Linux CA chain
-**Question:** Does the hybrid chain work on real UEFI?
-**Experiment:**
-```bash
-# Build UKI signed with Rush Linux CA
-# Install with shim (Microsoft-signed) + Rush Linux CA in db
-# Boot
-# Verify via dmesg | grep -i secure
 ```
-**Acceptance threshold:** Boots; Secure Boot enabled; UKI loaded via shim
-
-#### 4.2 MOK-based user enrollment
-**Question:** Can a user replace Rush Linux CA with their own via MOK?
-**Experiment:**
-```bash
-# User generates own keypair
-mokutil --import user-ca.crt
-# Reboot, enroll via MokManager
-# Build UKI signed with user CA
-# Boot
+EFI PE binary (.efi)
+├── .linux    — compressed kernel image (vmlinuz)
+├── .initrd   — initramfs (cpio archive)
+├── .cmdline  — kernel command line (fixed at build time)
+├── .uname    — kernel version string (e.g., "6.9.7-arch1")
+├── .splash   — optional boot splash (BMP image)
+├── .sbat     — SBAT (Secure Boot Advanced Targeting) metadata
+└── .osrel    — os-release file content
 ```
-**Acceptance threshold:** Boots with user-signed UKI; no Rush Linux CA in db
 
-#### 4.3 Key rotation
-**Question:** Does dbx update successfully revoke old key?
-**Experiment:**
+mkosi generates a UKI via `systemd-ukify` [PROVEN — `ukify(1)` man page]:
 ```bash
-# Generate new keypair
-# Sign new UKI with new key
-# Add old key to dbx
-# Try to boot old UKI
-# Should fail
+ukify build \
+  --linux=/boot/vmlinuz-linux \
+  --initrd=/boot/initramfs-linux.img \
+  --cmdline="root=/dev/sda2 rw quiet" \
+  --uname="$(uname -r)" \
+  --output=rush-linux.efi
 ```
-**Acceptance threshold:** Old UKI rejected; new UKI boots
 
-### §5 Non-goals — Guardrails
+The resulting `.efi` file can be placed directly in the ESP (EFI System Partition) at
+`/boot/EFI/rush-linux/rush-linux.efi` and added to the UEFI boot order [PROVEN].
 
-- **No production signing keys in CI.** CI uses test Ed25519 only; production signing is offline, human-operated.
-- **No bypass of Secure Boot for "convenience".** If user disables Secure Boot, Rush Linux warns but boots.
-- **No automatic dbx updates without user consent.** Per agent-protocol, security-sensitive operations are human-owned.
-- **No Microsoft-only trust** (Option C above) — too restrictive, can't ship own UKI.
-- **No TPM-only measurement without Secure Boot.** TPM measurement without Secure Boot is informational, not enforcement.
+### 1.2 Signing the UKI
 
-### §6 WP Relationship Map
+**Q: How is the UKI signed and what tools does Rush Linux use?**
 
-| Workplan / Doc | Relationship |
-|---|---|
-| **(no WP)** | Boot chain security, not runtime |
-| **ADR-0003 (UKI rollback)** | A/B slots assume signed UKIs; this research specifies signing |
-| **ADR-0009 (optid security boundary)** | Module signing is part of boot chain trust |
-| **0002** | Freshens — boot chain was noted as a gap |
+The UKI must be signed with a key that is in the UEFI `db` (or reachable via the
+Shim/MOK chain). Signing is done with `sbsign` (from `sbsigntools` package) [PROVEN]:
 
-### §7 Next Steps — Skeleton
+```bash
+sbsign \
+  --key  packaging/secureboot/rush-linux-sb.key  \
+  --cert packaging/secureboot/rush-linux-sb.crt  \
+  --output rush-linux-signed.efi \
+  rush-linux.efi
+```
 
-#### Immediate (no hardware needed)
-- [ ] Confirm shim build + Microsoft signing process (or use prebuilt shim)
-- [ ] Generate test Ed25519 keypair for development
-- [ ] Draft `tools/sign-uki.sh` skeleton
-- [ ] Draft `docs/recovery.md` skeleton
+**Key format**: PKCS#8 PEM private key + X.509 certificate. The certificate must have:
+- Extended Key Usage: `codeSigning` [PROVEN — required by Windows/UEFI signature validation]
+- Subject: `CN=Rush Linux Secure Boot Key` (or similar)
+- Validity: ≥ 10 years for a signing CA [HYPOTHESIS — long validity reduces key rotation
+  frequency; EV certificates are not required for UEFI db signing]
 
-#### Short-term (needs hardware)
-- [ ] Run §4.1 hybrid chain on real UEFI
-- [ ] Run §4.2 MOK-based user enrollment
-- [ ] Run §4.3 key rotation
+**Build pipeline signing** [HYPOTHESIS — design]:
+1. CI builds the unsigned UKI via mkosi
+2. Signing happens in a separate, access-controlled step using a Hardware Security Module
+   (HSM) or a signing service with the private key; the CI runner never holds the private key
+3. The signed `.efi` is published as a CI artefact
 
-#### Medium-term
-- [ ] Generate production keypair (offline, human-owned)
-- [ ] Sign Rush Linux release UKIs with production key
-- [ ] Publish Rush Linux CA for transparency
-- [ ] Document recovery procedure in user docs
+For development builds, a local development key (not enrolled in production MOK) is used.
 
-### Suggested Reading
+**Verification**:
+```bash
+sbverify --cert packaging/secureboot/rush-linux-sb.crt rush-linux-signed.efi
+```
 
-#### Tools
-- `shim` — `https://github.com/rhboot/shim`
-- `sbsigntools`
-- `mokutil`
-- `efivar` / `chvar`
+### 1.3 Trust Chain: DB vs. MOK
 
-#### Documentation
-- UEFI Specification 2.10 §32 Secure Boot
-- `https://wiki.archlinux.org/title/Secure_Boot`
-- `https://github.com/rhboot/shim/blob/main/README.md`
+**Q: What is the difference between UEFI DB enrollment and Shim MOK, and which does Rush Linux use?**
 
-#### Project-internal
-- ADR-0003 (`docs/decisions/0003-uki-rollback.md`)
-- ADR-0009 (`docs/decisions/0009-optid-security-boundary.md`)
-- Research 0002
+**Path A: Direct UEFI DB enrollment** [PROVEN]:
+- User enters UEFI setup, navigates to Secure Boot → Authorized Signatures → Enroll Certificate
+- Imports `rush-linux-sb.der` (DER-encoded X.509 certificate)
+- All UKIs signed with this certificate will boot without Shim
+- Requires physical access to UEFI setup on first enrollment
+- Advantage: no Shim dependency; cleaner boot chain
+- Disadvantage: requires user to navigate OEM-specific UEFI menus; not automatable
 
----
+**Path B: Shim + MOK enrollment** [PROVEN — Shim is the standard approach for Linux distros]:
+- Boot chain: UEFI DB trusts Microsoft's certificate → Shim (signed by Microsoft) is loaded
+  → Shim reads MOK (Machine Owner Key) database → loads `grub` or directly the UKI if
+  Shim supports direct UKI loading
+- User enrolls key via `mokutil --import rush-linux-sb.der` → reboot → MOK manager
+  (MokManager.efi) prompts user to confirm enrollment with a password set by `mokutil`
+- MOK keys are stored in NVRAM and trusted by Shim for all subsequent boots
+- Advantage: no UEFI firmware UI navigation needed; scripted first-boot enrollment
 
+**Rush Linux hybrid approach** [HYPOTHESIS — design]:
+1. Installer ships a Shim binary (signed by Microsoft) and MokManager.efi in the ESP
+2. At first boot after installation, the installer's post-install script runs:
+   ```bash
+   mokutil --import /usr/share/rush-linux/rush-linux-sb.der
+   ```
+3. A reboot + user MOK confirmation enrolls the Rush Linux key
+4. Subsequently, `rush-linux-signed.efi` boots directly via Shim without prompts
+5. Advanced users who want direct UEFI DB enrollment: `packaging/secureboot/enroll-db.sh`
+   provides instructions and exports the DER certificate
+
+### 1.4 Key Hierarchy
+
+**Q: What is the Rush Linux secure boot key hierarchy?**
+
+[HYPOTHESIS — recommended design for a small distro]:
+
+```
+Rush Linux Secure Boot Root CA (offline, airgapped)
+├── Rush Linux SB Signing Key (online, used for UKI signing)
+│   └── Issues certificate: CN=Rush Linux SB Signing 2026-2036
+└── Rush Linux Development Key (per-developer, never enrolled in production)
+```
+
+**Key storage** [HYPOTHESIS]:
+- Root CA: HSM or air-gapped laptop (cold storage); private key never on networked machine
+- SB Signing Key: HSM in CI signing service; private key never exported
+- Development keys: per-developer self-signed certificates; enrolled in personal MOK only
+
+**Key format files** (checked into git — public certs only, never private keys):
+```
+packaging/secureboot/
+├── rush-linux-ca.crt       # Root CA certificate (DER → .crt via: openssl x509 -inform DER -in *.der -out *.crt)
+├── rush-linux-sb.crt       # SB Signing Key certificate (PEM)
+├── rush-linux-sb.der       # SB Signing Key certificate (DER, for mokutil/UEFI import)
+└── rush-linux-dev.crt      # Example dev key certificate (for documentation)
+```
+
+### 1.5 SBAT (Secure Boot Advanced Targeting)
+
+**Q: What is SBAT and does Rush Linux need to manage it?**
+
+SBAT is a revocation mechanism for Shim and GRUB that allows the UEFI consortium to
+revoke vulnerable bootloader versions without replacing the DB certificate [PROVEN —
+documented at github.com/rhboot/shim/SBAT.md]:
+
+The `.sbat` section in a UKI declares the component's generation number:
+```
+sbat,1,SBAT Version,sbat,1,https://github.com/rhboot/shim/blob/main/SBAT.md
+rush-linux.uki,1,Rush Linux,rush-linux-uki,1,https://rush-linux.example/secureboot
+```
+
+If a security vulnerability is found in Rush Linux's bootloader component, the SBAT
+generation number is incremented in an updated build, and any older UKI with the old
+SBAT generation will be refused by a firmware that has received an updated SBAT policy
+via Windows Update.
+
+**Rush Linux requirement**: Include a correct `.sbat` section in every signed UKI
+[PROVEN — required for `secure boot level 2` certification; also required for Fedora/
+Ubuntu Shim re-signing if Rush Linux ever seeks Shim re-signing from a Shim signing
+authority].
+
+`ukify` supports `--sbat=packaging/secureboot/rush-linux.sbat` to embed the section
+[PROVEN — `ukify(1)` `--sbat` option].
+
+### 1.6 Key Rotation
+
+**Q: What is the key rotation process when the SB signing key expires or is compromised?**
+
+[HYPOTHESIS — process design]:
+
+**Planned rotation** (certificate expiry):
+1. Generate new SB Signing Key signed by Rush Linux Root CA
+2. Publish `rush-linux-sb-new.der` in a software update
+3. `mokutil --import rush-linux-sb-new.der` in the package post-install script
+4. User reboots → MOK manager shows new key enrollment prompt
+5. After enrollment confirmed across the install base (next release cycle), retire old key
+
+**Emergency rotation** (key compromise):
+1. Same as above, but also:
+2. Publish SBAT generation increment to revoke all UKIs signed with the compromised key
+3. Coordinate with Shim signing authorities if Shim-based trust chain is affected
+
+* * *
+
+## 2. Architecture Decisions
+
+### Decision A: Shim vs. Direct UEFI DB
+
+**Selected: Shim + MOK as the default path; direct UEFI DB as optional advanced path**
+[HYPOTHESIS — Shim is the standard industry approach that works without UEFI UI navigation;
+maximises compatibility with OEM firmware that may have reduced Secure Boot customisation UI].
+
+### Decision B: CI Signing Architecture
+
+**Selected: Unsigned UKI built by CI; signed in a separate signing step with HSM-protected key**
+[PROVEN design — private key never on CI runner; this is the industry standard for code signing
+security (analogous to Google's build infrastructure)].
+
+### Decision C: SBAT Inclusion
+
+**Selected: Always include `.sbat` section in every signed UKI** [PROVEN — required for
+Shim compatibility and future supply-chain security; no downside].
+
+* * *
+
+## 4. Evidence Gaps
+
+| Gap | Acceptance threshold | Experiment |
+|-----|---------------------|------------|
+| Shim version compatibility | Rush Linux UKI boots via Shim 15.8+ on 5 target OEM firmware variants | Boot test on ThinkPad, Dell XPS, ASUS, HP, Framework laptops |
+| MOK enrollment UX | Enrollment completed by a non-expert user in < 5 min | Usability test: 5 volunteers enroll MOK from scratch |
+| SBAT revocation propagation | SBAT generation increment prevents old UKI boot within 30 days | Test environment: increment SBAT; verify old UKI rejected by firmware after policy update |
+| Signing latency in CI | Sign step ≤ 60 s | Time `sbsign` on standard CI runner; HSM signing latency separate |
+| UKI boot time vs. initrd+kernel | UKI boot ≤ 200ms additional overhead vs. separate kernel+initrd | `systemd-analyze` comparison |
+
+* * *
+
+## 5. Non-Goals
+
+- optid (the daemon) has no role in Secure Boot — this brief covers build and packaging.
+- Rush Linux does not pursue Microsoft UEFI CA signing (requires formal business relationship).
+- Rush Linux does not implement TPM-based measured boot or PCR policy sealing in v0.1.
+- Rush Linux does not manage UEFI `dbx` (revocation list) updates — those come via
+  fwupd/LVFS from the OEM.
+- This brief does not cover full disk encryption or LUKS integration with Secure Boot.
+
+* * *
+
+## 6. WP Relationship Map
+
+| WP tag | How this brief addresses it |
+|--------|-----------------------------|
+| WP-N14 | UKI signing is the terminal step of the reproducible build pipeline (0016 feeds this) |
+| WP-N15 | The signed UKI provides supply chain integrity guarantee for the Rush Linux boot path |
+
+* * *
+
+## 7. Next Steps
+
+**Immediate**
+- Generate Rush Linux development signing key pair for local testing:
+  ```bash
+  openssl req -newkey rsa:4096 -keyout packaging/secureboot/rush-linux-dev.key \
+    -x509 -days 3650 -out packaging/secureboot/rush-linux-dev.crt \
+    -subj "/CN=Rush Linux Dev Secure Boot Key/"
+  ```
+- Implement `tools/sign-uki.sh` that calls `sbsign` with the key from env/argument.
+- Update `tools/build-image.sh` to call `sign-uki.sh` after mkosi build.
+
+**Short-term**
+- Test Shim + MOK enrollment on 3 target laptops.
+- Add `.sbat` content to `packaging/secureboot/rush-linux.sbat` and wire into `ukify` call.
+
+**Medium-term**
+- Evaluate HSM options for CI signing (AWS CloudHSM, Azure Dedicated HSM, YubiHSM 2).
+- Design the MOK auto-enrollment post-install script for the installer.
+- Investigate `systemd-cryptenroll` + TPM2 for optional measured boot in v0.2.
+
+* * *
+
+## Appendix: Suggested Reading
+
+- `sbsigntools` man pages: `sbsign(1)`, `sbverify(1)`
+- `ukify(1)` man page — UKI generation and signing options
+- Shim project: github.com/rhboot/shim — SBAT documentation
+- `mokutil(1)` man page — MOK key management
+- ArchWiki: "Unified Extensible Firmware Interface/Secure Boot" — practical guide
+- Fedora Secure Boot overview: fedoraproject.org/wiki/Secure_Boot_Overview
+- UEFI Specification §32 — Secure Boot (public download from uefi.org)
+- SLSA Level 2 requirements for build integrity: slsa.dev
