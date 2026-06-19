@@ -1,12 +1,14 @@
 [advisories]
 version = 2
 vulnerability = "warn"
-ignore = []
+unmaintained = "warn"
+unsound = "warn"
+notice = "warn"
 
 [licenses]
 version = 2
 unlicensed = "warn"
-confidence-threshold = 0.8
+copyleft = "warn"
 allow = [
     "Apache-2.0",
     "MIT",
@@ -18,28 +20,14 @@ allow = [
     "0BSD",
     "BSL-1.0",
     "MPL-2.0",
-    "GPL-2.0-only",
-    "GPL-2.0-or-later",
-    "GPL-3.0-only",
-    "GPL-3.0-or-later",
-    "LGPL-2.1-only",
-    "LGPL-2.1-or-later",
-    "LGPL-3.0-only",
-    "LGPL-3.0-or-later",
-    "Unlicense",
-    "CC0-1.0",
-    "Unicode-3.0",
 ]
 
 [bans]
 version = 2
-deny = []
-skip = []
-skip-tree = []
+multiple-versions = "warn"
+wildcards = "warn"
 
 [sources]
 version = 2
 unknown-registry = "warn"
 unknown-git = "warn"
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
