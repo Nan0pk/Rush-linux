@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/rush-linux
 COPY . .
 
-RUN cargo build --release --workspace
+RUN cargo build --release --bin optid --bin optctl --bin rush-collect
 
 FROM debian:bookworm-slim
 

@@ -77,4 +77,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: MoritzSan/cargo-deny-action@v1
+      - uses: embarkstudios/cargo-deny-action@v2
