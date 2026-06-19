@@ -3,6 +3,9 @@ FROM rust:1.78-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y \
     libdbus-1-dev \
     pkg-config \
+    clang \
+    cmake \
+    libzstd-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/rush-linux
