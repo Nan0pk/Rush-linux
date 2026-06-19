@@ -22,6 +22,12 @@ pub(crate) struct Args {
     pub(crate) interval_sec: u64,
     pub(crate) state_dir: PathBuf,
     pub(crate) config_path: PathBuf,
+    /// WP-N4 hardware allowlist gate. Default `false` (disabled) per
+    /// docs/research/0006-hw-allowlist-db-design.md §7 medium-term: the gate
+    /// ships behind a flag and stays off in v0.x until the seeded baseline is
+    /// hardware-verified. When `true`, depth-enabler writes are default-denied
+    /// unless the device's HWID is allowlisted, and every denial is audited.
+    pub(crate) allowlist: bool,
 }
 
 impl Args {
@@ -36,6 +42,7 @@ impl Args {
             interval_sec: DEFAULT_INTERVAL_SEC,
             state_dir: PathBuf::from(DEFAULT_STATE_DIR),
             config_path: PathBuf::from(DEFAULT_CONFIG_PATH),
+            allowlist: false,
         };
 
         let mut it = iter.into_iter();
@@ -44,6 +51,9 @@ impl Args {
                 "--apply" => args.apply = true,
                 "--once" => args.once = true,
                 "-h" | "--help" => args.help = true,
+                "--allowlist" => args.allowlist = true,
+                "--allowlist=enabled" => args.allowlist = true,
+                "--allowlist=disabled" => args.allowlist = false,
                 "--interval-sec" => {
                     let value = it
                         .next()
@@ -79,7 +89,9 @@ pub(crate) fn parse_from_env() -> Result<Args, String> {
 pub(crate) fn print_usage() {
     println!(
         "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
+         \x20            [--allowlist[=enabled|disabled]]\n\
          \n\
-         Default mode is dry-run. Use --apply only on Rush Linux or a test host."
+         Default mode is dry-run. Use --apply only on Rush Linux or a test host.\n\
+         --allowlist enables the WP-N4 hardware allowlist gate (default disabled)."
     );
 }

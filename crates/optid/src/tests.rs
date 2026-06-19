@@ -40,6 +40,7 @@ mod integration_tests {
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
+            allowlist: false,
         };
 
         run(args).unwrap();
@@ -769,6 +770,7 @@ device_resume_latency = 100000
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
+            allowlist: false,
         };
 
         run(args).unwrap();
@@ -849,6 +851,124 @@ device_resume_latency = 100000
 
         assert!(!orig_file.exists());
         assert!(!temp_dir.join(format!("intended_dev_{hash}")).exists());
+    }
+
+    // ── WP-N4: hardware allowlist gate wired into the actuator ───────────────
+
+    #[test]
+    fn test_n4_gate_default_denies_unknown_hwid_and_audits() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n4_deny_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        // Real PCI-shaped layout: <dev>/power/pm_qos_resume_latency_us, with a
+        // modalias the seeded baseline does not cover for the runtime_pm domain.
+        let dev = temp_dir.join("0000:00:1f.3");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), "pci:vFFFFpFFFFsvFFFFsdFFFF\n").unwrap();
+        let dev_path = power.join("pm_qos_resume_latency_us");
+
+        let mut actuator =
+            Actuator::new_with_sink(temp_dir.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "test".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        // Default-deny: the write must NOT have reached the sink.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "0",
+            "denied actuation must not write"
+        );
+        // Denial logged with reason in the JSONL audit trail.
+        let audit = fs::read_to_string(temp_dir.join("audit.jsonl")).unwrap();
+        assert!(audit.contains("\"event\":\"actuation_denied\""), "{audit}");
+        assert!(audit.contains("hwid_not_in_allowlist"), "{audit}");
+        assert!(audit.contains("\"domain\":\"runtime_pm\""), "{audit}");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_n4_gate_allows_allowlisted_hwid() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n4_allow_{}", std::process::id()));
+        let admin = temp_dir.join("admin");
+        let _ = fs::create_dir_all(&admin);
+
+        let dev = temp_dir.join("0000:00:14.0");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        let modalias = "pci:v00008086p0000A0EDsv00001028sd00000A01bc0Csc03i30";
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        let dev_path = power.join("pm_qos_resume_latency_us");
+
+        // Admin override allows this HWID for the runtime_pm domain.
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"tested in N4 unit test\"\n"
+            ),
+        )
+        .unwrap();
+
+        let mut actuator =
+            Actuator::new_with_sink(temp_dir.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "test".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        // Allowed: the write reaches the sink and nothing is audited as denied.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "100"
+        );
+        assert!(!temp_dir.join("audit.jsonl").exists());
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_n4_gate_disabled_is_no_op() {
+        // With the gate disabled (the v0.x default), DeviceResumeLatency writes
+        // exactly as before — no HWID resolution, no audit file.
+        let temp_dir =
+            std::env::temp_dir().join(format!("optid_tests_n4_off_{}", std::process::id()));
+        let power = temp_dir.join("0000:00:1f.3").join("power");
+        fs::create_dir_all(&power).unwrap();
+        let dev_path = power.join("pm_qos_resume_latency_us");
+
+        let mut actuator =
+            Actuator::new_with_sink(temp_dir.clone(), Box::new(MockPmqosSink::new()));
+        // No enable_allowlist call → gate off.
+
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "test".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "100"
+        );
+        assert!(!temp_dir.join("audit.jsonl").exists());
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
@@ -1001,6 +1121,7 @@ device_resume_latency = 100000
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
+            allowlist: false,
         };
 
         let _handle = std::thread::spawn(move || {
@@ -1064,6 +1185,7 @@ device_resume_latency = 100000
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
+            allowlist: false,
         };
 
         // If it runs successfully without panic, that satisfies "no panic, fall back to signals"
