@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use zbus::dbus_interface;
+use zbus::interface;
 
 use crate::workload::Mode;
 
@@ -17,7 +17,7 @@ pub(crate) struct OptidServer {
     pub(crate) state_dir: PathBuf,
 }
 
-#[dbus_interface(name = "io.rushlinux.Optid1")]
+#[interface(name = "io.rushlinux.Optid1")]
 impl OptidServer {
     fn status(&self) -> zbus::fdo::Result<String> {
         fs::read_to_string(self.state_dir.join("status"))
@@ -65,13 +65,13 @@ impl OptidServer {
         Ok(())
     }
 
-    #[dbus_interface(property)]
+    #[zbus(property)]
     fn mode(&self) -> String {
         let text = fs::read_to_string(self.state_dir.join("mode")).unwrap_or_default();
         Mode::parse(&text).unwrap_or(Mode::Auto).to_string()
     }
 
-    #[dbus_interface(property)]
+    #[zbus(property)]
     fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }

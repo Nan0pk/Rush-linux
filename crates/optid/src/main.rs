@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use zbus::blocking::ConnectionBuilder;
+use zbus::blocking::connection::Builder as ConnectionBuilder;
 
 mod action;
 mod actuator;
