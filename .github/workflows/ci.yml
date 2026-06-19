@@ -78,3 +78,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: embarkstudios/cargo-deny-action@v2
+        with:
+          command: check

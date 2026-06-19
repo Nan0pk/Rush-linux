@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/rush-linux
 COPY . .
 
+# rush_telemetry is GPL licensed and not part of the standard workspace binaries
 RUN cargo build --release --bin optid --bin optctl --bin rush-collect
 
 FROM debian:bookworm-slim
