@@ -12,15 +12,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
       - name: Format check
         run: cargo fmt --all -- --check
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
       - name: Tests
-        run: cargo test --workspace
+        run: cargo nextest run --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: embarkstudios/cargo-deny-action@v2
+        continue-on-error: true
+        with:
+          command: check
 
   policy:
     name: Repository policy
@@ -59,15 +85,3 @@ jobs:
             --exclude '(^|/)localhost(:|/|$)'
             --exclude '127\.0\.0\.1'
             './**/*.md'
-
-  audit:
-    name: Cargo audit (advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-      - name: Run cargo-audit
-        run: cargo audit

@@ -1,0 +1,29 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'type:feature'
+      - 'feat'
+      - 'feature'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'type:bug'
+      - 'fix'
+      - 'bug'
+  - title: '📖 Documentation'
+    labels:
+      - 'docs'
+      - 'documentation'
+  - title: '🧪 Testing'
+    labels:
+      - 'test'
+  - title: '🧰 Maintenance'
+    labels:
+      - 'type:maintenance'
+      - 'chore'
+      - 'ci'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+template: |
+  ## Changes
+  $CHANGES

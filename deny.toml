@@ -1,0 +1,33 @@
+[advisories]
+version = 2
+vulnerability = "warn"
+unmaintained = "warn"
+unsound = "warn"
+notice = "warn"
+
+[licenses]
+version = 2
+unlicensed = "warn"
+copyleft = "warn"
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-3-Clause",
+    "BSD-2-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-DFS-2016",
+    "0BSD",
+    "BSL-1.0",
+    "MPL-2.0",
+]
+
+[bans]
+version = 2
+multiple-versions = "warn"
+wildcards = "warn"
+
+[sources]
+version = 2
+unknown-registry = "warn"
+unknown-git = "warn"
