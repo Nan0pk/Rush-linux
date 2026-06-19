@@ -1,0 +1,38 @@
+[sudo] password for victus: [1;34m[bench][0m surface: EPP=1(24cpu) platform_profile=0 cpus=24 rapl=/sys/class/powercap/intel-rapl:0
+[1;34m[bench][0m capturing original state -> /tmp/optid-bench2.622SlF/restore
+
+[1;34m[bench][0m === plan (dry-run) ===
+--- performance ---
+actions:
+- cpu.epp=performance (reduce CPU wakeup and ramp latency for sustained load)
+- platform.profile=performance (request performance platform profile)
+- systemd.set-property user.slice CPUWeight=200 IOWeight=200 (boost foreground user work)
+- vm.sysctl /proc/sys/vm/swappiness=150 (adjust swappiness for current mode)
+- cpu_dma_latency=100000 (class=idle, floor=100000us, row=contracts.idle)
+--- battery ---
+actions:
+- cpu.epp=power (prefer battery life through CPU energy preference)
+- platform.profile=low-power (request low-power platform profile)
+- systemd.set-property background.slice CPUWeight=25 IOWeight=25 (deprioritize background services on battery)
+- vm.sysctl /proc/sys/vm/swappiness=60 (adjust swappiness for current mode)
+- cpu_dma_latency=100000 (class=idle, floor=100000us, row=contracts.idle)
+
+[1;34m[bench][0m === SCENARIO RESP (cgroup-isolated wakeup latency, load=24x2 in background.slice) ===
+    baseline       p95(med)=0.070ms  p99(med)=0.096ms   [iters: 0.055,0.072,0.076,0.070,0.067 | 0.057,0.096,0.156,0.076,0.123]
+
+[1;34m[bench][0m === SCENARIO POWER (partial load, CPU package watts) ===
+    baseline       pkgW(med)=30.18W   [iters: 30.21,30.18,30.11,30.15,30.19]
+
+[1;34m[bench][0m === APPLY mode=performance ===
+[1;34m[bench][0m EPP now: performance  (user.slice CPUWeight: 200)
+    performance    p95(med)=0.059ms  p99(med)=0.076ms   [iters: 0.070,0.058,0.057,0.059,0.076 | 0.098,0.069,0.059,0.076,0.142]
+    performance    pkgW(med)=30.14W   [iters: 30.18,30.10,30.02,30.19,30.14]
+
+[1;34m[bench][0m === APPLY mode=battery ===
+[1;34m[bench][0m EPP now: performance  (user.slice CPUWeight: [not set])
+    battery        p95(med)=0.075ms  p99(med)=0.193ms   [iters: 0.071,0.075,0.063,0.076,0.089 | 0.093,0.098,0.216,0.194,0.193]
+    battery        pkgW(med)=30.12W   [iters: 30.17,30.12,30.12,30.05,30.11]
+
+[1;34m[bench][0m done. restore runs now via trap.
+[1;34m[bench][0m restoring original state...
+[1;34m[bench][0m RESTORE VERIFIED (persistent knobs match; cgroup props are --runtime).
