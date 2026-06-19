@@ -1,0 +1,27 @@
+area:optid:
+- changed-files:
+  - any-glob-to-any-file: 'crates/optid/**/*'
+
+area:optctl:
+- changed-files:
+  - any-glob-to-any-file: 'crates/optctl/**/*'
+
+area:telemetry:
+- changed-files:
+  - any-glob-to-any-file: 'crates/rush_telemetry/**/*'
+
+area:benchmarking:
+- changed-files:
+  - any-glob-to-any-file: 'crates/rushbench/**/*'
+  - any-glob-to-any-file: 'benchmarks/**/*'
+
+area:distro:
+- changed-files:
+  - any-glob-to-any-file: 'distro/**/*'
+  - any-glob-to-any-file: 'mkosi/**/*'
+  - any-glob-to-any-file: 'packaging/**/*'
+
+type:maintenance:
+- changed-files:
+  - any-glob-to-any-file: '.github/**/*'
+  - any-glob-to-any-file: 'tools/**/*'
