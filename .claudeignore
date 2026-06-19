@@ -21,5 +21,4 @@ docs/inbox/
 # Signing keys
 config/keys/
 
-# Lock file — too large to be useful in context; read Cargo.toml instead
-Cargo.lock
+

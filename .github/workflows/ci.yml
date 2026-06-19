@@ -15,10 +15,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
       - name: Format check
         run: cargo fmt --all -- --check
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
       - name: Tests
-        run: cargo test --workspace
+        run: cargo nextest run --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -61,13 +64,17 @@ jobs:
             './**/*.md'
 
   audit:
-    name: Cargo audit (advisory)
+    name: Security Audit
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-      - name: Run cargo-audit
-        run: cargo audit
+      - uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: MoritzSan/cargo-deny-action@v1

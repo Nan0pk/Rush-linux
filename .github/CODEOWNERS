@@ -1,0 +1,19 @@
+# CODEOWNERS for Rush-linux
+
+# Default owners
+* @Nan0pk
+
+# Rust crates
+crates/optid/ @Nan0pk @agent-rust
+crates/optctl/ @Nan0pk @agent-rust
+crates/rush_collect/ @Nan0pk @agent-rust
+crates/rush_telemetry/ @Nan0pk @agent-rust
+crates/rushbench/ @Nan0pk @agent-rust
+
+# Tools
+tools/ @Nan0pk @agent-shell
+
+# Infrastructure
+.github/ @Nan0pk
+mkosi/ @Nan0pk
+distro/ @Nan0pk
