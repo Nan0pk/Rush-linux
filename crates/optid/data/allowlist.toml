@@ -1,0 +1,117 @@
+# Rush Linux — optid hardware allowlist (seeded safe baseline)
+#
+# This file is the compiled-in source of truth for WP-N4 (SPEC-northstar §6).
+# `build.rs` reads it at build time and codegens a `const`/`static` table into
+# the optid binary (Option E / "Hybrid E" from docs/research/0006-hw-allowlist-db-design.md
+# §1.7). It is the LOWEST-precedence layer; runtime overrides in
+# /usr/share/optid/allowlist.d/ (distro) and /etc/optid/allowlist.d/ (admin +
+# optctl) win over it (see §1.9).
+#
+# Schema (per 0006 Decision 7):
+#   domain     — depth-enabler domain: nvme_apst | pci_aspm | sata_alpm |
+#                runtime_pm | usb_autosuspend | dgpu_runtime
+#   hwid       — full canonical kernel MODALIAS (PCI: pci:vNNNNdNNNN…, USB:
+#                usb:…, ACPI: acpi:…). Matched EXACTLY against the device's
+#                modalias. NVMe controllers resolve to the underlying PCI
+#                modalias (§1.1).
+#   action     — "allow" or "deny". Absent ⇒ "allow".
+#   max_state  — optional: cap actuation at state N even when the contract floor
+#                would permit deeper. Covers buggy-deep-state controllers (§1.3).
+#   tested_on  — the hardware/evidence this entry is attributable to.
+#   reason     — why this entry exists (surfaced by `optctl explain`).
+#   added_in   — optid version the entry was added in.
+#   verified   — true once validated on real hardware per §4; false entries are
+#                seeded from community reports and the kernel bug tracker and
+#                still need a §4 experiment to close. Default-deny means an
+#                unverified-but-present entry is still safer than default-allow.
+#
+# IMPORTANT: every entry MUST carry `tested_on` and `reason` (0006 §5 Non-Goals).
+# Exact-match keying means real hardware only matches when its full modalias
+# (including subsystem IDs) equals the stored hwid; wildcard/partial matching is
+# explicitly future work, not N4.
+
+version = "v0.4.0-alpha.1"
+
+# ── NVMe APST (controller power states) ──────────────────────────────────────
+# Allow states 0–3 on controllers with reported deep-state (PS4) resume hangs;
+# allow all states on controllers with positive community reports.
+
+[[entry]]
+domain = "nvme_apst"
+hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02"
+action = "allow"
+max_state = 3
+tested_on = "Samsung PM9A1 (community reports; ThinkPad T14 Gen 4 candidate)"
+reason = "State 4 resume hangs reported on some units; states 0-3 stable"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "nvme_apst"
+hwid = "pci:v0000144Dp0000A808sv0000144Dsd0000A801bc01sc08i02"
+action = "allow"
+max_state = 3
+tested_on = "Samsung 970 EVO Plus (community reports)"
+reason = "State 4 latency ~20ms with hangs observed on certain Intel systems; cap at 3"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "nvme_apst"
+hwid = "pci:v000015B7p00005030sv000015B7sd00005030bc01sc08i02"
+action = "allow"
+tested_on = "WD Black SN850X (community reports)"
+reason = "Generally stable across power states; positive community reports"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "nvme_apst"
+hwid = "pci:v00001C5Cp0000174Asv00001C5Csd0000174Abc01sc08i02"
+action = "allow"
+max_state = 3
+tested_on = "SK Hynix PC801 (OEM drive in Dell/HP laptops)"
+reason = "State 4 untested on this OEM controller; cap at 3 pending §4.1"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "nvme_apst"
+hwid = "pci:v00001344p00005410sv00001344sd00005410bc01sc08i02"
+action = "allow"
+max_state = 3
+tested_on = "Micron 3400 (common in XPS 13 9320)"
+reason = "State 4 flagged in kernel nvme_quirks; cap at 3"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+# ── PCIe ASPM (L0s / L1 / L1.2) ──────────────────────────────────────────────
+# Known-buggy L1.2 devices: explicit DENY so default-deny is reinforced even if a
+# future higher-precedence layer tries to allow them by a broader rule.
+
+[[entry]]
+domain = "pci_aspm"
+hwid = "pci:v00008086p00002526sv00008086sd00000010bc02sc80i00"
+action = "deny"
+tested_on = "Intel Wireless-AC 9260 (kernel ASPM_STATE_L1_1 quirk)"
+reason = "L1.2 link drop under load; upstream kernel quirks this device"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "pci_aspm"
+hwid = "pci:v00008086p00002723sv00008086sd00000084bc02sc80i00"
+action = "deny"
+tested_on = "Intel AX200 (kernel bugzilla reports)"
+reason = "L1.2 occasionally drops on busy channels"
+added_in = "v0.4.0-alpha.1"
+verified = false
+
+[[entry]]
+domain = "pci_aspm"
+hwid = "pci:v000010ECp0000C821sv000010ECsd0000C821bc02sc80i00"
+action = "deny"
+tested_on = "Realtek RTL8821CE (multiple lkml reports)"
+reason = "L1.2 causes firmware assert"
+added_in = "v0.4.0-alpha.1"
+verified = false

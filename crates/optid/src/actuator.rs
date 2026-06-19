@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::action::Action;
+use crate::allowlist::{hwid_from_attr_path, Allowlist, Verdict};
 use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, guarded_write};
 use crate::sensors::{discover_cpu_epp_paths, now_unix};
 
@@ -71,33 +72,124 @@ impl PmqosSink for RealPmqosSink {
 pub(crate) struct Actuator {
     pub(crate) state_dir: PathBuf,
     pub(crate) log_path: PathBuf,
+    pub(crate) audit_path: PathBuf,
     pub(crate) pmqos_sink: Box<dyn PmqosSink>,
     pub(crate) last_cpu_latency: Option<Option<i32>>,
     pub(crate) last_device_latencies: HashMap<PathBuf, Option<i32>>,
+    /// WP-N4 hardware allowlist gate. `None` ⇒ gate disabled (the v0.x default):
+    /// the actuator behaves exactly as before. `Some(_)` ⇒ depth-enabler writes
+    /// are default-denied unless the device HWID is allowlisted, and every
+    /// denial is appended to `audit_path` with its reason.
+    pub(crate) allowlist: Option<Allowlist>,
 }
 
 impl Actuator {
     pub(crate) fn new(state_dir: PathBuf) -> Self {
         let log_path = state_dir.join("actions.log");
+        let audit_path = state_dir.join("audit.jsonl");
         Self {
             state_dir,
             log_path,
+            audit_path,
             pmqos_sink: Box::new(RealPmqosSink::new()),
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
+            allowlist: None,
         }
     }
 
     #[allow(dead_code)]
     pub(crate) fn new_with_sink(state_dir: PathBuf, sink: Box<dyn PmqosSink>) -> Self {
         let log_path = state_dir.join("actions.log");
+        let audit_path = state_dir.join("audit.jsonl");
         Self {
             state_dir,
             log_path,
+            audit_path,
             pmqos_sink: sink,
             last_cpu_latency: None,
             last_device_latencies: HashMap::new(),
+            allowlist: None,
         }
+    }
+
+    /// Enable the WP-N4 hardware allowlist gate with the given (already loaded)
+    /// allowlist. Called from `main` when `--allowlist` is set.
+    pub(crate) fn enable_allowlist(&mut self, allowlist: Allowlist) {
+        self.allowlist = Some(allowlist);
+    }
+
+    /// The WP-N4 safety gate (SPEC §3 clause 2). Returns `true` when actuation
+    /// on `attr_path` for `domain` is permitted. When the gate is disabled this
+    /// is a no-op that returns `true`. On denial it appends an audit record and
+    /// a human-readable line to the action log, then returns `false` so the
+    /// caller skips the write — default-deny, denial logged with reason.
+    fn allowlist_permits(
+        &mut self,
+        domain: &str,
+        attr_path: &Path,
+        requested_state: u32,
+    ) -> io::Result<bool> {
+        // Resolve the verdict while only borrowing the allowlist, so the
+        // subsequent &mut self logging calls don't conflict with the borrow.
+        let outcome = match self.allowlist.as_ref() {
+            None => None,
+            Some(al) => {
+                let version = al.version().to_string();
+                match hwid_from_attr_path(attr_path) {
+                    Some(hwid) => {
+                        let verdict = al.check(domain, &hwid, requested_state);
+                        Some((hwid, verdict, version))
+                    }
+                    None => Some((
+                        "unknown".to_string(),
+                        Verdict::Deny {
+                            reason: "hwid_unresolved".to_string(),
+                        },
+                        version,
+                    )),
+                }
+            }
+        };
+
+        let Some((hwid, verdict, version)) = outcome else {
+            return Ok(true); // gate disabled
+        };
+
+        if verdict.is_allow() {
+            return Ok(true);
+        }
+        let reason = verdict.deny_reason().unwrap_or("denied").to_string();
+        self.audit_denied(&hwid, domain, requested_state, &reason, &version)?;
+        self.log(&format!(
+            "deny {domain} on {} ({hwid}): {reason}",
+            attr_path.display()
+        ))?;
+        Ok(false)
+    }
+
+    /// Append a structured denial record to the audit log (JSONL, one object
+    /// per line) per docs/research/0006-hw-allowlist-db-design.md §1.2.
+    fn audit_denied(
+        &mut self,
+        hwid: &str,
+        domain: &str,
+        requested_state: u32,
+        reason: &str,
+        version: &str,
+    ) -> io::Result<()> {
+        let line = format!(
+            "{{\"ts_unix\":{ts},\"event\":\"actuation_denied\",\"hwid\":\"{hwid}\",\
+\"domain\":\"{domain}\",\"requested_state\":{requested_state},\
+\"deny_reason\":\"{reason}\",\"allowlist_version\":\"{version}\"}}\n",
+            ts = now_unix(),
+            hwid = json_escape(hwid),
+            domain = json_escape(domain),
+            requested_state = requested_state,
+            reason = json_escape(reason),
+            version = json_escape(version),
+        );
+        append_log(&self.audit_path, &line)
     }
 
     pub(crate) fn apply(&mut self, action: &Action) -> io::Result<()> {
@@ -263,6 +355,14 @@ impl Actuator {
                 value,
                 reason,
             } => {
+                // WP-N4 safety gate: per-device runtime-PM resume latency is a
+                // depth-enabler knob, so it must clear the hardware allowlist
+                // before any write. Default-deny when the gate is enabled and
+                // the HWID is unknown; skip (no write) on denial. Disabled by
+                // default, in which case this is a no-op.
+                if !self.allowlist_permits("runtime_pm", path, 0)? {
+                    return Ok(());
+                }
                 let should_apply = match self.last_device_latencies.get(path) {
                     Some(last_val) => last_val != value,
                     None => true,
@@ -319,4 +419,23 @@ impl Actuator {
     fn log(&mut self, message: &str) -> io::Result<()> {
         append_log(&self.log_path, &format!("{} {message}\n", now_unix()))
     }
+}
+
+/// Minimal JSON string escaping for audit records. The fields are controlled
+/// (HWIDs, domain names, reason codes) but a stray quote/backslash must never
+/// corrupt the JSONL audit stream.
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }

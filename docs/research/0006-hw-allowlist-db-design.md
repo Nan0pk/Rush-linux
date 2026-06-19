@@ -583,13 +583,13 @@ sudo journalctl -u optid -f | grep -i 'hotplug\|actuate' &
 ## 7. Next Steps
 
 ### Immediate (no hardware needed)
-- [ ] Add `crates/optid/src/allowlist.rs` with `Allowlist::check(hwid, domain, state) -> Verdict` (Allow / Deny / DenyWithReason)
-- [ ] Add `data/allowlist.toml` with the seeded baseline (§1.10, mark unverified entries `verified = false`)
-- [ ] Wire `Allowlist::check()` into the `fits_contract` code path in `crates/optid/src/decision.rs`
-- [ ] Implement `build.rs` to compile `data/allowlist.toml` into a Rust `const` table
-- [ ] Write `optctl allow/deny/list-allow/audit/explain` subcommand stubs in `crates/optctl/src/`
-- [ ] Draft `/etc/udev/rules.d/99-optid.rules` and `optid-udev` shim binary
-- [ ] Draft `/usr/lib/systemd/system/optid.service` with `WatchdogSec=10`
+- [x] Add `crates/optid/src/allowlist.rs` with `Allowlist::check(domain, hwid, state) -> Verdict` (Allow / Deny{reason}) — **landed (WP-N4)**
+- [x] Add `crates/optid/data/allowlist.toml` with the seeded baseline (§1.10; all entries `verified = false` pending §4) — **landed**
+- [x] Wire `Allowlist::check()` into the actuator's single write funnel (`crates/optid/src/actuator.rs`), behind the `--allowlist` flag (default disabled per medium-term below). **Note:** the gate landed in `actuator.rs` rather than `decision.rs::fits_contract` — `actuator.rs` is the single funnel through which every mutation already passes (alongside the orthogonal ADR-0009 `guarded_write`), so default-deny is enforced at the point of write. `fits_contract` (the contract gate) remains the independent second clause of the §3 rule and is consumed when WP-N5/N6 land. — **landed**
+- [x] Implement `crates/optid/build.rs` to compile `data/allowlist.toml` into a `static` table (libinput-quirks pattern, §1.7) — **landed**
+- [x] Write `optctl allow/deny/list-allow` in `crates/optctl/src/allow.rs` (writes `/etc/optid/allowlist.d/90-admin.toml`); `audit`/`explain` over D-Bus remain stubs pending the running-daemon query path — **landed (partial)**
+- [x] Draft `packaging/udev/rules.d/99-optid.rules` (the `optid-udev` shim binary remains future work) — **landed**
+- [x] `packaging/systemd/optid.service` exists; `WatchdogSec=` revert layer (§1.6) tracked separately — **pre-existing**
 
 ### Short-term (needs hardware)
 - [ ] Run §4.1 APST state 4 hang test on T14 Gen 4 + XPS 13 + Framework 13

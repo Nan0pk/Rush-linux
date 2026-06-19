@@ -19,6 +19,7 @@ use zbus::blocking::ConnectionBuilder;
 
 mod action;
 mod actuator;
+mod allowlist;
 mod args;
 mod contracts;
 mod dbus;
@@ -116,6 +117,25 @@ fn run(args: Args) -> io::Result<()> {
     let mut mode_hysteresis = ModeHysteresisState::new(Mode::Balanced);
 
     let mut actuator = Actuator::new(args.state_dir.clone());
+    if args.allowlist {
+        // WP-N4: load seeded baseline + runtime overrides and arm the gate.
+        let al = allowlist::Allowlist::load();
+        // Record the effective allowlist at startup so the audit trail shows
+        // exactly what the gate will admit (default-deny for everything else).
+        let mut summary = format!(
+            "optid: WP-N4 hardware allowlist gate ENABLED (default-deny); \
+             version={} effective_entries={}\n",
+            al.version(),
+            al.len()
+        );
+        for entry in al.entries() {
+            summary.push_str("optid:   allowlist ");
+            summary.push_str(&entry.describe());
+            summary.push('\n');
+        }
+        append_log(&args.state_dir.join("decisions.log"), &summary)?;
+        actuator.enable_allowlist(al);
+    }
 
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);

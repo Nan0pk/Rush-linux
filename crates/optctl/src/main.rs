@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use zbus::blocking::Connection;
 use zbus::dbus_proxy;
 
+mod allow;
+
 #[dbus_proxy(
     interface = "io.rushlinux.Optid1",
     default_service = "io.rushlinux.Optid",
@@ -201,6 +203,7 @@ fn run(args: Vec<String>) -> io::Result<()> {
                 }
             }
         }
+        "allow" | "deny" | "list-allow" => allow::run(&positional),
         "benchmark" => {
             eprintln!("optctl benchmark is removed: use rushbench binary instead.");
             Err(io::Error::other(
@@ -247,13 +250,16 @@ fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
 
 fn print_usage() {
     println!(
-        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace>\n\
+        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace|allow|deny|list-allow>\n\
          \n\
          Examples:\n\
            optctl status\n\
            optctl status --json\n\
            optctl mode performance\n\
-           optctl explain"
+           optctl explain\n\
+           optctl allow nvme_apst pci:v0000144Dp00009A36 --max-state 3 --reason \"tested on T14\"\n\
+           optctl deny pci_aspm /sys/bus/pci/devices/0000:04:00.0 --reason \"L1.2 link drop\"\n\
+           optctl list-allow"
     );
 }
 
