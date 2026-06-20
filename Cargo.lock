@@ -444,7 +444,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "optctl"
-version = "0.4.0-alpha.1"
+version = "0.5.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -453,7 +453,7 @@ dependencies = [
 
 [[package]]
 name = "optid"
-version = "0.4.0-alpha.1"
+version = "0.5.0-beta.1"
 dependencies = [
  "libc",
  "serde",
@@ -554,7 +554,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rush-collect"
-version = "0.4.0-alpha.1"
+version = "0.5.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "rushbench"
-version = "0.4.0-alpha.1"
+version = "0.5.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",
