@@ -1,0 +1,37 @@
+date=2026-06-20T03:19:33+05:00
+host=fedora
+kernel=7.0.12-201.fc44.x86_64
+cpu=13th Gen Intel(R) Core(TM) i7-13700HX
+ncpu=24
+cpufreq_driver=intel_pstate
+governor=performance
+platform_profile_available=0
+rapl_domain=/sys/class/powercap/intel-rapl:0
+optid_version=Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]
+git_commit=12130d5
+--- ambient @ phase=ac 2026-06-20T03:19:36+05:00 ---
+ambient_cpu_pct=1.7
+loadavg=0.90 5.69 7.24
+batt_pct=100 ac_online=1
+top processes:
+  %CPU COMMAND
+   100 ps
+  18.5 chrome
+  13.2 agy
+   7.5 chrome
+   5.6 systemd
+   4.9 gnome-shell
+   4.7 chrome
+--- ambient @ phase=bat 2026-06-20T03:29:54+05:00 ---
+ambient_cpu_pct=1.4
+loadavg=16.52 23.18 17.11
+batt_pct=100 ac_online=0
+top processes:
+  %CPU COMMAND
+   900 ps
+  15.1 chrome
+  15.0 agy
+   7.4 chrome
+   5.2 chrome
+   5.0 gnome-shell
+   3.9 chrome
