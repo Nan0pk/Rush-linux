@@ -2,13 +2,13 @@
 
 **Adaptive Linux. One optimizer. Every decision explained and reversible.**
 
-[![Version](https://img.shields.io/badge/version-0.4.0--alpha.1-blue)](VERSION)
-[![Status](https://img.shields.io/badge/status-pre--alpha-orange)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-0.5.0--beta.1-blue)](VERSION)
+[![Status](https://img.shields.io/badge/status-beta--in--progress-orange)](ROADMAP.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Rush Linux is an architecture-first Linux distribution built around `optid`, a native Rust daemon that continuously reads kernel pressure signals and adjusts hardware policy in real time. No fixed power profiles. No manual tuning. One explainable, reversible optimizer that proves its work.
 
-The project is pre-alpha. The optimizer runs, a VM boots via UKI with `optid.service` active, and the measurement harness is in place. A consumer-installable distribution is the long-term goal.
+The project is in early beta. The optimizer runs, a VM boots via UKI with `optid.service` active, UKI rollback and Ed25519 update signing are in place, and the measurement harness is operational. The current milestone (`v0.5.0-beta.1`) is producing the first mkosi-composed Arch installable image. A consumer-installable distribution is the long-term goal.
 
 ---
 
@@ -101,11 +101,12 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 | v0.1 — compile-clean core, `optid --once` | ✅ complete |
 | v0.2 — D-Bus control plane, `optctl` | ✅ complete |
 | v0.3 — rootfs builder, VM boots | ✅ complete |
-| **v0.4 — UKI boot, rollback, update signing** | ⚙ in progress |
-| v0.5 — mkosi/Arch rebase, sched_ext integration | planned |
-| v0.6 — hardware allowlist, PPD/GameMode shims | planned |
-| v0.7 — desktop / laptop / realtime editions | planned |
+| v0.4 — UKI boot, rollback, update signing | ✅ complete |
+| **v0.5 — minimal installable system (mkosi/Arch)** | ⚙ in progress |
+| v0.6 — hardware-aware optid, PPD/GameMode shims | planned |
+| v0.7 — desktop / laptop / realtime / server editions | planned |
 | v0.8 — benchmark lab, published results | planned |
+| v0.9 — release candidate hardening | planned |
 | v1.0 — installable, benchmarked, stable | planned |
 
 → [Full roadmap](ROADMAP.md)

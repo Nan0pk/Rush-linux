@@ -1,0 +1,16 @@
+# Fill in and rename to meta.txt before committing.
+date=<RFC3339>
+host=<build host>
+kernel=<uname -r>
+cpu=<cpu model>
+git_commit=<short sha>
+qemu_version=<qemu version>
+ovmf_path=<OVMF firmware path used>
+boot_assess_marker_path_on_esp=<typically /loader/rush-assess/boot-good>
+image_path=build/rush-linux.raw
+image_sha256=<sha256>
+
+# Acceptance command:
+#   tools/test-double-boot.sh build/rush-linux.raw
+# Both boots must reach multi-user.target with optid.service active and the
+# boot-good marker present across the reboot.
