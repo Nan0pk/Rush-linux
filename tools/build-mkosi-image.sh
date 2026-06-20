@@ -1,41 +1,119 @@
 #!/usr/bin/env bash
-# tools/build-vm-mkosi.sh — Build the bootable Arch-based Rush Linux image using mkosi.
+# tools/build-mkosi-image.sh — Build the bootable Arch-based Rush Linux image using mkosi.
+#
+# This is the primary build entry point for v0.5+. It compiles Rust binaries,
+# stages the overlay, and invokes mkosi with the selected edition profile.
+#
+# Usage:
+#   sudo bash tools/build-mkosi-image.sh                     # server (default)
+#   sudo bash tools/build-mkosi-image.sh --edition desktop   # desktop
+#   sudo bash tools/build-mkosi-image.sh --edition server --clean  # full rebuild
+#
+# Prerequisites (Arch host):
+#   pacman -S mkosi archlinux-keyring base-devel rust
+#   Or on Debian/Ubuntu: apt-get download mkosi (see tools/env-setup.sh)
+#
+# Output:
+#   build/rush-linux.raw — bootable GPT disk image with ESP + root partitions
+#
+# Validate:
+#   tools/validate-uefi-boot.sh build/rush-linux.raw
+#   tools/test-rollback.sh build/rush-linux.raw
+
 set -euo pipefail
+
+# ── Parse arguments ──────────────────────────────────────────────
+EDITION="server"
+CLEAN=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --edition|-e)
+            EDITION="$2"
+            shift 2
+            ;;
+        --clean|-c)
+            CLEAN=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--edition server|desktop] [--clean]"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MKOSI_DIR="${REPO_ROOT}/mkosi"
 EXTRA_DIR="${MKOSI_DIR}/mkosi.extra"
+VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.5.0-beta.1")"
+VERSION_ID="$(echo "${VERSION}" | sed 's/-.*//' )"
 
-echo "=== Building Rush Linux Arch/mkosi VM Image ==="
+echo "════════════════════════════════════════════════════"
+echo "  Rush Linux mkosi Builder"
+echo "════════════════════════════════════════════════════"
+echo "  Edition:  ${EDITION}"
+echo "  Version:  ${VERSION}"
+echo "  Clean:    ${CLEAN}"
+echo ""
 
-# 1. Compile host binaries
-echo "  Building optid and optctl in release mode..."
+# ── Step 1: Compile host binaries ────────────────────────────────
+echo ">> [1/5] Building optid and optctl in release mode..."
 cargo build --workspace --release
+echo "   Done."
+echo ""
 
-# 2. Re-create a clean mkosi.extra directory
-echo "  Staging files in mkosi.extra..."
+# ── Step 2: Re-create clean mkosi.extra overlay ─────────────────
+echo ">> [2/5] Staging files in mkosi.extra..."
 rm -rf "${EXTRA_DIR}"
 mkdir -p "${EXTRA_DIR}"/{usr/bin,usr/libexec,usr/lib/optid,usr/lib/systemd/system,usr/lib/tmpfiles.d}
 mkdir -p "${EXTRA_DIR}"/{etc/systemd/system.conf.d,usr/lib/sysctl.d,usr/lib/systemd/network,etc}
 mkdir -p "${EXTRA_DIR}"/{usr/share/dbus-1/system-services,usr/share/dbus-1/interfaces}
+mkdir -p "${EXTRA_DIR}"/{etc/systemd/system/multi-user.target.wants,etc/systemd/system/getty.target.wants}
 
-# 3. Copy binaries and configs
-cp "${REPO_ROOT}/target/release/optid" "${EXTRA_DIR}/usr/libexec/optid"
-cp "${REPO_ROOT}/target/release/optctl" "${EXTRA_DIR}/usr/bin/optctl"
-cp "${REPO_ROOT}/config/optid/policy.toml" "${EXTRA_DIR}/usr/lib/optid/policy.toml"
-cp "${REPO_ROOT}/packaging/systemd/optid.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid.service"
-cp "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-apply.service"
-cp "${REPO_ROOT}/packaging/systemd/optid-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/optid.conf"
-cp "${REPO_ROOT}/distro/systemd/00-cgroup-v2.conf" "${EXTRA_DIR}/etc/systemd/system.conf.d/00-cgroup-v2.conf"
-cp "${REPO_ROOT}/distro/systemd/99-rush-network.conf" "${EXTRA_DIR}/usr/lib/sysctl.d/99-rush-network.conf"
-cp "${REPO_ROOT}/distro/systemd/zram-generator.conf" "${EXTRA_DIR}/usr/lib/systemd/zram-generator.conf"
-cp "${REPO_ROOT}/distro/network/nftables.conf" "${EXTRA_DIR}/etc/nftables.conf"
-cp "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.service" "${EXTRA_DIR}/usr/share/dbus-1/system-services/io.rushlinux.Optid.service"
-cp "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.xml" "${EXTRA_DIR}/usr/share/dbus-1/interfaces/io.rushlinux.Optid.xml"
-cp "${REPO_ROOT}/tools/optid-boot-assess" "${EXTRA_DIR}/usr/libexec/optid-boot-assess"
-cp "${REPO_ROOT}/packaging/systemd/optid-boot-assess.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-boot-assess.service"
+# Rust binaries
+install -m0755 "${REPO_ROOT}/target/release/optid" "${EXTRA_DIR}/usr/libexec/optid"
+install -m0755 "${REPO_ROOT}/target/release/optctl" "${EXTRA_DIR}/usr/bin/optctl"
+
+# Config
+install -m0644 "${REPO_ROOT}/config/optid/policy.toml" "${EXTRA_DIR}/usr/lib/optid/policy.toml"
+
+# systemd units
+install -m0644 "${REPO_ROOT}/packaging/systemd/optid.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid.service"
+install -m0644 "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-apply.service"
+install -m0644 "${REPO_ROOT}/packaging/systemd/optid-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/optid.conf"
+
+# Boot assessment (v0.4 rollback support)
+install -m0755 "${REPO_ROOT}/tools/optid-boot-assess" "${EXTRA_DIR}/usr/libexec/optid-boot-assess"
+install -m0644 "${REPO_ROOT}/packaging/systemd/optid-boot-assess.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-boot-assess.service"
+
+# System configuration
+install -m0644 "${REPO_ROOT}/distro/systemd/00-cgroup-v2.conf" "${EXTRA_DIR}/etc/systemd/system.conf.d/00-cgroup-v2.conf"
+install -m0644 "${REPO_ROOT}/distro/systemd/99-rush-network.conf" "${EXTRA_DIR}/usr/lib/sysctl.d/99-rush-network.conf"
+install -m0644 "${REPO_ROOT}/distro/systemd/zram-generator.conf" "${EXTRA_DIR}/usr/lib/systemd/zram-generator.conf"
+install -m0644 "${REPO_ROOT}/distro/network/nftables.conf" "${EXTRA_DIR}/etc/nftables.conf"
+
+# D-Bus
+install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.service" "${EXTRA_DIR}/usr/share/dbus-1/system-services/io.rushlinux.Optid.service"
+install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.xml" "${EXTRA_DIR}/usr/share/dbus-1/interfaces/io.rushlinux.Optid.xml"
+
+# Enable services via symlinks (for mkosi.extra overlay)
+ln -sf /usr/lib/systemd/system/optid.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/optid.service"
+ln -sf /usr/lib/systemd/system/optid-boot-assess.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/optid-boot-assess.service"
+ln -sf /usr/lib/systemd/system/systemd-networkd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
+ln -sf /usr/lib/systemd/system/systemd-resolved.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
+ln -sf /usr/lib/systemd/system/systemd-oomd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-oomd.service"
+ln -sf /usr/lib/systemd/system/getty@.service "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/getty@tty1.service"
+
+# Default target
+ln -sf /usr/lib/systemd/system/multi-user.target "${EXTRA_DIR}/etc/systemd/system/default.target"
 
 # Network configuration
+mkdir -p "${EXTRA_DIR}/etc/systemd/network"
 cat > "${EXTRA_DIR}/usr/lib/systemd/network/20-wired.network" << 'EOF'
 [Match]
 Name=en* eth*
@@ -46,32 +124,81 @@ EOF
 # Hostname
 echo "rush-linux" > "${EXTRA_DIR}/etc/hostname"
 
-# OS metadata
-cat > "${EXTRA_DIR}/etc/os-release" << 'EOF'
+# OS metadata (dynamic version)
+cat > "${EXTRA_DIR}/etc/os-release" << EOF
 NAME="Rush Linux"
-VERSION="0.4.0-alpha.1"
+VERSION="${VERSION}"
 ID=rush-linux
 ID_LIKE=arch
-VERSION_ID="0.4.0"
-PRETTY_NAME="Rush Linux 0.4.0-alpha.1"
+VERSION_ID="${VERSION_ID}"
+PRETTY_NAME="Rush Linux ${VERSION}"
 HOME_URL="https://github.com/Nan0pk/Rush-linux"
 BUG_REPORT_URL="https://github.com/Nan0pk/Rush-linux/issues"
 EOF
 
-# fstab
+# fstab (systemd-gpt-auto-generator handles root=, but explicit is clearer for VMs)
 cat > "${EXTRA_DIR}/etc/fstab" << 'EOF'
-/dev/vda2  /  ext4  defaults,noatime  0 1
+# Rush Linux fstab — root partition is auto-mounted by systemd-gpt-auto-generator.
+# Explicit entry for QEMU virtio VMs where GPT auto-detection may not work:
+#/dev/vda2  /  ext4  defaults,noatime  0 1
 EOF
 
-# 4. Invoke mkosi
-echo "  Invoking mkosi build..."
+echo "   Done."
+echo ""
+
+# ── Step 3: Clean previous build artifacts if requested ──────────
+if [[ "${CLEAN}" == true ]]; then
+    echo ">> [3/5] Cleaning previous build artifacts..."
+    rm -rf "${REPO_ROOT}/build"
+    rm -rf "${MKOSI_DIR}/.mkosi-private"
+    echo "   Done."
+    echo ""
+else
+    echo ">> [3/5] Skipping clean (--clean not specified)."
+    echo ""
+fi
+
+# ── Step 4: Invoke mkosi ────────────────────────────────────────
+echo ">> [4/5] Invoking mkosi build (edition: ${EDITION})..."
 cd "${MKOSI_DIR}"
-mkosi build --force
 
+MKOSI_ARGS=(
+    --profile="${EDITION}"
+    --force
+)
 
-# 5. Fix permissions of build artifacts
-echo "  Fixing permissions of build artifacts..."
-chown -R "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "${REPO_ROOT}/build"
+if [[ -n "${MKOSI_CACHE:-}" ]]; then
+    MKOSI_ARGS+=(--cache-dir="${MKOSI_CACHE}")
+fi
 
-echo "=== Build finished ==="
+mkosi build "${MKOSI_ARGS[@]}"
 
+echo "   Done."
+echo ""
+
+# ── Step 5: Fix permissions and report ───────────────────────────
+echo ">> [5/5] Fixing permissions of build artifacts..."
+chown -R "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "${REPO_ROOT}/build" 2>/dev/null || true
+
+DISK="${REPO_ROOT}/build/rush-linux.raw"
+if [[ -f "${DISK}" ]]; then
+    SIZE=$(du -sh "${DISK}" | cut -f1)
+    echo "   Image: ${DISK} (${SIZE})"
+else
+    echo "   Warning: Expected image not found at ${DISK}"
+    echo "   Check mkosi output above for errors."
+fi
+
+echo ""
+echo "════════════════════════════════════════════════════"
+echo "  ✅ Build finished (edition: ${EDITION})"
+echo ""
+echo "  Validate:"
+echo "    tools/validate-uefi-boot.sh build/rush-linux.raw"
+echo "    tools/test-rollback.sh build/rush-linux.raw"
+echo ""
+echo "  Boot manually (UEFI):"
+echo "    qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd \\"
+echo "      -drive file=build/rush-linux.raw,format=raw,if=virtio \\"
+echo "      -m 1G -nographic"
+echo "════════════════════════════════════════════════════"

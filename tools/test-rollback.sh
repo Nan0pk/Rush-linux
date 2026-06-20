@@ -182,8 +182,12 @@ echo "  Simulating 3 update cycles to build rollback entries..."
 cp "${DISK}" "${TEST_DIR}/test-disk.raw"
 TEST_DISK="${TEST_DIR}/test-disk.raw"
 
-# Get the ESP partition offset (partition 1 starts after GPT header)
-ESP_OFFSET=1048576  # 2048 sectors * 512 bytes (standard 1MiB alignment)
+# Get the ESP partition offset dynamically from GPT (works with both
+# build-vm-final.sh images at 2048-sector alignment and mkosi images
+# which may use different alignment)
+ESP_SECTOR=$(sgdisk -i 1 "${DISK}" 2>/dev/null | grep "First sector" | awk '{print $3}')
+ESP_OFFSET=$((ESP_SECTOR * 512))
+echo "  ESP offset: ${ESP_OFFSET} bytes (sector ${ESP_SECTOR})"
 
 # Get the original UKI for reuse
 mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux/rush-linux.efi "${TEST_DIR}/original.efi"
@@ -199,13 +203,13 @@ for i in 1 2 3; do
     # Copy it back as a versioned rollback entry
     if [ -f "${TEST_DIR}/prev.efi" ]; then
         mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/prev.efi" \
-            "::/EFI/Linux/rush-linux-0.3.0-alpha.1-${TIMESTAMP}.efi"
+            "::/EFI/Linux/rush-linux-${TIMESTAMP}.efi"
         # Create corresponding loader entry
         ENTRY_CONF="${TEST_DIR}/entry-${i}.conf"
         cat > "${ENTRY_CONF}" <<EOF
 title Rush Linux (rollback ${i})
-version 0.3.0-alpha.1-${TIMESTAMP}
-efi /EFI/Linux/rush-linux-0.3.0-alpha.1-${TIMESTAMP}.efi
+version ${TIMESTAMP}
+efi /EFI/Linux/rush-linux-${TIMESTAMP}.efi
 EOF
         mcopy -i "${TEST_DISK}@@${ESP_OFFSET}" "${ENTRY_CONF}" \
             "::/loader/entries/rush-linux-rollback-${i}.conf"
@@ -216,7 +220,7 @@ EOF
 done
 
 # Count rollback entries
-ROLLBACK_COUNT=$(mdir -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null | grep -c "rush-linux-0" || echo "0")
+ROLLBACK_COUNT=$(mdir -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null | grep -c "rush-linux-" || echo "0")
 echo "  Rollback entries found: ${ROLLBACK_COUNT}"
 
 if [ "${ROLLBACK_COUNT}" -ge 3 ]; then
@@ -266,7 +270,7 @@ echo "  Test 3b: Simulate rollback — restore previous good UKI..."
 # the rollback entry. We simulate this by replacing the broken UKI with
 # the first rollback entry.
 FIRST_ROLLBACK=$(mdir -i "${BAD_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null \
-    | grep -o "rush-linux-0[^ ]*\.efi" | head -1 || true)
+    | grep -o "rush-linux-[^r][^ ]*\.efi" | head -1 || true)
 
 if [ -n "${FIRST_ROLLBACK}" ]; then
     echo "  Rolling back to: ${FIRST_ROLLBACK}"
