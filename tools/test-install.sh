@@ -110,7 +110,7 @@ echo "  Creating blank 2GB target disk..."
 truncate -s 2G "${TARGET_DISK}"
 
 # Set up loop device
-LOOP=$(losetup --find --show "${TARGET_DISK}")
+LOOP=$(losetup --find --show --partscan "${TARGET_DISK}")
 echo "  Loop device: ${LOOP}"
 
 # Run the installer

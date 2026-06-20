@@ -130,10 +130,16 @@ echo ""
 echo ">> [3/4] Installing systemd-boot..."
 
 # Mount ESP, install bootloader, unmount
-ESP_PART="${TARGET_DEVICE}1"
+# Partition suffix differs by device type: loop/nvme use p1, others use 1
+if [[ "${TARGET_DEVICE}" =~ (loop|nvme) ]]; then
+    ESP_PART="${TARGET_DEVICE}p1"
+else
+    ESP_PART="${TARGET_DEVICE}1"
+fi
 TMP_MNT=$(mktemp -d)
 
-mkfs.vfat -F 32 -n RUSHESP "${ESP_PART}" 2>/dev/null || true
+# The ESP was already populated by the dd copy in step 2.
+# Do NOT mkfs.vfat here — that would destroy the UKIs and boot entries.
 mount "${ESP_PART}" "${TMP_MNT}"
 
 bootctl install --esp-path="${TMP_MNT}" --no-variables 2>/dev/null || {
