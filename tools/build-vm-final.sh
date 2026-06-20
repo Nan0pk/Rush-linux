@@ -128,11 +128,11 @@ EOF
 echo "rush-linux" > "${ROOTFS}/etc/hostname"
 cat > "${ROOTFS}/etc/os-release" << 'EOF'
 NAME="Rush Linux"
-VERSION="0.3.0-alpha.1"
+VERSION="0.5.0-beta.1"
 ID=rush-linux
 ID_LIKE=ubuntu
-VERSION_ID="0.3.0"
-PRETTY_NAME="Rush Linux 0.3.0-alpha.1"
+VERSION_ID="0.5.0"
+PRETTY_NAME="Rush Linux 0.5.0-beta.1"
 HOME_URL="https://github.com/Nan0pk/Rush-linux"
 BUG_REPORT_URL="https://github.com/Nan0pk/Rush-linux/issues"
 EOF

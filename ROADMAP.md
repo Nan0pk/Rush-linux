@@ -1,6 +1,6 @@
 # Roadmap
 
-Current project version: `0.4.0-alpha.1`
+Current project version: `0.5.0-beta.1`
 
 The detailed v1 release plan lives in `docs/release-plan-v1.md`. The
 machine-readable milestone gates live in `release/milestones.toml`.
@@ -71,13 +71,9 @@ Exit criteria:
  
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
 
-Status: in progress. The VM now boots through OVMF, the fallback
-systemd-boot path, and the UKI without QEMU `-kernel`/`-initrd` direct-boot
-arguments. `tools/validate-uefi-boot.sh` verifies the path reaches
-`multi-user.target` with `optid.service` started. Rollback entry management,
-boot assessment, and update signing infrastructure are implemented; end-to-end
-validation via `tools/test-rollback.sh` and `tools/test-sign-updates.sh` is
-the remaining gate.
+Status: complete. All four exit criteria verified (2026-06-08–2026-06-20).
+VM boots through OVMF/systemd-boot/UKI, rollback entries are retained,
+simulated bad kernel rolls back, and update metadata is signed.
 
 - Generate UKIs from kernel package outputs. ✅
 - Add systemd-boot path and GRUB fallback path. ✅
@@ -94,9 +90,9 @@ Exit criteria:
 - Simulated bad kernel rolls back. ✅ (tools/test-rollback.sh)
 - Test update metadata is signed. ✅ (tools/sign-updates.sh / sign_updates.py)
 
-## v0.5.0-beta.1: Image Pivot
+## v0.5.0-beta.1: Minimal Installable System
 
-Status: planned.
+Status: in progress.
 
 - Re-base the image composition plane on `mkosi` with an Arch Linux package base.
 - Retire `tools/rush-builder.py` and `recipes/` once parity is proven.
