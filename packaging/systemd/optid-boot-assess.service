@@ -16,7 +16,9 @@
 Description=Rush Linux boot assessment marker
 DefaultDependencies=no
 After=multi-user.target
-Confirms=multi-user.target
+# Note: The Confirms= directive was removed — it is not a valid systemd key
+# (systemd logs "Unknown key 'Confirms' in section [Unit], ignoring").
+# After=multi-user.target already provides the required ordering.
 
 [Service]
 Type=oneshot
