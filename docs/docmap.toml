@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-06-20"
 validator = "version_matches:VERSION"
 
 [docs."docs/AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-14"
+last_verified = "2026-06-20"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-06-20"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-14"
+last_verified = "2026-06-20"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -87,7 +87,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md", "RELEASES.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-06-20"
 validator = "semver"
 
 [docs."SECURITY.md"]

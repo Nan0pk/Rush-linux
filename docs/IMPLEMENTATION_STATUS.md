@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-06-08
+Last updated: 2026-06-20
 
 ## Overall State
 
@@ -11,7 +11,7 @@ engineering milestones.
 
 ## Implemented
 
-- Current project version recorded in `VERSION` as `0.4.0-alpha.1`.
+- Current project version recorded in `VERSION` as `0.5.0-beta.1`.
 - Release plan, versioning rules, release policy, release checklist, and
   machine-readable milestone/test-tier manifests.
 - Documentation policy requiring future changes to document purpose, impact,

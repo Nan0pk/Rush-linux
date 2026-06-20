@@ -12,3 +12,6 @@
 # fetch instructions live in docs/graphify-knowledge-graph.md.
 /graphify-out/
 .claude/settings.local.json
+
+# Local toolchain (extracted debs, no root needed)
+tmp-debs/

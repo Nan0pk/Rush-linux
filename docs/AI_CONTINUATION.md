@@ -47,7 +47,7 @@ Every agentic or human work session must follow this turnkey lifecycle:
 
 ## 📊 Current State of the Architecture
 
-Rush Linux is transitioning from foundational Alpha R&D (`v0.4.0-alpha.1`) into its most consequential R&D milestone: **v0.5 Image Pivot via mkosi** (per ratified **ADR 0014**).
+Rush Linux is transitioning from completed Alpha (`v0.4.0-alpha.1`, all exit criteria verified) into its most consequential R&D milestone: **v0.5.0-beta.1 Minimal Installable System** via mkosi/Arch pivot (per ratified **ADR 0014**).
 
 ### 🏆 Implemented and Fully Hardened
 - **Semantic Issue Boundary (ADR 0016):** Overarching multi-year Epics (Tracks A–D) and specification tracks (`WP-N1`–`WP-N9`, `WP-B1`) have been officially migrated out of open GitHub issues and consolidated into our markdown canon (`docs/SPEC-northstar.md` and `ROADMAP.md`). The GitHub repository presents exactly **1 Open Issue** (`good first issue` #3: *"Split optid into modules"*).
@@ -66,7 +66,7 @@ Rush Linux is transitioning from foundational Alpha R&D (`v0.4.0-alpha.1`) into 
 
 ## Next Task
 
-You are taking over an exceptionally clean, highly disciplined repository. Your primary mandate is to complete the **v0.5 Image Pivot** by compiling the first officially bootable Arch Linux raw disk image (`disk.raw`).
+You are taking over an exceptionally clean, highly disciplined repository. Your primary mandate is to complete the **v0.5 Minimal Installable System** milestone by delivering the first mkosi-composed Arch Linux disk image that satisfies all four exit criteria.
 
 ### Concrete Steps for You:
 
@@ -75,19 +75,16 @@ You are taking over an exceptionally clean, highly disciplined repository. Your 
    ```bash
    cargo test --workspace
    ```
-2. **Execute Automated mkosi Staging:**
-   Invoke our production build wrapper:
-   ```bash
-   ./tools/build-mkosi-image.sh
-   ```
-   *(Operational Execution Context: This script compiles all custom Rust tools in release mode, updates the staging overlay `mkosi/mkosi.extra/`, and invokes `mkosi build`. When run on an environment provisioned with the `mkosi` toolchain and `root`/`loop-device` partition generation permissions, it outputs `/home/user/Rush-linux/build/disk.raw`)*.
-3. **Parity Boot Verification:**
-   Pass the generated raw disk image through our UEFI boot validation suite:
-   ```bash
-   tools/validate-uefi-boot.sh build/disk.raw
-   ```
-   Confirm the image boots flawlessly through OVMF, successfully mounts `/dev/vda2`, reaches `multi-user.target`, and starts `optid.service`.
-4. **Advance the Roadmap:**
-   Upon successful boot verification, update `VERSION` and `ROADMAP.md` to certify the **v0.5 Milestone Completed** and advance the project to **v0.6.0-beta.1** (Hardware-Aware `optid` & UI D-Bus Shims).
+2. **Implement the mkosi/Arch Image Pipeline:**
+   Extend and validate `mkosi/mkosi.conf` and `tools/build-mkosi-image.sh` to produce a
+   bootable Arch-based disk image that passes `validate-uefi-boot.sh` and `test-rollback.sh`.
+3. **Implement a Fresh-Install Test Flow:**
+   Create a test script that installs the image onto a blank VM disk (not just boots a
+   pre-built image) and verifies the installed system boots twice cleanly.
+4. **Verify Server Edition Has No Desktop Dependency:**
+   Ensure the server/minimal mkosi profile builds without any desktop packages.
+5. **Advance the Roadmap:**
+   Upon successful validation of all four exit criteria, update `VERSION` and `ROADMAP.md`
+   to certify the **v0.5 Milestone Completed** and advance the project to **v0.6.0-beta.1**.
 
 Happy hacking! Always execute under the **Evidence Rule**.
