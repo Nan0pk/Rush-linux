@@ -30,6 +30,12 @@ export PYTHONPATH="${TOOLBASE}/usr/lib/python3/dist-packages${PYTHONPATH:+:$PYTH
 # OVMF firmware
 export OVMF_FIRMWARE="${TOOLBASE}/usr/share/OVMF/OVMF_CODE_4M.fd"
 
+# QEMU firmware/data directory (needed for -L flag)
+export QEMU_FIRMWARE_DIR="${TOOLBASE}/usr/share/qemu"
+
+# Seabios (for legacy boot fallback)
+export SEABIOS_DIR="${TOOLBASE}/usr/share/seabios"
+
 # Confirm key tools
 echo "Environment ready:"
 echo "  cargo:       $(cargo --version 2>/dev/null || echo 'MISSING')"
