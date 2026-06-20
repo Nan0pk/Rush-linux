@@ -85,6 +85,21 @@ Moving artifacts to `graphify-data` keeps `git log` focused on engineering chang
 
 ---
 
+## Minimal-Code Discipline (ponytail ladder)
+
+Before writing any code, stop at the first rung that holds:
+
+1. Does this need to exist at all? (YAGNI — skip it)
+2. Does the Rust stdlib already do this? Use it.
+3. Does a native platform feature cover it? Use it.
+4. Does an already-imported crate in Cargo.toml solve it? Use it.
+5. Can this be one line or a trivial combinator? Make it so.
+6. Only then: write the minimum code that works.
+
+Never cut input validation at trust boundaries, error handling that prevents data loss, safety invariants in `optid`'s contract layer, or anything explicitly requested. No unrequested abstractions or new dependencies. Deletion over addition.
+
+Use `/ponytail` to invoke this check explicitly before starting a non-trivial implementation.
+
 ## Evidence Rule & Verifier Protocol (v2)
 
 This section has been moved to the single canonical source:
