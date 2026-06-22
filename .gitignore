@@ -15,3 +15,10 @@
 
 # Local toolchain (extracted debs, no root needed)
 tmp-debs/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Evidence transcripts are committed deliberately (overrides the *.log rule above)
+!release/evidence/**/*.log

@@ -24,7 +24,14 @@ or explain the problem it solves.
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
 - [ ] `cargo fmt --all -- --check` passes
 - [ ] `pwsh ./tools/validate-repo.ps1` passes
+- [ ] `python3 tools/validate-evidence.py` passes (Dragnet gate)
 - [ ] New or updated tests added for this change
+
+### Evidence (Dragnet)
+
+- [ ] If this PR sets any milestone criterion `verified = true`, it commits the
+      acceptance `transcript` and `python3 tools/dragnet.py --observe` is GREEN
+      with zero `pending` ledger rows for that milestone. (See `docs/dragnet-protocol.md`.)
 
 ## Documentation
 

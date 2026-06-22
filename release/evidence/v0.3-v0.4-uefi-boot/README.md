@@ -1,61 +1,38 @@
 # v0.3 / v0.4 UEFI Boot Evidence
 
-## Transcript
+> **Status (corrected by Dragnet-001, 2026-06-22):** The transcript this directory
+> was built around (`transcript-2026-06-21-qemu-tcg.log`) was **never committed**.
+> The "Verified Markers" tables that previously appeared here cited that absent
+> file, so they were unverified claims dressed as a verification record. They have
+> been removed. The corresponding v0.3/v0.4 criteria in `release/milestones.toml`
+> are now `verified = false` (evidence-pending) until a real build-host transcript
+> lands here. See `release/evidence/dragnet/LEDGER.md` and
+> `release/evidence/BUILD-HOST-RUNBOOK.md`.
 
-- **File:** `transcript-2026-06-21-qemu-tcg.log`
-- **Date:** 2026-06-21
-- **Environment:** QEMU 10.0.8 TCG (no KVM), containerized (Kubernetes seccomp)
-- **Disk image:** `build/disk.raw` (928MB, built by `build-vm-unpriv.sh`)
-- **Firmware:** OVMF_CODE_4M.fd (Debian 2025.02-8+deb13u1)
-- **Command:**
-  ```
-  qemu-system-x86_64 \
-    -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE_4M.fd \
-    -drive if=pflash,format=raw,file=OVMF_VARS_4M.fd \
-    -drive file=build/disk.raw,format=raw,if=virtio \
-    -m 1G -nographic -no-reboot
-  ```
+## What this directory is for
 
-## Verified Markers
+The committable acceptance transcripts for the v0.3 and v0.4 UEFI/boot/rollback
+exit criteria. It is currently a **placeholder** — no qualifying transcript is
+present yet.
 
-### v0.3 Criterion: "minimal VM boots to multi-user.target"
+## What was actually observed (uncommitted, build host / container)
 
-| Marker | Present | Notes |
-|--------|---------|-------|
-| `BdsDxe: loading Boot0001` | ✅ | OVMF started the UEFI boot path |
-| `Rush Linux` in systemd-boot | ✅ | Boot loader displayed the Rush Linux entry |
-| `EFI stub: Loaded initrd` | ✅ | UKI loaded its embedded initrd |
-| `Command line: ...root=/dev/vda2` | ✅ | UKI command line selected the VM root partition |
-| `Welcome to Rush Linux 0.5.0-beta.1` | ✅ | systemd started |
-| `multi-user.target` | ⚠️ | Queued but NOT reached (see below) |
+Prior sessions reported a QEMU-TCG run that demonstrated the **UKI boot chain**
+(firmware → systemd-boot → UKI → kernel → initrd → root mount → systemd) but
+**did not reach `multi-user.target`**, because the container's seccomp profile
+blocks `mount()`/`mount_setattr()` and systemd drops to `emergency.target`. That
+run's log was never committed, so none of it counts as evidence under the project
+Evidence Rule (`docs/agent-protocol.md`). It is described here only as a pointer
+for the build-host re-run, not as proof.
 
-**Why multi-user.target was NOT reached:** The test ran in a Kubernetes container where seccomp blocks `mount()`, `mount_setattr()`, and other syscalls. This causes systemd mount units (`dev-hugepages.mount`, `dev-mqueue.mount`, `sys-kernel-debug.mount`, `tmp.mount`, etc.) to fail, which drops the system to `emergency.target` instead of `multi-user.target`. This is a **test environment limitation**, not an OS bug. On the build host with full kernel capabilities, all four v0.5 exit criteria pass (including multi-user.target).
+To produce qualifying evidence, run the acceptance commands on the build host
+(root + KVM) per `release/evidence/BUILD-HOST-RUNBOOK.md` and commit the resulting
+`meta.txt` + `transcript.log` into `release/evidence/v0.3.0-alpha.1/` and
+`release/evidence/v0.4.0-alpha.1/`.
 
-### v0.4 Criterion: "VM boots through UKI"
+## Notes on issues this surfaced
 
-| Marker | Present | Notes |
-|--------|---------|-------|
-| `BdsDxe: starting` | ✅ | UEFI firmware started boot |
-| systemd-boot displays Rush Linux | ✅ | UKI entry selected |
-| `EFI stub: Loaded initrd` | ✅ | UKI loaded embedded initrd |
-| `Command line: ...root=/dev/vda2` | ✅ | Correct root partition selected |
-| Kernel boots to systemd | ✅ | systemd[1] started, units queued |
-
-**Note:** The UKI boot path (v0.4 criterion 1) is fully verified by this transcript. The kernel boots, the initrd loads virtio modules, the root filesystem mounts, and systemd takes over. The only failure is in systemd mount units blocked by the container's seccomp profile.
-
-### Additional Observations
-
-1. **`optid-boot-assess.service` failed** with `Unknown key 'Confirms' in section [Unit]` — this is a bug in the service file that should be fixed.
-2. **`systemd-networkd.service`** enters a restart loop — likely because network device creation requires kernel capabilities blocked by seccomp.
-3. **`Failed to initialize kmod context`** — module loading blocked by container seccomp.
-
-## Honest Assessment
-
-This transcript **proves the UKI boot chain** (firmware → bootloader → UKI → kernel → initrd → root mount → systemd) works correctly. It **cannot prove multi-user.target** is reached because the container environment blocks critical mount syscalls.
-
-For full verification (multi-user.target + optid.service), the test must run on:
-- Bare metal (the build host)
-- A VM with full kernel capabilities (non-containerized QEMU with KVM)
-- GitHub Actions CI (which provides a full VM environment)
-
-The build host validation (referenced in milestones.toml) confirms all criteria pass in that environment.
+- The `optid-boot-assess.service` `Confirms=` directive bug noted in earlier
+  observations **has been fixed** (the directive was removed in both
+  `packaging/systemd/optid-boot-assess.service` and the mkosi copy; see PR #163).
+  No further action — this note is retained only to close the loop.

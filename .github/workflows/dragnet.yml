@@ -1,0 +1,46 @@
+name: Dragnet Evidence Tripwire
+
+# Low-noise recurring evidence-integrity check.
+#   TIMED:  every Monday 06:30 UTC.
+#   MANUAL: workflow_dispatch.
+# It runs the read-only evidence gate and opens a tracking issue if the project
+# has drifted into a verified-without-transcript or dangling-citation state.
+# The authoritative, merge-blocking enforcement is the `policy` job in ci.yml;
+# this is the between-PRs tripwire (mirrors the reassess.yml cadence pattern).
+
+on:
+  schedule:
+    - cron: "30 6 * * 1" # Mondays 06:30 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dragnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run evidence gate
+        id: gate
+        run: |
+          if python3 tools/validate-evidence.py; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open issue on drift
+        if: steps.gate.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(python3 tools/validate-evidence.py 2>&1 || true)"
+          title="Dragnet tripwire: evidence-integrity drift detected"
+          existing="$(gh issue list --state open --search "$title" --json number --jq 'length' || echo 0)"
+          if [ "${existing:-0}" = "0" ]; then
+            printf '%s\n\n```\n%s\n```\n' \
+              "The Dragnet evidence gate failed on a scheduled run. See \`docs/dragnet-protocol.md\`." \
+              "$body" | gh issue create --title "$title" --body-file - || true
+          fi

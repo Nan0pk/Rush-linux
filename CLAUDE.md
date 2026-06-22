@@ -1,5 +1,12 @@
 # CLAUDE.md
 
+> **START HERE — Dragnet:** before analyzing the project or deciding "what's next,"
+> run `python3 tools/dragnet.py --observe` and read the newest report in
+> `release/evidence/dragnet/`. It is the evidence-integrity gate and the project's
+> current state of truth; the ledger shows what evidence is still owed. A milestone
+> criterion is real only when `release/milestones.toml` marks it `verified = true`
+> **with** a committed `transcript`. See `docs/dragnet-protocol.md`.
+
 Guidance for Claude Code working in this repo. Kept short on purpose — this file
 is loaded into every turn. See `AGENTS.md` for the full session/verifier
 protocol; this file is the fast path.

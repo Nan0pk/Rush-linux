@@ -66,7 +66,18 @@ Rush Linux is transitioning from completed Alpha (`v0.4.0-alpha.1`, all exit cri
 
 ## Next Task
 
-You are taking over an exceptionally clean, highly disciplined repository. Your primary mandate is to complete the **v0.5 Minimal Installable System** milestone by delivering the first mkosi-composed Arch Linux disk image that satisfies all four exit criteria.
+**First, run Dragnet.** Before any feature work, run `python3 tools/dragnet.py
+--observe` and read the newest report in `release/evidence/dragnet/`. The Dragnet-001
+audit (2026-06-22) found that v0.3/v0.4/v0.5 criteria were marked `verified = true`
+without committed transcripts; they are now honestly `evidence-pending`. The
+**highest-priority task** is closing that evidence debt: run the commands in
+`release/evidence/BUILD-HOST-RUNBOOK.md` on the build host (root + KVM), commit the
+transcripts, and flip the matching `verified` flags. The `0.6.0-beta.1` bump is
+gated on a green Dragnet. See `release/evidence/dragnet/LEDGER.md` for what's owed.
+
+After the evidence debt is closed, the standing mandate is to complete the **v0.5
+Minimal Installable System** milestone by delivering the first mkosi-composed Arch
+Linux disk image that satisfies all four exit criteria.
 
 ### Concrete Steps for You:
 

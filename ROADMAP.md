@@ -54,7 +54,9 @@ Exit criteria:
  
 ## v0.3.0-alpha.1: Rootfs And Package Builder MVP
 
-Status: complete. (Verified 2026-06-08: VM boots to multi-user.target with optid.service active.)
+Status: evidence-pending. Implementation complete and reported working on the
+build host 2026-06-08, but acceptance transcripts were never committed (Dragnet-001
+finding G3). See `release/evidence/dragnet/LEDGER.md` / `BUILD-HOST-RUNBOOK.md`.
  
 - Define recipe schema v0.
 - Build a minimal rootfs from recipes.
@@ -71,9 +73,10 @@ Exit criteria:
  
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
 
-Status: complete. All four exit criteria verified (2026-06-08–2026-06-20).
-VM boots through OVMF/systemd-boot/UKI, rollback entries are retained,
-simulated bad kernel rolls back, and update metadata is signed.
+Status: evidence-pending. Implementation complete; the update-signing criterion is
+certified in-repo (`release/evidence/v0.4.0-alpha.1/c4-update-signed/`), but the UKI
+boot and rollback criteria were asserted on the build host without committed
+transcripts (Dragnet-001 finding G3). See `release/evidence/dragnet/LEDGER.md`.
 
 - Generate UKIs from kernel package outputs. ✅
 - Add systemd-boot path and GRUB fallback path. ✅
@@ -92,16 +95,25 @@ Exit criteria:
 
 ## v0.5.0-beta.1: Minimal Installable System
 
-Status: in progress.
+Status: evidence-pending (implementation complete; acceptance transcripts owed).
 
-- Re-base the image composition plane on `mkosi` with an Arch Linux package base.
-- Retire `tools/rush-builder.py` and `recipes/` once parity is proven.
-- Complete Wave 0 (zram-generator, systemd-oomd, MGLRU) and Wave 1 (mkosi/Arch base, scx + scx_loader + optid integration).
+The mkosi/Arch image, edition profiles, installer flow, and test harness are
+implemented. Per the Dragnet-001 audit (`release/evidence/dragnet/`), the four
+exit criteria below were asserted on the build host but their acceptance
+transcripts were never committed, so they are not yet certified. The canonical,
+machine-readable state lives in `release/milestones.toml`; this section follows it.
 
-Exit criteria:
+Exit criteria (from `release/milestones.toml`):
 
-- mkosi/Arch image passes all existing `validate-uefi-boot.sh` and `test-rollback.sh` checks unmodified.
-- scx soak passes with EEVDF fallback verified.
+- fresh VM install succeeds — pending build-host transcript.
+- installed system boots twice cleanly — pending build-host transcript.
+- update and rollback tests pass — pending build-host transcript.
+- server edition has no desktop dependency — verified (static package-set check,
+  `release/evidence/v0.5.0-beta.1/c4-server-no-desktop/`); built-image confirmation
+  in `release/evidence/BUILD-HOST-RUNBOOK.md`.
+
+See `release/evidence/dragnet/LEDGER.md` for the full per-criterion evidence state
+and `release/evidence/BUILD-HOST-RUNBOOK.md` for the commands that close the rest.
 
 ## v0.6.0-beta.1: Hardware-Aware optid
 

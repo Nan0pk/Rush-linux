@@ -61,6 +61,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate version consistency
         run: python3 tools/validate-versions.py
+      - name: Validate evidence integrity (Dragnet gate)
+        run: python3 tools/validate-evidence.py
       - name: Validate future-facing defaults
         shell: pwsh
         run: ./tools/validate-repo.ps1
