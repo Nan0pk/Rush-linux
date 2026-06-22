@@ -88,3 +88,20 @@ in `tools/validate-evidence.py`; one that cannot becomes a checklist line in
   checkout, so `validate-evidence.py` fails there.
 - **Incorporated:** `.gitignore` exception + the existing gate's on-checkout file check.
 - **Recurrence check:** gate green in CI (fresh checkout) each PR.
+
+## L-009 (Dragnet-002, 2026-06-22) — a CI refactor outran its ruleset update
+- **Mistake:** PR #169 moved the evidence gate out of the required `Repository
+  policy` check into a new `Evidence integrity (Dragnet)` job and merged ~2h before
+  the `protect-main` ruleset was updated to require that new context. For that
+  window the gate ran but did not block merges — the enforcement it provides was
+  silently advisory.
+- **Root cause:** "move/rename a required status check" is really two coupled
+  changes (CI job + branch ruleset), but only the CI half is in-repo and reviewable;
+  the ruleset half needs an admin token and was deferred, then the PR merged first.
+- **Countermeasure:** treat moving/renaming a gated check as one coupled change —
+  update the ruleset in the same session, before merging the CI change; if the
+  ruleset can't be updated yet, keep the check in its currently-required job until
+  it can. Applied retroactively as Part B (ruleset `17500512`: added the context,
+  set strict).
+- **Recurrence check:** required contexts in the ruleset match the gating jobs in
+  `ci.yml`; spot-checked when CI job names change.
