@@ -10,6 +10,8 @@ Rush Linux is an architecture-first Linux distribution built around `optid`, a n
 
 The project is in early beta. The optimizer runs, a VM boots via UKI with `optid.service` active, UKI rollback and Ed25519 update signing are in place, and the measurement harness is operational. The current milestone (`v0.5.0-beta.1`) is producing the first mkosi-composed Arch installable image. A consumer-installable distribution is the long-term goal.
 
+> Contributors/agents: this project gates milestone claims on committed evidence. Run `python3 tools/dragnet.py --observe` and see `docs/dragnet-protocol.md` before relying on any "verified" status.
+
 ---
 
 ## How it works

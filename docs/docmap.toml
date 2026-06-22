@@ -607,3 +607,11 @@ freshens = [
 ]
 last_verified = "2026-06-19"
 validator = "status_match:WIP"
+
+[docs."docs/dragnet-protocol.md"]
+purpose = "Recurring evidence-integrity sweep: the dragnet.py runner, the validate-evidence.py gate, cadence, and the milestone-close checklist"
+owner_area = "area:docs"
+covers_code = ["tools/dragnet.py", "tools/validate-evidence.py", "release/milestones.toml", "release/evidence/dragnet/LEDGER.md"]
+deps = ["docs/agent-protocol.md"]
+freshens = ["docs/AI_CONTINUATION.md", "ROADMAP.md", "RELEASES.md"]
+last_verified = "2026-06-22"

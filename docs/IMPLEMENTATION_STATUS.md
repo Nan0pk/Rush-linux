@@ -1,6 +1,13 @@
 # Implementation Status
 
-Last updated: 2026-06-20
+Last updated: 2026-06-22
+
+> **Evidence state:** Implementation status (what code exists) is distinct from
+> evidence state (what is certified by a committed transcript). For the
+> milestone-criterion evidence state, the canonical source is
+> `release/milestones.toml` and the Dragnet ledger
+> (`release/evidence/dragnet/LEDGER.md`). Run `python3 tools/dragnet.py --observe`
+> before relying on any "verified" claim.
 
 ## Overall State
 
@@ -66,6 +73,15 @@ engineering milestones.
 - Measurement rig (`rushbench`) implemented: pure Rust workspace member that captures battery drain (BAT/energy_now or intel-rapl) and responsiveness metrics per SPEC §1 class, pinning class via `optctl` and validating resolved PM QoS floors. `contracts.toml` values remain provisional; this tool enables collecting the validation dataset, but no results are committed yet.
 
 ## Not Yet Implemented
+
+> **Categorization note (Dragnet-001):** several entries below are in fact
+> *implemented* — boot assessment + rollback retention, Ed25519 update signing,
+> and the WP-N4 hardware allowlist (`crates/optid/src/allowlist.rs`, `build.rs`,
+> `data/allowlist.toml`, `optctl allow/deny`) all exist in the tree. What remains
+> outstanding for the boot/rollback/install items is *committed acceptance
+> evidence*, not the code — see `release/evidence/BUILD-HOST-RUNBOOK.md`. They are
+> left under this heading only until the next full status rewrite; treat
+> `release/milestones.toml` as authoritative.
 
 - Boot assessment and rollback retention behavior for the validated UKI boot
  path, including simulated bad-kernel rollback.

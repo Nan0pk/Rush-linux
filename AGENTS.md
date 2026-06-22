@@ -1,5 +1,12 @@
 # Agent Instructions
 
+> **START HERE — Dragnet (read before anything else):** run
+> `python3 tools/dragnet.py --observe` and read the newest report in
+> `release/evidence/dragnet/`. It is the evidence-integrity gate and the project's
+> current state of truth. Do not trust any milestone "verified" claim unless
+> `release/milestones.toml` carries a committed `transcript` for it. Protocol:
+> `docs/dragnet-protocol.md`. Outstanding evidence: `release/evidence/dragnet/LEDGER.md`.
+
 Before changing Rush Linux, read `docs/AI_CONTINUATION.md` and the relevant docs it
 links. Preserve the project guardrails: modern Linux defaults, one adaptive
 policy owner (`optid`), explainable behavior, and documentation updates in the

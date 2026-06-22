@@ -1,5 +1,11 @@
 # Rush Linux — Session Handoff Prompt
 
+> **START HERE — Dragnet:** run `python3 tools/dragnet.py --observe` and read the
+> newest `release/evidence/dragnet/` report first. The Dragnet-001 audit reset
+> v0.3/v0.4/v0.5 to `evidence-pending` (verified flags lacked committed
+> transcripts). Closing that debt via `release/evidence/BUILD-HOST-RUNBOOK.md` is
+> the top priority; the notes below predate the audit and overstate completion.
+
 **Project:** Rush Linux — a source-built Linux distribution centered on `optid`, a fast, explainable runtime optimizer.  
 **Repository:** https://github.com/Nan0pk/Rush-linux  
 **Current Version:** `0.5.0-beta.1` (Minimal Installable System)  

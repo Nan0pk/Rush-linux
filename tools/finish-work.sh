@@ -127,6 +127,15 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Check 5b: Evidence integrity (Dragnet gate)
+echo "  [5b/6] Evidence integrity (Dragnet)..."
+if python3 tools/validate-evidence.py >/dev/null 2>&1; then
+    echo "        ✅ Evidence integrity OK"
+else
+    echo "        ❌ Evidence-integrity violation — run 'python3 tools/validate-evidence.py'"
+    ERRORS=$((ERRORS + 1))
+fi
+
 # Check 6: No leftover TODO/FIXME placeholders in changed files
 echo "  [6/6] Placeholder check..."
 CHANGED_RUST=$(git diff --name-only HEAD -- '*.rs' 2>/dev/null || true)
