@@ -75,16 +75,16 @@ sgdisk --clear --zap-all "${TARGET_DEVICE}" 2>/dev/null
 # Create partitions using systemd-repart definitions
 # This gives us ESP + root with the same layout as the build image
 systemd-repart \
-    --empty=create \
+    --empty=force \
     --definitions="${REPART_DIR}" \
-    --device="${TARGET_DEVICE}" \
     --dry-run=no \
-    2>&1 || {
+    "${TARGET_DEVICE}" 2>&1 || {
     # Fallback: manual partitioning if systemd-repart fails
+    # ponytail: fallback uses +1G ESP and labels that match systemd-validatefs expectations (RushRoot)
     echo "  systemd-repart failed, falling back to sgdisk..."
     sgdisk --clear \
-        --new=1::+128M -t 1:C12A7328-F81F-11D2-BA4B-00A0C93EC93B -c 1:"RushLinux ESP" \
-        --new=2::0     -t 2:4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709 -c 2:"RushLinux Root" \
+        --new=1::+1G   -t 1:C12A7328-F81F-11D2-BA4B-00A0C93EC93B -c 1:"RUSHESP" \
+        --new=2::0     -t 2:4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709 -c 2:"RushRoot" \
         "${TARGET_DEVICE}" 2>/dev/null
 }
 

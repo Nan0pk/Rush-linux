@@ -28,6 +28,7 @@ mod integration_tests {
 
     #[test]
     fn test_t1_dry_run_no_op() {
+        std::env::set_var("OPTID_MOCK_ZRAM_SWAP_ACTIVE", "false");
         let temp_dir = std::env::temp_dir().join(format!("optid_tests_t1_{}", std::process::id()));
         let _ = fs::create_dir_all(&temp_dir);
         let config_path = temp_dir.join("policy.toml");
@@ -48,6 +49,7 @@ mod integration_tests {
         assert!(!temp_dir.join("intended_vm_swappiness").exists());
 
         let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap();
+        std::env::remove_var("OPTID_MOCK_ZRAM_SWAP_ACTIVE");
         assert!(decisions.contains("vm.* actuation skipped: zram swap is not active"));
     }
 

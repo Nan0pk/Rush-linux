@@ -115,6 +115,15 @@ boot_and_log() {
     local STATUS=${PIPESTATUS[0]}
     set -e
 
+    # ponytail: Repair the ESP partition to fix the dirty bit and any corruption
+    # caused by QEMU's abrupt SIGTERM termination.
+    echo "  Repairing ESP partition on ${disk_path}..."
+    local temp_esp="${TEST_DIR}/esp-repair-${label}.img"
+    dd if="${disk_path}" of="${temp_esp}" bs=512 skip=2048 count=2097152 2>/dev/null
+    fsck.vfat -a "${temp_esp}" 2>/dev/null || true
+    dd if="${temp_esp}" of="${disk_path}" bs=512 seek=2048 count=2097152 conv=notrunc 2>/dev/null
+    rm -f "${temp_esp}"
+
     echo "  QEMU exit status: ${STATUS}"
 }
 
