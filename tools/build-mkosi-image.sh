@@ -70,7 +70,7 @@ echo ""
 # ── Step 2: Re-create clean mkosi.extra overlay ─────────────────
 echo ">> [2/5] Staging files in mkosi.extra..."
 rm -rf "${EXTRA_DIR}"
-mkdir -p "${EXTRA_DIR}"/{usr/bin,usr/libexec,usr/lib/optid,usr/lib/systemd/system,usr/lib/tmpfiles.d}
+mkdir -p "${EXTRA_DIR}"/{usr/bin,usr/libexec,usr/lib/optid,usr/lib/systemd/system,usr/lib/systemd/system-preset,usr/lib/tmpfiles.d}
 mkdir -p "${EXTRA_DIR}"/{etc/systemd/system.conf.d,usr/lib/sysctl.d,usr/lib/systemd/network,etc}
 mkdir -p "${EXTRA_DIR}"/{usr/share/dbus-1/system-services,usr/share/dbus-1/interfaces}
 mkdir -p "${EXTRA_DIR}"/{etc/systemd/system/multi-user.target.wants,etc/systemd/system/getty.target.wants}
@@ -86,6 +86,16 @@ install -m0644 "${REPO_ROOT}/config/optid/policy.toml" "${EXTRA_DIR}/usr/lib/opt
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid.service"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-apply.service"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/optid.conf"
+
+# systemd presets
+cat > "${EXTRA_DIR}/usr/lib/systemd/system-preset/00-rush.preset" << 'EOF'
+enable optid.service
+enable optid-boot-assess.service
+enable systemd-networkd.service
+enable systemd-resolved.service
+enable systemd-oomd.service
+enable nftables.service
+EOF
 
 # Boot assessment (v0.4 rollback support)
 install -m0755 "${REPO_ROOT}/tools/optid-boot-assess" "${EXTRA_DIR}/usr/libexec/optid-boot-assess"
@@ -107,6 +117,7 @@ ln -sf /usr/lib/systemd/system/optid-boot-assess.service "${EXTRA_DIR}/etc/syste
 ln -sf /usr/lib/systemd/system/systemd-networkd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
 ln -sf /usr/lib/systemd/system/systemd-resolved.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
 ln -sf /usr/lib/systemd/system/systemd-oomd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-oomd.service"
+ln -sf /usr/lib/systemd/system/nftables.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/nftables.service"
 ln -sf /usr/lib/systemd/system/getty@.service "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/getty@tty1.service"
 
 # Default target
@@ -181,6 +192,13 @@ echo ">> [5/5] Fixing permissions of build artifacts..."
 chown -R "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "${REPO_ROOT}/build" 2>/dev/null || true
 
 DISK="${REPO_ROOT}/build/rush-linux.raw"
+if [[ ! -f "${DISK}" ]]; then
+    if [[ -f "${REPO_ROOT}/build/rush-linux-${EDITION}.raw" ]]; then
+        ln -sf "rush-linux-${EDITION}.raw" "${DISK}"
+    elif [[ -f "${REPO_ROOT}/build/rush-linux-server.raw" ]]; then
+        ln -sf "rush-linux-server.raw" "${DISK}"
+    fi
+fi
 if [[ -f "${DISK}" ]]; then
     SIZE=$(du -sh "${DISK}" | cut -f1)
     echo "   Image: ${DISK} (${SIZE})"
