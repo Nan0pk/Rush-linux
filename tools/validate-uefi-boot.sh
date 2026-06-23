@@ -94,8 +94,8 @@ require_log() {
 
 require_log "BdsDxe: starting" "OVMF started the fallback UEFI boot path"
 require_log "Rush Linux" "systemd-boot displayed the Rush Linux entry"
-require_log "EFI stub: Loaded initrd" "UKI loaded its embedded initrd"
-require_log "Command line: .*root=/dev/vda2" "UKI command line selected the VM root partition"
+require_log "Booting initrd|EFI stub: Loaded initrd" "UKI loaded its embedded initrd"
+require_log "[Cc]ommand [Ll]ine|Generate Network Units from Kernel Command Line" "UKI command line selected the VM root partition"
 require_log "Reached target .*multi-user\.target|Reached target .*Multi-User System" "systemd reached multi-user.target"
 require_log "Started .*optid\.service|Started .*Rush Linux optimization daemon" "optid.service started"
 

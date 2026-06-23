@@ -1,0 +1,6 @@
+enable optid.service
+enable optid-boot-assess.service
+enable systemd-networkd.service
+enable systemd-resolved.service
+enable systemd-oomd.service
+enable nftables.service
