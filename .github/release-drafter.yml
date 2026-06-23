@@ -1,28 +1,55 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
+
+# Auto-label PRs by title prefix (conventional commits) — no manual labeling needed
+autolabeler:
+  - label: 'feat'
+    title:
+      - '/^feat(\(.*\))?[!]?:/'
+  - label: 'fix'
+    title:
+      - '/^fix(\(.*\))?[!]?:/'
+  - label: 'docs'
+    title:
+      - '/^docs(\(.*\))?[!]?:/'
+  - label: 'test'
+    title:
+      - '/^test(\(.*\))?[!]?:/'
+  - label: 'chore'
+    title:
+      - '/^chore(\(.*\))?[!]?:/'
+  - label: 'ci'
+    title:
+      - '/^ci(\(.*\))?[!]?:/'
+  - label: 'type:maintenance'
+    title:
+      - '/^(refactor|perf|build|style)(\(.*\))?[!]?:/'
+
 categories:
-  - title: '🚀 Features'
+  - title: 'Features'
     labels:
       - 'type:feature'
       - 'feat'
       - 'feature'
-  - title: '🐛 Bug Fixes'
+  - title: 'Bug Fixes'
     labels:
       - 'type:bug'
       - 'fix'
       - 'bug'
-  - title: '📖 Documentation'
+  - title: 'Documentation'
     labels:
       - 'docs'
       - 'documentation'
-  - title: '🧪 Testing'
+      - 'area:docs'
+  - title: 'Testing'
     labels:
       - 'test'
-  - title: '🧰 Maintenance'
+  - title: 'Maintenance'
     labels:
       - 'type:maintenance'
       - 'chore'
       - 'ci'
+
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 template: |
   ## Changes

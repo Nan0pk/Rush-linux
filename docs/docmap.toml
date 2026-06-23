@@ -220,12 +220,12 @@ freshens = []
 last_verified = "2026-06-10"
 
 [docs."docs/documentation-policy.md"]
-purpose = "Required documentation surface per change type, minimum commit standard"
+purpose = "Required documentation surface per change type, minimum commit standard, automated PR doc enforcement"
 owner_area = "area:docs"
-covers_code = []
+covers_code = ["tools/validate-pr-docs.py"]
 deps = []
 freshens = ["CONTRIBUTING.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-06-23"
 
 [docs."docs/how-rush-is-built.md"]
 purpose = "Outlines governed development model, evidence rule, C1 incident, and honest-claims policy"

@@ -81,6 +81,17 @@ jobs:
       - name: Check documentation consistency
         run: python3 tools/validate-doc-sync.py --max-age 90
 
+  pr-docs:
+    name: PR documentation completeness
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check code changes have doc updates
+        run: python3 tools/validate-pr-docs.py --base origin/${{ github.base_ref }}
+
   links:
     name: Markdown links
     runs-on: ubuntu-latest

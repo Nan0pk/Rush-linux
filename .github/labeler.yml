@@ -21,7 +21,47 @@ area:distro:
   - any-glob-to-any-file: 'mkosi/**/*'
   - any-glob-to-any-file: 'packaging/**/*'
 
+area:kernel:
+- changed-files:
+  - any-glob-to-any-file: 'distro/kernel/**/*'
+
+area:boot:
+- changed-files:
+  - any-glob-to-any-file: 'distro/boot/**/*'
+  - any-glob-to-any-file: 'distro/sysupdate/**/*'
+
+area:security:
+- changed-files:
+  - any-glob-to-any-file: 'SECURITY.md'
+  - any-glob-to-any-file: 'crates/optid/src/security/**/*'
+
+area:docs:
+- changed-files:
+  - any-glob-to-any-file: 'docs/**/*'
+  - any-glob-to-any-file: '*.md'
+
 type:maintenance:
 - changed-files:
   - any-glob-to-any-file: '.github/**/*'
   - any-glob-to-any-file: 'tools/**/*'
+  - any-glob-to-any-file: 'Cargo.lock'
+  - any-glob-to-any-file: 'deny.toml'
+
+docs:
+- changed-files:
+  - any-glob-to-any-file: 'docs/**/*.md'
+  - any-glob-to-any-file: 'docs/docmap.toml'
+  - any-glob-to-any-file: 'README.md'
+  - any-glob-to-any-file: 'CONTRIBUTING.md'
+  - any-glob-to-any-file: 'ROADMAP.md'
+  - any-glob-to-any-file: 'RELEASES.md'
+
+test:
+- changed-files:
+  - any-glob-to-any-file: 'crates/*/tests/**/*'
+  - any-glob-to-any-file: 'release/test-tiers.toml'
+  - any-glob-to-any-file: 'benchmarks/**/*'
+
+ci:
+- changed-files:
+  - any-glob-to-any-file: '.github/workflows/**/*'

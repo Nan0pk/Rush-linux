@@ -45,6 +45,22 @@ Every non-trivial change must document:
 - architectural direction: update `docs/PROJECT_BRIEF.md`, `docs/architecture.md`,
   and add or amend an ADR.
 
+## Automated Enforcement
+
+Documentation completeness is **enforced in CI**, not by manual checklists.
+
+- **`validate-pr-docs.py`** — runs on every PR. Uses `docs/docmap.toml`'s
+  `covers_code` to find which docs cover the changed code. If code changes
+  lack corresponding doc updates (or a `last_verified` bump in docmap.toml),
+  the PR is blocked.
+- **`validate-doc-sync.py`** — runs on every push/PR. Catches drift, broken
+  links, version mismatches, stale patterns, and contradictions.
+- **Auto-labeling** — PR labels are applied automatically by file paths
+  (area labels) and PR title prefix (type labels via conventional commits).
+  No manual labeling needed.
+- **Auto-changelog** — release-drafter categorizes merged PRs from labels.
+  No manual listing needed.
+
 ## Minimum Commit Standard
 
 Before committing:
