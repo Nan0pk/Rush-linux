@@ -76,6 +76,16 @@ timeout "${TIMEOUT_SEC}s" \
 QEMU_STATUS=${PIPESTATUS[0]}
 set -e
 
+# ponytail: Repair the ESP partition (first partition) to fix the dirty bit and any corruption
+# caused by QEMU's abrupt SIGTERM termination.
+echo "  Repairing ESP partition on ${DISK}..."
+TEMP_ESP="build/esp-repair-boot.img"
+mkdir -p build
+dd if="${DISK}" of="${TEMP_ESP}" bs=512 skip=2048 count=2097152 2>/dev/null
+fsck.vfat -a "${TEMP_ESP}" 2>/dev/null || true
+dd if="${TEMP_ESP}" of="${DISK}" bs=512 seek=2048 count=2097152 conv=notrunc 2>/dev/null
+rm -f "${TEMP_ESP}"
+
 if [ "${QEMU_STATUS}" -ne 0 ] && [ "${QEMU_STATUS}" -ne 124 ]; then
     echo "Error: QEMU exited unexpectedly with status ${QEMU_STATUS}" >&2
     exit "${QEMU_STATUS}"

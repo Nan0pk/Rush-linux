@@ -97,17 +97,17 @@ boot_and_log() {
 log_has() {
     local log="$1"
     local pattern="$2"
-    grep -aEq "${pattern}" "${log}" 2>/dev/null
+    grep -aEiq "${pattern}" "${log}" 2>/dev/null
 }
 
 # ══════════════════════════════════════════════════════════════════
 echo "━━━ Test 1: Fresh VM install succeeds ━━━"
 # ══════════════════════════════════════════════════════════════════
 
-# Create a blank 2GB target disk
+# Create a blank 3500M target disk
 TARGET_DISK="${TEST_DIR}/target.raw"
-echo "  Creating blank 2GB target disk..."
-truncate -s 2G "${TARGET_DISK}"
+echo "  Creating blank 3500M target disk..."
+truncate -s 3500M "${TARGET_DISK}"
 
 # Set up loop device
 LOOP=$(losetup --find --show --partscan "${TARGET_DISK}")

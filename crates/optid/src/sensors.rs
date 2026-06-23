@@ -265,6 +265,11 @@ pub(crate) fn read_battery_pct() -> Option<u8> {
 }
 
 pub(crate) fn read_zram_swap_active() -> bool {
+    #[cfg(test)]
+    if let Ok(val) = std::env::var("OPTID_MOCK_ZRAM_SWAP_ACTIVE") {
+        return val == "true";
+    }
+
     let Ok(text) = fs::read_to_string("/proc/swaps") else {
         return false;
     };
