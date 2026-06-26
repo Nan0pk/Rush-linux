@@ -37,7 +37,8 @@ _Last updated: Dragnet-004, 2026-06-26._
 
 - The Dragnet-001 evidence debt is closed (DRAGNET-001 → DRAGNET-004). All 10
   previously-pending rows now carry committed transcripts in their respective
-  `release/evidence/v*/*` directories, deposited by PR #174 on 2026-06-23.
+  `release/evidence/v0.3.0-alpha.1/`, `release/evidence/v0.4.0-alpha.1/`, and
+  `release/evidence/v0.5.0-beta.1/` directories, deposited by PR #174 on 2026-06-23.
 - Dragnet-004 (2026-06-26) is the first GREEN report: `tools/dragnet.py --observe`
   returns `VERDICT: GREEN` with all 12 rows committed.
 - v0.5.4 is closed by a static analysis of the *declared* package set, plus a
