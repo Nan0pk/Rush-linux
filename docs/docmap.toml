@@ -624,3 +624,12 @@ deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md",
 freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
 last_verified = "2026-06-26"
 validator = "optional_file"
+
+[docs."docs/plans/v0.5-minimal-installable-system-proposal.md"]
+purpose = "v0.5.0-beta.1 implementation proposal: mkosi/Arch parity, edition profiles, installer flow, double-boot + rollback tests"
+owner_area = "area:project"
+covers_code = ["mkosi/mkosi.conf", "mkosi/mkosi.repart/", "mkosi/mkosi.profiles/", "tools/build-mkosi-image.sh", "tools/rush-install.sh", "tools/test-install.sh", "tools/test-double-boot.sh"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md"]
+freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-06-20"
+validator = "optional_file"
