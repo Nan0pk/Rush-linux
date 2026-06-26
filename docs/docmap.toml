@@ -617,11 +617,11 @@ freshens = ["docs/AI_CONTINUATION.md", "ROADMAP.md", "RELEASES.md"]
 last_verified = "2026-06-26"
 
 [docs."docs/plans/v0.6-hardware-aware-optid-proposal.md"]
-purpose = "v0.6.0-beta.1 implementation proposal: hardware allowlist, PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"
+purpose = "v0.6.0-beta.1 implementation proposal (revised 2026-06-26): verify+flip allowlist default (WP-N4 already landed), PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"
 owner_area = "area:project"
-covers_code = ["crates/optid/src/platform/", "crates/optid/src/shim/", "crates/optid/src/foreground/", "config/optid/hardware-allowlist.toml"]
-deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md", "docs/plans/v0.5-minimal-installable-system-proposal.md"]
-freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
+covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/data/allowlist.toml", "crates/optid/build.rs", "crates/optid/src/actuator.rs", "crates/optid/src/shim/", "crates/optid/src/foreground/", "crates/optid/tests/write_site_gating.rs", "crates/optctl/src/allow.rs"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md", "docs/plans/v0.5-minimal-installable-system-proposal.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md", "docs/research/0006-hw-allowlist-db-design.md"]
 last_verified = "2026-06-26"
 validator = "optional_file"
 
