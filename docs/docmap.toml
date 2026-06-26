@@ -615,3 +615,12 @@ covers_code = ["tools/dragnet.py", "tools/validate-evidence.py", "release/milest
 deps = ["docs/agent-protocol.md"]
 freshens = ["docs/AI_CONTINUATION.md", "ROADMAP.md", "RELEASES.md"]
 last_verified = "2026-06-22"
+
+[docs."docs/plans/v0.6-hardware-aware-optid-proposal.md"]
+purpose = "v0.6.0-beta.1 implementation proposal: hardware allowlist, PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"
+owner_area = "area:project"
+covers_code = ["crates/optid/src/platform/", "crates/optid/src/shim/", "crates/optid/src/foreground/", "config/optid/hardware-allowlist.toml"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md", "docs/plans/v0.5-minimal-installable-system-proposal.md"]
+freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-06-26"
+validator = "optional_file"
