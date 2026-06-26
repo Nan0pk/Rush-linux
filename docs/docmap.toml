@@ -633,3 +633,21 @@ deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md"]
 freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
 last_verified = "2026-06-20"
 validator = "optional_file"
+
+[docs."release/milestones.toml"]
+purpose = "Canonical machine-readable milestone definitions: version, channel, exit criteria, per-criterion verified state + transcript path. The source of truth that release/evidence/README.md renders."
+owner_area = "area:release"
+covers_code = ["tools/validate-evidence.py", "tools/dragnet.py"]
+deps = ["docs/agent-protocol.md"]
+freshens = ["RELEASES.md", "ROADMAP.md", "release/evidence/README.md", "release/evidence/dragnet/LEDGER.md"]
+last_verified = "2026-06-26"
+validator = "optional_file"
+
+[docs."release/evidence/README.md"]
+purpose = "Human-readable index of the evidence tree: per-milestone criterion-to-transcript tables, current state, Builder/Verifier protocol summary, and how to add new evidence"
+owner_area = "area:release"
+covers_code = ["release/milestones.toml", "tools/validate-evidence.py", "release/evidence/"]
+deps = ["docs/agent-protocol.md", "release/milestones.toml"]
+freshens = ["README.md", "RELEASES.md", "release/evidence/dragnet/LEDGER.md"]
+last_verified = "2026-06-26"
+validator = "optional_file"
