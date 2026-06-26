@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
 freshens = []
-last_verified = "2026-06-16"
+last_verified = "2026-06-26"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-20"
+last_verified = "2026-06-26"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-20"
+last_verified = "2026-06-26"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -614,7 +614,7 @@ owner_area = "area:docs"
 covers_code = ["tools/dragnet.py", "tools/validate-evidence.py", "release/milestones.toml", "release/evidence/dragnet/LEDGER.md"]
 deps = ["docs/agent-protocol.md"]
 freshens = ["docs/AI_CONTINUATION.md", "ROADMAP.md", "RELEASES.md"]
-last_verified = "2026-06-22"
+last_verified = "2026-06-26"
 
 [docs."docs/plans/v0.6-hardware-aware-optid-proposal.md"]
 purpose = "v0.6.0-beta.1 implementation proposal: hardware allowlist, PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"

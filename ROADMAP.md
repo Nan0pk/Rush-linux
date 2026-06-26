@@ -54,9 +54,10 @@ Exit criteria:
  
 ## v0.3.0-alpha.1: Rootfs And Package Builder MVP
 
-Status: evidence-pending. Implementation complete and reported working on the
-build host 2026-06-08, but acceptance transcripts were never committed (Dragnet-001
-finding G3). See `release/evidence/dragnet/LEDGER.md` / `BUILD-HOST-RUNBOOK.md`.
+Status: complete. All four exit criteria verified with committed transcripts
+in `release/evidence/v0.3.0-alpha.1/` (PR #174, 2026-06-23). The earlier
+Dragnet-001 finding G3 — that the 2026-06-08 build-host assertions lacked
+committed transcripts — is closed.
  
 - Define recipe schema v0.
 - Build a minimal rootfs from recipes.
@@ -73,10 +74,10 @@ Exit criteria:
  
 ## v0.4.0-alpha.1: UKI, Boot, Rollback, Updates
 
-Status: evidence-pending. Implementation complete; the update-signing criterion is
-certified in-repo (`release/evidence/v0.4.0-alpha.1/c4-update-signed/`), but the UKI
-boot and rollback criteria were asserted on the build host without committed
-transcripts (Dragnet-001 finding G3). See `release/evidence/dragnet/LEDGER.md`.
+Status: complete. All four exit criteria verified with committed transcripts
+in `release/evidence/v0.4.0-alpha.1/` (PR #174, 2026-06-23). The earlier
+Dragnet-001 finding G3 — that the UKI-boot and rollback assertions lacked
+committed transcripts — is closed.
 
 - Generate UKIs from kernel package outputs. ✅
 - Add systemd-boot path and GRUB fallback path. ✅
@@ -95,29 +96,25 @@ Exit criteria:
 
 ## v0.5.0-beta.1: Minimal Installable System
 
-Status: evidence-pending (implementation complete; acceptance transcripts owed).
-
-The mkosi/Arch image, edition profiles, installer flow, and test harness are
-implemented. Per the Dragnet-001 audit (`release/evidence/dragnet/`), the four
-exit criteria below were asserted on the build host but their acceptance
-transcripts were never committed, so they are not yet certified. The canonical,
-machine-readable state lives in `release/milestones.toml`; this section follows it.
+Status: complete. All four exit criteria verified with committed transcripts
+in `release/evidence/v0.5.0-beta.1/` (PR #174, 2026-06-23). The mkosi/Arch
+image, edition profiles, installer flow, and test harness are implemented
+and acceptance-tested. The canonical, machine-readable state lives in
+`release/milestones.toml`; this section follows it.
 
 Exit criteria (from `release/milestones.toml`):
 
-- fresh VM install succeeds — pending build-host transcript.
-- installed system boots twice cleanly — pending build-host transcript.
-- update and rollback tests pass — pending build-host transcript.
-- server edition has no desktop dependency — verified (static package-set check,
-  `release/evidence/v0.5.0-beta.1/c4-server-no-desktop/`); built-image confirmation
-  in `release/evidence/BUILD-HOST-RUNBOOK.md`.
-
-See `release/evidence/dragnet/LEDGER.md` for the full per-criterion evidence state
-and `release/evidence/BUILD-HOST-RUNBOOK.md` for the commands that close the rest.
+- fresh VM install succeeds — verified (transcript: `c1-fresh-install/`).
+- installed system boots twice cleanly — verified (transcript: `c2-double-boot/`).
+- update and rollback tests pass — verified (transcript: `c3-update-rollback/`).
+- server edition has no desktop dependency — verified (static + built-image
+  confirmation; transcript: `c4-server-no-desktop/`).
 
 ## v0.6.0-beta.1: Hardware-Aware optid
 
-Status: planned.
+Status: in progress. See `docs/plans/v0.6-hardware-aware-optid-proposal.md`
+for the implementation plan. Phase A (hardware allowlist foundation) is the
+first Work Package.
 
 - Implement Wave 2 features: compatibility D-Bus interfaces (PPD, GameMode), TLP allowlist, foreground detection, and vm.* actuation.
 - Add hardware allowlist database (`config/optid/hardware-allowlist.toml`).

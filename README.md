@@ -3,12 +3,12 @@
 **Adaptive Linux. One optimizer. Every decision explained and reversible.**
 
 [![Version](https://img.shields.io/badge/version-0.5.0--beta.1-blue)](VERSION)
-[![Status](https://img.shields.io/badge/status-beta--in--progress-orange)](ROADMAP.md)
+[![Status](https://img.shields.io/badge/status-beta--v0.5--complete-green)](ROADMAP.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Rush Linux is an architecture-first Linux distribution built around `optid`, a native Rust daemon that continuously reads kernel pressure signals and adjusts hardware policy in real time. No fixed power profiles. No manual tuning. One explainable, reversible optimizer that proves its work.
 
-The project is in early beta. The optimizer runs, a VM boots via UKI with `optid.service` active, UKI rollback and Ed25519 update signing are in place, and the measurement harness is operational. The current milestone (`v0.5.0-beta.1`) is producing the first mkosi-composed Arch installable image. A consumer-installable distribution is the long-term goal.
+The project is in early beta. The optimizer runs, a VM boots via UKI with `optid.service` active, UKI rollback and Ed25519 update signing are in place, and the measurement harness is operational. The `v0.5.0-beta.1` milestone — the first mkosi-composed Arch installable image, with fresh-install, double-boot, update/rollback, and server-no-desktop criteria all backed by committed transcripts — closed on 2026-06-23 (PR #174). The next milestone (`v0.6.0-beta.1`) targets hardware-aware `optid` with a hardware allowlist, PPD/GameMode compatibility shims, and the first physical-machine benchmarks. A consumer-installable distribution is the long-term goal.
 
 > Contributors/agents: this project gates milestone claims on committed evidence. Run `python3 tools/dragnet.py --observe` and see `docs/dragnet-protocol.md` before relying on any "verified" status.
 
@@ -40,8 +40,9 @@ The project is in early beta. The optimizer runs, a VM boots via UKI with `optid
 - **`optid` daemon** — PSI + thermal + power supply → workload classifier → PM QoS enforcement via `contracts.toml`. Applies EPP, platform profile, and cgroup slices with `--apply`. Every decision is logged and explainable.
 - **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`. Machine-readable output via `--json`.
 - **`rushbench` harness** — Measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class. Structured energy window, N-sample collection, and anomaly detection. No results published yet — this is the tool that generates them.
-- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified 2026-06-08.
-- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing.
+- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified 2026-06-08; transcript committed 2026-06-23 (`release/evidence/v0.3.0-alpha.1/`).
+- **Installable system** — `tools/rush-install.sh` stamps the mkosi-built image onto a blank disk via `systemd-repart`; installed system boots twice cleanly with `optid.service` active. Transcripts at `release/evidence/v0.5.0-beta.1/`.
+- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing. Bad-kernel rollback verified; transcript at `release/evidence/v0.4.0-alpha.1/c3-bad-kernel/`.
 
 Default mode is always **dry-run**. Kernel writes require explicit `--apply` on a supported host.
 
@@ -104,8 +105,8 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 | v0.2 — D-Bus control plane, `optctl` | ✅ complete |
 | v0.3 — rootfs builder, VM boots | ✅ complete |
 | v0.4 — UKI boot, rollback, update signing | ✅ complete |
-| **v0.5 — minimal installable system (mkosi/Arch)** | ⚙ in progress |
-| v0.6 — hardware-aware optid, PPD/GameMode shims | planned |
+| v0.5 — minimal installable system (mkosi/Arch) | ✅ complete |
+| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress |
 | v0.7 — desktop / laptop / realtime / server editions | planned |
 | v0.8 — benchmark lab, published results | planned |
 | v0.9 — release candidate hardening | planned |
