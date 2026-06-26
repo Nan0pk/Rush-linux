@@ -485,7 +485,7 @@ owner_area = "area:project"
 covers_code = [".github/workflows/reassess.yml"]
 deps = ["docs/SPEC-northstar.md", "docs/strategy/strategic-plan-v1.2.md"]
 freshens = []
-last_verified = "2026-06-14"
+last_verified = "2026-06-26"
 
 [docs."docs/strategy/strategic-plan-v1.2.md"]
 purpose = "Long-horizon consolidated strategic plan (v1.2): core plan, AI capability integration, AI Council governance transition, synchronization layer, revision history"
