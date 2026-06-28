@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-06-22
+Last updated: 2026-06-28
 
 > **Evidence state:** Implementation status (what code exists) is distinct from
 > evidence state (what is certified by a committed transcript). For the
@@ -71,6 +71,13 @@ engineering milestones.
 - Extensible rootfs generator populating output rootfs from recipe-resolved dependency trees.
 - GPT raw VM disk image compiler using native `systemd-repart` to format ext4 partition and clone rootfs trees without loop mounts or root privileges.
 - Measurement rig (`rushbench`) implemented: pure Rust workspace member that captures battery drain (BAT/energy_now or intel-rapl) and responsiveness metrics per SPEC §1 class, pinning class via `optctl` and validating resolved PM QoS floors. `contracts.toml` values remain provisional; this tool enables collecting the validation dataset, but no results are committed yet.
+
+### v0.6 Phase A — Hardware-Aware optid (allowlist default-flip + Criterion 4 harness)
+
+- **WP-N4 hardware allowlist foundation** — verified (A1). 12 `optid` allowlist tests + 4 `optctl allow` tests pass; seeded baseline + override-directory precedence + HWID modalias detection + default-deny + audit trail all in place since WP-N4 landed.
+- **Criterion 4 enumeration harness** — `crates/optid/tests/write_site_gating.rs` (A2). 29 write sites across `actuator.rs` and `io_util.rs` inventoried; every site classified as `allowlist` / `adr0009-baseline` / `state-file` / `revert-path` / `non-sysfs`; drift-detection assertions count `guarded_write(`, `pmqos_sink.write_*(`, `atomic_write_state_file(`, `Command::new("systemctl")` occurrences via `include_str!` and fail mechanically if a new site is added without classification.
+- **`--allowlist` default flipped to `enabled`** — `crates/optid/src/args.rs` (A3). `Args::parse` now initializes `allowlist: true`; new `--no-allowlist` flag is the emergency escape hatch for bring-up on hardware the seeded baseline does not yet cover. Five `args::tests` pin the new default (regression fails loudly if a future refactor flips it back).
+- **Research-0006 §7 medium-term plan** — updated (A5). The "Land behind `--allowlist=enabled` flag (default `disabled` in v0.x)" item is marked Done in v0.6 Phase A3; the "Promote from WIP to Validated" item notes Phase D's 2-machine relaxation; docmap.toml `covers_code` extended to include `crates/optid/src/args.rs`; `last_verified` bumped to 2026-06-28.
 
 ## Not Yet Implemented
 

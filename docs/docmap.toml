@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-20"
+last_verified = "2026-06-28"
 validator = "version_matches:VERSION"
 
 [docs."docs/AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-20"
+last_verified = "2026-06-28"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
