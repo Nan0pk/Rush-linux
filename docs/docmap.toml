@@ -125,10 +125,10 @@ last_verified = "2026-06-14"
 [docs."docs/adaptive-engine.md"]
 purpose = "optid design: inputs, actions, guardrails, current MVP scope"
 owner_area = "area:optid"
-covers_code = ["crates/optid/src/main.rs", "config/optid/policy.toml"]
+covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/conflict.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md"]
-last_verified = "2026-06-16"
+last_verified = "2026-06-28"
 validator = "covers_optid_features"
 
 [docs."docs/kernel-policy.md"]

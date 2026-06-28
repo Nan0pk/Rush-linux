@@ -79,6 +79,10 @@ engineering milestones.
 - **`--allowlist` default flipped to `enabled`** — `crates/optid/src/args.rs` (A3). `Args::parse` now initializes `allowlist: true`; new `--no-allowlist` flag is the emergency escape hatch for bring-up on hardware the seeded baseline does not yet cover. Five `args::tests` pin the new default (regression fails loudly if a future refactor flips it back).
 - **Research-0006 §7 medium-term plan** — updated (A5). The "Land behind `--allowlist=enabled` flag (default `disabled` in v0.x)" item is marked Done in v0.6 Phase A3; the "Promote from WIP to Validated" item notes Phase D's 2-machine relaxation; docmap.toml `covers_code` extended to include `crates/optid/src/args.rs`; `last_verified` bumped to 2026-06-28.
 
+### v0.6 Phase B — PPD/GameMode shims + conflict detection (in progress)
+
+- **B3 conflict detection** — `crates/optid/src/shim/{mod,conflict}.rs` + `crates/optid/src/policy.rs::PolicySection` + `crates/optid/src/main.rs` startup wiring. `optid` now reads `competing_policy_daemons` from `config/optid/policy.toml`'s `[policy]` section, checks `systemctl is-active --quiet <svc>` for each, and downgrades `--apply` to dry-run with a logged reason when any conflict is active. Fails OPEN if `systemctl` is unavailable (containers, non-systemd). 7 `shim::conflict::tests` cover no-conflicts, single-conflict, multi-conflict-in-input-order, empty-list, unknown-daemon, and the render-advice format. PPD shim (B1) and GameMode shim (B2) are the next chunks.
+
 ## Not Yet Implemented
 
 > **Categorization note (Dragnet-001):** several entries below are in fact
