@@ -600,9 +600,9 @@ sudo journalctl -u optid -f | grep -i 'hotplug\|actuate' &
 - [ ] Populate verified allowlist entries from at least 3 reference laptops
 
 ### Medium-term
-- [ ] Promote from WIP to Validated once seeded baseline covers ≥ 5 laptops × ≥ 3 HWIDs each and all §4 experiments are closed
-- [ ] Land `crates/optid/src/allowlist.rs` behind `--allowlist=enabled` flag (default `disabled` in v0.x)
-- [ ] Update SPEC §4.3 status rows for Runtime PM / NVMe APST / PCIe ASPM to `A` once allowlist lands
+- [ ] Promote from WIP to Validated once seeded baseline covers ≥ 5 laptops × ≥ 3 HWIDs each and all §4 experiments are closed. v0.6 Phase D relaxes this gate to "2 reference machines validated" — see `docs/plans/v0.6-hardware-aware-optid-proposal.md` §7 risk row "Seeded allowlist baseline too thin for default-on".
+- [x] **Done in v0.6 Phase A3** (2026-06-28): the `--allowlist` flag's default flipped from `disabled` to `enabled`. The bare `--allowlist` and `--allowlist=enabled` forms remain accepted (idempotent set to true); `--no-allowlist` is the new emergency escape hatch for bring-up on hardware the seeded baseline does not yet cover. See `crates/optid/src/args.rs` and the `args::tests::allowlist_default_is_enabled` regression test.
+- [ ] Update SPEC §4.3 status rows for Runtime PM / NVMe APST / PCIe ASPM to `A` once allowlist lands — pending Phase D hardware validation.
 
 * * *
 
