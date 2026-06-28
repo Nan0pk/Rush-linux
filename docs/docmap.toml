@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md"]
 freshens = ["README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-20"
+last_verified = "2026-06-28"
 validator = "version_matches:VERSION"
 
 [docs."docs/AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
 freshens = []
-last_verified = "2026-06-20"
+last_verified = "2026-06-28"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -525,6 +525,7 @@ purpose = "Specifies the HWID allowlist DB that gates every depth-enabler actuat
 owner_area = "area:optid"
 covers_code = [
     "crates/optid/src/allowlist.rs",
+    "crates/optid/src/args.rs",
     "crates/optid/build.rs",
     "crates/optid/data/allowlist.toml",
     "crates/optctl/src/allow.rs",
@@ -541,7 +542,7 @@ freshens = [
     "docs/research/0002-rush-linux-architecture-review.md",
     "docs/decisions/0009-optid-security-boundary.md",
 ]
-last_verified = "2026-06-19"
+last_verified = "2026-06-28"
 validator = "status_match:WIP"
 
 [docs."docs/research/0009-runtime-pm-autosuspend-policy.md"]

@@ -67,35 +67,72 @@ Rush Linux is transitioning from completed Alpha (`v0.4.0-alpha.1`, all exit cri
 ## Next Task
 
 **First, run Dragnet.** Before any feature work, run `python3 tools/dragnet.py
---observe` and read the newest report in `release/evidence/dragnet/`. The Dragnet-001
-audit (2026-06-22) found that v0.3/v0.4/v0.5 criteria were marked `verified = true`
-without committed transcripts; they are now honestly `evidence-pending`. The
-**highest-priority task** is closing that evidence debt: run the commands in
-`release/evidence/BUILD-HOST-RUNBOOK.md` on the build host (root + KVM), commit the
-transcripts, and flip the matching `verified` flags. The `0.6.0-beta.1` bump is
-gated on a green Dragnet. See `release/evidence/dragnet/LEDGER.md` for what's owed.
+--observe` and read the newest report in `release/evidence/dragnet/`. As of
+2026-06-28 the report is GREEN (DRAGNET-008); the v0.3/v0.4/v0.5 evidence
+debt closed by PR #174 (2026-06-23) is settled.
 
-After the evidence debt is closed, the standing mandate is to complete the **v0.5
-Minimal Installable System** milestone by delivering the first mkosi-composed Arch
-Linux disk image that satisfies all four exit criteria.
+**Current milestone: v0.6.0-beta.1 — Hardware-Aware optid.** The
+implementation plan lives at
+`docs/plans/v0.6-hardware-aware-optid-proposal.md` (5-phase: A through E).
 
-### Concrete Steps for You:
+**Phase A is complete** (this branch, 2026-06-28):
+
+- A1 — WP-N4 allowlist foundation verified (12 optid + 4 optctl tests pass).
+- A2 — Criterion 4 enumeration harness added
+  (`crates/optid/tests/write_site_gating.rs`); 29 write sites inventoried,
+  every site classified as `allowlist` / `adr0009-baseline` / `state-file` /
+  `revert-path` / `non-sysfs`; drift-detection assertions catch new sites
+  added without classification.
+- A3 — `--allowlist` default flipped from `disabled` to `enabled`;
+  `--no-allowlist` is the new emergency escape hatch. Five new
+  `args::tests` pin the new default.
+- A5 — research-0006 §7 medium-term plan updated; docmap.toml
+  `covers_code` extended to include `crates/optid/src/args.rs`;
+  `last_verified` bumped to 2026-06-28.
+
+**Phase B (PPD + GameMode shims) is the next in-container Work Package.**
+Per the proposal §3 Phase B, the work is:
+
+1. `crates/optid/src/shim/ppd.rs` — implement `net.hadess.PowerProfiles`
+   D-Bus interface on the `io.rushlinux.Optid1` name. GNOME Settings →
+   Power slider and KDE `powerdevil` speak this interface.
+2. `crates/optid/src/shim/gamemode.rs` — implement
+   `com.feralinteractive.GameMode.RegisterGame` / `UnregisterGame` /
+   `QueryStatus`. Steam, Lutris, Heroic speak this interface; no client
+   changes needed.
+3. `crates/optid/src/shim/conflict.rs` — detect `tlp.service`,
+   `tuned.service`, `power-profiles-daemon.service` at startup; refuse
+   `--apply` if any is running.
+4. Tests: `crates/optid/tests/shim_ppd.rs`, `shim_gamemode.rs` —
+   exercise the D-Bus interfaces against a mock session bus.
+
+**Phase C (foreground detection + vm.guest class)** can proceed in parallel
+with Phase B. Phase C1 (foreground) is feature-flagged off by default
+(`--foreground=off`); Phase C2 (vm.guest class) is fully unit-testable
+in-container.
+
+**Phase D (reference machines + baselines) is the human/hardware gate.**
+Two physical machines need to be nominated by the project owner (one
+desktop, one battery-equipped laptop), baselines collected under a
+mainstream distro (suggested: Ubuntu 24.04 LTS with PPD `balanced`), then
+`optid --apply` runs on the same hardware, and `rushbench` transcripts
+committed. The Phase A PR description must surface D1 (machine
+nomination) so the project owner has lead time.
+
+### Concrete Steps for You (Phase B start):
 
 1. **Verify Workspace Toolchain:**
-   Confirm that the stable Rust toolchain is active and run our workspace verification suite:
+   Confirm stable Rust + `PKG_CONFIG_PATH` for libdbus-1-dev:
    ```bash
    cargo test --workspace
+   cargo test --test write_site_gating   # Phase A2 harness, must stay green
+   cargo test args::                      # Phase A3 default-on regression
    ```
-2. **Implement the mkosi/Arch Image Pipeline:**
-   Extend and validate `mkosi/mkosi.conf` and `tools/build-mkosi-image.sh` to produce a
-   bootable Arch-based disk image that passes `validate-uefi-boot.sh` and `test-rollback.sh`.
-3. **Implement a Fresh-Install Test Flow:**
-   Create a test script that installs the image onto a blank VM disk (not just boots a
-   pre-built image) and verifies the installed system boots twice cleanly.
-4. **Verify Server Edition Has No Desktop Dependency:**
-   Ensure the server/minimal mkosi profile builds without any desktop packages.
-5. **Advance the Roadmap:**
-   Upon successful validation of all four exit criteria, update `VERSION` and `ROADMAP.md`
-   to certify the **v0.5 Milestone Completed** and advance the project to **v0.6.0-beta.1**.
+2. **Implement the PPD shim first** (B1) — it's the larger surface but
+   has the most compatibility value (every GNOME/KDE user benefits).
+3. **Then GameMode** (B2) — smaller surface, TTL-based pin.
+4. **Then conflict detection** (B3) — wire `competing_policy_daemons`
+   from `config/optid/policy.toml` to an actual startup check.
+5. **Run Dragnet after each Phase B sub-PR** to keep evidence green.
 
 Happy hacking! Always execute under the **Evidence Rule**.
