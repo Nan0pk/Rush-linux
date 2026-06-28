@@ -28,6 +28,7 @@ mod decision;
 mod io_util;
 mod policy;
 mod sensors;
+mod shim;
 #[cfg(test)]
 mod tests;
 mod workload;
@@ -87,6 +88,34 @@ fn run(args: Args) -> io::Result<()> {
     let _ = signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term));
     let _ = signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term));
     let _ = signal_hook::flag::register(signal_hook::consts::SIGHUP, Arc::clone(&term));
+
+    // v0.6 Phase B3: conflict detection. optid is the single owner of hardware
+    // policy (ADR 0004); if tlp / tuned / power-profiles-daemon is already
+    // running, --apply would fight them. Load the policy's competing daemon
+    // list, check systemd for active instances, and downgrade --apply to
+    // dry-run with a logged reason when conflicts are present. The check
+    // fails OPEN (no conflicts) if systemctl is unavailable, so the daemon
+    // can still start in containers and non-systemd environments.
+    let policy_for_conflicts = Policy::load(&args.config_path);
+    let conflict_report =
+        shim::detect_conflicts(&policy_for_conflicts.policy.competing_policy_daemons);
+    let mut args = args;
+    if conflict_report.is_blocking() {
+        let advice = conflict_report.render_advice();
+        eprintln!("optid: {advice}");
+        append_log(
+            &args.state_dir.join("decisions.log"),
+            &format!("optid: {advice}\n"),
+        )?;
+        if args.apply {
+            eprintln!("optid: --apply downgraded to dry-run due to active conflicts.");
+            append_log(
+                &args.state_dir.join("decisions.log"),
+                "optid: --apply downgraded to dry-run due to active conflicts.\n",
+            )?;
+            args.apply = false;
+        }
+    }
 
     // Revert sysctls on startup to clean up any left-over state
     revert_sysctls(&args.state_dir);

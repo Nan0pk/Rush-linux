@@ -27,9 +27,27 @@ pub(crate) struct MemoryConfig {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub(crate) struct Policy {
+    /// v0.6 Phase B3: top-level `[policy]` section carrying the
+    /// `competing_policy_daemons` list. Defaults to an empty list when the
+    /// section is absent (e.g. Policy::default) so the conflict check is a
+    /// no-op in tests that don't care about it.
+    #[serde(default)]
+    pub(crate) policy: PolicySection,
     pub(crate) thresholds: Thresholds,
     pub(crate) modes: Modes,
     pub(crate) memory: MemoryConfig,
+}
+
+/// v0.6 Phase B3: the `[policy]` section of `config/optid/policy.toml`.
+/// Currently carries only `competing_policy_daemons`; future top-level
+/// policy switches land here.
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub(crate) struct PolicySection {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) owner: String,
+    #[serde(default)]
+    pub(crate) competing_policy_daemons: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -76,6 +94,7 @@ pub(crate) struct ModeConfig {
 impl Default for Policy {
     fn default() -> Self {
         Self {
+            policy: PolicySection::default(),
             thresholds: Thresholds {
                 cpu_pressure_perf_avg10: 12.0,
                 memory_pressure_protect_avg10: 5.0,
