@@ -125,7 +125,7 @@ last_verified = "2026-06-14"
 [docs."docs/adaptive-engine.md"]
 purpose = "optid design: inputs, actions, guardrails, current MVP scope"
 owner_area = "area:optid"
-covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/conflict.rs", "crates/optid/src/shim/ppd.rs", "config/optid/policy.toml"]
+covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/conflict.rs", "crates/optid/src/shim/ppd.rs", "crates/optid/src/shim/gamemode.rs", "config/optid/policy.toml"]
 deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md"]
 last_verified = "2026-06-29"
@@ -422,9 +422,9 @@ last_verified = "2026-06-10"
 # ── Configuration files that also serve as documentation ──
 
 [docs."config/optid/policy.toml"]
-purpose = "Default optimizer policy: thresholds, per-mode configs, competing daemons, PPD shim mapping"
+purpose = "Default optimizer policy: thresholds, per-mode configs, competing daemons, PPD/GameMode shim mapping"
 owner_area = "area:optid"
-covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/ppd.rs"]
+covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/ppd.rs", "crates/optid/src/shim/gamemode.rs"]
 deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
 freshens = []
 last_verified = "2026-06-29"
@@ -620,7 +620,7 @@ last_verified = "2026-06-26"
 [docs."docs/plans/v0.6-hardware-aware-optid-proposal.md"]
 purpose = "v0.6.0-beta.1 implementation proposal (revised 2026-06-26): verify+flip allowlist default (WP-N4 already landed), PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"
 owner_area = "area:project"
-covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/data/allowlist.toml", "crates/optid/build.rs", "crates/optid/src/actuator.rs", "crates/optid/src/shim/", "crates/optid/src/foreground/", "crates/optid/tests/write_site_gating.rs", "crates/optid/tests/shim_ppd.rs", "crates/optctl/src/allow.rs"]
+covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/data/allowlist.toml", "crates/optid/build.rs", "crates/optid/src/actuator.rs", "crates/optid/src/shim/", "crates/optid/src/foreground/", "crates/optid/tests/write_site_gating.rs", "crates/optid/tests/shim_ppd.rs", "crates/optid/tests/shim_gamemode.rs", "crates/optctl/src/allow.rs"]
 deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md", "docs/plans/v0.5-minimal-installable-system-proposal.md", "docs/research/0006-hw-allowlist-db-design.md"]
 freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md", "docs/research/0006-hw-allowlist-db-design.md"]
 last_verified = "2026-06-29"

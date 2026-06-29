@@ -53,6 +53,10 @@ pub(crate) struct Policy {
 pub(crate) struct ShimConfig {
     #[serde(default)]
     pub(crate) ppd: PpdShimConfig,
+    /// v0.6 Phase B2: GameMode shim configuration. Defaults to a 30-minute
+    /// TTL and `latency-critical` pin class.
+    #[serde(default)]
+    pub(crate) gamemode: GameModeShimConfig,
 }
 
 /// v0.6 Phase B1: the `[shim.ppd]` sub-table. Currently carries only the
@@ -73,6 +77,46 @@ pub(crate) struct ShimConfig {
 pub(crate) struct PpdShimConfig {
     #[serde(default)]
     pub(crate) profiles: HashMap<String, String>,
+}
+
+/// v0.6 Phase B2: the `[shim.gamemode]` sub-table. Carries the TTL for
+/// implicit pin entries created by `RegisterGame`, and the workload class
+/// to pin the game to. Defaults: TTL=1800s (30 min), pin_class=
+/// "latency-critical".
+///
+/// Example TOML:
+///
+/// ```toml
+/// [shim.gamemode]
+/// ttl_sec = 1800                # 30 minutes
+/// pin_class = "latency-critical"
+/// ```
+///
+/// The TTL is best-effort: stale registrations are expired lazily on the
+/// next `RegisterGame` / `QueryStatus` / `QueryStatusClient` call.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub(crate) struct GameModeShimConfig {
+    #[serde(default = "default_gamemode_ttl_sec")]
+    pub(crate) ttl_sec: u64,
+    #[serde(default = "default_gamemode_pin_class")]
+    pub(crate) pin_class: String,
+}
+
+fn default_gamemode_ttl_sec() -> u64 {
+    1800 // 30 minutes
+}
+
+fn default_gamemode_pin_class() -> String {
+    "latency-critical".to_string()
+}
+
+impl Default for GameModeShimConfig {
+    fn default() -> Self {
+        Self {
+            ttl_sec: default_gamemode_ttl_sec(),
+            pin_class: default_gamemode_pin_class(),
+        }
+    }
 }
 
 /// v0.6 Phase B3: the `[policy]` section of `config/optid/policy.toml`.

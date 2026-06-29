@@ -156,6 +156,31 @@ the `net.hadess.PowerProfiles` bus name would fail against the running
 PPD). The conflict report's advice tells the operator to mask PPD and
 restart optid to enable the shim.
 
+### GameMode shim (`com.feralinteractive.GameMode`) — Phase B2
+
+`crates/optid/src/shim/gamemode.rs` implements the `com.feralinteractive.GameMode`
+interface at `/com/feralinteractive/GameMode` on optid's system-bus
+connection. Steam, Lutris, and Heroic speak this interface directly; no
+client changes are needed.
+
+Methods:
+
+- `RegisterGame(pid: i32) → i32` — 1=newly registered, 2=already
+  registered, 0=error. Writes `state_dir/pins/<pid>` with the configured
+  workload class (default: `latency-critical`).
+- `UnregisterGame(pid: i32) → i32` — 1=unregistered, 2=was not
+  registered, 0=error. Removes the pin file.
+- `QueryStatus() → i32` — count of active (non-expired) games.
+- `QueryStatusClient(pid: i32) → i32` — 0 or 1.
+
+No properties, no signals (matches GameMode's official spec).
+
+Each registration carries a TTL (default: 30 minutes, configurable via
+`policy.toml`'s `[shim.gamemode].ttl_sec`). Stale entries are expired
+lazily on the next `RegisterGame` / `QueryStatus` / `QueryStatusClient`
+call — no background thread. Re-registering an existing PID refreshes
+the TTL.
+
 ## Inputs
 
 Accepted input classes:

@@ -30,6 +30,20 @@ competing_policy_daemons = [
 # "balanced"     = "auto"
 # "performance"  = "performance"
 
+# v0.6 Phase B2: GameMode compatibility shim configuration.
+# The shim implements com.feralinteractive.GameMode on optid's D-Bus
+# connection so Steam, Lutris, and Heroic drive optid without code changes.
+# On RegisterGame(pid), optid writes state_dir/pins/<pid> with the
+# configured pin_class (default: latency-critical). The run loop reads
+# the pin on the next tick and applies the latency contract. On
+# UnregisterGame(pid), the pin file is removed.
+#
+# The TTL is best-effort: stale registrations are expired lazily on the
+# next RegisterGame / QueryStatus / QueryStatusClient call.
+[shim.gamemode]
+ttl_sec = 1800                      # 30 minutes (default)
+pin_class = "latency-critical"      # default; one of: idle, light, interactive, latency-critical, throughput
+
 [thresholds]
 cpu_pressure_perf_avg10 = 12.0
 memory_pressure_protect_avg10 = 5.0
