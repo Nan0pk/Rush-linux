@@ -1,0 +1,15 @@
+# TEMPLATE — replace every <...> with literal captured values.
+# Schema mirrors release/evidence/host-bench/2026-06-10-victus/meta.txt
+# and is sanity-checked by the evidence gate (no usage-text in optid_version).
+date=<YYYY-MM-DDThh:mm:ss+TZ>
+host=<hostname>
+kernel=<uname -r>
+cpu=<model name>
+ncpu=<nproc>
+cpufreq_driver=<intel_pstate|amd-pstate|...>
+governor=<powersave|performance|...>
+platform_profile_available=<0|1>
+rapl_domain=/sys/class/powercap/intel-rapl:0
+optid_version=<optid --version output — NOT usage text>
+git_commit=<short sha>
+lever=<baseline|optid>

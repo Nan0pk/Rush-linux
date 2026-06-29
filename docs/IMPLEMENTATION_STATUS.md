@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 > **Evidence state:** Implementation status (what code exists) is distinct from
 > evidence state (what is certified by a committed transcript). For the
@@ -18,7 +18,12 @@ engineering milestones.
 
 ## Implemented
 
-- Current project version recorded in `VERSION` as `0.5.0-beta.1`.
+- Current project version recorded in `VERSION` as `0.7.0-beta.1`. The
+  preceding `0.6.0-beta.1` (Hardware-Aware optid) is code-complete (PPD +
+  GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186) but its two
+  quantitative exit criteria remain **pending Phase D** physical-hardware
+  benchmarks (`release/evidence/host-bench/`, see
+  `docs/strategy/reference-hardware.md` and `docs/strategy/mixed-load-workload.md`).
 - Release plan, versioning rules, release policy, release checklist, and
   machine-readable milestone/test-tier manifests.
 - Documentation policy requiring future changes to document purpose, impact,

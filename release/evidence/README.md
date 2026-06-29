@@ -23,8 +23,8 @@ and PR — there is no skip path.
 | `0.3.0-alpha.1` — Rootfs And Package Builder MVP | alpha | 4 | 4 ([`v0.3.0-alpha.1/`](v0.3.0-alpha.1/)) | ✅ complete |
 | `0.4.0-alpha.1` — UKI, Boot, Rollback, Updates | alpha | 4 | 4 ([`v0.4.0-alpha.1/`](v0.4.0-alpha.1/)) | ✅ complete |
 | `0.5.0-beta.1` — Minimal Installable System | beta | 4 | 4 ([`v0.5.0-beta.1/`](v0.5.0-beta.1/)) | ✅ complete |
-| `0.6.0-beta.1` — Hardware-Aware optid | beta | 4 | 0 | ⚙ planned |
-| `0.7.0-beta.1` — Editions | beta | 4 | 0 | planned |
+| `0.6.0-beta.1` — Hardware-Aware optid | beta | 4 | 0 | ⚙ in progress — code-complete (PRs #183–#186); 2 quantitative criteria pending Phase D ([`host-bench/`](host-bench/)) |
+| `0.7.0-beta.1` — Editions | beta | 4 | 0 | ⚙ in progress (current version) |
 | `0.8.0-beta.1` — Benchmark Lab | beta | 3 | 0 | planned |
 | `0.9.0-rc.1` — Release Candidate Hardening | rc | 4 | 0 | planned |
 | `1.0.0` — Final Stable Release | stable | 5 | 0 | planned |

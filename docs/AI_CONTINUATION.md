@@ -47,7 +47,7 @@ Every agentic or human work session must follow this turnkey lifecycle:
 
 ## 📊 Current State of the Architecture
 
-Rush Linux is transitioning from completed Alpha (`v0.4.0-alpha.1`, all exit criteria verified) into its most consequential R&D milestone: **v0.5.0-beta.1 Minimal Installable System** via mkosi/Arch pivot (per ratified **ADR 0014**).
+Rush Linux has completed the beta `v0.5.0-beta.1` Minimal Installable System milestone (all four exit criteria verified, PR #174) and the in-container portion of `v0.6.0-beta.1` Hardware-Aware optid (PPD + GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186). The version pointer is now `0.7.0-beta.1` (Editions). **`v0.6.0-beta.1` is code-complete but not yet certified:** its two quantitative criteria are hardware-gated and await Phase D physical-hardware benchmarks.
 
 ### 🏆 Implemented and Fully Hardened
 - **Semantic Issue Boundary (ADR 0016):** Overarching multi-year Epics (Tracks A–D) and specification tracks (`WP-N1`–`WP-N9`, `WP-B1`) have been officially migrated out of open GitHub issues and consolidated into our markdown canon (`docs/SPEC-northstar.md` and `ROADMAP.md`). The GitHub repository presents exactly **1 Open Issue** (`good first issue` #3: *"Split optid into modules"*).
@@ -71,11 +71,36 @@ Rush Linux is transitioning from completed Alpha (`v0.4.0-alpha.1`, all exit cri
 2026-06-28 the report is GREEN (DRAGNET-008); the v0.3/v0.4/v0.5 evidence
 debt closed by PR #174 (2026-06-23) is settled.
 
-**Current milestone: v0.6.0-beta.1 — Hardware-Aware optid.** The
-implementation plan lives at
+**v0.6.0-beta.1 — Hardware-Aware optid: in-container Phases A–C are merged.**
+The implementation plan lives at
 `docs/plans/v0.6-hardware-aware-optid-proposal.md` (5-phase: A through E).
+Merged Work Packages: Phase A (allowlist foundation), Phase B1/B2 (PPD shim
+PR #183, GameMode shim PR #184), Phase C2 (`vm.guest` class PR #185), Phase C1
+(foreground stub PR #186), and Phase E (version bump to `0.7.0-beta.1`, this
+branch).
 
-**Phase A is complete** (this branch, 2026-06-28):
+**THE LIVE BLOCKER IS PHASE D (hardware gate).** The two quantitative v0.6
+exit criteria — "mixed-load responsiveness improves on two machines" and
+"battery behavior matches or improves mainstream defaults" — cannot be done by
+an agent. They require:
+
+1. **D1** — nominate two physical reference machines; fill in
+   `docs/strategy/reference-hardware.md` (one desktop, one battery laptop;
+   suggested baseline Ubuntu 24.04 LTS + PPD `balanced`).
+2. **D2** — the `mixed-load-001` workload is defined in
+   `docs/strategy/mixed-load-workload.md`; wire it into `rushbench` as a named
+   preset.
+3. **D3/D4** — baseline + `optid --apply` runs on each machine; commit
+   transcripts under `release/evidence/host-bench/<date>-<hostname>/`
+   (copy the shape from `release/evidence/host-bench/_TEMPLATE/`).
+4. **D5** — write `VERDICT.md` per machine; copy the verdict text into the v0.6
+   `criteria_status` `note` fields in `release/milestones.toml` and flip
+   `verified = true` only on PASS. Only then may v0.6 be marked `complete`.
+
+Until Phase D lands, `release/milestones.toml` keeps v0.6 `status =
+"in-progress"` with all four criteria `verified = false`, per the Evidence Rule.
+
+**Historical: Phase A was completed 2026-06-28:**
 
 - A1 — WP-N4 allowlist foundation verified (12 optid + 4 optctl tests pass).
 - A2 — Criterion 4 enumeration harness added
