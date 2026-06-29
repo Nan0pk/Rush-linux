@@ -105,7 +105,56 @@ policy fights between power daemons, desktop widgets, shell scripts, and service
 drop-ins.
 
 Conflicting services are declared in `packaging/systemd/optid.service` and
-`config/optid/policy.toml`.
+`config/optid/policy.toml`. At startup, `optid` enumerates the
+`competing_policy_daemons` list (Phase B3) via `systemctl is-active --quiet
+<svc>` for each entry; if any conflict is active, `--apply` is downgraded to
+dry-run with a logged reason advising the operator to mask the conflicting
+service. The check fails OPEN (no conflicts) if `systemctl` is unavailable,
+so the daemon can still start in containers and non-systemd environments.
+
+## Compatibility Shims
+
+To avoid forking `power-profiles-daemon` (PPD) or `GameMode` — which would
+maintain parallel policy stacks and contradict ADR 0004 — `optid` implements
+their D-Bus interfaces on its own connection. Existing desktop software drives
+`optid` mode changes without code changes on their side.
+
+### PPD shim (`net.hadess.PowerProfiles`) — Phase B1
+
+`crates/optid/src/shim/ppd.rs` implements the `net.hadess.PowerProfiles`
+interface at `/net/hadess/PowerProfiles` on optid's system-bus connection.
+GNOME Settings → Power slider and KDE `powerdevil` speak this interface
+directly. The mapping is configurable via `config/optid/policy.toml`'s
+`[shim.ppd.profiles]` table; defaults are `power-saver → battery`,
+`balanced → auto` (clears override), `performance → performance`.
+
+Properties exposed:
+
+- `ActiveProfile` (Get/Set, `emits_changed_signal = "true"`) — translates
+  to/from optid's `Mode` strings written to `state_dir/mode`.
+- `Profiles` — `aa{sv}` array of the three standard PPD profiles.
+- `Actions` — `[]` (optid implements no PPD actions).
+- `PerformanceDegraded` — `""` (thermal backoff is handled inside
+  `policy.rs::auto_mode`, transparent to PPD clients).
+
+Methods: `HoldProfile(profile, reason, app_id) → cookie`,
+`ReleaseProfile(cookie)`. The cookie registry is an in-memory
+`Mutex<HashMap<u32, Hold>>` with a monotonic counter starting at 1; the
+most-recently-registered hold wins; on last release, the persisted mode
+reverts to `auto`.
+
+Custom signals `ActiveProfileChanged` and `ProfileReleased` are declared
+(they appear in introspection XML) but not emitted in v0.6 — clients see
+profile changes via the standard `PropertiesChanged` signal, which zbus
+auto-emits because `ActiveProfile` carries `emits_changed_signal = "true"`.
+
+### Conflict interaction
+
+When Phase B3's conflict check detects an active
+`power-profiles-daemon.service`, the PPD shim is NOT registered (claiming
+the `net.hadess.PowerProfiles` bus name would fail against the running
+PPD). The conflict report's advice tells the operator to mask PPD and
+restart optid to enable the shim.
 
 ## Inputs
 

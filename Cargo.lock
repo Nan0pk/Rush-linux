@@ -460,6 +460,7 @@ dependencies = [
  "signal-hook",
  "toml",
  "zbus",
+ "zvariant",
 ]
 
 [[package]]

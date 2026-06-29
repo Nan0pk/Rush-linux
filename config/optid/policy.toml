@@ -10,6 +10,26 @@ competing_policy_daemons = [
   "tuned.service",
 ]
 
+# v0.6 Phase B1: PPD compatibility shim configuration.
+# The shim implements net.hadess.PowerProfiles on optid's D-Bus connection
+# so GNOME Settings and KDE powerdevil drive optid without code changes.
+# When the shim is active (no PPD conflict detected at startup), optid
+# claims the net.hadess.PowerProfiles bus name.
+#
+# The [shim.ppd.profiles] map overrides the default PPD profile → optid
+# mode mapping. Omitted profile names fall back to:
+#   power-saver  → battery
+#   balanced     → auto   (clears override; classifier drives mode)
+#   performance  → performance
+# Mapping values must be valid optid Mode strings: auto, battery,
+# balanced, performance, realtime. An invalid value causes the PPD
+# Set / HoldProfile call to fail with a clear error.
+[shim.ppd.profiles]
+# Default mapping — uncomment and edit to override per-deployment.
+# "power-saver"  = "battery"
+# "balanced"     = "auto"
+# "performance"  = "performance"
+
 [thresholds]
 cpu_pressure_perf_avg10 = 12.0
 memory_pressure_protect_avg10 = 5.0

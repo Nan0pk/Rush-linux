@@ -11,6 +11,7 @@
 //! what makes `optctl explain` truthful: every reason in the rendered report
 //! is reproducible from the inputs.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -36,6 +37,42 @@ pub(crate) struct Policy {
     pub(crate) thresholds: Thresholds,
     pub(crate) modes: Modes,
     pub(crate) memory: MemoryConfig,
+    /// v0.6 Phase B1: `[shim]` top-level section carrying shim-specific
+    /// configuration. Currently only the PPD sub-table is parsed; the
+    /// GameMode sub-table (Phase B2) will land next. Defaults to an empty
+    /// `ShimConfig` when the section is absent, which makes every shim
+    /// use its hardcoded default mapping.
+    #[serde(default)]
+    pub(crate) shim: ShimConfig,
+}
+
+/// v0.6 Phase B1: the `[shim]` top-level section of
+/// `config/optid/policy.toml`. Groups configuration for all compatibility
+/// shims (PPD now; GameMode in Phase B2).
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub(crate) struct ShimConfig {
+    #[serde(default)]
+    pub(crate) ppd: PpdShimConfig,
+}
+
+/// v0.6 Phase B1: the `[shim.ppd]` sub-table. Currently carries only the
+/// optional `profiles` map that overrides the default PPD-profile →
+/// optid-mode mapping. The default mapping (power-saver→battery,
+/// balanced→auto, performance→performance) is hardcoded in
+/// `shim::ppd::default_mode_for_profile` and used whenever `profiles`
+/// doesn't override a given profile name.
+///
+/// Example TOML:
+///
+/// ```toml
+/// [shim.ppd.profiles]
+/// "performance" = "realtime"   # opt for realtime mode on PPD performance
+/// "custom-game" = "performance"  # add a non-standard profile name
+/// ```
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub(crate) struct PpdShimConfig {
+    #[serde(default)]
+    pub(crate) profiles: HashMap<String, String>,
 }
 
 /// v0.6 Phase B3: the `[policy]` section of `config/optid/policy.toml`.
@@ -156,6 +193,10 @@ impl Default for Policy {
             memory: MemoryConfig {
                 high_swappiness_requires_zram: true,
             },
+            // v0.6 Phase B1: empty shim config = use the hardcoded default
+            // PPD profile → optid mode mapping. Operators override via
+            // [shim.ppd.profiles] in policy.toml.
+            shim: ShimConfig::default(),
         }
     }
 }
