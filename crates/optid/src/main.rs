@@ -44,6 +44,7 @@ use io_util::{
 };
 use policy::Policy;
 use sensors::Snapshot;
+use shim::PpdServer;
 use workload::{
     read_global_pinned_class, read_mode_override, read_pinned_class, HysteresisState, Mode,
     ModeHysteresisState, WorkloadClass,
@@ -125,16 +126,47 @@ fn run(args: Args) -> io::Result<()> {
     revert_display(&args.state_dir);
 
     let state_dir_clone = args.state_dir.clone();
+    // v0.6 Phase B1: clone the PPD profile map for the D-Bus thread. The
+    // map is read from policy.toml at startup; runtime changes to the file
+    // are not picked up by the shim (the daemon must be restarted). This
+    // matches PPD's behavior — its config is also load-on-startup.
+    let ppd_profile_map = policy_for_conflicts.shim.ppd.profiles.clone();
+    // v0.6 Phase B1: skip registering the PPD shim when PPD is detected
+    // as a conflicting daemon. Attempting to claim the
+    // `net.hadess.PowerProfiles` bus name would fail and the conflict
+    // report already advised the operator to mask PPD. We also skip when
+    // `--apply` was downgraded due to *any* conflict, since the shim's
+    // writes to state_dir/mode would be ignored by a dry-run daemon.
+    let ppd_shim_disabled = conflict_report.is_blocking();
     thread::spawn(move || {
         let server = OptidServer {
-            state_dir: state_dir_clone,
+            state_dir: state_dir_clone.clone(),
         };
+        let ppd_server = PpdServer::new(state_dir_clone.clone(), ppd_profile_map);
         let run_server = || -> zbus::Result<()> {
-            let _conn = ConnectionBuilder::system()?
+            let mut builder = ConnectionBuilder::system()?
                 .name("io.rushlinux.Optid")?
-                .serve_at("/io/rushlinux/Optid", server)?
-                .build()?;
-            println!("D-Bus server running on system bus at /io/rushlinux/Optid");
+                .serve_at("/io/rushlinux/Optid", server)?;
+            if !ppd_shim_disabled {
+                // Register the PPD shim only when no PPD conflict was
+                // detected. The second `name` call claims the
+                // `net.hadess.PowerProfiles` bus name so PPD clients
+                // (GNOME Settings, KDE powerdevil) find us.
+                builder = builder
+                    .name("net.hadess.PowerProfiles")?
+                    .serve_at("/net/hadess/PowerProfiles", ppd_server)?;
+                println!(
+                    "D-Bus server running on system bus at /io/rushlinux/Optid \
+                     and /net/hadess/PowerProfiles (PPD shim)"
+                );
+            } else {
+                eprintln!(
+                    "optid: PPD shim disabled — conflicting daemon(s) active. \
+                     Mask power-profiles-daemon.service and restart optid to enable."
+                );
+                println!("D-Bus server running on system bus at /io/rushlinux/Optid");
+            }
+            let _conn = builder.build()?;
             loop {
                 thread::park();
             }
