@@ -63,6 +63,11 @@ pub(crate) enum WorkloadClass {
     Interactive,
     LatencyCritical,
     Throughput,
+    /// v0.6 Phase C2: platform-forced class for VM guests. Selected by
+    /// the classifier when DMI reports a hypervisor vendor. NOT
+    /// user-selectable via `optctl pin`.
+    #[serde(rename = "vm.guest")]
+    VmGuest,
 }
 
 impl fmt::Display for WorkloadClass {
@@ -73,6 +78,7 @@ impl fmt::Display for WorkloadClass {
             Self::Interactive => "interactive",
             Self::LatencyCritical => "latency-critical",
             Self::Throughput => "throughput",
+            Self::VmGuest => "vm.guest",
         };
         f.write_str(value)
     }
@@ -86,6 +92,8 @@ impl WorkloadClass {
             "interactive" => Some(Self::Interactive),
             "latency-critical" => Some(Self::LatencyCritical),
             "throughput" => Some(Self::Throughput),
+            // v0.6 Phase C2: accept "vm.guest" for state-file reads.
+            "vm.guest" => Some(Self::VmGuest),
             _ => None,
         }
     }
@@ -286,6 +294,7 @@ mod tests {
             "interactive",
             "latency-critical",
             "throughput",
+            "vm.guest",
         ] {
             let c = WorkloadClass::parse(s).unwrap_or_else(|| panic!("parse {s}"));
             assert_eq!(c.to_string(), s);

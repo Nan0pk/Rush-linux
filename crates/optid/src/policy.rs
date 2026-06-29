@@ -275,15 +275,27 @@ impl Policy {
         }
     }
 
-    /// Classify the current snapshot into one of the five SPEC §1 workload
-    /// classes. Pure function. Highest precedence: explicit pins (global pin
-    /// beats foreground pin beats telemetry).
+    /// Classify the current snapshot into one of the six SPEC §1 workload
+    /// classes (Idle, Light, Interactive, LatencyCritical, Throughput,
+    /// VmGuest). Pure function. Highest precedence: explicit pins (global
+    /// pin beats foreground pin beats telemetry). Platform-forced
+    /// `VmGuest` class wins over telemetry but loses to explicit pins.
     pub(crate) fn classify(&self, snapshot: &Snapshot) -> (WorkloadClass, String) {
         if let Some(pinned) = snapshot.global_pinned_class {
             return (pinned, "pinned override (global)".to_string());
         }
         if let Some(pinned) = snapshot.pinned_class {
             return (pinned, "pinned override for foreground app".to_string());
+        }
+
+        // v0.6 Phase C2: when DMI reports a hypervisor vendor, return
+        // the platform-forced VmGuest class. Explicit pins (handled
+        // above) still win, so operators can override.
+        if snapshot.is_vm_guest {
+            return (
+                WorkloadClass::VmGuest,
+                "platform-forced vm.guest (DMI reports hypervisor vendor)".to_string(),
+            );
         }
 
         let load = snapshot.loadavg_1.unwrap_or(0.0);
@@ -670,6 +682,31 @@ impl Policy {
             return Mode::Balanced;
         }
 
+        // v0.6 Phase C2: VM-guest sensor weighting. The hypervisor
+        // scheduler distorts PSI avg10. Apply the proposal's weighting:
+        //   - PSI avg10 × 0.5 (de-rate the distorted signal)
+        //   - loadavg is the primary signal
+        if snapshot.is_vm_guest {
+            let load = snapshot.loadavg_1.unwrap_or(0.0);
+            let cpu_pressure_dilated = snapshot.cpu_pressure.map(|p| p.avg10 * 0.5).unwrap_or(0.0);
+            if snapshot.on_ac == Some(false) {
+                if snapshot
+                    .battery_pct
+                    .is_some_and(|pct| pct <= self.thresholds.low_battery_pct)
+                {
+                    return Mode::Battery;
+                }
+                if load >= 4.0 || cpu_pressure_dilated >= self.thresholds.cpu_pressure_perf_avg10 {
+                    return Mode::Balanced;
+                }
+                return Mode::Battery;
+            }
+            if load >= 4.0 || cpu_pressure_dilated >= self.thresholds.cpu_pressure_perf_avg10 {
+                return Mode::Performance;
+            }
+            return Mode::Balanced;
+        }
+
         if snapshot.on_ac == Some(false) {
             if snapshot
                 .battery_pct
@@ -696,5 +733,201 @@ impl Policy {
         }
 
         Mode::Balanced
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! v0.6 Phase C2 — `vm.guest` workload class tests.
+
+    use super::*;
+    use crate::sensors::Pressure;
+
+    fn vm_snapshot(
+        loadavg_1: Option<f32>,
+        cpu_pressure_avg10: Option<f32>,
+        on_ac: Option<bool>,
+    ) -> Snapshot {
+        let cpu_pressure = cpu_pressure_avg10.map(|avg10| Pressure {
+            avg10,
+            avg60: avg10,
+            avg300: avg10,
+            total: 0,
+        });
+        Snapshot {
+            timestamp: 0,
+            on_ac,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1,
+            cpu_pressure,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
+            is_vm_guest: true,
+        }
+    }
+
+    #[test]
+    fn vm_guest_classify_returns_vm_guest_when_is_vm_guest_true() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(true));
+        let (class, reason) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::VmGuest);
+        assert!(reason.contains("vm.guest"), "reason: {reason}");
+        assert!(reason.contains("DMI"), "reason: {reason}");
+    }
+
+    #[test]
+    fn vm_guest_classify_returns_vm_guest_regardless_of_load() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(64.0), Some(99.0), Some(true));
+        let (class, _) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::VmGuest);
+    }
+
+    #[test]
+    fn vm_guest_classify_returns_vm_guest_even_when_idle() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(0.0), Some(0.0), Some(true));
+        let (class, _) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::VmGuest);
+    }
+
+    #[test]
+    fn vm_guest_classify_returns_vm_guest_on_battery() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(2.0), Some(5.0), Some(false));
+        let (class, _) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::VmGuest);
+    }
+
+    #[test]
+    fn vm_guest_classify_explicit_global_pin_wins_over_vm_guest() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(2.0), Some(5.0), Some(true));
+        snapshot.global_pinned_class = Some(WorkloadClass::Throughput);
+        let (class, reason) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::Throughput);
+        assert!(reason.contains("pinned override (global)"));
+    }
+
+    #[test]
+    fn vm_guest_classify_explicit_app_pin_wins_over_vm_guest() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(2.0), Some(5.0), Some(true));
+        snapshot.pinned_class = Some(WorkloadClass::LatencyCritical);
+        let (class, reason) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::LatencyCritical);
+        assert!(reason.contains("pinned override for foreground app"));
+    }
+
+    #[test]
+    fn vm_guest_classify_non_vm_uses_regular_logic_throughput() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(true));
+        snapshot.is_vm_guest = false;
+        let (class, _) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::Throughput);
+    }
+
+    #[test]
+    fn vm_guest_classify_non_vm_uses_regular_logic_idle() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(0.0), Some(0.0), Some(true));
+        snapshot.is_vm_guest = false;
+        let (class, _) = policy.classify(&snapshot);
+        assert_eq!(class, WorkloadClass::Idle);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_high_load_returns_performance_on_ac() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(8.0), Some(0.0), Some(true));
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Performance);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_low_load_returns_balanced_on_ac() {
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(0.5), Some(0.0), Some(true));
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Balanced);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_psi_is_dilated_by_half() {
+        // PSI avg10 = 20.0 in a VM is treated as 10.0 (× 0.5). With
+        // loadavg = 0.5 and threshold = 12.0, the dilated 10.0 is BELOW
+        // the threshold → Balanced. Without dilation, 20.0 would be
+        // ABOVE 12.0 → Performance.
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(0.5), Some(20.0), Some(true));
+        assert_eq!(
+            policy.auto_mode(&snapshot),
+            Mode::Balanced,
+            "PSI 20.0 × 0.5 = 10.0 < threshold 12.0 → Balanced"
+        );
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_dilated_psi_above_threshold_returns_performance() {
+        // PSI avg10 = 30.0 in a VM is treated as 15.0 (× 0.5). With
+        // loadavg = 0.5 and threshold = 12.0, the dilated 15.0 is ABOVE
+        // the threshold → Performance.
+        let policy = Policy::default();
+        let snapshot = vm_snapshot(Some(0.5), Some(30.0), Some(true));
+        assert_eq!(
+            policy.auto_mode(&snapshot),
+            Mode::Performance,
+            "PSI 30.0 × 0.5 = 15.0 > threshold 12.0 → Performance"
+        );
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_on_battery_low_battery_returns_battery() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(false));
+        snapshot.battery_pct = Some(10);
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Battery);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_on_battery_high_load_returns_balanced() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(8.0), Some(0.0), Some(false));
+        snapshot.battery_pct = Some(80);
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Balanced);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_on_battery_low_load_returns_battery() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(0.5), Some(0.0), Some(false));
+        snapshot.battery_pct = Some(80);
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Battery);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_critical_thermal_overrides_to_balanced() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(true));
+        snapshot.max_temp_millic = Some(95_000);
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Balanced);
+    }
+
+    #[test]
+    fn vm_guest_auto_mode_non_vm_uses_regular_psi_threshold() {
+        let policy = Policy::default();
+        let mut snapshot = vm_snapshot(Some(0.5), Some(20.0), Some(true));
+        snapshot.is_vm_guest = false;
+        assert_eq!(policy.auto_mode(&snapshot), Mode::Performance);
     }
 }

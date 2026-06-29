@@ -158,6 +158,10 @@ impl Contracts {
             WorkloadClass::Interactive => self.interactive,
             WorkloadClass::LatencyCritical => self.latency_critical,
             WorkloadClass::Throughput => self.throughput,
+            // v0.6 Phase C2: VmGuest uses the interactive contract.
+            // PM QoS to the host CPU doesn't propagate, so the 10us
+            // latency-critical floor is unenforceable in a guest.
+            WorkloadClass::VmGuest => self.interactive,
         }
     }
 }
@@ -205,9 +209,28 @@ mod tests {
             WorkloadClass::Interactive,
             WorkloadClass::LatencyCritical,
             WorkloadClass::Throughput,
+            WorkloadClass::VmGuest,
         ] {
             let _ = c.resolve(class);
         }
+    }
+
+    #[test]
+    fn vm_guest_resolve_returns_interactive_floors() {
+        let c = Contracts::default();
+        let vm_guest_floors = c.resolve(WorkloadClass::VmGuest);
+        let interactive_floors = c.resolve(WorkloadClass::Interactive);
+        assert_eq!(vm_guest_floors, interactive_floors);
+        assert_eq!(vm_guest_floors.cpu_wakeup_latency, 1000);
+        assert_eq!(vm_guest_floors.device_resume_latency, 10000);
+    }
+
+    #[test]
+    fn vm_guest_resolve_does_not_return_latency_critical_floors() {
+        let c = Contracts::default();
+        let vm_guest_floors = c.resolve(WorkloadClass::VmGuest);
+        let lc_floors = c.resolve(WorkloadClass::LatencyCritical);
+        assert_ne!(vm_guest_floors, lc_floors);
     }
 
     #[test]
