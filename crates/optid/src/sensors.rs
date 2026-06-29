@@ -55,6 +55,8 @@ pub(crate) struct Snapshot {
     /// The active backlight device dir (`/sys/class/backlight/<name>`) selected
     /// by the §1.1 heuristic — WP-N7. `None` when no backlight is present.
     pub(crate) selected_backlight: Option<PathBuf>,
+    /// v0.6 Phase C2: `true` when DMI reports a hypervisor vendor.
+    pub(crate) is_vm_guest: bool,
 }
 
 impl Snapshot {
@@ -79,6 +81,7 @@ impl Snapshot {
             selected_backlight: crate::actuators::display::select_backlight(
                 &discover_backlight_devices(),
             ),
+            is_vm_guest: detect_vm_guest(),
         }
     }
 
@@ -281,6 +284,33 @@ pub(crate) fn read_zram_swap_active() -> bool {
     false
 }
 
+/// v0.6 Phase C2: Read `/sys/class/dmi/id/sys_vendor` and return `true`
+/// if the vendor string matches a known hypervisor.
+pub(crate) fn detect_vm_guest() -> bool {
+    let Ok(text) = fs::read_to_string("/sys/class/dmi/id/sys_vendor") else {
+        return false;
+    };
+    is_vm_guest_sys_vendor(text.trim())
+}
+
+/// v0.6 Phase C2: Pure predicate — does `sys_vendor` match a known
+/// hypervisor vendor? Separated from `detect_vm_guest` so tests can
+/// exercise the matching logic without poking at `/sys`.
+pub(crate) fn is_vm_guest_sys_vendor(sys_vendor: &str) -> bool {
+    let v = sys_vendor.trim().to_ascii_lowercase();
+    matches!(
+        v.as_str(),
+        "qemu"
+            | "kvm"
+            | "vmware, inc."
+            | "vmware"
+            | "xen"
+            | "microsoft corporation"
+            | "innotek gmbh"
+            | "parallels software international inc."
+    )
+}
+
 pub(crate) fn read_max_thermal_millic() -> Option<i64> {
     let entries = fs::read_dir("/sys/class/thermal").ok()?;
     entries
@@ -342,5 +372,82 @@ mod tests {
         assert!(s.contains("avg60=0.20"));
         assert!(s.contains("avg300=0.30"));
         assert!(s.contains("total=7"));
+    }
+
+    // ── v0.6 Phase C2: is_vm_guest_sys_vendor ────────────────────────────
+
+    #[test]
+    fn vm_guest_detects_qemu() {
+        assert!(is_vm_guest_sys_vendor("QEMU"));
+        assert!(is_vm_guest_sys_vendor("qemu"));
+        assert!(is_vm_guest_sys_vendor("  QEMU  "));
+    }
+
+    #[test]
+    fn vm_guest_detects_kvm() {
+        assert!(is_vm_guest_sys_vendor("KVM"));
+        assert!(is_vm_guest_sys_vendor("kvm"));
+    }
+
+    #[test]
+    fn vm_guest_detects_vmware() {
+        assert!(is_vm_guest_sys_vendor("VMware, Inc."));
+        assert!(is_vm_guest_sys_vendor("vmware, inc."));
+        assert!(is_vm_guest_sys_vendor("VMware"));
+    }
+
+    #[test]
+    fn vm_guest_detects_xen() {
+        assert!(is_vm_guest_sys_vendor("Xen"));
+        assert!(is_vm_guest_sys_vendor("xen"));
+    }
+
+    #[test]
+    fn vm_guest_detects_microsoft_hyperv() {
+        assert!(is_vm_guest_sys_vendor("Microsoft Corporation"));
+        assert!(is_vm_guest_sys_vendor("microsoft corporation"));
+    }
+
+    #[test]
+    fn vm_guest_detects_innotek_virtualbox() {
+        assert!(is_vm_guest_sys_vendor("innotek GmbH"));
+        assert!(is_vm_guest_sys_vendor("Innotek GmbH"));
+    }
+
+    #[test]
+    fn vm_guest_detects_parallels() {
+        assert!(is_vm_guest_sys_vendor(
+            "Parallels Software International Inc."
+        ));
+        assert!(is_vm_guest_sys_vendor(
+            "parallels software international inc."
+        ));
+    }
+
+    #[test]
+    fn vm_guest_rejects_real_hardware_vendors() {
+        assert!(!is_vm_guest_sys_vendor("ASUS"));
+        assert!(!is_vm_guest_sys_vendor("Dell Inc."));
+        assert!(!is_vm_guest_sys_vendor("HP"));
+        assert!(!is_vm_guest_sys_vendor("Lenovo"));
+        assert!(!is_vm_guest_sys_vendor("Apple Inc."));
+        assert!(!is_vm_guest_sys_vendor("Gigabyte Technology Co., Ltd."));
+        assert!(!is_vm_guest_sys_vendor("Intel Corporation"));
+        assert!(!is_vm_guest_sys_vendor("AMD"));
+    }
+
+    #[test]
+    fn vm_guest_rejects_empty_and_garbage() {
+        assert!(!is_vm_guest_sys_vendor(""));
+        assert!(!is_vm_guest_sys_vendor("   "));
+        assert!(!is_vm_guest_sys_vendor("not-a-vendor"));
+        assert!(!is_vm_guest_sys_vendor("QEMU-like"));
+        assert!(!is_vm_guest_sys_vendor("vmware clone"));
+    }
+
+    #[test]
+    fn vm_guest_handles_newline_trailing() {
+        assert!(is_vm_guest_sys_vendor("QEMU\n"));
+        assert!(is_vm_guest_sys_vendor("VMware, Inc.\n"));
     }
 }

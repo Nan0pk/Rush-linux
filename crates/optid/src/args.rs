@@ -14,6 +14,15 @@ pub(crate) const DEFAULT_INTERVAL_SEC: u64 = 2;
 pub(crate) const DEFAULT_DWELL_WINDOW_SEC: u64 = 3;
 pub(crate) const DEFAULT_MODE_DWELL_WINDOW_SEC: u64 = DEFAULT_INTERVAL_SEC * 3;
 
+/// v0.6 Phase C1: foreground-detection mode. `Off` (default in v0.6)
+/// disables the foreground subscriber entirely. `Auto` spawns the
+/// subscriber thread — in v0.6 this is a stub that never yields events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ForegroundMode {
+    Off,
+    Auto,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Args {
     pub(crate) apply: bool,
@@ -23,13 +32,10 @@ pub(crate) struct Args {
     pub(crate) state_dir: PathBuf,
     pub(crate) config_path: PathBuf,
     /// WP-N4 hardware allowlist gate. Default `true` (enabled) as of v0.6
-    /// Phase A3 — see docs/research/0006-hw-allowlist-db-design.md §7.
-    /// When `true`, depth-enabler writes are default-denied unless the
-    /// device's HWID is allowlisted, and every denial is audited. The
-    /// `--no-allowlist` flag is an emergency escape hatch for bring-up on
-    /// hardware the seeded baseline does not yet cover; it must not be the
-    /// default in any released build.
+    /// Phase A3.
     pub(crate) allowlist: bool,
+    /// v0.6 Phase C1: foreground-detection mode. Default `Off` (v0.6).
+    pub(crate) foreground: ForegroundMode,
 }
 
 impl Args {
@@ -46,6 +52,8 @@ impl Args {
             config_path: PathBuf::from(DEFAULT_CONFIG_PATH),
             // v0.6 Phase A3: default-on per docs/research/0006 §7.
             allowlist: true,
+            // v0.6 Phase C1: foreground detection default-off.
+            foreground: ForegroundMode::Off,
         };
 
         let mut it = iter.into_iter();
@@ -54,9 +62,6 @@ impl Args {
                 "--apply" => args.apply = true,
                 "--once" => args.once = true,
                 "-h" | "--help" => args.help = true,
-                // v0.6 Phase A3: default is now enabled. The bare `--allowlist`
-                // form remains accepted (idempotent set to true) for
-                // backward-compat with scripts that explicitly enable the gate.
                 "--allowlist" => args.allowlist = true,
                 "--allowlist=enabled" => args.allowlist = true,
                 "--allowlist=disabled" => args.allowlist = false,
@@ -81,6 +86,29 @@ impl Args {
                         .ok_or_else(|| "--config requires a value".to_string())?;
                     args.config_path = PathBuf::from(value);
                 }
+                // v0.6 Phase C1: foreground-detection mode.
+                "--foreground" => {
+                    let value = it
+                        .next()
+                        .ok_or_else(|| "--foreground requires a value (off|auto)".to_string())?;
+                    args.foreground = match value.as_str() {
+                        "off" => ForegroundMode::Off,
+                        "auto" => ForegroundMode::Auto,
+                        _ => {
+                            return Err(format!(
+                                "invalid --foreground value: {value} (expected off|auto)"
+                            ));
+                        }
+                    };
+                }
+                "--foreground=off" => args.foreground = ForegroundMode::Off,
+                "--foreground=auto" => args.foreground = ForegroundMode::Auto,
+                other if other.starts_with("--foreground=") => {
+                    let value = other.strip_prefix("--foreground=").unwrap();
+                    return Err(format!(
+                        "invalid --foreground value: {value} (expected off|auto)"
+                    ));
+                }
                 unknown => return Err(format!("unknown argument: {unknown}")),
             }
         }
@@ -97,11 +125,14 @@ pub(crate) fn print_usage() {
     println!(
         "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
          \x20            [--allowlist[=enabled|disabled]] [--no-allowlist]\n\
+         \x20            [--foreground=off|auto]\n\
          \n\
          Default mode is dry-run. Use --apply only on Rush Linux or a test host.\n\
          The WP-N4 hardware allowlist gate is ENABLED by default (v0.6 Phase A3).\n\
          --no-allowlist disables it (emergency escape hatch for bring-up on\n\
-         hardware the seeded baseline does not yet cover)."
+         hardware the seeded baseline does not yet cover).\n\
+         --foreground=auto enables foreground-app detection (v0.6 stub — real\n\
+         compositor integration lands in v0.7). Default is off."
     );
 }
 
@@ -164,5 +195,66 @@ mod tests {
         assert!(args.apply);
         assert!(args.once);
         assert!(!args.allowlist);
+    }
+
+    // v0.6 Phase C1: foreground-detection flag tests.
+
+    #[test]
+    fn foreground_default_is_off() {
+        let args = Args::parse(std::iter::empty::<String>()).unwrap();
+        assert_eq!(args.foreground, ForegroundMode::Off);
+    }
+
+    #[test]
+    fn foreground_auto_enables_detection() {
+        let args = Args::parse(["--foreground=auto".to_string()]).unwrap();
+        assert_eq!(args.foreground, ForegroundMode::Auto);
+    }
+
+    #[test]
+    fn foreground_off_disables_detection() {
+        let args = Args::parse(["--foreground=off".to_string()]).unwrap();
+        assert_eq!(args.foreground, ForegroundMode::Off);
+    }
+
+    #[test]
+    fn foreground_space_separated_value() {
+        let args = Args::parse(["--foreground".to_string(), "auto".to_string()]).unwrap();
+        assert_eq!(args.foreground, ForegroundMode::Auto);
+    }
+
+    #[test]
+    fn foreground_invalid_value_rejected() {
+        let err = Args::parse(["--foreground=on".to_string()]).unwrap_err();
+        assert!(
+            err.contains("on"),
+            "error should mention the bad value: {err}"
+        );
+        assert!(
+            err.contains("off|auto"),
+            "error should list valid values: {err}"
+        );
+    }
+
+    #[test]
+    fn foreground_missing_value_rejected() {
+        let err = Args::parse(["--foreground".to_string()]).unwrap_err();
+        assert!(
+            err.contains("requires a value"),
+            "error should explain: {err}"
+        );
+    }
+
+    #[test]
+    fn foreground_auto_composes_with_other_flags() {
+        let args = Args::parse([
+            "--apply".to_string(),
+            "--once".to_string(),
+            "--foreground=auto".to_string(),
+        ])
+        .unwrap();
+        assert!(args.apply);
+        assert!(args.once);
+        assert_eq!(args.foreground, ForegroundMode::Auto);
     }
 }

@@ -30,6 +30,29 @@ competing_policy_daemons = [
 # "balanced"     = "auto"
 # "performance"  = "performance"
 
+# v0.6 Phase B2: GameMode compatibility shim configuration.
+# The shim implements com.feralinteractive.GameMode on optid's D-Bus
+# connection so Steam, Lutris, and Heroic drive optid without code changes.
+# On RegisterGame(pid), optid writes state_dir/pins/<pid> with the
+# configured pin_class (default: latency-critical). The run loop reads
+# the pin on the next tick and applies the latency contract. On
+# UnregisterGame(pid), the pin file is removed.
+#
+# The TTL is best-effort: stale registrations are expired lazily on the
+# next RegisterGame / QueryStatus / QueryStatusClient call.
+[shim.gamemode]
+ttl_sec = 1800                      # 30 minutes (default)
+pin_class = "latency-critical"      # default; one of: idle, light, interactive, latency-critical, throughput
+
+# v0.6 Phase C1: foreground-app detection configuration.
+# When --foreground=auto is passed (default is off), optid spawns a
+# subscriber thread that — in v0.6 — is a stub (never yields events).
+# v0.7 will fill in real compositor integration (login1 SessionNew +
+# Mutter/KWin/wlr-foreign-toplevel-management focus signals) and use
+# this config to map window classes to workload classes.
+[foreground]
+game_class = "latency-critical"     # default; class to pin game windows to
+
 [thresholds]
 cpu_pressure_perf_avg10 = 12.0
 memory_pressure_protect_avg10 = 5.0

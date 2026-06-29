@@ -37,6 +37,9 @@ impl OptidServer {
     }
 
     fn pin_application(&self, app_id: &str, class: &str) -> zbus::fdo::Result<()> {
+        // v0.6 Phase C2: this hardcoded list intentionally does NOT
+        // include "vm.guest". The VmGuest class is platform-forced and
+        // cannot be set manually via optctl pin.
         let classes = [
             "idle",
             "light",

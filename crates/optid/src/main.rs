@@ -25,6 +25,7 @@ mod args;
 mod contracts;
 mod dbus;
 mod decision;
+mod foreground;
 mod io_util;
 mod policy;
 mod sensors;
@@ -44,7 +45,7 @@ use io_util::{
 };
 use policy::Policy;
 use sensors::Snapshot;
-use shim::PpdServer;
+use shim::{GameModeServer, PpdServer};
 use workload::{
     read_global_pinned_class, read_mode_override, read_pinned_class, HysteresisState, Mode,
     ModeHysteresisState, WorkloadClass,
@@ -131,38 +132,66 @@ fn run(args: Args) -> io::Result<()> {
     // are not picked up by the shim (the daemon must be restarted). This
     // matches PPD's behavior — its config is also load-on-startup.
     let ppd_profile_map = policy_for_conflicts.shim.ppd.profiles.clone();
-    // v0.6 Phase B1: skip registering the PPD shim when PPD is detected
-    // as a conflicting daemon. Attempting to claim the
-    // `net.hadess.PowerProfiles` bus name would fail and the conflict
-    // report already advised the operator to mask PPD. We also skip when
-    // `--apply` was downgraded due to *any* conflict, since the shim's
-    // writes to state_dir/mode would be ignored by a dry-run daemon.
-    let ppd_shim_disabled = conflict_report.is_blocking();
+    // v0.6 Phase B2: clone the GameMode config (pin class + TTL) for the
+    // D-Bus thread. Same load-on-startup semantics as PPD.
+    let gamemode_pin_class = policy_for_conflicts.shim.gamemode.pin_class.clone();
+    let gamemode_ttl_sec = policy_for_conflicts.shim.gamemode.ttl_sec;
+    // v0.6 Phase B1+B2: skip registering shims when a conflict is
+    // detected. Attempting to claim the bus names would fail and the
+    // conflict report already advised the operator to mask the
+    // conflicting daemons. We also skip when `--apply` was downgraded
+    // due to *any* conflict, since the shims' writes to state_dir would
+    // be ignored by a dry-run daemon.
+    let shims_disabled = conflict_report.is_blocking();
     thread::spawn(move || {
         let server = OptidServer {
             state_dir: state_dir_clone.clone(),
         };
         let ppd_server = PpdServer::new(state_dir_clone.clone(), ppd_profile_map);
+        let gamemode_server = GameModeServer::new(
+            state_dir_clone.clone(),
+            gamemode_pin_class,
+            gamemode_ttl_sec,
+        );
+        // v0.6 Phase B2: fail fast on a misconfigured pin_class.
+        if !gamemode_server.pin_class_is_valid() {
+            eprintln!(
+                "optid: GameMode shim disabled — [shim.gamemode].pin_class in policy.toml \
+                 is not a valid workload class. Edit the file and restart optid."
+            );
+        }
         let run_server = || -> zbus::Result<()> {
             let mut builder = ConnectionBuilder::system()?
                 .name("io.rushlinux.Optid")?
                 .serve_at("/io/rushlinux/Optid", server)?;
-            if !ppd_shim_disabled {
-                // Register the PPD shim only when no PPD conflict was
-                // detected. The second `name` call claims the
-                // `net.hadess.PowerProfiles` bus name so PPD clients
-                // (GNOME Settings, KDE powerdevil) find us.
+            if !shims_disabled {
+                // v0.6 Phase B1: register the PPD shim.
                 builder = builder
                     .name("net.hadess.PowerProfiles")?
                     .serve_at("/net/hadess/PowerProfiles", ppd_server)?;
-                println!(
-                    "D-Bus server running on system bus at /io/rushlinux/Optid \
-                     and /net/hadess/PowerProfiles (PPD shim)"
-                );
+                // v0.6 Phase B2: register the GameMode shim. Only register
+                // if the pin_class config validated.
+                if gamemode_server.pin_class_is_valid() {
+                    builder = builder
+                        .name("com.feralinteractive.GameMode")?
+                        .serve_at("/com/feralinteractive/GameMode", gamemode_server)?;
+                    println!(
+                        "D-Bus server running on system bus at /io/rushlinux/Optid, \
+                         /net/hadess/PowerProfiles (PPD shim), and \
+                         /com/feralinteractive/GameMode (GameMode shim)"
+                    );
+                } else {
+                    println!(
+                        "D-Bus server running on system bus at /io/rushlinux/Optid \
+                         and /net/hadess/PowerProfiles (PPD shim). \
+                         GameMode shim skipped (invalid pin_class)."
+                    );
+                }
             } else {
                 eprintln!(
-                    "optid: PPD shim disabled — conflicting daemon(s) active. \
-                     Mask power-profiles-daemon.service and restart optid to enable."
+                    "optid: compatibility shims disabled — conflicting daemon(s) active. \
+                     Mask power-profiles-daemon.service (and/or gamemoded.service) and \
+                     restart optid to enable."
                 );
                 println!("D-Bus server running on system bus at /io/rushlinux/Optid");
             }
@@ -202,6 +231,23 @@ fn run(args: Args) -> io::Result<()> {
         }
         append_log(&args.state_dir.join("decisions.log"), &summary)?;
         actuator.enable_allowlist(al);
+    }
+
+    // v0.6 Phase C1: foreground-app detection. When --foreground=auto,
+    // spawn the subscriber thread. In v0.6 this is a stub that never
+    // yields events; v0.7 will fill in real compositor integration.
+    if args.foreground == args::ForegroundMode::Auto {
+        let fg_config = policy_for_conflicts.foreground.clone();
+        let _foreground_rx = foreground::subscribe(args.state_dir.clone(), fg_config);
+        append_log(
+            &args.state_dir.join("decisions.log"),
+            "optid: foreground detection ENABLED (--foreground=auto). \
+             v0.6 stub — real compositor integration lands in v0.7.\n",
+        )?;
+        eprintln!(
+            "optid: foreground detection enabled (v0.6 stub — \
+             no compositor integration yet; the subscriber thread is idle)"
+        );
     }
 
     loop {

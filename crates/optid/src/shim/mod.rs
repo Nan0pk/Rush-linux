@@ -9,6 +9,7 @@
 //! See `docs/plans/v0.6-hardware-aware-optid-proposal.md` §3 Phase B.
 
 pub(crate) mod conflict;
+pub(crate) mod gamemode;
 pub(crate) mod ppd;
 
 // `detect_conflicts` is the production entrypoint used by `main.rs`. The
@@ -16,4 +17,5 @@ pub(crate) mod ppd;
 // only inside `conflict::tests`; re-exporting them here would be dead code
 // in the binary. Tests reach them via `crate::shim::conflict::...` directly.
 pub(crate) use conflict::detect_conflicts;
+pub(crate) use gamemode::GameModeServer;
 pub(crate) use ppd::PpdServer;

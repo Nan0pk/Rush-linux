@@ -42,6 +42,7 @@ mod integration_tests {
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         run(args).unwrap();
@@ -135,6 +136,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let decision_with = policy.decide(
             &snapshot_with_zram,
@@ -170,6 +172,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let decision_no = policy.decide(
             &snapshot_no_zram,
@@ -212,6 +215,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         assert_eq!(policy.classify(&idle_snap).0, WorkloadClass::Idle);
 
@@ -234,6 +238,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         assert_eq!(policy.classify(&light_snap).0, WorkloadClass::Light);
 
@@ -256,6 +261,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         assert_eq!(policy.classify(&int_snap).0, WorkloadClass::Interactive);
 
@@ -281,6 +287,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         assert_eq!(policy.classify(&lc_snap).0, WorkloadClass::LatencyCritical);
 
@@ -306,6 +313,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         assert_eq!(policy.classify(&tp_snap).0, WorkloadClass::Throughput);
     }
@@ -331,6 +339,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let (class, reason) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::LatencyCritical);
@@ -361,6 +370,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let decision = policy.decide_resolved(
             &snap,
@@ -398,6 +408,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let res1 = policy.classify(&snap);
         let res2 = policy.classify(&snap);
@@ -428,6 +439,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let (_, reason) = policy.classify(&snap);
         assert!(reason.contains("high load") && reason.contains("high pressure"));
@@ -454,6 +466,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let (class, _) = policy.classify(&snap);
         assert_eq!(class, WorkloadClass::Interactive);
@@ -480,6 +493,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -509,6 +523,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -555,6 +570,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         let decision = policy.decide(
@@ -597,6 +613,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         let decision = policy.decide(
@@ -642,6 +659,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Battery);
@@ -680,6 +698,7 @@ mod integration_tests {
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         assert_eq!(policy.auto_mode(&snap), Mode::Balanced);
@@ -845,6 +864,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         run(args).unwrap();
@@ -1225,6 +1245,7 @@ device_resume_latency = 100000
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         let has_rpm = |d: &crate::decision::Decision| {
@@ -1470,6 +1491,7 @@ device_resume_latency = 100000
             pcie_aspm_device_paths: vec![PathBuf::from("/sys/bus/pci/devices/0000:01:00.0")],
             sata_alpm_host_paths: vec![PathBuf::from("/sys/class/scsi_host/host0")],
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let has_storage = |d: &crate::decision::Decision| {
             d.actions.iter().any(|a| {
@@ -1643,6 +1665,7 @@ device_resume_latency = 100000
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: Some(PathBuf::from("/sys/class/backlight/intel_backlight")),
+            is_vm_guest: false,
         };
         let has_bl = |d: &crate::decision::Decision| {
             d.actions
@@ -1781,6 +1804,7 @@ device_resume_latency = 100000
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
         let contracts = Contracts::default();
         let decision = policy.decide(
@@ -1824,6 +1848,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         let _handle = std::thread::spawn(move || {
@@ -1864,6 +1889,7 @@ device_resume_latency = 100000
             pcie_aspm_device_paths: Vec::new(),
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
+            is_vm_guest: false,
         };
 
         let policy = Policy::default();
@@ -1892,6 +1918,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         // If it runs successfully without panic, that satisfies "no panic, fall back to signals"
