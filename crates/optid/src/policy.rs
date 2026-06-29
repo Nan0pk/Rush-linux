@@ -44,6 +44,13 @@ pub(crate) struct Policy {
     /// use its hardcoded default mapping.
     #[serde(default)]
     pub(crate) shim: ShimConfig,
+    /// v0.6 Phase C1: `[foreground]` top-level section. Defaults to
+    /// `ForegroundConfig::default()` when absent. The config is parsed
+    /// but not used in v0.6 — real compositor integration is deferred
+    /// to v0.7.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) foreground: crate::foreground::ForegroundConfig,
 }
 
 /// v0.6 Phase B1: the `[shim]` top-level section of
@@ -241,6 +248,9 @@ impl Default for Policy {
             // PPD profile → optid mode mapping. Operators override via
             // [shim.ppd.profiles] in policy.toml.
             shim: ShimConfig::default(),
+            // v0.6 Phase C1: default foreground config (game_class =
+            // "latency-critical"). Operators override via [foreground].
+            foreground: crate::foreground::ForegroundConfig::default(),
         }
     }
 }

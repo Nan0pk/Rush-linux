@@ -42,6 +42,7 @@ mod integration_tests {
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         run(args).unwrap();
@@ -863,6 +864,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         run(args).unwrap();
@@ -1846,6 +1848,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         let _handle = std::thread::spawn(move || {
@@ -1915,6 +1918,7 @@ device_resume_latency = 100000
             state_dir: temp_dir.clone(),
             config_path,
             allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
         };
 
         // If it runs successfully without panic, that satisfies "no panic, fall back to signals"

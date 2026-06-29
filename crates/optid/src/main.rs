@@ -25,6 +25,7 @@ mod args;
 mod contracts;
 mod dbus;
 mod decision;
+mod foreground;
 mod io_util;
 mod policy;
 mod sensors;
@@ -230,6 +231,23 @@ fn run(args: Args) -> io::Result<()> {
         }
         append_log(&args.state_dir.join("decisions.log"), &summary)?;
         actuator.enable_allowlist(al);
+    }
+
+    // v0.6 Phase C1: foreground-app detection. When --foreground=auto,
+    // spawn the subscriber thread. In v0.6 this is a stub that never
+    // yields events; v0.7 will fill in real compositor integration.
+    if args.foreground == args::ForegroundMode::Auto {
+        let fg_config = policy_for_conflicts.foreground.clone();
+        let _foreground_rx = foreground::subscribe(args.state_dir.clone(), fg_config);
+        append_log(
+            &args.state_dir.join("decisions.log"),
+            "optid: foreground detection ENABLED (--foreground=auto). \
+             v0.6 stub — real compositor integration lands in v0.7.\n",
+        )?;
+        eprintln!(
+            "optid: foreground detection enabled (v0.6 stub — \
+             no compositor integration yet; the subscriber thread is idle)"
+        );
     }
 
     loop {
