@@ -1,5 +1,5 @@
 [project]
-current_version = "0.5.0-beta.1"
+current_version = "0.7.0-beta.1"
 final_target = "1.0.0"
 first_stable_arch = "x86_64"
 arm64_status = "experimental-until-tested"
@@ -138,6 +138,12 @@ note = "Closed by Dragnet-001 (2026-06-22, in-container): static analysis of the
 version = "0.6.0-beta.1"
 channel = "beta"
 name = "Hardware-Aware optid"
+# status intentionally NOT "complete": two quantitative criteria are
+# hardware-gated and await Phase D transcripts (Evidence Rule). The version
+# pointer has advanced to 0.7.0-beta.1, but this milestone closes only when
+# Phase D (release/evidence/host-bench/) lands. See
+# docs/strategy/reference-hardware.md and docs/strategy/mixed-load-workload.md.
+status = "in-progress"
 required_tiers = ["T0", "T1", "T2", "T3"]
 exit_criteria = [
   "unsupported knobs are skipped with reasons",
@@ -145,11 +151,34 @@ exit_criteria = [
   "battery behavior matches or improves mainstream defaults",
   "no unsafe write occurs outside allowlisted paths",
 ]
+[[milestone.criteria_status]]
+criterion = "unsupported knobs are skipped with reasons"
+verified = false
+transcript = ""
+note = "Code-complete: PPD shim (PR #183), GameMode shim (PR #184), vm.guest class (PR #185), foreground stub (PR #186) all merged to main; unsupported knobs log a skip reason and rushbench records an 'unsupported_here' anomaly. Marked verified only once a Phase D host-bench transcript exercises the skip path on real hardware."
+[[milestone.criteria_status]]
+criterion = "mixed-load responsiveness improves on two machines"
+verified = false
+transcript = ""
+note = "PENDING PHASE D (hardware gate). Requires two nominated reference machines (docs/strategy/reference-hardware.md, D1) running the mixed-load-001 workload (docs/strategy/mixed-load-workload.md, D2), with committed baseline (D3) + optid (D4) transcripts under release/evidence/host-bench/<date>-<hostname>/ and a PASS verdict (D5). No physical-hardware transcripts exist yet; evidence dirs are templates."
+[[milestone.criteria_status]]
+criterion = "battery behavior matches or improves mainstream defaults"
+verified = false
+transcript = ""
+note = "PENDING PHASE D (hardware gate). Requires the battery-equipped laptop reference machine to show joules-per-workload-unit on battery under optid --apply is <= the mainstream baseline (PPD balanced) within the confidence interval. Desktop slot is N/A (no battery). No transcripts yet."
+[[milestone.criteria_status]]
+criterion = "no unsafe write occurs outside allowlisted paths"
+verified = false
+transcript = ""
+note = "Code-complete: all sysfs/cgroup writes flow through guarded_write with path-traversal rejection (M1) and the hardware allowlist (config/optid/hardware-allowlist.toml), enforced by the in-repo Rust test suite. Marked verified once a Phase D host-bench run on real hardware confirms no write occurs outside allowlisted paths during the full mixed-load-001 cycle."
+# Evidence: release/evidence/host-bench/ (Phase D). Template + protocol:
+# release/evidence/host-bench/_TEMPLATE/README.md. Tracking: the Phase D issue.
 
 [[milestone]]
 version = "0.7.0-beta.1"
 channel = "beta"
 name = "Editions"
+status = "in-progress"
 required_tiers = ["T0", "T1", "T2", "T3"]
 exit_criteria = [
   "desktop, laptop, realtime, and server editions install and boot",

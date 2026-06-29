@@ -1,6 +1,6 @@
 # Roadmap
 
-Current project version: `0.5.0-beta.1`
+Current project version: `0.7.0-beta.1`
 
 The detailed v1 release plan lives in `docs/release-plan-v1.md`. The
 machine-readable milestone gates live in `release/milestones.toml`.
@@ -112,23 +112,31 @@ Exit criteria (from `release/milestones.toml`):
 
 ## v0.6.0-beta.1: Hardware-Aware optid
 
-Status: in progress. See `docs/plans/v0.6-hardware-aware-optid-proposal.md`
-for the implementation plan. Phase A (hardware allowlist foundation) is the
-first Work Package.
+Status: code-complete, **certification pending Phase D**. The in-container Work
+Packages are merged: PPD shim (PR #183), GameMode shim (PR #184), `vm.guest`
+workload class (PR #185), and foreground-detection stub (PR #186). See
+`docs/plans/v0.6-hardware-aware-optid-proposal.md` for the implementation plan.
+The two **quantitative** exit criteria (responsiveness on two machines, battery
+behavior) are hardware-gated and are tracked in Phase D — see
+`docs/strategy/reference-hardware.md` (D1) and
+`docs/strategy/mixed-load-workload.md` (D2). The canonical, machine-readable
+state lives in `release/milestones.toml`; this section follows it.
 
 - Implement Wave 2 features: compatibility D-Bus interfaces (PPD, GameMode), TLP allowlist, foreground detection, and vm.* actuation.
 - Add hardware allowlist database (`config/optid/hardware-allowlist.toml`).
 - Prevent conflicting daemons (TLP, tuned, ppd) from executing alongside `optid`.
 
-Exit criteria:
+Exit criteria (from `release/milestones.toml`):
 
-- GNOME/KDE power slider and games drive optid mode changes via D-Bus shims.
-- No writes occur outside allowlisted paths.
-- Unsupported knobs are skipped with logged reasons.
+- unsupported knobs are skipped with reasons — code-complete (PRs #183–#186).
+- mixed-load responsiveness improves on two machines — **pending Phase D** (D3–D5).
+- battery behavior matches or improves mainstream defaults — **pending Phase D** (D3–D5).
+- no unsafe write occurs outside allowlisted paths — code-complete (`guarded_write`).
 
 ## v0.7.0-beta.1: Editions
 
-Status: planned.
+Status: in progress (current version). Phase E version bump landed; edition
+work packages follow.
 
 - Implement editions as mkosi profiles and signed system extensions (sysexts) on a single base image.
 - Build profiles for desktop, laptop, and realtime-audio (PREEMPT_RT kernel).

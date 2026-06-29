@@ -70,7 +70,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION", "RELEASES.md"]
 freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-26"
+last_verified = "2026-06-29"
 validator = "version_matches:VERSION"
 
 [docs."RELEASES.md"]
@@ -79,7 +79,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["VERSION"]
 freshens = []
-last_verified = "2026-06-26"
+last_verified = "2026-06-29"
 
 [docs."VERSION"]
 purpose = "Single file holding the current project version string"
@@ -87,7 +87,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = []
 freshens = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md", "RELEASES.md"]
-last_verified = "2026-06-20"
+last_verified = "2026-06-29"
 validator = "semver"
 
 [docs."SECURITY.md"]
@@ -651,4 +651,22 @@ covers_code = ["release/milestones.toml", "tools/validate-evidence.py", "release
 deps = ["docs/agent-protocol.md", "release/milestones.toml"]
 freshens = ["README.md", "RELEASES.md", "release/evidence/dragnet/LEDGER.md"]
 last_verified = "2026-06-26"
+validator = "optional_file"
+
+[docs."docs/strategy/reference-hardware.md"]
+purpose = "v0.6 Phase D (D1): canonical record of the two physical reference machines (desktop + battery laptop) used to certify the hardware-gated v0.6 exit criteria"
+owner_area = "area:release"
+covers_code = ["crates/optid/data/allowlist.toml", "config/optid/hardware-allowlist.toml"]
+deps = ["docs/plans/v0.6-hardware-aware-optid-proposal.md", "release/milestones.toml"]
+freshens = ["docs/strategy/mixed-load-workload.md", "release/milestones.toml"]
+last_verified = "2026-06-29"
+validator = "optional_file"
+
+[docs."docs/strategy/mixed-load-workload.md"]
+purpose = "v0.6 Phase D (D2): definition of the mixed-load-001 benchmark workload (phases, classes, metrics, pass conditions) captured by rushbench for v0.6 certification"
+owner_area = "area:release"
+covers_code = ["benchmarks/manifest.toml", "crates/rushbench/src/main.rs", "crates/rushbench/src/report.rs"]
+deps = ["docs/plans/v0.6-hardware-aware-optid-proposal.md", "docs/strategy/reference-hardware.md"]
+freshens = ["release/milestones.toml", "release/evidence/README.md"]
+last_verified = "2026-06-29"
 validator = "optional_file"
