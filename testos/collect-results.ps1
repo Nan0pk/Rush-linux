@@ -254,6 +254,8 @@ if (-not (Test-Path $Destination)) {
 
 # Copy the entire testos-results tree. -Recurse to get subfolders,
 # -Force to overwrite. The structure is testos-results/<date>/<host>/...
+# Each run's directory also contains a system-logs/ subfolder with dmesg,
+# journal, cpuinfo, etc. captured by the runner at the end of the run.
 $CopiedFiles = 0
 $CopiedBytes = 0
 
@@ -270,6 +272,29 @@ Get-ChildItem $ResultsRoot -Recurse -File | ForEach-Object {
 }
 
 Write-OK "Copied $CopiedFiles file(s) ($([math]::Round($CopiedBytes/1KB,1)) KB) to $Destination"
+
+# --- Also copy install logs from the cache dir -------------------
+# install.ps1 writes a transcript of every install session to
+# %LOCALAPPDATA%\testos-installer\install-log-*.txt. Copy these into
+# the destination's install-logs/ folder so they're collected alongside
+# the benchmark results. This gives a complete picture: what was
+# installed, when, and what the results were.
+$InstallLogsDir = Join-Path $env:LOCALAPPDATA "testos-installer"
+$DestInstallLogs = Join-Path (Split-Path $Destination -Parent) "install-logs"
+if (Test-Path $InstallLogsDir) {
+    $InstallLogs = Get-ChildItem $InstallLogsDir -Filter "install-log-*.txt" -ErrorAction SilentlyContinue
+    if ($InstallLogs) {
+        if (-not (Test-Path $DestInstallLogs)) {
+            New-Item -ItemType Directory -Path $DestInstallLogs -Force | Out-Null
+        }
+        $LogCount = 0
+        foreach ($log in $InstallLogs) {
+            Copy-Item -Path $log.FullName -Destination $DestInstallLogs -Force
+            $LogCount++
+        }
+        Write-OK "Copied $LogCount install log(s) to $DestInstallLogs"
+    }
+}
 
 # --- Summary ------------------------------------------------------
 Write-Host ""
