@@ -100,11 +100,11 @@ if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
 
 # --- Find latest release ------------------------------------------
 $Repo = "Nan0pk/Rush-linux"
-# Use /releases?per_page=1 instead of /releases/latest because the latter
-# filters out prereleases, and Rush's testOS releases are marked prerelease
-# until v1.0. This returns the most recent non-draft release, prerelease or
-# not.
-$ApiUrl = "https://api.github.com/repos/$Repo/releases?per_page=1"
+# Use /releases (not /releases/latest, which skips prereleases) and fetch
+# 10 so we can skip draft releases. GitHub returns drafts first in the
+# /releases listing; if a draft exists, per_page=1 would return it instead
+# of the latest published release. We filter drafts below.
+$ApiUrl = "https://api.github.com/repos/$Repo/releases?per_page=10"
 
 Write-Info "Finding the latest testOS release..."
 try {
@@ -113,12 +113,11 @@ try {
     Write-Err "Could not fetch release info from $ApiUrl. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
 }
 
-# /releases returns an array; take the first (newest) element. PowerShell
-# auto-unwraps single-element arrays, but explicitly selecting the first
-# is robust to both 0-element and many-element responses.
-$Release = $Releases | Select-Object -First 1
+# /releases returns an array; take the first non-draft release. GitHub
+# returns drafts first in the listing, so we must filter them out.
+$Release = $Releases | Where-Object { -not $_.draft } | Select-Object -First 1
 if (-not $Release) {
-    Write-Err "No releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
+    Write-Err "No non-draft releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
 }
 
 $Version = $Release.tag_name

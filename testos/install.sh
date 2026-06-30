@@ -34,11 +34,12 @@
 set -euo pipefail
 
 REPO="Nan0pk/Rush-linux"
-# Use /releases?per_page=1 instead of /releases/latest because the latter
-# filters out prereleases, and Rush's testOS releases are marked prerelease
-# until v1.0. This returns the most recent non-draft release, prerelease or
-# not.
-API_URL="https://api.github.com/repos/${REPO}/releases?per_page=1"
+# Use /releases (not /releases/latest, which skips prereleases) and fetch
+# 10 so we can skip draft releases. GitHub returns drafts first in the
+# /releases listing; if a draft exists, per_page=1 would return it instead
+# of the latest published release. We filter drafts below.
+API_URL_PLACEHOLDER=
+API_URL="https://api.github.com/repos/${REPO}/releases?per_page=10"
 
 # ─── Colors (only if stdout is a terminal) ────────────────────────
 if [ -t 1 ]; then
@@ -102,8 +103,37 @@ command -v sha256sum >/dev/null || command -v shasum >/dev/null || die "sha256su
 
 # ─── Find the latest release ──────────────────────────────────────
 log "Finding the latest testOS release..."
-RELEASE_JSON="$(curl -fsSL "$API_URL" || true)"
-[[ -n "$RELEASE_JSON" ]] || die "Could not fetch release info from $API_URL. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
+RELEASE_JSON_RAW="$(curl -fsSL "$API_URL" || true)"
+[[ -n "$RELEASE_JSON_RAW" ]] || die "Could not fetch release info from $API_URL. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
+
+# Extract the first non-draft release. GitHub's /releases endpoint returns
+# drafts first; we want the latest published release (prerelease or not).
+# We use python3 (available on virtually all modern Linux/macOS) to parse
+# JSON reliably. If python3 is missing, fall back to jq, then to a fragile
+# awk grep that handles the common case.
+if command -v python3 >/dev/null; then
+    RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | python3 -c '
+import sys, json
+r = json.load(sys.stdin)
+if isinstance(r, dict): r = [r]  # single-object unwrap
+pub = [x for x in r if not x.get("draft")]
+if not pub:
+    sys.exit(1)
+# indent=2 so the rest of the script can grep line-by-line for asset URLs
+print(json.dumps(pub[0], indent=2))
+' 2>/dev/null)" || die "No non-draft releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
+elif command -v jq >/dev/null; then
+    RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | jq '[.[] | select(.draft != true)][0]' 2>/dev/null)" || die "No non-draft releases found."
+else
+    # Fallback: awk to extract the first non-draft release block.
+    # This is fragile — assumes the JSON is pretty-printed with one field per line.
+    RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | awk '
+        /"draft": false/ { in_block = 1 }
+        in_block { print }
+        in_block && /^}/ { in_block = 0; exit }
+    ')"
+    [[ -n "$RELEASE_JSON" ]] || die "Could not parse releases (no python3/jq). Install one: apt install python3 / pacman -S python / brew install python"
+fi
 
 # Extract the tag name (version).
 VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')"
