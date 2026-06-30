@@ -60,9 +60,19 @@ Usage:
   .\install.ps1 -Help                               This message
 
 How to find your USB's physical drive number:
-  Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle
+  Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle, BusType
 
 Then pass -Device \\.\PhysicalDrive<N> (e.g. \\.\PhysicalDrive1).
+
+Common issue — "cannot be loaded because running scripts is disabled":
+  Windows blocks downloaded scripts by default. Run with execution policy
+  bypassed for this process only:
+    powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
+
+  If that still fails, unblock the downloaded file first (Windows marks
+  downloaded files with a "Mark of the Web"):
+    Unblock-File .\install.ps1
+    powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 
 Requirements:
   - Windows 10/11 with PowerShell 5.1+ (built-in) or PowerShell 7+
@@ -71,7 +81,9 @@ Requirements:
 Options:
   -DryRun     Download and verify everything, but don't write to the device.
   -ListOnly   Just show what's in the latest release.
-  -Force      Skip the double-confirmation prompt (still refuses system disks).
+  -Force      Skip the removable-media and size-sanity safety checks.
+              Required if you want to write to a non-USB disk (e.g. an
+              internal test disk). Still refuses the system root disk.
   -Help       This message.
 '@ | Write-Host
     exit 0
