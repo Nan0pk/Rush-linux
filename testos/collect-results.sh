@@ -23,6 +23,25 @@ ok()   { echo "[OK] $*"; }
 warn() { echo "[!] $*" >&2; }
 die()  { echo "[X] $*" >&2; exit 1; }
 
+read_tty() {
+    local prompt="$1" var="$2"
+    if [[ -r /dev/tty ]]; then
+        read -r -p "$prompt" "$var" </dev/tty
+    else
+        read -r -p "$prompt" "$var"
+    fi
+}
+
+read_secret_tty() {
+    local prompt="$1" var="$2"
+    if [[ -r /dev/tty ]]; then
+        read -r -s -p "$prompt" "$var" </dev/tty
+    else
+        read -r -s -p "$prompt" "$var"
+    fi
+    echo
+}
+
 usage() {
     cat <<'EOF'
 testOS results collector — ONE command, end to end.
@@ -86,8 +105,7 @@ fi
 
 if [[ -z "$TOKEN" && "$DRY_RUN" != "true" && "$LIST_ONLY" != "true" ]]; then
     if [[ -t 0 ]]; then
-        read -r -s -p "GitHub token: " TOKEN
-        echo
+        read_secret_tty "GitHub token: " TOKEN
     fi
     [[ -n "$TOKEN" ]] || die "No GitHub token. Export GITHUB_TOKEN or pass --token."
 fi
@@ -131,7 +149,7 @@ select_usb_disk() {
         eval "${usb_lines[$i]}"
         printf '  [%d] /dev/%s  %s bytes  %s %s\n' "$((i+1))" "$NAME" "$SIZE" "${VENDOR:-}" "${MODEL:-}"
     done
-    read -r -p "Select a USB disk by number (1-${#usb_lines[@]}): " choice
+    read_tty "Select a USB disk by number (1-${#usb_lines[@]}): " choice
     [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le ${#usb_lines[@]} ]] || die "Invalid selection: $choice"
     eval "${usb_lines[$((choice-1))]}"
     DISK="/dev/${NAME}"

@@ -50,6 +50,15 @@ ok()   { echo "${GREEN}[OK]${RESET} $*"; }
 warn() { echo "${AMBER}[!] ${RESET}$*" >&2; }
 die()  { echo "${RED}[X] ${RESET}$*" >&2; exit 1; }
 
+read_tty() {
+    local prompt="$1" var="$2"
+    if [[ -r /dev/tty ]]; then
+        read -r -p "$prompt" "$var" </dev/tty
+    else
+        read -r -p "$prompt" "$var"
+    fi
+}
+
 # --- Cache + transcript logging --------------------------------------------
 CACHE_BASE="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
 CACHE_DIR="${CACHE_BASE}/testos-installer"
@@ -391,7 +400,7 @@ select_usb_device() {
     done
     echo
     local choice
-    read -r -p "Select a USB disk by number (1-${#usb_lines[@]}): " choice
+    read_tty "Select a USB disk by number (1-${#usb_lines[@]}): " choice
     [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le ${#usb_lines[@]} ]] || die "Invalid selection: $choice"
     eval "${usb_lines[$((choice-1))]}"
     DEVICE="/dev/${NAME}"
@@ -475,8 +484,7 @@ echo "${RED}ALL DATA ON THIS DISK WILL BE LOST.${RESET}"
 echo
 
 if [[ "$FORCE" != "true" ]]; then
-    printf "%s" "Is this your USB stick? Type 'yes' to confirm (anything else aborts): "
-    read -r CONFIRM
+    read_tty "Is this your USB stick? Type 'yes' to confirm (anything else aborts): " CONFIRM
     [[ "$CONFIRM" == "yes" ]] || die "Confirmation was not 'yes'. Aborting."
 fi
 
