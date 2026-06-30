@@ -294,7 +294,7 @@ fn main() {
     let logs_dir = results_dir.join("system-logs");
     let _ = std::fs::create_dir_all(&logs_dir);
 
-    let captures = [
+    let captures: [(&str, &str); 9] = [
         ("dmesg.txt", "dmesg"),
         ("journal.txt", "journalctl -b --no-pager -o cat"),
         ("uname.txt", "uname -a"),
@@ -305,10 +305,9 @@ fn main() {
         ("lspci.txt", "lspci -nn 2>/dev/null || echo 'lspci not installed'"),
         ("lsusb.txt", "lsusb 2>/dev/null || echo 'lsusb not installed'"),
     ];
-    for (filename, cmd) in &captures {
-        let output = Command::new("bash").arg("-c").arg(cmd).output();
-        let content = match output {
-            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+    for (filename, cmd) in captures.iter() {
+        let content = match Command::new("bash").arg("-c").arg(*cmd).output() {
+            Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
             Err(e) => format!("(capture failed: {})", e),
         };
         let _ = std::fs::write(logs_dir.join(filename), content);
