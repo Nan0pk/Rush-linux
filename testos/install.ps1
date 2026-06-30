@@ -378,7 +378,10 @@ try {
                 $Rate = [math]::Round(($TotalBytes / 1MB) / $Elapsed.TotalSeconds, 1)
                 $WrittenMB = [math]::Round($TotalBytes / 1MB)
                 $TotalMB = [math]::Round($TotalSize / 1MB)
-                Write-Host "`r  $Pct% ($WrittenMB MB / $TotalMB MB) @ $Rate MB/s" -NoNewline
+                # Build the progress string with explicit concatenation to avoid
+                # PowerShell 5.1 parser issues with parentheses inside interpolation.
+                $ProgressLine = "`r  " + $Pct + "% " + $WrittenMB + " MB / " + $TotalMB + " MB @ " + $Rate + " MB/s"
+                Write-Host $ProgressLine -NoNewline
             }
         }
         Write-Host ""
