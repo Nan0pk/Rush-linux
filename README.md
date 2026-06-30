@@ -143,16 +143,34 @@ Type `0` for all, or pick specific numbers separated by commas (e.g. `1,3,5`). P
 
 ### Pull the results into the repo
 
-Plug the USB back into your workstation:
+Plug the USB back into your workstation.
+
+**On Linux:**
 
 ```bash
-sudo testos-ingest pull /dev/sdX     # Linux
+sudo testos-ingest pull /dev/sdX
 testos-ingest format
 testos-ingest commit
 git push
 ```
 
-On Windows, the USB mounts with a drive letter — copy the `testos-results\` folder off, then run `testos-ingest` (which is a Linux binary) from a Linux machine or WSL to format and commit.
+**On Windows:**
+
+```powershell
+# Download the collector (or run it from your local repo clone):
+curl.exe -L -o collect-results.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.ps1
+
+# Run it from an admin PowerShell - it finds the USB, mounts the ESP,
+# and copies testos-results\ into .\benchmarks\results\:
+powershell -ExecutionPolicy Bypass -File .\collect-results.ps1
+
+# Then commit:
+git add benchmarks\results\
+git commit -m "benchmarks: add testOS results"
+git push
+```
+
+The collector handles the cases where Windows doesn't auto-mount the ESP partition (which is most of the time — the ESP is a System partition type, so Windows hides it by default). Run `.\collect-results.ps1 -Diagnose` to see all disks/partitions/volumes if something goes wrong.
 
 Results land in `benchmarks/results/<UTC-date>/<host-fingerprint>/`.
 
