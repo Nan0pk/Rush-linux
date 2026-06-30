@@ -506,6 +506,18 @@ try {
         try {
             Clear-Disk -Number $DiskNum -RemoveData -RemoveOEM -Confirm:$false -ErrorAction Stop
             Write-OK "Disk $DiskNum cleared. Ready for image write."
+
+            # After Clear-Disk, Windows' storage stack is in a transitional
+            # state: PnP re-enumerates the disk, the partition manager
+            # updates, and antivirus/Windows Search may briefly grab the
+            # raw device. If we open the device for writing immediately,
+            # CreateFile succeeds but WriteFile fails with ERROR_ACCESS_DENIED
+            # (Win32 error 5) at offset 0. Give Windows 3 seconds to settle
+            # and refresh the storage cache so the device is fully released.
+            Write-Info "Waiting for Windows to settle after disk clear..."
+            Start-Sleep -Seconds 3
+            try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Seconds 1
         } catch {
             Write-Err "Could not clear disk $DiskNum automatically. The error was: $($_.Exception.Message). Try closing any Explorer windows showing the USB, then re-run. As a last resort: open 'diskpart' as admin, run 'select disk $DiskNum' then 'clean', then re-run this script."
         }
@@ -554,11 +566,10 @@ try {
     }
 
     # --- Write the image ------------------------------------------
-    Write-Info "Opening $Device for raw write..."
-
-    # Open the physical drive for raw write access.
-    # We use CreateFile from kernel32 (via P/Invoke) because PowerShell
-    # doesn't have a native "open raw disk for writing" cmdlet.
+    # Open the physical drive for raw write access with retry logic.
+    # After Clear-Disk, Windows may briefly deny access (Win32 error 5,
+    # ERROR_ACCESS_DENIED) because PnP/antivirus/Windows Search is still
+    # releasing handles. We retry the entire open+write up to 5 times.
     Add-Type -Namespace Win32 -Name Native -MemberDefinition @"
         [DllImport("kernel32.dll", SetLastError=true, CharSet=System.Runtime.InteropServices.CharSet.Auto)]
         public static extern System.IntPtr CreateFile(
@@ -582,54 +593,92 @@ try {
     $FILE_SHARE_NONE = 0
     $OPEN_EXISTING = 3
 
-    $Handle = [Win32.Native]::CreateFile($Device, $GENERIC_WRITE -bor $GENERIC_READ, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, 0, [IntPtr]::Zero)
-    if ($Handle -eq [IntPtr]-1) {
-        $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        Write-Err "Failed to open $Device for writing (Win32 error $ErrCode). The disk may be in use - close any Disk Management windows, or run 'diskpart' then 'select disk $DiskNum' / 'clean' to clear it."
+    # Retry the entire open+write loop up to 5 times. ACCESS_DENIED after
+    # Clear-Disk is transient and resolves within a few seconds. If the
+    # first WriteFile succeeds, subsequent writes will also succeed (the
+    # handle is held exclusively), so we only retry on the first block.
+    $MaxAttempts = 5
+    $WriteCompleted = $false
+
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+        Write-Info "Opening $Device for raw write (attempt $Attempt of $MaxAttempts)..."
+        $Handle = [Win32.Native]::CreateFile($Device, $GENERIC_WRITE -bor $GENERIC_READ, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, 0, [IntPtr]::Zero)
+        if ($Handle -eq [IntPtr]-1) {
+            $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            Write-Warn "Could not open $Device (Win32 error $ErrCode). Retrying in 2 seconds..."
+            Start-Sleep -Seconds 2
+            try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+            continue
+        }
+
+        try {
+            $Stream = [System.IO.File]::OpenRead($ImageFile)
+            $BufferSize = 4MB
+            $Buffer = New-Object byte[] $BufferSize
+            $TotalBytes = 0
+            $TotalSize = $Stream.Length
+            $StartTime = Get-Date
+            $FirstWrite = $true
+
+            while ($true) {
+                $Read = $Stream.Read($Buffer, 0, $BufferSize)
+                if ($Read -eq 0) { break }
+                if ($Read -lt $BufferSize) {
+                    $SmallBuffer = New-Object byte[] $Read
+                    [Array]::Copy($Buffer, $SmallBuffer, $Read)
+                    $Written = 0
+                    $Success = [Win32.Native]::WriteFile($Handle, $SmallBuffer, $Read, [ref]$Written, [IntPtr]::Zero)
+                } else {
+                    $Written = 0
+                    $Success = [Win32.Native]::WriteFile($Handle, $Buffer, $BufferSize, [ref]$Written, [IntPtr]::Zero)
+                }
+                if (-not $Success) {
+                    $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                    if ($FirstWrite -and $Attempt -lt $MaxAttempts) {
+                        # ACCESS_DENIED on the first write is transient after
+                        # Clear-Disk. Close, wait, refresh storage cache, retry.
+                        Write-Warn "First write failed (Win32 error $ErrCode). This is common right after disk clear. Retrying in 2 seconds..."
+                        $Stream.Close()
+                        [void][Win32.Native]::CloseHandle($Handle)
+                        Start-Sleep -Seconds 2
+                        try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+                        Start-Sleep -Seconds 1
+                        break  # break out of while loop, continue for loop
+                    }
+                    Write-Err "Write failed at offset $TotalBytes (Win32 error $ErrCode)."
+                }
+                $FirstWrite = $false
+                $TotalBytes += $Written
+                $Pct = [math]::Round(($TotalBytes / $TotalSize) * 100, 1)
+                $Elapsed = (Get-Date) - $StartTime
+                if ($Elapsed.TotalSeconds -gt 0) {
+                    $Rate = [math]::Round(($TotalBytes / 1MB) / $Elapsed.TotalSeconds, 1)
+                    $WrittenMB = [math]::Round($TotalBytes / 1MB)
+                    $TotalMB = [math]::Round($TotalSize / 1MB)
+                    $ProgressLine = "`r  " + $Pct + "% " + $WrittenMB + " MB / " + $TotalMB + " MB @ " + $Rate + " MB/s"
+                    Write-Host $ProgressLine -NoNewline
+                }
+            }
+
+            # If we reached here without breaking, the write completed.
+            if ($Stream.Position -eq $Stream.Length) {
+                Write-Host ""
+                $Stream.Close()
+                [void][Win32.Native]::FlushFileBuffers($Handle)
+                [void][Win32.Native]::CloseHandle($Handle)
+                $WriteCompleted = $true
+                break  # break out of for loop
+            }
+        } catch {
+            Write-Warn "Exception during write: $($_.Exception.Message). Retrying..."
+            try { $Stream.Close() } catch {}
+            [void][Win32.Native]::CloseHandle($Handle)
+            Start-Sleep -Seconds 2
+        }
     }
 
-    try {
-        $Stream = [System.IO.File]::OpenRead($ImageFile)
-        $BufferSize = 4MB
-        $Buffer = New-Object byte[] $BufferSize
-        $TotalBytes = 0
-        $TotalSize = $Stream.Length
-        $StartTime = Get-Date
-
-        while ($true) {
-            $Read = $Stream.Read($Buffer, 0, $BufferSize)
-            if ($Read -eq 0) { break }
-            if ($Read -lt $BufferSize) {
-                $SmallBuffer = New-Object byte[] $Read
-                [Array]::Copy($Buffer, $SmallBuffer, $Read)
-                $Written = 0
-                $Success = [Win32.Native]::WriteFile($Handle, $SmallBuffer, $Read, [ref]$Written, [IntPtr]::Zero)
-            } else {
-                $Written = 0
-                $Success = [Win32.Native]::WriteFile($Handle, $Buffer, $BufferSize, [ref]$Written, [IntPtr]::Zero)
-            }
-            if (-not $Success) {
-                $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                Write-Err "Write failed at offset $TotalBytes (Win32 error $ErrCode)."
-            }
-            $TotalBytes += $Written
-            $Pct = [math]::Round(($TotalBytes / $TotalSize) * 100, 1)
-            $Elapsed = (Get-Date) - $StartTime
-            if ($Elapsed.TotalSeconds -gt 0) {
-                $Rate = [math]::Round(($TotalBytes / 1MB) / $Elapsed.TotalSeconds, 1)
-                $WrittenMB = [math]::Round($TotalBytes / 1MB)
-                $TotalMB = [math]::Round($TotalSize / 1MB)
-                # Build the progress string with explicit concatenation to avoid
-                # PowerShell 5.1 parser issues with parentheses inside interpolation.
-                $ProgressLine = "`r  " + $Pct + "% " + $WrittenMB + " MB / " + $TotalMB + " MB @ " + $Rate + " MB/s"
-                Write-Host $ProgressLine -NoNewline
-            }
-        }
-        Write-Host ""
-        $Stream.Close()
-    } finally {
-        [void][Win32.Native]::FlushFileBuffers($Handle)
-        [void][Win32.Native]::CloseHandle($Handle)
+    if (-not $WriteCompleted) {
+        Write-Err "Failed to write image after $MaxAttempts attempts. The disk may be held by another process. Try: 1) Close all Explorer/Disk Management windows. 2) Run 'diskpart' as admin, 'select disk $DiskNum', 'clean'. 3) Re-run this script."
     }
 
     Write-OK "Write complete."
