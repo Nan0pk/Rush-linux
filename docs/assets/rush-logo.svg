@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" width="720" height="160" role="img" aria-label="Rush Linux">
+  <defs>
+    <linearGradient id="rushGrad" x1="0%" y1="0%" x2="100%" y2="20%">
+      <stop offset="0%"  stop-color="#FF2D95"/>
+      <stop offset="25%" stop-color="#A64EFF"/>
+      <stop offset="50%" stop-color="#5B8DEF"/>
+      <stop offset="75%" stop-color="#21D4FD"/>
+      <stop offset="100%" stop-color="#3DDC84"/>
+    </linearGradient>
+    <linearGradient id="rushGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#3DDC84"/>
+      <stop offset="50%" stop-color="#FFD93D"/>
+      <stop offset="100%" stop-color="#FF2D95"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Lightning bolt mark on the left -->
+  <g transform="translate(28, 36)" filter="url(#glow)">
+    <path d="M 36 0 L 0 56 L 22 56 L 12 96 L 50 36 L 28 36 L 36 0 Z"
+          fill="url(#rushGrad2)" stroke="#1a1a2e" stroke-width="1.5" stroke-linejoin="round"/>
+  </g>
+
+  <!-- "Rush Linux" wordmark -->
+  <text x="110" y="92"
+        font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="68" font-weight="800" letter-spacing="-2"
+        fill="url(#rushGrad)" filter="url(#glow)">Rush Linux</text>
+
+  <!-- Tagline -->
+  <text x="112" y="128"
+        font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="18" font-weight="500" letter-spacing="0.5"
+        fill="#5a6478">Adaptive Linux — one optimizer, every decision explained and reversible.</text>
+</svg>
