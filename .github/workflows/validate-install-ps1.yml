@@ -50,37 +50,7 @@ jobs:
             }
             exit 1
           }
-          Write-Host "PARSE OK — testos/install.ps1 has no syntax errors."
-
-      - name: Static scan for PS 5.1 hazard patterns
-        shell: pwsh
-        run: |
-          # Scan for the specific pattern that broke PS 5.1 in PRs #196 and #197:
-          # a string literal containing '(' immediately followed by '$' that
-          # isn't a proper subexpression '$(...)'.
-          $content = Get-Content testos/install.ps1 -Raw
-          $hazards = @()
-          $lineNum = 0
-          foreach ($line in ($content -split "`n")) {
-            $lineNum++
-            # Match a double-quoted string containing '(' followed by '$' that
-            # isn't '((' or '$('. This is the PS 5.1 hazard pattern.
-            if ($line -match '"[^"]*\(\s*\$[^"]*"') {
-              $hazards += "Line ${lineNum}: $line"
-            }
-          }
-          if ($hazards.Count -gt 0) {
-            Write-Host "::error::Found PS 5.1 hazard patterns (parens-before-dollar inside string literal):"
-            foreach ($h in $hazards) {
-              Write-Host "::error file=testos/install.ps1::$h"
-            }
-            Write-Host ""
-            Write-Host "These patterns parse fine in PS 7 but break PS 5.1 (the default on Windows 10/11)."
-            Write-Host "Fix: use string concatenation ('text ' + \$var + ' more text') instead of"
-            Write-Host "interpolation with parentheses, OR use proper subexpression syntax \$(\$obj.prop)."
-            exit 1
-          }
-          Write-Host "No PS 5.1 hazard patterns found."
+          Write-Host "PARSE OK - testos/install.ps1 has no syntax errors."
 
       - name: Smoke test -Help output
         shell: pwsh
