@@ -69,25 +69,24 @@ Find your USB device first with `lsblk` (look for `RM=1` — removable). Safety 
 <details>
 <summary><strong>Windows</strong> — native PowerShell, no WSL, no Rufus</summary>
 
-Open **PowerShell as Administrator** (right-click PowerShell → "Run as Administrator"), find your USB's physical drive number, then run:
+Open **PowerShell as Administrator** (right-click PowerShell → "Run as Administrator"), then run:
 
 ```powershell
-# Step 1: Find your USB drive (look for BusType=USB and the right size):
-Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle, BusType
-
-# Step 2: Download the installer:
+# Step 1: Download the installer:
 curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
 
-# Step 3: Run it (bypass execution policy for this process only — Windows
+# Step 2: Run it (bypass execution policy for this process only — Windows
 #         blocks downloaded scripts by default):
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-If Step 3 still fails with "cannot be loaded because running scripts is disabled," unblock the file first (Windows marks downloaded files with a "Mark of the Web"):
+The installer scans for USB disks automatically. If exactly one USB stick is plugged in, it uses it. If multiple USB sticks are plugged in, it shows a numbered list and asks you to pick. You can also pass `-Device \\.\PhysicalDrive<N>` explicitly if you prefer (find the number with `Get-Disk | Format-Table Number, FriendlyName, BusType`).
+
+If Step 2 still fails with "cannot be loaded because running scripts is disabled," unblock the file first (Windows marks downloaded files with a "Mark of the Web"):
 
 ```powershell
 Unblock-File .\install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. Safety checks:

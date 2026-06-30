@@ -421,16 +421,46 @@ try {
 
     # --- Device selection and safety checks ----------------------
     if (-not $Device) {
+        # No -Device specified. Find all USB disks and offer a picker.
         Write-Host ""
-        Write-Host "Available disks:"
-        Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType
-        Write-Host ""
-        Write-Host "Find your USB stick in the table above (look for BusType=USB and the right size),"
-        Write-Host "then re-run with -Device \\.\PhysicalDrive<N>."
-        Write-Host ""
-        Write-Host "Example:"
-        Write-Host "  .\install.ps1 -Device \\.\PhysicalDrive1"
-        exit 1
+        Write-Info "No -Device specified. Scanning for USB disks..."
+        $UsbDisks = Get-Disk | Where-Object { $_.BusType -eq 'USB' } | Sort-Object Number
+
+        if ($UsbDisks.Count -eq 0) {
+            Write-Host ""
+            Write-Host "No USB disks found. Plug in a USB stick and re-run." -ForegroundColor Red
+            Write-Host ""
+            Write-Host "All disks currently visible:"
+            Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType
+            exit 1
+        }
+
+        if ($UsbDisks.Count -eq 1) {
+            # Only one USB disk - auto-select it.
+            $Selected = $UsbDisks[0]
+            $Device = "\\.\PhysicalDrive" + $Selected.Number
+            Write-OK "Found 1 USB disk: Disk $($Selected.Number) - $($Selected.FriendlyName) ($([math]::Round($Selected.Size/1GB,1)) GB)"
+            Write-Info "Using $Device (pass -Device to override)"
+        } else {
+            # Multiple USB disks - show a numbered picker.
+            Write-Host ""
+            Write-Host "Multiple USB disks found:" -ForegroundColor White
+            Write-Host ""
+            for ($i = 0; $i -lt $UsbDisks.Count; $i++) {
+                $d = $UsbDisks[$i]
+                $sizeGB = [math]::Round($d.Size/1GB,1)
+                Write-Host ("  [{0}] Disk {1} - {2} ({3} GB, {4})" -f ($i+1), $d.Number, $d.FriendlyName, $sizeGB, $d.PartitionStyle)
+            }
+            Write-Host ""
+            $Choice = Read-Host "Select a USB disk by number (1-$($UsbDisks.Count))"
+            $ChoiceNum = 0
+            if (-not [int]::TryParse($Choice, [ref]$ChoiceNum) -or $ChoiceNum -lt 1 -or $ChoiceNum -gt $UsbDisks.Count) {
+                Write-Err "Invalid selection '$Choice'. Enter a number 1-$($UsbDisks.Count)."
+            }
+            $Selected = $UsbDisks[$ChoiceNum - 1]
+            $Device = "\\.\PhysicalDrive" + $Selected.Number
+            Write-Info "Selected: Disk $($Selected.Number) - $($Selected.FriendlyName)"
+        }
     }
 
     # Validate the device path format.
@@ -588,10 +618,15 @@ try {
         public static extern uint GetLastError();
 "@
 
-    $GENERIC_WRITE = 0x40000000
-    $GENERIC_READ  = 0x80000000
-    $FILE_SHARE_NONE = 0
-    $OPEN_EXISTING = 3
+    # Cast to [uint32] explicitly. In PowerShell 5.1, hex literals like
+    # 0x80000000 are treated as [int32] (-2147483648 due to overflow), and
+    # -bor on two int32s produces a negative number that fails to convert
+    # to uint32 for the P/Invoke call. [uint32] cast forces the right type.
+    $GENERIC_WRITE = [uint32]0x40000000
+    $GENERIC_READ  = [uint32]0x80000000
+    $FILE_SHARE_NONE = [uint32]0
+    $OPEN_EXISTING = [uint32]3
+    $DesiredAccess = [uint32]($GENERIC_WRITE -bor $GENERIC_READ)
 
     # Retry the entire open+write loop up to 5 times. ACCESS_DENIED after
     # Clear-Disk is transient and resolves within a few seconds. If the
@@ -602,7 +637,7 @@ try {
 
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
         Write-Info "Opening $Device for raw write (attempt $Attempt of $MaxAttempts)..."
-        $Handle = [Win32.Native]::CreateFile($Device, $GENERIC_WRITE -bor $GENERIC_READ, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, 0, [IntPtr]::Zero)
+        $Handle = [Win32.Native]::CreateFile($Device, $DesiredAccess, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, [uint32]0, [IntPtr]::Zero)
         if ($Handle -eq [IntPtr]-1) {
             $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
             Write-Warn "Could not open $Device (Win32 error $ErrCode). Retrying in 2 seconds..."
