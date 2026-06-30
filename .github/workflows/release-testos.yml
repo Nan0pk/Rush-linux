@@ -55,6 +55,14 @@ jobs:
         run: |
           # archlinux:latest ships with a minimal pacman; sync and install.
           pacman -Syu --noconfirm
+          # mkosi's required deps + the optional deps we actually need:
+          #   - python-pefile, systemd-ukify: required to assemble the UKI
+          #     boot image (mkosi lists them as optional, but our image is
+          #     bootable so they're effectively required)
+          #   - dosfstools: mkosi needs mkfs.fat to format the ESP partition
+          #   - mtools: mkosi uses mcopy to populate the FAT ESP
+          #   - edk2-ovmf: only needed for QEMU boot tests, not for build;
+          #     leaving out to keep image smaller
           pacman -S --noconfirm --needed \
             base-devel \
             rust \
@@ -63,6 +71,10 @@ jobs:
             git \
             dbus \
             systemd \
+            systemd-ukify \
+            python-pefile \
+            dosfstools \
+            mtools \
             util-linux \
             coreutils
 
