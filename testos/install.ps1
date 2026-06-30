@@ -376,7 +376,9 @@ try {
             $Elapsed = (Get-Date) - $StartTime
             if ($Elapsed.TotalSeconds -gt 0) {
                 $Rate = [math]::Round(($TotalBytes / 1MB) / $Elapsed.TotalSeconds, 1)
-                Write-Host ("`r  {0}% ({1} MB / {2} MB) @ {3} MB/s" -f $Pct, [math]::Round($TotalBytes/1MB), [math]::Round($TotalSize/1MB), $Rate) -NoNewline
+                $WrittenMB = [math]::Round($TotalBytes / 1MB)
+                $TotalMB = [math]::Round($TotalSize / 1MB)
+                Write-Host "`r  $Pct% ($WrittenMB MB / $TotalMB MB) @ $Rate MB/s" -NoNewline
             }
         }
         Write-Host ""
