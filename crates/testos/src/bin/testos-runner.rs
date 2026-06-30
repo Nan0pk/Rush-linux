@@ -1,11 +1,11 @@
-//! testos-runner — runs INSIDE testOS after boot.
+//! testos-runner - runs INSIDE testOS after boot.
 //!
 //! Responsibilities:
 //! 1. Show a menu: "Run all" or pick individual benchmarks from the list.
 //! 2. For each selected benchmark: print a banner, run it, capture stdout/stderr/exit,
 //!    write one JSON result file to the results directory on the USB stick.
 //! 3. Show progress with per-test ETA.
-//! 4. Honor Esc (read from /dev/console) to abort the run early — partial results saved.
+//! 4. Honor Esc (read from /dev/console) to abort the run early - partial results saved.
 //! 5. Write a top-level RunManifest.json when done (or aborted).
 //! 6. Reboot back to the host OS.
 //!
@@ -33,17 +33,49 @@ const TESTOS_VERSION_FALLBACK: &str = "0.7.0-beta.1";
 fn main() {
     println!();
     println!("════════════════════════════════════════════════════");
-    println!("  testOS — Rush Linux benchmark environment");
+    println!("  testOS - Rush Linux benchmark environment");
     println!("════════════════════════════════════════════════════");
     println!();
+
+    // Helper: print an error, dump diagnostics, wait for keypress, then
+    // drop to a shell so the user can diagnose. This prevents the runner
+    // from flashing an error and immediately falling through to a login
+    // prompt where the error is lost.
+    let fail_with_diag = |msg: &str| -> ! {
+        eprintln!();
+        eprintln!("=================================================");
+        eprintln!("  testOS RUNNER FAILED");
+        eprintln!("=================================================");
+        eprintln!("{}", msg);
+        eprintln!();
+        eprintln!("--- Diagnostics ---");
+
+        // Print USB mount status
+        let _ = Command::new("bash")
+            .arg("-c")
+            .arg("echo '--- /proc/cmdline ---'; cat /proc/cmdline; echo; echo '--- blkid ---'; blkid 2>/dev/null; echo; echo '--- lsblk ---'; lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL 2>/dev/null; echo; echo '--- mount points ---'; mount | grep -E 'testos|run/testos'; echo; echo '--- /run/testos ---'; ls -la /run/testos/ 2>/dev/null || echo '(not found)'; echo; echo '--- dmesg (last 20 lines) ---'; dmesg | tail -20; echo; echo '--- journal (last 20 lines) ---'; journalctl -b --no-pager | tail -20")
+            .status();
+
+        eprintln!();
+        eprintln!("Press Enter to drop to a shell for manual diagnosis...");
+        let mut _input = String::new();
+        let _ = io::stdin().read_line(&mut _input);
+
+        // Drop to a shell
+        eprintln!("Dropping to shell. Type 'reboot' when done.");
+        let _ = Command::new("bash").status();
+        std::process::exit(1);
+    };
 
     // 1. Verify USB mount exists.
     let usb = Path::new(USB_MOUNT);
     if !usb.exists() {
-        eprintln!("ERROR: USB mount point {} does not exist.", USB_MOUNT);
-        eprintln!("       The testOS initrd should have created it. Boot may be incomplete.");
-        eprintln!("       Aborting.");
-        std::process::exit(1);
+        fail_with_diag(&format!(
+            "ERROR: USB mount point {} does not exist.\n\
+             The testos-usb-mount.service should have created it.\n\
+             The USB ESP partition (label RUSHESP) may not have been found.",
+            USB_MOUNT
+        ));
     }
 
     // 2. Load bench list from the USB.
@@ -51,12 +83,11 @@ fn main() {
     let list = match BenchList::load(&bench_list_path) {
         Ok(l) => l,
         Err(e) => {
-            eprintln!(
+            fail_with_diag(&format!(
                 "ERROR: cannot load bench list from {}: {}",
                 bench_list_path.display(),
                 e
-            );
-            std::process::exit(1);
+            ));
         }
     };
 
@@ -148,7 +179,7 @@ fn main() {
         let progress = format!("[{}/{}] ", idx + 1, total);
         let eta = BenchList::format_duration(bench.estimated_seconds);
         println!("{}", &progress);
-        println!("{}— {} ({})", "  ".to_string() + &progress, bench.name, eta);
+        println!("{}- {} ({})", "  ".to_string() + &progress, bench.name, eta);
 
         if bench.requires_battery && host.battery_design_uwh == 0 {
             println!("   SKIPPED: requires battery but no battery present.");
@@ -214,7 +245,7 @@ fn main() {
             "pass" => {
                 passed.push(bench.id.clone());
                 let val_str = match (&value, &unit) {
-                    (Some(v), Some(u)) => format!(" — {} {}", v, u),
+                    (Some(v), Some(u)) => format!(" - {} {}", v, u),
                     _ => String::new(),
                 };
                 println!(
@@ -503,7 +534,7 @@ fn run_benchmark(
         BenchKind::Rushbench => {
             // rushbench writes its own JSON. We just check exit code and look for
             // the median in stdout (best-effort). The rushbench result path is
-            // not used here — we just treat the median as the value.
+            // not used here - we just treat the median as the value.
             // This is a simple wrapper; full integration can come later.
             if output.status.success() {
                 // Try to extract "median: 1.23" from stdout.
@@ -530,14 +561,14 @@ fn run_benchmark(
     }
 }
 
-/// Watch /dev/console for Esc to abort the run. Best-effort — if this fails
+/// Watch /dev/console for Esc to abort the run. Best-effort - if this fails
 /// to read the console, the user can still Ctrl-C the runner.
 fn watch_for_esc(tx: std::sync::mpsc::Sender<()>) {
     use std::os::unix::io::AsRawFd;
     let path = "/dev/console";
     let f = match std::fs::OpenOptions::new().read(true).open(path) {
         Ok(f) => f,
-        Err(_) => return, // silent — common in non-tty environments
+        Err(_) => return, // silent - common in non-tty environments
     };
     let fd = f.as_raw_fd();
     let mut buf = [0u8; 1];
@@ -628,6 +659,6 @@ unsafe fn libc_reboot(cmd: i32) -> i32 {
     reboot(0xfee1deadu32 as i32, 672274793, cmd, std::ptr::null_mut())
 }
 
-// Unused imports kept out of the binary — removed to avoid trait-call errors.
+// Unused imports kept out of the binary - removed to avoid trait-call errors.
 // (The runner doesn't currently use BufRead::read_line as a method reference;
 // we just call .read_line() on stdin directly elsewhere.)
