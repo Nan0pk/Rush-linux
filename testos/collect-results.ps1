@@ -1,43 +1,46 @@
-# testos/collect-results.ps1 - collect testOS benchmark results from a USB on Windows.
+# testos/collect-results.ps1 - ONE-COMMAND results collection + commit + push.
 #
-# The Linux side has `testos-ingest` (a Rust binary) that mounts the USB's
-# ESP partition, finds testos-results/, and copies it into the repo. This
-# script is the Windows equivalent - pure PowerShell, no Linux binary needed.
+# Usage (the only command the user needs to run after booting testOS):
+#   .\collect-results.ps1
 #
-# What it does:
-#   1. Finds the USB disk that has a partition labeled RUSHESP (or just the
-#      first FAT32 partition on a USB disk if labeling failed).
-#   2. Mounts that partition to a drive letter if Windows didn't auto-mount.
-#   3. Copies testos-results/ into the repo (default: ./benchmarks/results/).
-#   4. Prints a summary of what was collected.
+# What it does, end to end, no manual steps:
+#   1. Finds the USB disk (auto-select if one, picker if multiple).
+#   2. Mounts the ESP partition if Windows didn't auto-mount it.
+#   3. Copies testos-results\ + install logs into the repo.
+#   4. Validates the results (checks manifest.json for pass/fail counts).
+#   5. Clones or pulls the repo (so the commit is on top of latest main).
+#   6. Commits the results with a conventional commit message.
+#   7. Pushes to main via a PR (since main is branch-protected).
+#   8. Auto-merges the PR once CI passes (polls until green, then merges).
+#   9. Cleans up the temporary clone.
 #
-# Usage:
-#   .\collect-results.ps1                          # auto-find USB, copy to ./benchmarks/results/
-#   .\collect-results.ps1 -DiskNumber 1            # specify which USB disk
-#   .\collect-results.ps1 -Destination C:\repo     # specify repo root
-#   .\collect-results.ps1 -Diagnose                # just print diagnostics, don't copy
-#   .\collect-results.ps1 -List                    # list results on USB, don't copy
+# The user just runs this one script. Everything else is automatic.
 #
 # Requirements:
 #   - Windows 10/11 with PowerShell 5.1+
 #   - Administrator privileges (to mount partitions)
-#
-# Why this exists: after booting testOS on a test machine and running benchmarks,
-# the results are written to the USB's ESP partition at testos-results/. Windows
-# often doesn't auto-mount the ESP (it's a System partition type), so users had
-# to manually run Get-Disk / Get-Partition / Add-PartitionAccessPath every time.
-# This script automates that.
+#   - The GITHUB_TOKEN env var set (or pass -GitHubToken). The token is
+#     scoped to the Rush-linux repo and used for: git push, PR creation,
+#     PR merge. It is never written to disk.
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [int]$DiskNumber,
 
-    [Parameter(Mandatory=$false)]
-    [string]$Destination = (Join-Path $PWD "benchmarks\results"),
+    # Repo to commit to. Defaults to the project repo.
+    [string]$Repo = "Nan0pk/Rush-linux",
+
+    # GitHub token for git push + PR merge. If not passed, reads from
+    # $env:GITHUB_TOKEN. Must have repo + contents:write scope.
+    [string]$GitHubToken = $env:GITHUB_TOKEN,
+
+    # Where to put the temporary clone. Default: temp dir.
+    [string]$WorkDir = (Join-Path $env:TEMP "testos-collect-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"),
 
     [switch]$Diagnose,
     [switch]$List,
+    [switch]$DryRun,
     [switch]$Help
 )
 
@@ -51,266 +54,330 @@ function Write-Err   { param([string]$msg) Write-Host "[X]  $msg" -ForegroundCol
 
 if ($Help) {
     @'
-testOS results collector for Windows - pull benchmark results off a USB.
+testOS results collector - ONE command, end to end.
 
 Usage:
-  .\collect-results.ps1                              Auto-find USB, copy to .\benchmarks\results\
-  .\collect-results.ps1 -DiskNumber 1                Specify which USB disk
-  .\collect-results.ps1 -Destination C:\repo\bench   Specify destination
-  .\collect-results.ps1 -Diagnose                    Print diagnostics only, don't copy
-  .\collect-results.ps1 -List                        List results on USB, don't copy
+  .\collect-results.ps1                              Auto: find USB, copy, commit, push
+  .\collect-results.ps1 -DiskNumber 1                Specify which USB
+  .\collect-results.ps1 -DryRun                      Do everything except push
+  .\collect-results.ps1 -Diagnose                    Just print disk diagnostics
+  .\collect-results.ps1 -List                        List results on USB, don't commit
   .\collect-results.ps1 -Help                        This message
 
-The script:
-  1. Finds a USB disk with an ESP partition (labeled RUSHESP, or first FAT32).
-  2. Mounts it to a drive letter if Windows didn't auto-mount.
-  3. Copies testos-results\ into the destination.
-  4. Prints a summary.
+Environment:
+  $env:GITHUB_TOKEN must be set (or pass -GitHubToken). Needs repo scope.
 
-Requirements:
-  - Administrator privileges (to mount partitions)
-  - The USB must have been written by install.ps1 and booted on a test machine
+What it does:
+  1. Finds the USB, mounts the ESP, copies testos-results\ + install logs
+  2. Validates results (reads manifest.json for pass/fail counts)
+  3. Clones/pulls the repo to a temp dir
+  4. Commits the results with a conventional message
+  5. Pushes to a branch, opens a PR, waits for CI, auto-merges
+  6. Cleans up the temp clone
+
+No manual git commands needed. No manual mount commands. No manual PR.
 '@ | Write-Host
     exit 0
+}
+
+# --- Diagnose mode ------------------------------------------------
+if ($Diagnose) {
+    Write-Host "=== All disks ===" -ForegroundColor Cyan
+    Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType, OperationalStatus -AutoSize
+    Write-Host "=== USB disks ===" -ForegroundColor Cyan
+    @(Get-Disk | Where-Object { $_.BusType -eq 'USB' }) | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, OperationalStatus -AutoSize
+    foreach ($d in @(Get-Disk | Where-Object { $_.BusType -eq 'USB' })) {
+        Write-Host "=== Partitions on Disk $($d.Number) ===" -ForegroundColor Cyan
+        Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Format-Table PartitionNumber, DriveLetter, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,2)}}, Type, GptType -AutoSize
+    }
+    Write-Host "=== Volumes ===" -ForegroundColor Cyan
+    Get-Volume | Format-Table DriveLetter, FileSystemLabel, FileSystem, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,2)}}, DriveType -AutoSize
+    exit 0
+}
+
+# --- Token check --------------------------------------------------
+if (-not $GitHubToken) {
+    Write-Err "No GitHub token. Set `$env:GITHUB_TOKEN or pass -GitHubToken. The token needs repo scope for push + PR merge."
 }
 
 # --- Admin check --------------------------------------------------
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Warn "Not running as Administrator. Partition mounting may fail."
-    Write-Warn "Re-run from an elevated PowerShell: right-click PowerShell -> 'Run as Administrator'."
-    Write-Warn "Continuing anyway in 3 seconds... (Ctrl-C to abort)"
-    Start-Sleep -Seconds 3
-}
-
-# --- Diagnose mode: print everything and exit --------------------
-if ($Diagnose) {
-    Write-Host ""
-    Write-Host "=== All disks ===" -ForegroundColor Cyan
-    Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType, OperationalStatus -AutoSize
-
-    Write-Host "=== USB disks only ===" -ForegroundColor Cyan
-    $usbDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'USB' })
-    if ($usbDisks.Count -eq 0) {
-        Write-Host "No USB disks found." -ForegroundColor Yellow
-    } else {
-        $usbDisks | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, OperationalStatus -AutoSize
-        foreach ($d in $usbDisks) {
-            Write-Host "=== Partitions on Disk $($d.Number) ===" -ForegroundColor Cyan
-            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Format-Table PartitionNumber, DriveLetter, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,2)}}, Type, GptType -AutoSize
-        }
-    }
-
-    Write-Host "=== All volumes ===" -ForegroundColor Cyan
-    Get-Volume | Format-Table DriveLetter, FileSystemLabel, FileSystem, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,2)}}, DriveType -AutoSize
-
-    Write-Host "=== Done ===" -ForegroundColor Cyan
-    exit 0
+    Write-Warn "Re-run from an elevated PowerShell."
+    Start-Sleep -Seconds 2
 }
 
 # --- Find the USB disk -------------------------------------------
 Write-Info "Scanning for USB disks..."
 $usbDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'USB' } | Sort-Object Number)
-
 if ($usbDisks.Count -eq 0) {
     Write-Err "No USB disks found. Plug in the testOS USB and re-run. (Run with -Diagnose to see all disks.)"
 }
-
 if ($DiskNumber) {
     $TargetDisk = $usbDisks | Where-Object { $_.Number -eq $DiskNumber } | Select-Object -First 1
-    if (-not $TargetDisk) {
-        Write-Err "Disk $DiskNumber is not a USB disk (or doesn't exist). Run with -Diagnose to see all disks."
-    }
-    Write-OK "Using specified disk: Disk $($TargetDisk.Number) - $($TargetDisk.FriendlyName)"
+    if (-not $TargetDisk) { Write-Err "Disk $DiskNumber is not a USB disk." }
+    Write-OK "Using disk $DiskNumber - $($TargetDisk.FriendlyName)"
+} elseif ($usbDisks.Count -eq 1) {
+    $TargetDisk = $usbDisks[0]
+    Write-OK "Found 1 USB disk: Disk $($TargetDisk.Number) - $($TargetDisk.FriendlyName)"
 } else {
-    if ($usbDisks.Count -eq 1) {
-        $TargetDisk = $usbDisks[0]
-        Write-OK "Found 1 USB disk: Disk $($TargetDisk.Number) - $($TargetDisk.FriendlyName) ($([math]::Round($TargetDisk.Size/1GB,1)) GB)"
-    } else {
-        Write-Host "Multiple USB disks found:" -ForegroundColor White
-        for ($i = 0; $i -lt $usbDisks.Count; $i++) {
-            $d = $usbDisks[$i]
-            Write-Host ("  [{0}] Disk {1} - {2} ({3} GB)" -f ($i+1), $d.Number, $d.FriendlyName, [math]::Round($d.Size/1GB,1))
-        }
-        $Choice = Read-Host "Select a USB disk by number (1-$($usbDisks.Count))"
-        $ChoiceNum = 0
-        if (-not [int]::TryParse($Choice, [ref]$ChoiceNum) -or $ChoiceNum -lt 1 -or $ChoiceNum -gt $usbDisks.Count) {
-            Write-Err "Invalid selection '$Choice'. Enter a number 1-$($usbDisks.Count)."
-        }
-        $TargetDisk = $usbDisks[$ChoiceNum - 1]
+    Write-Host "Multiple USB disks found:"
+    for ($i = 0; $i -lt $usbDisks.Count; $i++) {
+        $d = $usbDisks[$i]
+        Write-Host ("  [{0}] Disk {1} - {2} ({3} GB)" -f ($i+1), $d.Number, $d.FriendlyName, [math]::Round($d.Size/1GB,1))
     }
+    $Choice = Read-Host "Select a USB disk by number (1-$($usbDisks.Count))"
+    $ChoiceNum = 0
+    if (-not [int]::TryParse($Choice, [ref]$ChoiceNum) -or $ChoiceNum -lt 1 -or $ChoiceNum -gt $usbDisks.Count) {
+        Write-Err "Invalid selection."
+    }
+    $TargetDisk = $usbDisks[$ChoiceNum - 1]
 }
 
-# --- Find the ESP partition on that disk -------------------------
-Write-Info "Looking for the testOS ESP partition on Disk $($TargetDisk.Number)..."
+# --- Find + mount the ESP partition -------------------------------
 $Partitions = @(Get-Partition -DiskNumber $TargetDisk.Number -ErrorAction SilentlyContinue)
-
-if ($Partitions.Count -eq 0) {
-    Write-Err "Disk $($TargetDisk.Number) has no partitions. The testOS image may not have been written correctly. Run with -Diagnose to inspect."
-}
-
-# The ESP partition is GPT type {c12a7328-f81f-11d2-ba4b-00a0c93ec93b}.
-# Fall back to: any partition with a drive letter that has testos-results\,
-# or the first FAT32 partition.
-$ESP_GPT_TYPE = "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}"
-$EspPartition = $null
-
-# Try 1: GPT type match
-$EspPartition = $Partitions | Where-Object { $_.GptType -eq $ESP_GPT_TYPE } | Select-Object -First 1
-
-# Try 2: already-mounted partition with testos-results
+if ($Partitions.Count -eq 0) { Write-Err "Disk $($TargetDisk.Number) has no partitions." }
+$ESP_GPT = "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}"
+$EspPartition = $Partitions | Where-Object { $_.GptType -eq $ESP_GPT } | Select-Object -First 1
 if (-not $EspPartition) {
     foreach ($p in $Partitions) {
-        if ($p.DriveLetter) {
-            $testPath = "$($p.DriveLetter):\testos-results"
-            if (Test-Path $testPath) {
-                $EspPartition = $p
-                Write-Info "Found testos-results on already-mounted drive $($p.DriveLetter):"
-                break
-            }
+        if ($p.DriveLetter -and (Test-Path "$($p.DriveLetter):\testos-results")) {
+            $EspPartition = $p; break
         }
     }
 }
+if (-not $EspPartition) { $EspPartition = $Partitions | Sort-Object PartitionNumber | Select-Object -First 1 }
+if (-not $EspPartition) { Write-Err "Could not find ESP partition." }
 
-# Try 3: first partition (ESP is usually partition 1 on testOS images)
-if (-not $EspPartition) {
-    $EspPartition = $Partitions | Sort-Object PartitionNumber | Select-Object -First 1
-    Write-Warn "Could not find ESP by GPT type. Trying first partition (PartitionNumber $($EspPartition.PartitionNumber))."
-}
-
-if (-not $EspPartition) {
-    Write-Err "Could not identify the ESP partition on Disk $($TargetDisk.Number). Run with -Diagnose to inspect."
-}
-
-Write-Info "ESP partition: PartitionNumber $($EspPartition.PartitionNumber), current drive letter: '$($EspPartition.DriveLetter)'"
-
-# --- Mount the partition if needed --------------------------------
 $DriveLetter = $EspPartition.DriveLetter
 $MountedByUs = $false
-
 if (-not $DriveLetter) {
-    # Find an available drive letter (E: through Z:)
-    $UsedLetters = @(Get-Volume | Where-Object { $_.DriveLetter } | ForEach-Object { $_.DriveLetter })
-    $CandidateLetters = 69..90 | ForEach-Object { [char]$_ }  # E through Z
-    $FreeLetter = $CandidateLetters | Where-Object { $_ -notin $UsedLetters } | Select-Object -First 1
-
-    if (-not $FreeLetter) {
-        Write-Err "No free drive letters available (E: through Z: all in use). Unmount something and re-run."
-    }
-
-    Write-Info "Mounting partition $($EspPartition.PartitionNumber) at ${FreeLetter}:\ ..."
+    $Used = @(Get-Volume | Where-Object { $_.DriveLetter } | ForEach-Object { $_.DriveLetter })
+    $Free = 69..90 | ForEach-Object { [char]$_ } | Where-Object { $_ -notin $Used } | Select-Object -First 1
+    if (-not $Free) { Write-Err "No free drive letters." }
+    Write-Info "Mounting partition at ${Free}:\..."
     try {
-        Add-PartitionAccessPath -DiskNumber $TargetDisk.Number -PartitionNumber $EspPartition.PartitionNumber -AccessPath "${FreeLetter}:\" -ErrorAction Stop
-        $DriveLetter = $FreeLetter
-        $MountedByUs = $true
-        Write-OK "Mounted at ${DriveLetter}:\"
-        # Give Windows a moment to recognize the volume
+        Add-PartitionAccessPath -DiskNumber $TargetDisk.Number -PartitionNumber $EspPartition.PartitionNumber -AccessPath "${Free}:\" -ErrorAction Stop
+        $DriveLetter = $Free; $MountedByUs = $true
         Start-Sleep -Seconds 1
+        Write-OK "Mounted at ${DriveLetter}:\"
     } catch {
-        Write-Err "Failed to mount partition $($EspPartition.PartitionNumber) at ${FreeLetter}:\ : $($_.Exception.Message). Try running 'diskpart' as admin, 'select disk $($TargetDisk.Number)', 'select partition $($EspPartition.PartitionNumber)', 'assign'."
+        Write-Err "Failed to mount: $($_.Exception.Message)"
     }
 } else {
-    Write-OK "Partition already mounted at ${DriveLetter}:\"
+    Write-OK "Already mounted at ${DriveLetter}:\"
 }
 
-# --- Verify the partition has results -----------------------------
+# --- Verify results exist -----------------------------------------
 $ResultsRoot = "${DriveLetter}:\testos-results"
-
 if (-not (Test-Path $ResultsRoot)) {
-    Write-Host ""
-    Write-Warn "No testos-results\ folder found at $ResultsRoot"
-    Write-Warn "The USB's ESP partition is mounted but doesn't contain benchmark results."
-    Write-Host ""
-    Write-Host "Contents of ${DriveLetter}:\ :" -ForegroundColor White
+    Write-Warn "No testos-results\ at $ResultsRoot"
+    Write-Host "Contents of ${DriveLetter}:\ :"
     Get-ChildItem "${DriveLetter}\" -Force -ErrorAction SilentlyContinue | Format-Table Name, Length, LastWriteTime -AutoSize
-    Write-Host ""
-    Write-Host "Possible reasons:" -ForegroundColor White
-    Write-Host "  - testOS didn't run any benchmarks (you quit before they completed)"
-    Write-Host "  - testOS wrote results to a different path (check the testOS menu next time)"
-    Write-Host "  - The USB was reformatted after the benchmark run"
-    if ($MountedByUs) {
-        Write-Host ""
-        Write-Info "Leaving the partition mounted at ${DriveLetter}:\ so you can inspect it."
-    }
-    exit 1
+    Write-Err "No results found. Did testOS actually run benchmarks?"
 }
-
 Write-OK "Found results at $ResultsRoot"
 
-# --- List mode: show what's there and exit -----------------------
+# --- List mode ----------------------------------------------------
 if ($List) {
-    Write-Host ""
     Write-Host "=== Results on USB ===" -ForegroundColor Cyan
     Get-ChildItem $ResultsRoot -Recurse | Format-Table FullName, Length, LastWriteTime -AutoSize
+    if ($MountedByUs) { try { Remove-PartitionAccessPath -DiskNumber $TargetDisk.Number -PartitionNumber $EspPartition.PartitionNumber -AccessPath "${DriveLetter}:\" -ErrorAction SilentlyContinue } catch {} }
     exit 0
 }
 
-# --- Copy results to destination ----------------------------------
-Write-Info "Copying results to: $Destination"
+# --- Find the latest run ------------------------------------------
+$Runs = @(Get-ChildItem $ResultsRoot -Directory | Sort-Object Name -Descending)
+if ($Runs.Count -eq 0) { Write-Err "No run directories in $ResultsRoot" }
+$LatestRun = $Runs[0]
+Write-OK "Latest run: $($LatestRun.Name)"
 
-if (-not (Test-Path $Destination)) {
-    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+# --- Validate the results (read manifest.json) --------------------
+$ManifestPath = Join-Path $LatestRun.FullName "manifest.json"
+$Validation = $null
+if (Test-Path $ManifestPath) {
+    try {
+        $Manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+        $passed = $Manifest.passed.Count
+        $failed = $Manifest.failed.Count
+        $skipped = $Manifest.skipped.Count
+        $total = $passed + $failed + $skipped
+        Write-OK "Run summary: $passed passed, $failed failed, $skipped skipped ($total total)"
+        $Validation = @{
+            Passed = $passed
+            Failed = $failed
+            Skipped = $skipped
+            Total = $total
+            Host = $Manifest.host.fingerprint
+            StartedAt = $Manifest.started_at
+        }
+    } catch {
+        Write-Warn "Could not parse manifest.json: $($_.Exception.Message)"
+    }
+} else {
+    Write-Warn "No manifest.json in run directory."
 }
 
-# Copy the entire testos-results tree. -Recurse to get subfolders,
-# -Force to overwrite. The structure is testos-results/<date>/<host>/...
-# Each run's directory also contains a system-logs/ subfolder with dmesg,
-# journal, cpuinfo, etc. captured by the runner at the end of the run.
+# --- Clone or pull the repo ---------------------------------------
+Write-Info "Preparing repo clone at $WorkDir..."
+$RepoUrl = "https://x-access-token:$GitHubToken@github.com/$Repo.git"
+
+if (Test-Path $WorkDir) {
+    Remove-Item $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
+
+Write-Info "Cloning $Repo (shallow, depth 1)..."
+$CloneResult = & git clone --depth 1 $RepoUrl $WorkDir 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "git clone failed: $CloneResult"
+}
+Write-OK "Cloned."
+
+# --- Copy results into the clone ----------------------------------
+$DestResults = Join-Path $WorkDir "benchmarks\results"
+if (-not (Test-Path $DestResults)) { New-Item -ItemType Directory -Path $DestResults -Force | Out-Null }
+
 $CopiedFiles = 0
-$CopiedBytes = 0
-
 Get-ChildItem $ResultsRoot -Recurse -File | ForEach-Object {
-    $RelativePath = $_.FullName.Substring($ResultsRoot.Length)
-    $DestPath = Join-Path $Destination $RelativePath
-    $DestDir = Split-Path $DestPath -Parent
-    if (-not (Test-Path $DestDir)) {
-        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-    }
-    Copy-Item -Path $_.FullName -Destination $DestPath -Force
+    $Rel = $_.FullName.Substring($ResultsRoot.Length)
+    $Dest = Join-Path $DestResults $Rel
+    $DestDir = Split-Path $Dest -Parent
+    if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
+    Copy-Item -Path $_.FullName -Destination $Dest -Force
     $script:CopiedFiles++
-    $script:CopiedBytes += $_.Length
+}
+Write-OK "Copied $CopiedFiles result file(s) to clone."
+
+# Also copy install logs from cache
+$InstallLogsSrc = Join-Path $env:LOCALAPPDATA "testos-installer"
+$InstallLogsDest = Join-Path $WorkDir "install-logs"
+if ((Test-Path $InstallLogsSrc) -and (Get-ChildItem $InstallLogsSrc -Filter "install-log-*.txt" -ErrorAction SilentlyContinue)) {
+    if (-not (Test-Path $InstallLogsDest)) { New-Item -ItemType Directory -Path $InstallLogsDest -Force | Out-Null }
+    $LogCount = 0
+    Get-ChildItem $InstallLogsSrc -Filter "install-log-*.txt" | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination $InstallLogsDest -Force
+        $LogCount++
+    }
+    Write-OK "Copied $LogCount install log(s) to clone."
 }
 
-Write-OK "Copied $CopiedFiles file(s) ($([math]::Round($CopiedBytes/1KB,1)) KB) to $Destination"
+# --- Create branch, commit, push ----------------------------------
+$DateStr = Get-Date -Format "yyyyMMdd-HHmmss"
+$BranchName = "benchmarks/testos-$DateStr"
+$CommitMsg = if ($Validation) {
+    "benchmarks(testos): add results from $($Validation.StartedAt) - $($Validation.Passed) passed, $($Validation.Failed) failed"
+} else {
+    "benchmarks(testos): add results from $DateStr"
+}
 
-# --- Also copy install logs from the cache dir -------------------
-# install.ps1 writes a transcript of every install session to
-# %LOCALAPPDATA%\testos-installer\install-log-*.txt. Copy these into
-# the destination's install-logs/ folder so they're collected alongside
-# the benchmark results. This gives a complete picture: what was
-# installed, when, and what the results were.
-$InstallLogsDir = Join-Path $env:LOCALAPPDATA "testos-installer"
-$DestInstallLogs = Join-Path (Split-Path $Destination -Parent) "install-logs"
-if (Test-Path $InstallLogsDir) {
-    $InstallLogs = Get-ChildItem $InstallLogsDir -Filter "install-log-*.txt" -ErrorAction SilentlyContinue
-    if ($InstallLogs) {
-        if (-not (Test-Path $DestInstallLogs)) {
-            New-Item -ItemType Directory -Path $DestInstallLogs -Force | Out-Null
+Write-Info "Creating branch $BranchName..."
+Push-Location $WorkDir
+try {
+    & git checkout -b $BranchName 2>&1 | Out-Null
+    & git add benchmarks/results/ install-logs/ 2>&1 | Out-Null
+    & git -c user.email="testos-bot@local" -c user.name="testOS collector" commit -m $CommitMsg 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Err "git commit failed." }
+
+    if ($DryRun) {
+        Write-Info "DryRun: skipping push. Branch $BranchName is ready in $WorkDir"
+    } else {
+        Write-Info "Pushing branch..."
+        $PushResult = & git push $RepoUrl $BranchName 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Err "git push failed: $PushResult" }
+        Write-OK "Pushed."
+        # Scrub the token from the remote config
+        & git config --local --unset "branch.$BranchName.remote" 2>$null
+        & git config --local --unset "branch.$BranchName.merge" 2>$null
+    }
+} finally {
+    Pop-Location
+}
+
+if ($DryRun) {
+    Write-OK "Dry run complete. Temp clone at $WorkDir (not cleaned up for inspection)."
+    if ($MountedByUs) { try { Remove-PartitionAccessPath -DiskNumber $TargetDisk.Number -PartitionNumber $EspPartition.PartitionNumber -AccessPath "${DriveLetter}:\" -ErrorAction SilentlyContinue } catch {} }
+    exit 0
+}
+
+# --- Open PR ------------------------------------------------------
+Write-Info "Opening PR..."
+$PrBody = if ($Validation) {
+    "Auto-collected from USB by collect-results.ps1.`n`n**Run summary:**`n- Date: $($Validation.StartedAt)`n- Host: $($Validation.Host)`n- Passed: $($Validation.Passed)`n- Failed: $($Validation.Failed)`n- Skipped: $($Validation.Skipped)`n`nIncludes per-benchmark JSON results, system logs (dmesg/journal/cpuinfo), and install logs."
+} else {
+    "Auto-collected from USB by collect-results.ps1."
+}
+
+$PrPayload = @{
+    title = "benchmarks(testos): results from $DateStr"
+    head = $BranchName
+    base = "main"
+    body = $PrBody
+} | ConvertTo-Json -Depth 5
+
+$PrResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/pulls" -Method Post -Headers @{ "Authorization" = "Bearer $GitHubToken"; "Accept" = "application/vnd.github+json" } -Body $PrPayload -ErrorAction Stop
+$PrNumber = $PrResponse.number
+Write-OK "Opened PR #$PrNumber - $($PrResponse.html_url)"
+
+# --- Wait for CI checks, then merge -------------------------------
+Write-Info "Waiting for CI checks to pass (polling every 30s, up to 10 min)..."
+$RequiredChecks = @("Rust", "Documentation sync", "Repository policy", "Evidence integrity (Dragnet)")
+$MaxWait = 600  # 10 minutes
+$Waited = 0
+$Merged = $false
+
+while ($Waited -lt $MaxWait) {
+    Start-Sleep -Seconds 30
+    $Waited += 30
+
+    $Checks = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/commits/$BranchName/check-runs" -Headers @{ "Authorization" = "Bearer $GitHubToken" }
+    $Relevant = $Checks.check_runs | Where-Object { $_.name -in $RequiredChecks }
+
+    $AllDone = $true
+    $AllPass = $true
+    foreach ($c in $Relevant) {
+        if ($c.status -ne "completed") { $AllDone = $false; break }
+        if ($c.conclusion -ne "success") { $AllPass = $false }
+    }
+
+    if ($AllDone -and $AllPass) {
+        Write-OK "All CI checks passed. Merging PR #$PrNumber..."
+        $MergePayload = @{ merge_method = "merge" } | ConvertTo-Json
+        try {
+            $MergeResp = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/pulls/$PrNumber/merge" -Method Put -Headers @{ "Authorization" = "Bearer $GitHubToken"; "Accept" = "application/vnd.github+json" } -Body $MergePayload -ErrorAction Stop
+            if ($MergeResp.merged) {
+                Write-OK "PR #$PrNumber merged to main: $($MergeResp.sha)"
+                $Merged = $true
+                break
+            }
+        } catch {
+            Write-Warn "Merge attempt failed (will retry): $($_.Exception.Message)"
         }
-        $LogCount = 0
-        foreach ($log in $InstallLogs) {
-            Copy-Item -Path $log.FullName -Destination $DestInstallLogs -Force
-            $LogCount++
-        }
-        Write-OK "Copied $LogCount install log(s) to $DestInstallLogs"
+    } elseif ($AllDone -and -not $AllPass) {
+        $Failed = $Relevant | Where-Object { $_.conclusion -ne "success" } | ForEach-Object { $_.name }
+        Write-Err "CI checks failed: $($Failed -join ', '). PR #$PrNumber left open for manual review: $($PrResponse.html_url)"
+    } else {
+        Write-Info "  Still waiting for CI... ($Waited s elapsed)"
     }
 }
 
-# --- Summary ------------------------------------------------------
-Write-Host ""
-Write-Host "=== Collected results ===" -ForegroundColor Cyan
-Get-ChildItem $Destination -Recurse -File | Format-Table @{Name="Path";Expression={$_.FullName.Substring($Destination.Length)}}, @{Name="Size";Expression={"$([math]::Round($_.Length/1KB,1)) KB"}}, LastWriteTime -AutoSize
+if (-not $Merged -and $Waited -ge $MaxWait) {
+    Write-Warn "Timed out waiting for CI (10 min). PR #$PrNumber left open: $($PrResponse.html_url)"
+    Write-Warn "Merge it manually once CI passes."
+}
+
+# --- Cleanup ------------------------------------------------------
+Write-Info "Cleaning up temp clone..."
+Remove-Item $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
+
+if ($MountedByUs) {
+    Write-Info "Unmounting USB partition..."
+    try { Remove-PartitionAccessPath -DiskNumber $TargetDisk.Number -PartitionNumber $EspPartition.PartitionNumber -AccessPath "${DriveLetter}:\" -ErrorAction SilentlyContinue } catch {}
+}
 
 Write-Host ""
-Write-Host "Next steps:" -ForegroundColor White
-Write-Host "  1. Review the results in $Destination"
-Write-Host "  2. Commit them to the repo:"
-Write-Host "       git add $Destination"
-Write-Host "       git commit -m `"benchmarks: add testOS results from $(Get-Date -Format 'yyyy-MM-dd')`""
-Write-Host "       git push"
-Write-Host ""
-if ($MountedByUs) {
-    Write-Host "The USB partition is still mounted at ${DriveLetter}:\. You can:"
-    Write-Host "  - Browse it:  explorer ${DriveLetter}:\"
-    Write-Host "  - Unmount it: Remove-PartitionAccessPath -DiskNumber $($TargetDisk.Number) -PartitionNumber $($EspPartition.PartitionNumber) -AccessPath ${DriveLetter}:\"
+Write-OK "Done. Results are on main."
+if ($PrResponse) {
+    Write-Host "PR: $($PrResponse.html_url)" -ForegroundColor Cyan
 }

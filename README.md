@@ -145,6 +145,29 @@ Type `0` for all, or pick specific numbers separated by commas (e.g. `1,3,5`). P
 
 Plug the USB back into your workstation.
 
+**On Windows (one command, fully automated):**
+
+```powershell
+# Set your GitHub token (needs repo scope for push + PR merge):
+$env:GITHUB_TOKEN = "github_pat_xxx..."
+
+# Download and run the collector - it does EVERYTHING:
+curl.exe -L -o collect-results.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.ps1
+powershell -ExecutionPolicy Bypass -File .\collect-results.ps1
+```
+
+The collector automatically:
+1. Finds the USB, mounts the ESP partition
+2. Copies `testos-results\` + install logs
+3. Reads `manifest.json` for pass/fail counts
+4. Clones the repo, creates a branch, commits the results
+5. Pushes the branch, opens a PR
+6. Waits for CI checks to pass (up to 10 min)
+7. Auto-merges the PR to main
+8. Cleans up the temp clone and unmounts the USB
+
+No manual git, no manual mount, no manual PR. One command, done.
+
 **On Linux:**
 
 ```bash
@@ -154,23 +177,7 @@ testos-ingest commit
 git push
 ```
 
-**On Windows:**
-
-```powershell
-# Download the collector (or run it from your local repo clone):
-curl.exe -L -o collect-results.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.ps1
-
-# Run it from an admin PowerShell - it finds the USB, mounts the ESP,
-# and copies testos-results\ into .\benchmarks\results\:
-powershell -ExecutionPolicy Bypass -File .\collect-results.ps1
-
-# Then commit:
-git add benchmarks\results\
-git commit -m "benchmarks: add testOS results"
-git push
-```
-
-The collector handles the cases where Windows doesn't auto-mount the ESP partition (which is most of the time — the ESP is a System partition type, so Windows hides it by default). Run `.\collect-results.ps1 -Diagnose` to see all disks/partitions/volumes if something goes wrong.
+Run `.\collect-results.ps1 -Diagnose` to see all disks/partitions if something goes wrong. Run with `-DryRun` to do everything except push (useful for testing).
 
 Results land in `benchmarks/results/<UTC-date>/<host-fingerprint>/`.
 
