@@ -34,7 +34,11 @@
 set -euo pipefail
 
 REPO="Nan0pk/Rush-linux"
-API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+# Use /releases?per_page=1 instead of /releases/latest because the latter
+# filters out prereleases, and Rush's testOS releases are marked prerelease
+# until v1.0. This returns the most recent non-draft release, prerelease or
+# not.
+API_URL="https://api.github.com/repos/${REPO}/releases?per_page=1"
 
 # ─── Colors (only if stdout is a terminal) ────────────────────────
 if [ -t 1 ]; then

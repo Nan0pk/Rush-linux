@@ -1,4 +1,4 @@
-# testos/install.ps1 — download the latest prebuilt testOS image and write it to a USB stick.
+﻿# testos/install.ps1 - download the latest prebuilt testOS image and write it to a USB stick.
 #
 # Usage (from an elevated PowerShell):
 #   .\install.ps1 -Device \\.\PhysicalDrive1
@@ -14,7 +14,7 @@
 #   4. Refuses to write to a drive that's in use or that looks like the system disk.
 #   5. Asks you to confirm the device path twice.
 #   6. Writes the image to the USB using dd-equivalent direct disk writes
-#      (no Rufus, no Etcher, no WSL — pure PowerShell).
+#      (no Rufus, no Etcher, no WSL - pure PowerShell).
 #   7. Prints next steps for collecting results.
 #
 # Requirements:
@@ -43,7 +43,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ─── Helpers ──────────────────────────────────────────────────────
+# --- Helpers ------------------------------------------------------
 function Write-Info  { param([string]$msg) Write-Host ">> $msg" -ForegroundColor White }
 function Write-OK    { param([string]$msg) Write-Host "[OK] $msg" -ForegroundColor Green }
 function Write-Warn  { param([string]$msg) Write-Host "[!]  $msg" -ForegroundColor Yellow }
@@ -51,7 +51,7 @@ function Write-Err   { param([string]$msg) Write-Host "[X]  $msg" -ForegroundCol
 
 if ($Help) {
     @'
-testOS installer for Windows — download and write the latest testOS image to USB.
+testOS installer for Windows - download and write the latest testOS image to USB.
 
 Usage:
   .\install.ps1 -Device \\.\PhysicalDrive<N>        Download + write to the specified disk
@@ -64,7 +64,7 @@ How to find your USB's physical drive number:
 
 Then pass -Device \\.\PhysicalDrive<N> (e.g. \\.\PhysicalDrive1).
 
-Common issue — "cannot be loaded because running scripts is disabled":
+Common issue - "cannot be loaded because running scripts is disabled":
   Windows blocks downloaded scripts by default. Run with execution policy
   bypassed for this process only:
     powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
@@ -89,7 +89,7 @@ Options:
     exit 0
 }
 
-# ─── Admin check ──────────────────────────────────────────────────
+# --- Admin check --------------------------------------------------
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
     Write-Warn "Not running as Administrator. Disk writes will fail."
@@ -98,15 +98,27 @@ if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
     Start-Sleep -Seconds 3
 }
 
-# ─── Find latest release ──────────────────────────────────────────
+# --- Find latest release ------------------------------------------
 $Repo = "Nan0pk/Rush-linux"
-$ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+# Use /releases?per_page=1 instead of /releases/latest because the latter
+# filters out prereleases, and Rush's testOS releases are marked prerelease
+# until v1.0. This returns the most recent non-draft release, prerelease or
+# not.
+$ApiUrl = "https://api.github.com/repos/$Repo/releases?per_page=1"
 
 Write-Info "Finding the latest testOS release..."
 try {
-    $Release = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "testos-installer" } -ErrorAction Stop
+    $Releases = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "testos-installer" } -ErrorAction Stop
 } catch {
     Write-Err "Could not fetch release info from $ApiUrl. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
+}
+
+# /releases returns an array; take the first (newest) element. PowerShell
+# auto-unwraps single-element arrays, but explicitly selecting the first
+# is robust to both 0-element and many-element responses.
+$Release = $Releases | Select-Object -First 1
+if (-not $Release) {
+    Write-Err "No releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
 }
 
 $Version = $Release.tag_name
@@ -121,7 +133,7 @@ if ($ListOnly) {
     exit 0
 }
 
-# ─── Check that a release image exists ────────────────────────────
+# --- Check that a release image exists ----------------------------
 $Assets = $Release.assets
 $ImageAsset = $Assets | Where-Object { $_.name -match '^testos-.*\.raw$' } | Select-Object -First 1
 if (-not $ImageAsset) {
@@ -134,12 +146,12 @@ if (-not $ImageAsset) {
     exit 1
 }
 
-# ─── Set up working directory ─────────────────────────────────────
+# --- Set up working directory -------------------------------------
 $WorkDir = Join-Path $env:TEMP ("testos-install-" + [System.Guid]::NewGuid().ToString("N").Substring(0,8))
 New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 
 try {
-    # ─── Download assets ──────────────────────────────────────────
+    # --- Download assets ------------------------------------------
     function Download-Asset {
         param([string]$Url, [string]$DestPath)
         Write-Info "Downloading $(Split-Path $DestPath -Leaf)..."
@@ -159,7 +171,7 @@ try {
         Download-Asset $SumsAsset.browser_download_url (Join-Path $WorkDir "SHA256SUMS")
     }
 
-    # testos-ingest (Linux binary — won't run on Windows, but useful for the
+    # testos-ingest (Linux binary - won't run on Windows, but useful for the
     # user to copy into WSL or a Linux box later if they want to ingest from there)
     $IngestAsset = $Assets | Where-Object { $_.name -match '^testos-ingest-.*-linux-x86_64$' } | Select-Object -First 1
     if ($IngestAsset) {
@@ -172,7 +184,7 @@ try {
         Download-Asset $BenchListAsset.browser_download_url (Join-Path $WorkDir "bench-list.toml")
     }
 
-    # ─── Verify checksums ─────────────────────────────────────────
+    # --- Verify checksums -----------------------------------------
     if ($SumsAsset) {
         Write-Info "Verifying checksums..."
         $SumsFile = Join-Path $WorkDir "SHA256SUMS"
@@ -206,7 +218,7 @@ try {
     $ImageSizeBytes = (Get-Item $ImageFile).Length
     $ImageSizeMB = [math]::Round($ImageSizeBytes / 1MB)
 
-    # ─── Dry-run stops here ───────────────────────────────────────
+    # --- Dry-run stops here ---------------------------------------
     if ($DryRun) {
         Write-OK "Dry run complete. Downloaded and verified:"
         Get-ChildItem $WorkDir | Format-Table Name, Length
@@ -216,7 +228,7 @@ try {
         exit 0
     }
 
-    # ─── Device selection and safety checks ──────────────────────
+    # --- Device selection and safety checks ----------------------
     if (-not $Device) {
         Write-Host ""
         Write-Host "Available disks:"
@@ -245,17 +257,17 @@ try {
         Write-Err "Disk $DiskNum not found. Check 'Get-Disk' and pass a valid -Device \\.\PhysicalDrive<N>."
     }
 
-    # ─── Safety check 1: refuse the Windows system disk ─────────
+    # --- Safety check 1: refuse the Windows system disk ---------
     try {
         $SystemDisk = Get-Partition | Where-Object { $_.DriveLetter -eq $env:SystemDrive[0] } | Select-Object -ExpandProperty DiskNumber -First 1
         if ($null -ne $SystemDisk -and $DiskNum -eq $SystemDisk) {
-            Write-Err "Device $Device is the Windows system disk (Disk $SystemDisk, $($DiskInfo.FriendlyName)). Refusing to overwrite. If you really meant to write to your boot disk, you're holding the script wrong — use a USB stick."
+            Write-Err "Device $Device is the Windows system disk (Disk $SystemDisk, $($DiskInfo.FriendlyName)). Refusing to overwrite. If you really meant to write to your boot disk, you're holding the script wrong - use a USB stick."
         }
     } catch {
         Write-Warn "Could not determine the system disk for safety check. Proceed with extreme caution."
     }
 
-    # ─── Safety check 2: refuse non-USB bus types unless -Force ─
+    # --- Safety check 2: refuse non-USB bus types unless -Force -
     # A USB stick shows up as BusType=USB. Internal SATA/NVMe disks show
     # up as BusType=SATA/NVMe/RAID. Refusing non-USB bus types catches
     # the most common accident: targeting an internal data disk.
@@ -267,7 +279,7 @@ try {
         Write-Err "Refusing to write to a non-USB disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with -Force. Otherwise, find your USB with 'Get-Disk' and try again."
     }
 
-    # ─── Safety check 3: refuse mounted volumes unless -Force ───
+    # --- Safety check 3: refuse mounted volumes unless -Force ---
     $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
     if ($MountedParts -and -not $Force) {
         Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) has mounted volumes:"
@@ -276,14 +288,14 @@ try {
         Write-Err "Aborting. Re-run with -Force to proceed anyway, or unmount the volumes first."
     }
 
-    # ─── Safety check 4: size sanity ────────────────────────────
+    # --- Safety check 4: size sanity ----------------------------
     # If the target disk is more than 4x the image size, warn. People
     # sometimes image a 500MB USB onto a 2TB HDD by mistake.
     $DiskSizeBytes = $DiskInfo.Size
     $DiskSizeGB = [math]::Round($DiskSizeBytes / 1GB, 1)
     if ($DiskSizeBytes -gt ($ImageSizeBytes * 4)) {
         Write-Warn "Target disk is $DiskSizeGB GB but the image is only $ImageSizeMB MB."
-        Write-Warn "This is unusual — you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
+        Write-Warn "This is unusual - you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
         if (-not $Force) {
             Write-Err "Refusing to write to a disk that's much larger than the image. If this is intentional (e.g. a large USB stick), re-run with -Force."
         }
@@ -293,7 +305,7 @@ try {
         Write-Err "Target disk ($DiskSizeGB GB) is smaller than the image ($ImageSizeMB MB). The write would fail mid-way and leave the disk in a broken state."
     }
 
-    # ─── Confirm: show the disk's identity and ask 'yes' ────────
+    # --- Confirm: show the disk's identity and ask 'yes' --------
     Write-Host ""
     Write-Host "About to write $ImageSizeMB MB to:" -ForegroundColor White
     Write-Host "  Device:       $Device" -ForegroundColor White
@@ -312,7 +324,7 @@ try {
         }
     }
 
-    # ─── Write the image ──────────────────────────────────────────
+    # --- Write the image ------------------------------------------
     Write-Info "Opening $Device for raw write..."
 
     # Open the physical drive for raw write access.
@@ -344,7 +356,7 @@ try {
     $Handle = [Win32.Native]::CreateFile($Device, $GENERIC_WRITE -bor $GENERIC_READ, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, 0, [IntPtr]::Zero)
     if ($Handle -eq [IntPtr]-1) {
         $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        Write-Err "Failed to open $Device for writing (Win32 error $ErrCode). The disk may be in use — close any Disk Management windows, or run 'diskpart' then 'select disk $DiskNum' / 'clean' to clear it."
+        Write-Err "Failed to open $Device for writing (Win32 error $ErrCode). The disk may be in use - close any Disk Management windows, or run 'diskpart' then 'select disk $DiskNum' / 'clean' to clear it."
     }
 
     try {
@@ -378,7 +390,10 @@ try {
                 $Rate = [math]::Round(($TotalBytes / 1MB) / $Elapsed.TotalSeconds, 1)
                 $WrittenMB = [math]::Round($TotalBytes / 1MB)
                 $TotalMB = [math]::Round($TotalSize / 1MB)
-                Write-Host "`r  $Pct% ($WrittenMB MB / $TotalMB MB) @ $Rate MB/s" -NoNewline
+                # Build the progress string with explicit concatenation to avoid
+                # PowerShell 5.1 parser issues with parentheses inside interpolation.
+                $ProgressLine = "`r  " + $Pct + "% " + $WrittenMB + " MB / " + $TotalMB + " MB @ " + $Rate + " MB/s"
+                Write-Host $ProgressLine -NoNewline
             }
         }
         Write-Host ""
@@ -390,14 +405,14 @@ try {
 
     Write-OK "Write complete."
 
-    # ─── Next steps ───────────────────────────────────────────────
+    # --- Next steps -----------------------------------------------
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor White
     Write-Host ""
     Write-Host "  1. Plug the USB into the test machine."
-    Write-Host "  2. Reboot. Enter the boot menu (F12, F8, F11, or Esc — depends on vendor)."
+    Write-Host "  2. Reboot. Enter the boot menu (F12, F8, F11, or Esc - depends on vendor)."
     Write-Host "  3. Pick the USB from the list."
-    Write-Host "  4. (If it refuses to boot) Disable Secure Boot — testOS UKIs are unsigned for now."
+    Write-Host "  4. (If it refuses to boot) Disable Secure Boot - testOS UKIs are unsigned for now."
     Write-Host "  5. testOS boots, shows a menu of benchmarks."
     Write-Host "  6. Pick 'Run all' (0) or specific test numbers. Press Esc to abort."
     Write-Host "  7. When done, testOS syncs the USB and reboots back to the host OS."
