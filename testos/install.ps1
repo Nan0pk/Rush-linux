@@ -35,6 +35,16 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$Device,
 
+    # Path to a local .raw or .raw.zst file. Skips the GitHub download.
+    [Parameter(Mandatory=$false)]
+    [string]$ImageFile,
+
+    # Skip SHA256 verification (only relevant with -ImageFile).
+    [switch]$SkipVerification,
+
+    # Delete the local cache dir before running (clean slate).
+    [switch]$CleanCache,
+
     [switch]$DryRun,
     [switch]$ListOnly,
     [switch]$Force,
@@ -56,7 +66,9 @@ testOS installer for Windows - download and write the latest testOS image to USB
 Usage:
   .\install.ps1 -Device \\.\PhysicalDrive<N>        Download + write to the specified disk
   .\install.ps1 -ListOnly                           Show latest release assets without writing
-  .\install.ps1 -DryRun -Device \\.\PhysicalDrive<N> Download and verify, don't write
+  .\install.ps1 -DryRun                             Download and verify, don't write
+  .\install.ps1 -ImageFile C:\path\to\file.raw.zst  Use a local image, skip download
+  .\install.ps1 -CleanCache                         Delete the local cache and re-download
   .\install.ps1 -Help                               This message
 
 How to find your USB's physical drive number:
@@ -69,8 +81,7 @@ Common issue - "cannot be loaded because running scripts is disabled":
   bypassed for this process only:
     powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 
-  If that still fails, unblock the downloaded file first (Windows marks
-  downloaded files with a "Mark of the Web"):
+  If that still fails, unblock the downloaded file first:
     Unblock-File .\install.ps1
     powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 
@@ -79,12 +90,20 @@ Requirements:
   - Administrator privileges (Run as Administrator)
 
 Options:
-  -DryRun     Download and verify everything, but don't write to the device.
-  -ListOnly   Just show what's in the latest release.
-  -Force      Skip the removable-media and size-sanity safety checks.
-              Required if you want to write to a non-USB disk (e.g. an
-              internal test disk). Still refuses the system root disk.
-  -Help       This message.
+  -Device <path>       Raw disk path, e.g. \\.\PhysicalDrive1
+  -ImageFile <path>    Path to a local .raw or .raw.zst. Skips the GitHub download.
+                       SHA256 is still verified against the release SHA256SUMS unless
+                       you also pass -SkipVerification.
+  -SkipVerification    Skip SHA256 check (use with -ImageFile when offline).
+  -CleanCache          Delete %LOCALAPPDATA%\testos-installer\cache\ before running.
+  -DryRun              Download/verify/decompress but don't write to the device.
+  -ListOnly            Just show what's in the latest release.
+  -Force               Skip removable-media and size-sanity safety checks.
+  -Help                This message.
+
+Cache directory: %LOCALAPPDATA%\testos-installer\cache\
+  The installer caches the downloaded .raw.zst and decompressed .raw here.
+  Second run of the same version reuses the cache - no 582 MB re-download.
 '@ | Write-Host
     exit 0
 }
@@ -162,13 +181,29 @@ if (-not $ImageAsset) {
     exit 1
 }
 
-# --- Set up working directory -------------------------------------
+# --- Set up working directory and cache dir ----------------------
 $WorkDir = Join-Path $env:TEMP ("testos-install-" + [System.Guid]::NewGuid().ToString("N").Substring(0,8))
 New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 
+# Cache dir: %LOCALAPPDATA%\testos-installer\cache\ (fall back to %TEMP% if LOCALAPPDATA is unset)
+$LocalAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:TEMP }
+$CacheDir = Join-Path $LocalAppData "testos-installer\cache"
+
+if ($CleanCache) {
+    Write-Info "Cleaning cache at $CacheDir ..."
+    if (Test-Path $CacheDir) {
+        Remove-Item -Path $CacheDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-OK "Cache cleared."
+    } else {
+        Write-Info "Cache dir does not exist - nothing to clear."
+    }
+}
+
+New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
+
 try {
-    # --- Download assets ------------------------------------------
-    function Download-Asset {
+    # --- Helper functions -----------------------------------------
+    function Download-File {
         param([string]$Url, [string]$DestPath)
         Write-Info "Downloading $(Split-Path $DestPath -Leaf)..."
         try {
@@ -178,104 +213,204 @@ try {
         }
     }
 
-    Download-Asset $ImageAsset.browser_download_url (Join-Path $WorkDir $ImageAsset.name)
-    $ImageFile = Join-Path $WorkDir $ImageAsset.name
-
-    # SHA256SUMS
-    $SumsAsset = $Assets | Where-Object { $_.name -eq "SHA256SUMS" } | Select-Object -First 1
-    if ($SumsAsset) {
-        Download-Asset $SumsAsset.browser_download_url (Join-Path $WorkDir "SHA256SUMS")
+    # Decompress a .zst file to $DestPath. Returns nothing; exits on failure.
+    function Expand-Zst {
+        param([string]$ZstPath, [string]$DestPath)
+        $name = Split-Path $ZstPath -Leaf
+        Write-Info "Decompressing $name ..."
+        $zstdExe = Get-Command zstd -ErrorAction SilentlyContinue
+        if ($zstdExe) {
+            & zstd -d -f $ZstPath -o $DestPath
+            if ($LASTEXITCODE -ne 0) { Write-Err "zstd decompression failed (exit $LASTEXITCODE)." }
+        } else {
+            # bsdtar (Windows 10 1803+ tar.exe) can stream-decompress a .zst.
+            # Use cmd.exe so the redirect works correctly.
+            $tmpError = Join-Path $env:TEMP "testos-zstd-err.txt"
+            & cmd.exe /c "tar.exe --use-compress-program=zstd -xf `"$ZstPath`" --to-stdout > `"$DestPath`" 2>`"$tmpError`""
+            if ($LASTEXITCODE -ne 0) {
+                $errDetail = if (Test-Path $tmpError) { Get-Content $tmpError -Raw } else { "(no stderr)" }
+                Write-Err ("Could not decompress $name (tar.exe exit $LASTEXITCODE). " + $errDetail + " Install zstd: winget install Meta.Zstandard")
+            }
+        }
+        if (-not (Test-Path $DestPath) -or (Get-Item $DestPath).Length -eq 0) {
+            Write-Err "Decompression of $name produced an empty file. The .zst may be corrupt."
+        }
     }
 
-    # testos-ingest (Linux binary - won't run on Windows, but useful for the
-    # user to copy into WSL or a Linux box later if they want to ingest from there)
-    $IngestAsset = $Assets | Where-Object { $_.name -match '^testos-ingest-.*-linux-x86_64$' } | Select-Object -First 1
-    if ($IngestAsset) {
-        Download-Asset $IngestAsset.browser_download_url (Join-Path $WorkDir $IngestAsset.name)
-    }
-
-    # bench-list.toml (for reference)
-    $BenchListAsset = $Assets | Where-Object { $_.name -eq "bench-list.toml" } | Select-Object -First 1
-    if ($BenchListAsset) {
-        Download-Asset $BenchListAsset.browser_download_url (Join-Path $WorkDir "bench-list.toml")
-    }
-
-    # --- Verify checksums -----------------------------------------
-    if ($SumsAsset) {
-        Write-Info "Verifying checksums..."
-        $SumsFile = Join-Path $WorkDir "SHA256SUMS"
-        $SumsContent = Get-Content $SumsFile
-        $Verified = 0
-        $Failed = 0
-        foreach ($Line in $SumsContent) {
-            if ($Line -match '^\s*([0-9a-fA-F]{64})\s+\*?(\S+)\s*$') {
+    # Verify one file against SHA256SUMS content. Returns $true if match, $false if not found.
+    # Exits with an error if found but hash mismatches.
+    function Test-Sha256 {
+        param([string]$FilePath, [string]$SumsContent)
+        $FileName = Split-Path $FilePath -Leaf
+        foreach ($Line in ($SumsContent -split "`n")) {
+            if ($Line -match '^\s*([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($FileName) + '\s*$') {
                 $ExpectedHash = $Matches[1].ToLower()
-                $FileName = $Matches[2]
-                $FilePath = Join-Path $WorkDir $FileName
-                if (Test-Path $FilePath) {
-                    $ActualHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
-                    if ($ActualHash -eq $ExpectedHash) {
-                        $Verified++
-                    } else {
-                        Write-Warn "Checksum mismatch for $FileName"
-                        Write-Warn "  Expected: $ExpectedHash"
-                        Write-Warn "  Actual:   $ActualHash"
-                        $Failed++
-                    }
+                Write-Info "Verifying SHA256 for $FileName ..."
+                $ActualHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
+                if ($ActualHash -eq $ExpectedHash) {
+                    Write-OK "SHA256 OK for $FileName"
+                    return $true
+                } else {
+                    Write-Warn "SHA256 MISMATCH for $FileName"
+                    Write-Warn "  Expected: $ExpectedHash"
+                    Write-Warn "  Actual:   $ActualHash"
+                    Write-Err "Checksum verification failed. The file may be corrupted or stale."
                 }
             }
         }
-        if ($Failed -gt 0) {
-            Write-Err "Checksum verification failed for $Failed file(s). The download may be corrupted."
-        }
-        Write-OK "Verified $Verified file(s)."
+        return $false  # filename not in SHA256SUMS
     }
 
-    # --- Decompress zstd image if needed --------------------------
-    # The release workflow compresses the .raw with zstd to fit under GitHub's
-    # 2 GB per-asset limit. Windows 10/11 ships tar.exe (bsdtar) which can
-    # decompress zstd. We decompress AFTER checksum verification (the SHA256SUMS
-    # entry is for the .zst file, not the .raw).
-    if ($ImageAsset.name -match '\.zst$') {
-        Write-Info "Decompressing $($ImageAsset.name)..."
-        $DecompressedFile = Join-Path $WorkDir ([System.IO.Path]::GetFileNameWithoutExtension($ImageAsset.name))
-        # Try zstd.exe first (if the user has it installed via winget/scoop/choco).
-        # Fall back to tar.exe --use-compress-program=zstd which works on Windows 10 1803+.
-        $zstdExe = Get-Command zstd -ErrorAction SilentlyContinue
-        if ($zstdExe) {
-            & zstd -d -f $ImageFile -o $DecompressedFile
-            if ($LASTEXITCODE -ne 0) { Write-Err "zstd decompression failed (exit $LASTEXITCODE)." }
+    # ---------------------------------------------------------------
+    # Locate or build the .raw image. Three paths:
+    #   A) -ImageFile supplied by user (local file, skip download)
+    #   B) No -ImageFile: check cache, download if miss
+    # ---------------------------------------------------------------
+
+    # Always fetch SHA256SUMS fresh (it's ~500 bytes) so we can verify
+    # both cached and fresh downloads. Skip only if -SkipVerification.
+    $SumsAsset   = $Assets | Where-Object { $_.name -eq "SHA256SUMS" } | Select-Object -First 1
+    $SumsFile    = Join-Path $WorkDir "SHA256SUMS"
+    $SumsContent = $null
+
+    if ($SumsAsset -and -not $SkipVerification) {
+        Download-File $SumsAsset.browser_download_url $SumsFile
+        $SumsContent = Get-Content $SumsFile -Raw
+    }
+
+    # Paths we'll resolve to:
+    $ZstCachePath = Join-Path $CacheDir $ImageAsset.name                                              # e.g. cache	estos-0.7.0-beta.2.raw.zst
+    $RawName      = [System.IO.Path]::GetFileNameWithoutExtension($ImageAsset.name)                   # testos-0.7.0-beta.2.raw  (strips .zst)
+    $RawCachePath = Join-Path $CacheDir $RawName                                                      # cache	estos-0.7.0-beta.2.raw
+    $IsZst        = $ImageAsset.name -match '\.zst$'
+    $ResolvedRaw  = $null   # set to the path of the usable .raw before writing
+
+    if ($ImageFile) {
+        # ---- PATH A: user supplied a local file ------------------
+        if (-not (Test-Path $ImageFile)) {
+            Write-Err "The file specified with -ImageFile does not exist: $ImageFile"
+        }
+        $localName = Split-Path $ImageFile -Leaf
+        Write-Info "Using local file: $ImageFile"
+
+        if ($ImageFile -match '\.zst$') {
+            # Decompress to cache dir
+            if ($SkipVerification) {
+                Write-Warn "Skipping SHA256 verification (-SkipVerification)."
+            } elseif ($SumsContent) {
+                $ok = Test-Sha256 $ImageFile $SumsContent
+                if (-not $ok) { Write-Warn "$localName not found in SHA256SUMS - cannot verify. Pass -SkipVerification to proceed anyway."; exit 1 }
+            }
+            Expand-Zst $ImageFile $RawCachePath
+            $ResolvedRaw = $RawCachePath
         } else {
-            # bsdtar (Windows 10+ tar.exe) can decompress a single-file zstd
-            # archive by treating it as a stream and writing to stdout.
-            # We use cmd.exe to invoke tar so the pipe handling works correctly.
-            $tmpError = "$env:TEMP\testos-zstd-err.txt"
-            & cmd.exe /c "tar.exe --use-compress-program=zstd -xf `"$ImageFile`" --to-stdout > `"$DecompressedFile`" 2>`"$tmpError`""
-            if ($LASTEXITCODE -ne 0) {
-                $errDetail = if (Test-Path $tmpError) { Get-Content $tmpError -Raw } else { "(no stderr)" }
-                Write-Err "Could not decompress $($ImageAsset.name) (tar.exe exit $LASTEXITCODE). $errDetail. Install zstd: winget install Meta.Zstandard"
+            # Treat as a plain .raw
+            if (-not $SkipVerification -and $SumsContent) {
+                $ok = Test-Sha256 $ImageFile $SumsContent
+                if (-not $ok) { Write-Warn "$localName not found in SHA256SUMS - cannot verify. Pass -SkipVerification to proceed anyway."; exit 1 }
+            } elseif ($SkipVerification) {
+                Write-Warn "Skipping SHA256 verification (-SkipVerification)."
+            }
+            $ResolvedRaw = $ImageFile
+        }
+    } else {
+        # ---- PATH B: download (with cache) -----------------------
+        Write-Info "Checking cache at $CacheDir ..."
+
+        # Sub-path B1: cached .raw exists and .zst hash matches -> skip both download AND decompress
+        if ($IsZst -and (Test-Path $RawCachePath) -and (Test-Path $ZstCachePath) -and -not $SkipVerification -and $SumsContent) {
+            $zstHashOk = $false
+            foreach ($Line in ($SumsContent -split "`n")) {
+                if ($Line -match '^\s*([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($ImageAsset.name) + '\s*$') {
+                    $ExpectedHash = $Matches[1].ToLower()
+                    $ActualHash   = (Get-FileHash -Path $ZstCachePath -Algorithm SHA256).Hash.ToLower()
+                    if ($ActualHash -eq $ExpectedHash) { $zstHashOk = $true }
+                    break
+                }
+            }
+            if ($zstHashOk) {
+                Write-OK "Cache hit (raw+zst): using $RawCachePath (skipping download and decompression)."
+                $ResolvedRaw = $RawCachePath
+            } else {
+                Write-Warn "Cached .zst hash mismatch - stale cache. Deleting and re-downloading."
+                Remove-Item $ZstCachePath -Force -ErrorAction SilentlyContinue
+                Remove-Item $RawCachePath -Force -ErrorAction SilentlyContinue
             }
         }
-        if (-not (Test-Path $DecompressedFile) -or (Get-Item $DecompressedFile).Length -eq 0) {
-            Write-Err "Decompression produced an empty file. The .zst may be corrupt."
+
+        # Sub-path B2: cached .zst exists, hash matches -> skip download, decompress to .raw
+        if ($null -eq $ResolvedRaw -and $IsZst -and (Test-Path $ZstCachePath) -and -not $SkipVerification -and $SumsContent) {
+            $zstHashOk = $false
+            foreach ($Line in ($SumsContent -split "`n")) {
+                if ($Line -match '^\s*([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($ImageAsset.name) + '\s*$') {
+                    $ExpectedHash = $Matches[1].ToLower()
+                    $ActualHash   = (Get-FileHash -Path $ZstCachePath -Algorithm SHA256).Hash.ToLower()
+                    if ($ActualHash -eq $ExpectedHash) { $zstHashOk = $true }
+                    break
+                }
+            }
+            if ($zstHashOk) {
+                Write-OK "Cache hit (.zst): using cached $ZstCachePath"
+                Expand-Zst $ZstCachePath $RawCachePath
+                $ResolvedRaw = $RawCachePath
+            } else {
+                Write-Warn "Cached .zst hash mismatch - deleting stale file."
+                Remove-Item $ZstCachePath -Force -ErrorAction SilentlyContinue
+            }
         }
-        # Remove the .zst to free disk space; keep the .raw for the write.
-        Remove-Item $ImageFile -Force -ErrorAction SilentlyContinue
-        $ImageFile = $DecompressedFile
+
+        # Sub-path B3: cache miss - download from GitHub
+        if ($null -eq $ResolvedRaw) {
+            Write-Info "Cache miss - downloading from GitHub..."
+            $DownloadDest = Join-Path $WorkDir $ImageAsset.name
+            Download-File $ImageAsset.browser_download_url $DownloadDest
+
+            # Verify before caching
+            if (-not $SkipVerification -and $SumsContent) {
+                $ok = Test-Sha256 $DownloadDest $SumsContent
+                if (-not $ok) { Write-Warn "Image filename not found in SHA256SUMS - skipping verification."; $ok = $true }
+            }
+
+            # Copy into cache for next time
+            Write-Info "Caching downloaded image to $ZstCachePath ..."
+            Copy-Item $DownloadDest $ZstCachePath -Force
+
+            if ($IsZst) {
+                Expand-Zst $ZstCachePath $RawCachePath
+                $ResolvedRaw = $RawCachePath
+            } else {
+                $ResolvedRaw = $ZstCachePath
+            }
+        }
     }
 
-    $ImageSizeBytes = (Get-Item $ImageFile).Length
-    $ImageSizeMB = [math]::Round($ImageSizeBytes / 1MB)
+    # Download side-car files (ingest binary + bench-list) to WorkDir for DryRun listing
+    $IngestAsset = $Assets | Where-Object { $_.name -match '^testos-ingest-.*-linux-x86_64$' } | Select-Object -First 1
+    if ($IngestAsset) {
+        Download-File $IngestAsset.browser_download_url (Join-Path $WorkDir $IngestAsset.name)
+    }
+    $BenchListAsset = $Assets | Where-Object { $_.name -eq "bench-list.toml" } | Select-Object -First 1
+    if ($BenchListAsset) {
+        Download-File $BenchListAsset.browser_download_url (Join-Path $WorkDir "bench-list.toml")
+    }
+
+    $ImageSizeBytes = (Get-Item $ResolvedRaw).Length
+    $ImageSizeMB    = [math]::Round($ImageSizeBytes / 1MB)
 
     # --- Dry-run stops here ---------------------------------------
     if ($DryRun) {
-        Write-OK "Dry run complete. Downloaded and verified:"
-        Get-ChildItem $WorkDir | Format-Table Name, Length
+        Write-OK "Dry run complete."
+        Write-Host ""
+        Write-Host "Image: $ResolvedRaw ($ImageSizeMB MB)"
+        Write-Host "Cache: $CacheDir"
         Write-Host ""
         Write-Host "Re-run without -DryRun and with a USB device to write:"
         Write-Host "  .\install.ps1 -Device \\.\PhysicalDrive<N>"
         exit 0
     }
+
+    # Alias so the rest of the write section finds $ImageFile
+    $ImageFile = $ResolvedRaw
 
     # --- Device selection and safety checks ----------------------
     if (-not $Device) {
