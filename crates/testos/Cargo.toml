@@ -1,0 +1,26 @@
+[package]
+name = "testos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "testOS — bootable benchmark environment for Rush Linux real-hardware validation (USB boot, RAM runtime, results-to-USB)."
+
+[[bin]]
+name = "testos-launcher"
+path = "src/bin/testos-launcher.rs"
+
+[[bin]]
+name = "testos-runner"
+path = "src/bin/testos-runner.rs"
+
+[[bin]]
+name = "testos-ingest"
+path = "src/bin/testos-ingest.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
