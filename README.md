@@ -52,7 +52,13 @@ Or, if you trust the source and want a one-liner:
 wget -qO- https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
 ```
 
-Find your USB device first with `lsblk`. The installer will refuse to write to a mounted device or anything that looks like your system disk, and it asks you to type the device name twice to confirm.
+Find your USB device first with `lsblk` (look for `RM=1` — removable). Safety checks:
+
+- Refuses to write to the host's root disk.
+- Refuses non-removable disks (`RM=0`) unless `--force` (catches accidental targeting of internal SATA/NVMe disks).
+- Refuses mounted devices.
+- Warns if the target disk is much larger than the image (suspicious — wrong disk?).
+- Shows the disk's VENDOR, MODEL, SIZE, TRAN, RM and asks `yes` before writing.
 
 </details>
 
@@ -62,21 +68,29 @@ Find your USB device first with `lsblk`. The installer will refuse to write to a
 Open **PowerShell as Administrator**, find your USB's physical drive number, then run:
 
 ```powershell
-# Find your USB drive number:
-Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle
+# Step 1: Find your USB drive (look for BusType=USB and the right size):
+Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle, BusType
 
-# Download and run the installer:
-irm https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1 | iex -Device \\.\PhysicalDrive2
+# Step 2: Download the installer:
+curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
+
+# Step 3: Inspect it if you like, then run:
+.\install.ps1 -Device \\.\PhysicalDrive<N>
 ```
 
-Or download-then-run:
+Or, one-liner (downloads and runs in one go, using a scriptblock to pass the parameter):
 
 ```powershell
-curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
-.\install.ps1 -Device \\.\PhysicalDrive2
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1))) -Device \\.\PhysicalDrive<N>
 ```
 
-The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. It refuses to write to the Windows system disk and refuses to write to disks with mounted volumes unless you pass `-Force`.
+The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. Safety checks:
+
+- Refuses to write to the Windows system disk.
+- Refuses non-USB bus types unless `-Force` (catches accidental targeting of internal SATA/NVMe disks).
+- Refuses disks with mounted volumes unless `-Force`.
+- Warns if the target disk is much larger than the image (suspicious — wrong disk?).
+- Shows the disk's FriendlyName, BusType, Size, PartitionStyle and asks `yes` before writing.
 
 </details>
 

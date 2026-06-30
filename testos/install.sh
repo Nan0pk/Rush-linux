@@ -58,12 +58,14 @@ die()  { echo "${RED}✗${RESET} $*" >&2; exit 1; }
 DEVICE=""
 DRY_RUN=false
 LIST_ONLY=false
+FORCE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         /dev/*) DEVICE="$1"; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         --list)    LIST_ONLY=true; shift ;;
+        --force)   FORCE=true; shift ;;
         --help|-h)
             cat <<'EOF'
 testOS installer — download and write the latest testOS image to USB.
@@ -76,6 +78,9 @@ Usage:
 Options:
   --dry-run   Download and verify everything, but don't write to the device.
   --list      Just show what's in the latest release.
+  --force     Bypass the removable-media and size-sanity safety checks.
+              Required if you want to write to a non-USB disk (e.g. an
+              internal test disk). Still refuses the system root disk.
   --help      This message.
 EOF
             exit 0
@@ -188,7 +193,13 @@ if $DRY_RUN; then
 fi
 
 # ─── Device selection and safety checks ───────────────────────────
-[[ -n "$DEVICE" ]] || die "No device specified. Usage: sudo bash $0 /dev/sdX"
+[[ -n "$DEVICE" ]] || {
+    echo
+    echo "Available block devices:"
+    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,RM,VENDOR,MODEL 2>/dev/null || lsblk
+    echo
+    die "No device specified. Find your USB stick above (look for RM=1 and the right size), then re-run:\n  sudo bash $0 /dev/sdX"
+}
 [[ -e "$DEVICE" ]] || die "Device $DEVICE does not exist. Check with 'lsblk'."
 
 # Refuse to write to a mounted device.
@@ -207,7 +218,41 @@ if [[ "$(uname -s)" == "Linux" ]]; then
         ROOT_BASE="${ROOT_BASE%p[0-9]}"
         ROOT_BASE="${ROOT_BASE%[0-9]}"
         if [[ "$DEVICE" == "$ROOT_BASE" ]]; then
-            die "Device $DEVICE looks like the host's root disk. Refusing to overwrite. If this is wrong, check 'findmnt /'."
+            die "Device $DEVICE is the host's root disk. Refusing to overwrite. If you really meant to write to your boot disk, you're holding the script wrong — use a USB stick."
+        fi
+    fi
+fi
+
+# ─── Safety check: refuse non-removable disks unless --force ──────
+# lsblk reports RM=1 for removable media (USB sticks, SD cards). Internal
+# SATA/NVMe disks report RM=0. Refusing non-removable disks catches the
+# most common accident: targeting an internal data disk.
+if [[ "$FORCE" != "true" ]] && command -v lsblk >/dev/null; then
+    RM_FLAG="$(lsblk -d -n -o RM "$DEVICE" 2>/dev/null | tr -d ' ' || true)"
+    if [[ "$RM_FLAG" == "0" ]]; then
+        warn "Device $DEVICE reports RM=0 (not removable). This looks like an internal disk, not a USB stick."
+        warn "Writing to it would destroy any data on it."
+        die "Refusing to write to a non-removable disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with --force."
+    fi
+fi
+
+# ─── Safety check: size sanity ────────────────────────────────────
+# If the target disk is more than 4x the image size, warn. People
+# sometimes image a 500MB USB onto a 2TB HDD by mistake.
+if command -v lsblk >/dev/null; then
+    DISK_SIZE_BYTES="$(lsblk -b -d -n -o SIZE "$DEVICE" 2>/dev/null | head -1 || echo 0)"
+    if [[ -n "$DISK_SIZE_BYTES" && "$DISK_SIZE_BYTES" -gt 0 ]]; then
+        DISK_SIZE_MB=$(( DISK_SIZE_BYTES / 1024 / 1024 ))
+        IMAGE_SIZE_MB=$(( IMAGE_SIZE_BYTES / 1024 / 1024 ))
+        if [[ "$DISK_SIZE_MB" -gt $(( IMAGE_SIZE_MB * 4 )) ]]; then
+            warn "Target disk is $DISK_SIZE_MB MB but the image is only $IMAGE_SIZE_MB MB."
+            warn "This is unusual — you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
+            if [[ "$FORCE" != "true" ]]; then
+                die "Refusing to write to a disk that's much larger than the image. If this is intentional (e.g. a large USB stick), re-run with --force."
+            fi
+        fi
+        if [[ "$DISK_SIZE_MB" -lt "$IMAGE_SIZE_MB" ]]; then
+            die "Target disk ($DISK_SIZE_MB MB) is smaller than the image ($IMAGE_SIZE_MB MB). The write would fail mid-way and leave the disk in a broken state."
         fi
     fi
 fi
@@ -217,16 +262,25 @@ if [[ $EUID -ne 0 ]]; then
     warn "Not running as root. dd will probably fail. Re-run with sudo."
 fi
 
+# ─── Confirm: show the disk's identity and ask 'yes' ─────────────
 echo
-echo "${BOLD}About to write ${IMAGE_FILE} (${IMAGE_SIZE_MB} MiB) to ${DEVICE}.${RESET}"
-echo "${RED}ALL DATA ON ${DEVICE} WILL BE LOST.${RESET}"
+echo "${BOLD}About to write ${IMAGE_SIZE_MB} MiB to:${RESET}"
+echo "  Device:  ${DEVICE}"
+if command -v lsblk >/dev/null; then
+    DISK_INFO="$(lsblk -d -n -o VENDOR,MODEL,SIZE,TRAN,RM "$DEVICE" 2>/dev/null | head -1 || true)"
+    if [[ -n "$DISK_INFO" ]]; then
+        echo "  Identity: ${DISK_INFO}"
+    fi
+fi
 echo
-echo "Available block devices for sanity check:"
-lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,VENDOR,MODEL 2>/dev/null || lsblk
+echo "${RED}ALL DATA ON THIS DISK WILL BE LOST.${RESET}"
 echo
-printf "%s" "Type the device name (${DEVICE}) again to confirm: "
-read -r CONFIRM
-[[ "$CONFIRM" == "$DEVICE" ]] || die "Confirmation did not match. Aborting."
+
+if [[ "$FORCE" != "true" ]]; then
+    printf "%s" "Is this your USB stick? Type 'yes' to confirm (anything else aborts): "
+    read -r CONFIRM
+    [[ "$CONFIRM" == "yes" ]] || die "Confirmation was not 'yes'. Aborting."
+fi
 
 # ─── Write the image ──────────────────────────────────────────────
 log "Writing ${IMAGE_FILE} to ${DEVICE} with dd..."

@@ -1,10 +1,10 @@
 # testos/install.ps1 — download the latest prebuilt testOS image and write it to a USB stick.
 #
 # Usage (from an elevated PowerShell):
-#   .\install.ps1 -Device \\.\PhysicalDrive2
+#   .\install.ps1 -Device \\.\PhysicalDrive1
 #
-# Or download-and-run:
-#   irm https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1 | iex
+# Or download-and-run (one-liner, using a scriptblock to pass parameters):
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1))) -Device \\.\PhysicalDrive1
 #
 # What it does:
 #   1. Finds the latest testOS release on GitHub.
@@ -54,9 +54,9 @@ if ($Help) {
 testOS installer for Windows — download and write the latest testOS image to USB.
 
 Usage:
-  .\install.ps1 -Device \\.\PhysicalDrive2          Download + write to PhysicalDrive2
+  .\install.ps1 -Device \\.\PhysicalDrive<N>        Download + write to the specified disk
   .\install.ps1 -ListOnly                           Show latest release assets without writing
-  .\install.ps1 -DryRun -Device \\.\PhysicalDrive2  Download and verify, don't write
+  .\install.ps1 -DryRun -Device \\.\PhysicalDrive<N> Download and verify, don't write
   .\install.ps1 -Help                               This message
 
 How to find your USB's physical drive number:
@@ -200,7 +200,7 @@ try {
         Get-ChildItem $WorkDir | Format-Table Name, Length
         Write-Host ""
         Write-Host "Re-run without -DryRun and with a USB device to write:"
-        Write-Host "  .\install.ps1 -Device \\.\PhysicalDrive2"
+        Write-Host "  .\install.ps1 -Device \\.\PhysicalDrive<N>"
         exit 0
     }
 
@@ -210,7 +210,12 @@ try {
         Write-Host "Available disks:"
         Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType
         Write-Host ""
-        Write-Err "No device specified. Pass -Device \\.\PhysicalDrive<N> (find N from the table above)."
+        Write-Host "Find your USB stick in the table above (look for BusType=USB and the right size),"
+        Write-Host "then re-run with -Device \\.\PhysicalDrive<N>."
+        Write-Host ""
+        Write-Host "Example:"
+        Write-Host "  .\install.ps1 -Device \\.\PhysicalDrive1"
+        exit 1
     }
 
     # Validate the device path format.
@@ -221,45 +226,77 @@ try {
     # Extract the disk number for safety checks.
     $DiskNum = [int]($Device -replace '^\\\\\.\\PhysicalDrive','')
 
-    # Refuse to write to the system disk (the one Windows boots from).
+    # Look up the disk's identity for safety checks and confirmation.
+    try {
+        $DiskInfo = Get-Disk -Number $DiskNum -ErrorAction Stop
+    } catch {
+        Write-Err "Disk $DiskNum not found. Check 'Get-Disk' and pass a valid -Device \\.\PhysicalDrive<N>."
+    }
+
+    # ─── Safety check 1: refuse the Windows system disk ─────────
     try {
         $SystemDisk = Get-Partition | Where-Object { $_.DriveLetter -eq $env:SystemDrive[0] } | Select-Object -ExpandProperty DiskNumber -First 1
         if ($null -ne $SystemDisk -and $DiskNum -eq $SystemDisk) {
-            Write-Err "Device $Device looks like the Windows system disk (Disk $SystemDisk). Refusing to overwrite."
+            Write-Err "Device $Device is the Windows system disk (Disk $SystemDisk, $($DiskInfo.FriendlyName)). Refusing to overwrite. If you really meant to write to your boot disk, you're holding the script wrong — use a USB stick."
         }
     } catch {
         Write-Warn "Could not determine the system disk for safety check. Proceed with extreme caution."
     }
 
-    # Refuse to write to a disk that has mounted volumes (unless -Force).
-    try {
-        $DiskInfo = Get-Disk -Number $DiskNum -ErrorAction Stop
-        $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
-        if ($MountedParts -and -not $Force) {
-            Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) has mounted volumes:"
-            $MountedParts | ForEach-Object { Write-Warn "  $($_.DriveLetter):" }
-            Write-Warn "Writing will destroy all data on these volumes."
-            Write-Warn "Use -Force to skip this warning, or unmount them first:"
-            Write-Warn "  Get-Partition -DiskNumber $DiskNum | Where-Object { `$_.DriveLetter } | ForEach-Object { Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber `$_.PartitionNumber -AccessPath \"$(`$_.DriveLetter):\`" }"
-            Write-Err "Aborting. Re-run with -Force to proceed anyway."
-        }
-    } catch {
-        Write-Err "Disk $DiskNum not found. Check 'Get-Disk' and pass a valid -Device \\.\PhysicalDrive<N>."
+    # ─── Safety check 2: refuse non-USB bus types unless -Force ─
+    # A USB stick shows up as BusType=USB. Internal SATA/NVMe disks show
+    # up as BusType=SATA/NVMe/RAID. Refusing non-USB bus types catches
+    # the most common accident: targeting an internal data disk.
+    $BusType = $DiskInfo.BusType
+    if ($BusType -ne 'USB' -and -not $Force) {
+        Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) is on bus type '$BusType', not 'USB'."
+        Write-Warn "This looks like an internal disk, not a USB stick."
+        Write-Warn "Writing to it would destroy any data on it."
+        Write-Err "Refusing to write to a non-USB disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with -Force. Otherwise, find your USB with 'Get-Disk' and try again."
     }
 
-    # ─── Confirm ──────────────────────────────────────────────────
+    # ─── Safety check 3: refuse mounted volumes unless -Force ───
+    $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
+    if ($MountedParts -and -not $Force) {
+        Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) has mounted volumes:"
+        $MountedParts | ForEach-Object { Write-Warn "  $($_.DriveLetter):" }
+        Write-Warn "Writing will destroy all data on these volumes."
+        Write-Err "Aborting. Re-run with -Force to proceed anyway, or unmount the volumes first."
+    }
+
+    # ─── Safety check 4: size sanity ────────────────────────────
+    # If the target disk is more than 4x the image size, warn. People
+    # sometimes image a 500MB USB onto a 2TB HDD by mistake.
+    $DiskSizeBytes = $DiskInfo.Size
+    $DiskSizeGB = [math]::Round($DiskSizeBytes / 1GB, 1)
+    if ($DiskSizeBytes -gt ($ImageSizeBytes * 4)) {
+        Write-Warn "Target disk is $DiskSizeGB GB but the image is only $ImageSizeMB MB."
+        Write-Warn "This is unusual — you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
+        if (-not $Force) {
+            Write-Err "Refusing to write to a disk that's much larger than the image. If this is intentional (e.g. a large USB stick), re-run with -Force."
+        }
+    }
+    # Also warn if the target is smaller than the image (would fail mid-write).
+    if ($DiskSizeBytes -lt $ImageSizeBytes) {
+        Write-Err "Target disk ($DiskSizeGB GB) is smaller than the image ($ImageSizeMB MB). The write would fail mid-way and leave the disk in a broken state."
+    }
+
+    # ─── Confirm: show the disk's identity and ask 'yes' ────────
     Write-Host ""
-    Write-Host "About to write $ImageFile ($ImageSizeMB MB) to $Device." -ForegroundColor White
-    Write-Host "ALL DATA ON $Device WILL BE LOST." -ForegroundColor Red
+    Write-Host "About to write $ImageSizeMB MB to:" -ForegroundColor White
+    Write-Host "  Device:       $Device" -ForegroundColor White
+    Write-Host "  FriendlyName: $($DiskInfo.FriendlyName)" -ForegroundColor White
+    Write-Host "  BusType:      $BusType" -ForegroundColor White
+    Write-Host "  Size:         $DiskSizeGB GB" -ForegroundColor White
+    Write-Host "  PartitionStyle: $($DiskInfo.PartitionStyle)" -ForegroundColor White
     Write-Host ""
-    Write-Host "Available disks for sanity check:"
-    Get-Disk | Format-Table Number, FriendlyName, @{Name="SizeGB";Expression={[math]::Round($_.Size/1GB,1)}}, PartitionStyle, BusType
+    Write-Host "ALL DATA ON THIS DISK WILL BE LOST." -ForegroundColor Red
     Write-Host ""
 
     if (-not $Force) {
-        $Confirm1 = Read-Host "Type the device path ($Device) to confirm"
-        if ($Confirm1 -ne $Device) {
-            Write-Err "Confirmation did not match. Aborting."
+        $Confirm = Read-Host "Is this your USB stick? Type 'yes' to confirm (anything else aborts)"
+        if ($Confirm -ne 'yes') {
+            Write-Err "Confirmation was not 'yes'. Aborting."
         }
     }
 
