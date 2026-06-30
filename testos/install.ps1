@@ -220,7 +220,7 @@ try {
         Write-Info "Decompressing $name ..."
         $zstdExe = Get-Command zstd -ErrorAction SilentlyContinue
         if ($zstdExe) {
-            & zstd -d -f $ZstPath -o $DestPath
+            & zstd -d -f $ZstPath -o $DestPath 2>$null
             if ($LASTEXITCODE -ne 0) { Write-Err "zstd decompression failed (exit $LASTEXITCODE)." }
         } else {
             # bsdtar (Windows 10 1803+ tar.exe) can stream-decompress a .zst.
