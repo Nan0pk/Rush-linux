@@ -1,0 +1,124 @@
+name: Release testOS image
+
+# Builds the testOS .raw image and the testos-launcher/testos-ingest binaries,
+# then uploads them as GitHub Release assets whenever a tag matching `v*` is
+# pushed. Also supports manual dispatch from the Actions tab for testing.
+#
+# Outputs:
+#   - testos-<version>.raw                          — the bootable USB image
+#   - testos-launcher-<version>-linux-x86_64        — the host-side launcher binary
+#   - testos-ingest-<version>-linux-x86_64          — the host-side ingest binary
+#   - SHA256SUMS                                    — checksums for all of the above
+#
+# The README's "Try it on real hardware" section points users at these assets
+# via testos/install.sh, which downloads the latest release and writes it to
+# a USB stick in one command.
+#
+# Why an Arch container: mkosi needs archlinux-keyring and a real Arch
+# package mirror to compose the image. The archlinux:latest Docker image
+# gives us a clean, reproducible build environment.
+#
+# Manual testing:
+#   gh workflow run release-testos.yml --ref <branch>
+# or via the Actions UI.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      mock:
+        description: 'Produce a mock image (skip the slow mkosi build, for testing the release-upload pipeline)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release to create the release
+
+jobs:
+  build:
+    name: Build testOS image and binaries
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      # mkosi needs to mount loop devices and create device-mapper nodes;
+      # privileged + mapped URLs give it the access it needs.
+      options: --privileged
+    steps:
+      - name: Install build dependencies
+        run: |
+          # archlinux:latest ships with a minimal pacman; sync and install.
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed \
+            base-devel \
+            rust \
+            mkosi \
+            archlinux-keyring \
+            git \
+            dbus \
+            systemd \
+            util-linux \
+            coreutils
+
+      - uses: actions/checkout@v4
+
+      - name: Initialize archlinux keyring
+        run: |
+          # Ensure the keyring is populated and trusted before mkosi tries
+          # to verify packages.
+          pacman-key --init
+          pacman-key --populate archlinux
+
+      - name: Build workspace (optid, optctl, rushbench, rush_collect, testos)
+        run: cargo build --workspace --release
+
+      - name: Build testOS image
+        if: github.event.inputs.mock != 'true'
+        run: bash testos/build-testos.sh
+
+      - name: Create mock image (for testing release upload)
+        if: github.event.inputs.mock == 'true'
+        run: |
+          mkdir -p build
+          # A 1 MB placeholder file so the release-upload pipeline can be
+          # tested without spending 10 minutes on the real mkosi build.
+          dd if=/dev/urandom of=build/testos.raw bs=1M count=1 status=none
+          echo "mock testOS image" > build/MOCK.txt
+
+      - name: Stage release artifacts
+        run: |
+          VERSION="${GITHUB_REF_NAME:-$(cat VERSION)}"
+          STAGE=/tmp/release-stage
+          mkdir -p "$STAGE"
+
+          # Rename for clarity in the release.
+          cp build/testos.raw "$STAGE/testos-${VERSION}.raw"
+          cp target/release/testos-launcher "$STAGE/testos-launcher-${VERSION}-linux-x86_64"
+          cp target/release/testos-ingest   "$STAGE/testos-ingest-${VERSION}-linux-x86_64"
+          cp testos/install.sh              "$STAGE/install.sh"
+          cp testos/bench-list.toml         "$STAGE/bench-list.toml"
+
+          # Generate checksums.
+          cd "$STAGE"
+          sha256sum * > SHA256SUMS
+
+          # Make binaries executable.
+          chmod +x testos-launcher-* testos-ingest-* install.sh
+
+          ls -la "$STAGE"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: testos-release
+          path: /tmp/release-stage/*
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/release-stage/*
+          generate_release_notes: true
+          draft: false
+          prerelease: true   # Rush is beta; mark releases as prerelease until v1.0
