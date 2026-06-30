@@ -48,6 +48,13 @@ param(
     [switch]$DryRun,
     [switch]$ListOnly,
     [switch]$Force,
+
+    # Path to write a full transcript of this install session. Useful for
+    # debugging and for keeping a record of what was installed when.
+    # Default: <cache-dir>\install-log-<timestamp>.txt
+    [Parameter(Mandatory=$false)]
+    [string]$LogFile,
+
     [switch]$Help
 )
 
@@ -58,6 +65,22 @@ function Write-Info  { param([string]$msg) Write-Host ">> $msg" -ForegroundColor
 function Write-OK    { param([string]$msg) Write-Host "[OK] $msg" -ForegroundColor Green }
 function Write-Warn  { param([string]$msg) Write-Host "[!]  $msg" -ForegroundColor Yellow }
 function Write-Err   { param([string]$msg) Write-Host "[X]  $msg" -ForegroundColor Red; exit 1 }
+
+# --- Start transcript for full install logging --------------------
+# Captures ALL Write-Host output + exceptions to a log file. The log
+# survives even if the script crashes, which makes it invaluable for
+# post-mortem analysis of install failures.
+$CacheRoot = Join-Path $env:LOCALAPPDATA "testos-installer"
+if (-not (Test-Path $CacheRoot)) { New-Item -ItemType Directory -Path $CacheRoot -Force | Out-Null }
+if (-not $LogFile) {
+    $LogFile = Join-Path $CacheRoot ("install-log-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
+}
+try {
+    Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyContinue | Out-Null
+    Write-Info "Install transcript: $LogFile"
+} catch {
+    # Transcript isn't critical - if it fails (e.g. read-only FS), continue.
+}
 
 if ($Help) {
     @'
@@ -731,4 +754,10 @@ try {
     if (Test-Path $WorkDir) {
         Remove-Item -Path $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
     }
+    # Stop the transcript so the log file is flushed and closed.
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    # Print the log location one more time so it's the last thing visible.
+    Write-Host ""
+    Write-Host "Install log saved to: $LogFile" -ForegroundColor Cyan
+    Write-Host "Keep this for debugging if the USB doesn't boot or benchmarks fail." -ForegroundColor Cyan
 }

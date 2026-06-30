@@ -280,6 +280,40 @@ fn main() {
         Err(e) => eprintln!("WARNING: failed to serialize manifest: {}", e),
     }
 
+    // Capture system-level logs into the results directory for post-mortem
+    // analysis. These are invaluable for debugging boot failures, hardware
+    // detection issues, and benchmark crashes. We capture:
+    //   - dmesg.txt: kernel ring buffer (hardware detection, driver errors)
+    //   - journal.txt: full systemd journal from this boot (service failures,
+    //     login events, mount issues)
+    //   - uname.txt: kernel version, architecture, hostname
+    //   - cpuinfo.txt: CPU model, flags, core count (helps interpret results)
+    //   - meminfo.txt: memory size, swap, hugepages
+    //   - cmdline.txt: kernel command line (verifies testos.* params applied)
+    println!("  Capturing system logs...");
+    let logs_dir = results_dir.join("system-logs");
+    let _ = std::fs::create_dir_all(&logs_dir);
+
+    let captures = [
+        ("dmesg.txt", "dmesg"),
+        ("journal.txt", "journalctl -b --no-pager -o cat"),
+        ("uname.txt", "uname -a"),
+        ("cpuinfo.txt", "cat /proc/cpuinfo"),
+        ("meminfo.txt", "cat /proc/meminfo"),
+        ("cmdline.txt", "cat /proc/cmdline"),
+        ("lsblk.txt", "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL"),
+        ("lspci.txt", "lspci -nn 2>/dev/null || echo 'lspci not installed'"),
+        ("lsusb.txt", "lsusb 2>/dev/null || echo 'lsusb not installed'"),
+    ];
+    for (filename, cmd) in &captures {
+        let output = Command::new("bash").arg("-c").arg(cmd).output();
+        let content = match output {
+            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+            Err(e) => format!("(capture failed: {})", e),
+        };
+        let _ = std::fs::write(logs_dir.join(filename), content);
+    }
+
     let _ = Command::new("sync").status();
 
     println!("════════════════════════════════════════════════════");
