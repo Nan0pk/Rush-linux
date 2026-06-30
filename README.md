@@ -95,7 +95,6 @@ The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke)
 - Refuses to write to the Windows system disk.
 - Refuses non-USB bus types unless `-Force` (catches accidental targeting of internal SATA/NVMe disks).
 - Auto-clears any existing partitions on the USB (Windows auto-mounts every USB stick, so the script handles this for you — no `-Force` needed for a fresh USB).
-- Warns if the target disk is much larger than the image (suspicious — wrong disk?).
 - Shows the disk's FriendlyName, BusType, Size, PartitionStyle and asks `yes` before writing.
 
 </details>
