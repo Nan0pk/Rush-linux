@@ -121,8 +121,8 @@ fi
 
 # ─── Check that a release image exists ────────────────────────────
 ASSET_URLS="$(printf '%s' "$RELEASE_JSON" | grep '"browser_download_url"' | sed -E 's/.*"browser_download_url": "([^"]+)".*/\1/')"
-echo "$ASSET_URLS" | grep -q 'testos-.*\.raw$' || {
-    warn "The latest release (${VERSION}) does not contain a testOS-*.raw image."
+echo "$ASSET_URLS" | grep -qE 'testos-.*\.raw(\.zst)?$' || {
+    warn "The latest release (${VERSION}) does not contain a testOS-*.raw(.zst) image."
     warn "This usually means the release workflow is still running, or the project"
     warn "hasn't published a testOS image yet."
     echo
@@ -144,9 +144,18 @@ download() {
     curl -fsSL -o "$dest" "$url" || die "Download failed: $url"
 }
 
-IMAGE_URL="$(echo "$ASSET_URLS" | grep -E 'testos-.*\.raw$' | head -1)"
+IMAGE_URL="$(echo "$ASSET_URLS" | grep -E 'testos-.*\.raw(\.zst)?$' | head -1)"
 IMAGE_FILE="$(basename "$IMAGE_URL")"
 download "$IMAGE_URL" "$IMAGE_FILE"
+
+# Decompress if the image is zstd-compressed.
+if [[ "$IMAGE_FILE" == *.zst ]]; then
+    command -v zstd >/dev/null || die "zstd is required to decompress $IMAGE_FILE. Install with: apt install zstd / pacman -S zstd / brew install zstd"
+    log "Decompressing ${IMAGE_FILE}..."
+    # zstd -d removes the .zst suffix by default.
+    zstd -d -f "$IMAGE_FILE" || die "zstd decompression failed."
+    IMAGE_FILE="${IMAGE_FILE%.zst}"
+fi
 
 SUMS_URL="$(echo "$ASSET_URLS" | grep -E 'SHA256SUMS$' | head -1)"
 if [[ -n "$SUMS_URL" ]]; then

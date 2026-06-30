@@ -135,9 +135,9 @@ if ($ListOnly) {
 
 # --- Check that a release image exists ----------------------------
 $Assets = $Release.assets
-$ImageAsset = $Assets | Where-Object { $_.name -match '^testos-.*\.raw$' } | Select-Object -First 1
+$ImageAsset = $Assets | Where-Object { $_.name -match '^testos-.*\.raw(\.zst)?$' } | Select-Object -First 1
 if (-not $ImageAsset) {
-    Write-Warn "The latest release ($Version) does not contain a testos-*.raw image."
+    Write-Warn "The latest release ($Version) does not contain a testos-*.raw(.zst) image."
     Write-Warn "This usually means the release workflow is still running, or the project"
     Write-Warn "hasn't published a testOS image yet."
     Write-Host ""
@@ -213,6 +213,39 @@ try {
             Write-Err "Checksum verification failed for $Failed file(s). The download may be corrupted."
         }
         Write-OK "Verified $Verified file(s)."
+    }
+
+    # --- Decompress zstd image if needed --------------------------
+    # The release workflow compresses the .raw with zstd to fit under GitHub's
+    # 2 GB per-asset limit. Windows 10/11 ships tar.exe (bsdtar) which can
+    # decompress zstd. We decompress AFTER checksum verification (the SHA256SUMS
+    # entry is for the .zst file, not the .raw).
+    if ($ImageAsset.name -match '\.zst$') {
+        Write-Info "Decompressing $($ImageAsset.name)..."
+        $DecompressedFile = Join-Path $WorkDir ([System.IO.Path]::GetFileNameWithoutExtension($ImageAsset.name))
+        # Try zstd.exe first (if the user has it installed via winget/scoop/choco).
+        # Fall back to tar.exe --use-compress-program=zstd which works on Windows 10 1803+.
+        $zstdExe = Get-Command zstd -ErrorAction SilentlyContinue
+        if ($zstdExe) {
+            & zstd -d -f $ImageFile -o $DecompressedFile
+            if ($LASTEXITCODE -ne 0) { Write-Err "zstd decompression failed (exit $LASTEXITCODE)." }
+        } else {
+            # bsdtar (Windows 10+ tar.exe) can decompress a single-file zstd
+            # archive by treating it as a stream and writing to stdout.
+            # We use cmd.exe to invoke tar so the pipe handling works correctly.
+            $tmpError = "$env:TEMP\testos-zstd-err.txt"
+            & cmd.exe /c "tar.exe --use-compress-program=zstd -xf `"$ImageFile`" --to-stdout > `"$DecompressedFile`" 2>`"$tmpError`""
+            if ($LASTEXITCODE -ne 0) {
+                $errDetail = if (Test-Path $tmpError) { Get-Content $tmpError -Raw } else { "(no stderr)" }
+                Write-Err "Could not decompress $($ImageAsset.name) (tar.exe exit $LASTEXITCODE). $errDetail. Install zstd: winget install Facebook.Zstd"
+            }
+        }
+        if (-not (Test-Path $DecompressedFile) -or (Get-Item $DecompressedFile).Length -eq 0) {
+            Write-Err "Decompression produced an empty file. The .zst may be corrupt."
+        }
+        # Remove the .zst to free disk space; keep the .raw for the write.
+        Remove-Item $ImageFile -Force -ErrorAction SilentlyContinue
+        $ImageFile = $DecompressedFile
     }
 
     $ImageSizeBytes = (Get-Item $ImageFile).Length

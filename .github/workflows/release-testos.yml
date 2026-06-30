@@ -75,6 +75,7 @@ jobs:
             python-pefile \
             dosfstools \
             mtools \
+            zstd \
             util-linux \
             coreutils
 
@@ -135,8 +136,22 @@ jobs:
           STAGE=/tmp/release-stage
           mkdir -p "$STAGE"
 
-          # Rename for clarity in the release.
-          cp build/testos.raw "$STAGE/testos-${VERSION}.raw"
+          # Compress the .raw image with zstd before uploading.
+          # GitHub Releases has a 2 GB per-asset limit; the uncompressed
+          # testos.raw is ~3.2 GB. zstd -19 typically gets a sparse-padded
+          # disk image down to ~600-800 MB. The install scripts decompress
+          # with `zstd -d` after download.
+          # (Skip compression in mock mode — the mock file is 1 MB.)
+          if [ -f build/MOCK.txt ]; then
+            cp build/testos.raw "$STAGE/testos-${VERSION}.raw"
+          else
+            echo "Compressing build/testos.raw with zstd -19..."
+            zstd -f -19 --rm build/testos.raw -o "$STAGE/testos-${VERSION}.raw.zst"
+            echo "  Original: $(du -h build/testos.raw 2>/dev/null | cut -f1 || echo '?')"
+            echo "  Compressed: $(du -h "$STAGE/testos-${VERSION}.raw.zst" | cut -f1)"
+          fi
+
+          # The rest of the artifacts are small; copy as-is.
           cp target/release/testos-launcher "$STAGE/testos-launcher-${VERSION}-linux-x86_64"
           cp target/release/testos-ingest   "$STAGE/testos-ingest-${VERSION}-linux-x86_64"
           cp testos/install.sh              "$STAGE/install.sh"
