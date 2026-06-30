@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # testos/install.sh — download the latest prebuilt testOS image and write it to a USB stick.
 #
-# Usage:
-#   sudo bash testos/install.sh /dev/sdX
+# Usage (recommended — download, inspect, then run):
+#   wget https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
+#   sudo bash install.sh /dev/sdX
 #
-# Or, download-and-run (Linux only):
+# Or one-liner (if you trust the source):
+#   wget -qO- https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
+#
+# Or with curl:
 #   curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
 #
 # What it does:
@@ -20,8 +24,9 @@
 # Supported platforms:
 #   - Linux x86_64 (uses the prebuilt testos-launcher binary)
 #   - macOS / BSD (falls back to plain dd — the launcher binaries are Linux-only)
-#   - Windows: use Rufus or balenaEtcher on the .raw from Releases; this
-#     script doesn't run on Windows.
+#
+# Windows users: use testos/install.ps1 instead — native PowerShell, no
+# WSL, no Rufus, no third-party tools required.
 #
 # If the prebuilt image isn't available yet (e.g. the release workflow hasn't
 # been triggered), this script will tell you to build from source instead.
