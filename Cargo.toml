@@ -4,6 +4,7 @@ members = [
     "crates/optctl",
     "crates/rushbench",
     "crates/rush_collect",
+    "crates/testos",
 ]
 # `crates/rush_telemetry` is an experimental, partially-implemented stub (BPF
 # loader, RAPL/HFI/PSI collectors, transport signing). It does not yet compile
