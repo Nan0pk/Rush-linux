@@ -1,0 +1,94 @@
+name: Validate install.ps1
+
+# Parses testos/install.ps1 with PowerShell to catch syntax errors
+# before they hit a real Windows user. We use PowerShell 7 (the only
+# version available on GitHub Actions runners), but the parser is
+# close enough to PS 5.1 for the common cases (parentheses inside
+# string interpolation, dangling subexpressions, etc.).
+#
+# This job is triggered on any change to testos/install.ps1 or this
+# workflow file, plus on all PRs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'testos/install.ps1'
+      - '.github/workflows/validate-install-ps1.yml'
+  pull_request:
+    paths:
+      - 'testos/install.ps1'
+      - '.github/workflows/validate-install-ps1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    name: PowerShell parser check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse install.ps1 with PowerShell
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Tokens = $null
+          $Errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/testos/install.ps1",
+            [ref]$Tokens,
+            [ref]$Errors
+          )
+          if ($Errors.Count -gt 0) {
+            Write-Host "::error::PowerShell parser found $($Errors.Count) error(s) in testos/install.ps1"
+            foreach ($e in $Errors) {
+              $line = $e.Extent.StartLineNumber
+              $msg = $e.Message
+              Write-Host "::error file=testos/install.ps1,line=$line::$msg"
+            }
+            exit 1
+          }
+          Write-Host "PARSE OK — testos/install.ps1 has no syntax errors."
+
+      - name: Static scan for PS 5.1 hazard patterns
+        shell: pwsh
+        run: |
+          # Scan for the specific pattern that broke PS 5.1 in PRs #196 and #197:
+          # a string literal containing '(' immediately followed by '$' that
+          # isn't a proper subexpression '$(...)'.
+          $content = Get-Content testos/install.ps1 -Raw
+          $hazards = @()
+          $lineNum = 0
+          foreach ($line in ($content -split "`n")) {
+            $lineNum++
+            # Match a double-quoted string containing '(' followed by '$' that
+            # isn't '((' or '$('. This is the PS 5.1 hazard pattern.
+            if ($line -match '"[^"]*\(\s*\$[^"]*"') {
+              $hazards += "Line ${lineNum}: $line"
+            }
+          }
+          if ($hazards.Count -gt 0) {
+            Write-Host "::error::Found PS 5.1 hazard patterns (parens-before-dollar inside string literal):"
+            foreach ($h in $hazards) {
+              Write-Host "::error file=testos/install.ps1::$h"
+            }
+            Write-Host ""
+            Write-Host "These patterns parse fine in PS 7 but break PS 5.1 (the default on Windows 10/11)."
+            Write-Host "Fix: use string concatenation ('text ' + \$var + ' more text') instead of"
+            Write-Host "interpolation with parentheses, OR use proper subexpression syntax \$(\$obj.prop)."
+            exit 1
+          }
+          Write-Host "No PS 5.1 hazard patterns found."
+
+      - name: Smoke test -Help output
+        shell: pwsh
+        run: |
+          # -Help should exit 0 without doing any disk work.
+          & testos/install.ps1 -Help | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::install.ps1 -Help exited with code $LASTEXITCODE"
+            exit 1
+          }
+          Write-Host "-Help smoke test passed."
