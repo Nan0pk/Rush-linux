@@ -286,9 +286,9 @@ try {
     }
 
     # Paths we'll resolve to:
-    $ZstCachePath = Join-Path $CacheDir $ImageAsset.name                                              # e.g. cache	estos-0.7.0-beta.2.raw.zst
+    $ZstCachePath = Join-Path $CacheDir $ImageAsset.name                                              # e.g. cache      estos-0.7.0-beta.2.raw.zst
     $RawName      = [System.IO.Path]::GetFileNameWithoutExtension($ImageAsset.name)                   # testos-0.7.0-beta.2.raw  (strips .zst)
-    $RawCachePath = Join-Path $CacheDir $RawName                                                      # cache	estos-0.7.0-beta.2.raw
+    $RawCachePath = Join-Path $CacheDir $RawName                                                      # cache   estos-0.7.0-beta.2.raw
     $IsZst        = $ImageAsset.name -match '\.zst$'
     $ResolvedRaw  = $null   # set to the path of the usable .raw before writing
 
@@ -471,12 +471,25 @@ try {
     }
 
     # --- Safety check 3: refuse mounted volumes unless -Force ---
+    # Windows auto-mounts any USB stick you plug in and assigns it a drive
+    # letter. This means a fresh USB will ALWAYS trigger this check. That's
+    # intentional - it stops you from nuking a USB that has files on it.
+    # The expected path for a fresh USB is to re-run with -Force.
     $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
     if ($MountedParts -and -not $Force) {
         Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) has mounted volumes:"
         $MountedParts | ForEach-Object { Write-Warn "  $($_.DriveLetter):" }
         Write-Warn "Writing will destroy all data on these volumes."
-        Write-Err "Aborting. Re-run with -Force to proceed anyway, or unmount the volumes first."
+        Write-Host ""
+        Write-Host "This is expected for a fresh USB stick (Windows auto-mounts it)." -ForegroundColor White
+        Write-Host "Re-run with -Force to proceed (the existing partition will be destroyed," -ForegroundColor White
+        Write-Host "which is the point of writing a new image):" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device $Device -Force" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Or unmount the volumes first with:" -ForegroundColor White
+        Write-Host "  Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber <P> -AccessPath $($MountedParts[0].DriveLetter):\" -ForegroundColor Cyan
+        exit 1
     }
 
     # --- Safety check 4: size sanity ----------------------------

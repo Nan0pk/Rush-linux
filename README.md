@@ -90,6 +90,20 @@ Unblock-File .\install.ps1
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 ```
 
+**If the script aborts with "has mounted volumes"** — that's Windows auto-mounting your USB as a drive letter (e.g. `E:`). This happens for every fresh USB stick. It's not a bug. Either:
+
+- **Re-run with `-Force`** (expected for a fresh USB — the existing partition will be destroyed, which is the point):
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N> -Force
+  ```
+- **Or unmount first** if you want to keep the safety check on:
+  ```powershell
+  # Find the partition number on your USB first:
+  Get-Partition -DiskNumber <N> | Format-Table PartitionNumber, DriveLetter, Size
+  # Then remove the drive letter (replace <P> with the partition number):
+  Remove-PartitionAccessPath -DiskNumber <N> -PartitionNumber <P> -AccessPath E:\
+  ```
+
 The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. Safety checks:
 
 - Refuses to write to the Windows system disk.
