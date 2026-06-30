@@ -470,26 +470,45 @@ try {
         Write-Err "Refusing to write to a non-USB disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with -Force. Otherwise, find your USB with 'Get-Disk' and try again."
     }
 
-    # --- Safety check 3: refuse mounted volumes unless -Force ---
+    # --- Safety check 3: auto-clear mounted volumes on USB disks ---
     # Windows auto-mounts any USB stick you plug in and assigns it a drive
-    # letter. This means a fresh USB will ALWAYS trigger this check. That's
-    # intentional - it stops you from nuking a USB that has files on it.
-    # The expected path for a fresh USB is to re-run with -Force.
+    # letter. This means a fresh USB will ALWAYS have mounted volumes.
+    # Telling the user to re-run with -Force is hostile - every real user
+    # hits this on every real USB. Instead, we auto-clear the disk:
+    #   1. Lock and dismount each volume (releases Windows' handle)
+    #   2. Clear the partition table (Clear-Disk -RemoveData -RemoveOEM)
+    # This is exactly what -Force would do, just without making the user
+    # re-type the command. The actual safety (refusing system disk, refusing
+    # non-USB bus types) is in checks 1 and 2 above - those stay on.
     $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
-    if ($MountedParts -and -not $Force) {
-        Write-Warn "Disk $DiskNum ($($DiskInfo.FriendlyName)) has mounted volumes:"
-        $MountedParts | ForEach-Object { Write-Warn "  $($_.DriveLetter):" }
-        Write-Warn "Writing will destroy all data on these volumes."
-        Write-Host ""
-        Write-Host "This is expected for a fresh USB stick (Windows auto-mounts it)." -ForegroundColor White
-        Write-Host "Re-run with -Force to proceed (the existing partition will be destroyed," -ForegroundColor White
-        Write-Host "which is the point of writing a new image):" -ForegroundColor White
-        Write-Host ""
-        Write-Host "  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device $Device -Force" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Or unmount the volumes first with:" -ForegroundColor White
-        Write-Host "  Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber <P> -AccessPath $($MountedParts[0].DriveLetter):\" -ForegroundColor Cyan
-        exit 1
+    if ($MountedParts) {
+        Write-Info "Disk $DiskNum has mounted volumes (expected - Windows auto-mounts USB sticks):"
+        $MountedParts | ForEach-Object { Write-Info "  $($_.DriveLetter):" }
+        Write-Info "Auto-clearing the disk (removes existing partitions so we can write the new image)..."
+
+        # Remove each partition's drive letter first (frees the mount point).
+        foreach ($part in $MountedParts) {
+            try {
+                $accessPath = "$($part.DriveLetter):\"
+                Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
+                Write-Info "  Removed drive letter $($part.DriveLetter):"
+            } catch {
+                # If Remove-PartitionAccessPath fails (e.g. file handles open),
+                # fall back to Clear-Disk which forcefully clears everything.
+                Write-Warn "  Could not remove drive letter $($part.DriveLetter): - will clear disk anyway."
+                break
+            }
+        }
+
+        # Clear the disk's partition table. This is the same operation as
+        # `diskpart > clean`. It removes all partitions and the MBR/GPT
+        # signature, leaving a blank disk ready for the image write.
+        try {
+            Clear-Disk -Number $DiskNum -RemoveData -RemoveOEM -Confirm:$false -ErrorAction Stop
+            Write-OK "Disk $DiskNum cleared. Ready for image write."
+        } catch {
+            Write-Err "Could not clear disk $DiskNum automatically. The error was: $($_.Exception.Message). Try closing any Explorer windows showing the USB, then re-run. As a last resort: open 'diskpart' as admin, run 'select disk $DiskNum' then 'clean', then re-run this script."
+        }
     }
 
     # --- Safety check 4: size sanity ----------------------------
