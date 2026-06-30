@@ -13,13 +13,12 @@
 #
 # What it does:
 #   1. Finds the latest testOS release on GitHub.
-#   2. Downloads testos-<version>.raw, the testos-launcher and testos-ingest
-#      binaries, the bench-list.toml, and SHA256SUMS.
-#   3. Verifies the checksums.
-#   4. Refuses to write to a mounted device or anything that looks like the
+#   2. Downloads testos-<version>.raw.zst (cached in ~/.cache/testos-installer/),
+#      decompresses it, verifies SHA256SUMS.
+#   3. Refuses to write to a mounted device or anything that looks like the
 #      host's root disk.
-#   5. Asks you to type the device name twice to confirm.
-#   6. Writes the image to the USB with dd, syncs, and prints next steps.
+#   4. Asks you to type 'yes' to confirm.
+#   5. Writes the image to the USB with dd, syncs, and prints next steps.
 #
 # Supported platforms:
 #   - Linux x86_64 (uses the prebuilt testos-launcher binary)
@@ -38,29 +37,29 @@ REPO="Nan0pk/Rush-linux"
 # 10 so we can skip draft releases. GitHub returns drafts first in the
 # /releases listing; if a draft exists, per_page=1 would return it instead
 # of the latest published release. We filter drafts below.
-API_URL_PLACEHOLDER=
 API_URL="https://api.github.com/repos/${REPO}/releases?per_page=10"
 
-# ─── Colors (only if stdout is a terminal) ────────────────────────
+# --- Colors (only if stdout is a terminal) --------------------------------
 if [ -t 1 ]; then
     BOLD=$'\033[1m'
     RED=$'\033[31m'
     GREEN=$'\033[32m'
     AMBER=$'\033[33m'
-    BLUE=$'\033[34m'
-    DIM=$'\033[2m'
     RESET=$'\033[0m'
 else
-    BOLD=""; RED=""; GREEN=""; AMBER=""; BLUE=""; DIM=""; RESET=""
+    BOLD=""; RED=""; GREEN=""; AMBER=""; RESET=""
 fi
 
-log()  { echo "${BOLD}>>${RESET} $*"; }
-ok()   { echo "${GREEN}✓${RESET} $*"; }
-warn() { echo "${AMBER}!${RESET} $*" >&2; }
-die()  { echo "${RED}✗${RESET} $*" >&2; exit 1; }
+log()  { echo "${BOLD}>> ${RESET}$*"; }
+ok()   { echo "${GREEN}[OK]${RESET} $*"; }
+warn() { echo "${AMBER}[!] ${RESET}$*" >&2; }
+die()  { echo "${RED}[X] ${RESET}$*" >&2; exit 1; }
 
-# ─── Argument parsing ─────────────────────────────────────────────
+# --- Argument parsing ------------------------------------------------------
 DEVICE=""
+IMAGE_FLAG=""          # --image <path>
+SKIP_VERIFY=false      # --skip-verification
+CLEAN_CACHE=false      # --clean-cache
 DRY_RUN=false
 LIST_ONLY=false
 FORCE=false
@@ -68,25 +67,40 @@ FORCE=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         /dev/*) DEVICE="$1"; shift ;;
-        --dry-run) DRY_RUN=true; shift ;;
-        --list)    LIST_ONLY=true; shift ;;
-        --force)   FORCE=true; shift ;;
+        --image)
+            [[ $# -ge 2 ]] || die "--image requires a path argument"
+            IMAGE_FLAG="$2"; shift 2 ;;
+        --skip-verification) SKIP_VERIFY=true; shift ;;
+        --clean-cache)       CLEAN_CACHE=true; shift ;;
+        --dry-run)  DRY_RUN=true; shift ;;
+        --list)     LIST_ONLY=true; shift ;;
+        --force)    FORCE=true; shift ;;
         --help|-h)
             cat <<'EOF'
-testOS installer — download and write the latest testOS image to USB.
+testOS installer -- download and write the latest testOS image to USB.
 
 Usage:
-  sudo bash testos/install.sh /dev/sdX     Download + write to /dev/sdX
-  sudo bash testos/install.sh --list       Show latest release assets without writing
-  sudo bash testos/install.sh --dry-run /dev/sdX   Download and verify, don't write
+  sudo bash install.sh /dev/sdX                   Download + write to /dev/sdX
+  sudo bash install.sh --list                     Show latest release assets
+  sudo bash install.sh --dry-run /dev/sdX         Download and verify, don't write
+  sudo bash install.sh --image /path/to/img.raw   Use a local image, skip download
+  sudo bash install.sh --clean-cache              Delete cache and re-download
 
 Options:
-  --dry-run   Download and verify everything, but don't write to the device.
-  --list      Just show what's in the latest release.
-  --force     Bypass the removable-media and size-sanity safety checks.
-              Required if you want to write to a non-USB disk (e.g. an
-              internal test disk). Still refuses the system root disk.
-  --help      This message.
+  /dev/sdX             Target USB device.
+  --image <path>       Path to a local .raw or .raw.zst. Skips the GitHub download.
+                       SHA256 is still verified against the release SHA256SUMS
+                       unless you also pass --skip-verification.
+  --skip-verification  Skip SHA256 check (use with --image when offline).
+  --clean-cache        Delete the local cache directory before running.
+  --dry-run            Download/verify/decompress but don't write to the device.
+  --list               Just show what's in the latest release.
+  --force              Bypass the removable-media and size-sanity safety checks.
+  --help               This message.
+
+Cache directory: ${XDG_CACHE_HOME:-$HOME/.cache}/testos-installer/
+  The installer caches the downloaded .raw.zst and decompressed .raw here.
+  Second run of the same version skips the 582 MB re-download.
 EOF
             exit 0
             ;;
@@ -94,48 +108,62 @@ EOF
     esac
 done
 
-# ─── Preflight checks ─────────────────────────────────────────────
-[[ "$(uname -s)" == "Linux" || "$(uname -s)" == "Darwin" ]] || die "This script supports Linux and macOS only. On Windows, use Rufus on the .raw from Releases."
+# --- Preflight checks ------------------------------------------------------
+[[ "$(uname -s)" == "Linux" || "$(uname -s)" == "Darwin" ]] || \
+    die "This script supports Linux and macOS only. On Windows, use testos/install.ps1."
 
 command -v curl >/dev/null || die "curl is required."
 command -v dd   >/dev/null || die "dd is required."
-command -v sha256sum >/dev/null || command -v shasum >/dev/null || die "sha256sum (or shasum on macOS) is required."
+command -v sha256sum >/dev/null || command -v shasum >/dev/null || \
+    die "sha256sum (or shasum on macOS) is required."
 
-# ─── Find the latest release ──────────────────────────────────────
+if [[ -z "$IMAGE_FLAG" && "$LIST_ONLY" != "true" ]]; then
+    # We'll need zstd for decompression — check now before the download.
+    command -v zstd >/dev/null || \
+        die "zstd is required to decompress the image. Install with: apt install zstd / pacman -S zstd / brew install zstd"
+fi
+
+# --- Cache directory -------------------------------------------------------
+CACHE_BASE="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+CACHE_DIR="${CACHE_BASE}/testos-installer"
+
+if $CLEAN_CACHE; then
+    log "Cleaning cache at ${CACHE_DIR} ..."
+    rm -rf "${CACHE_DIR}"
+    ok "Cache cleared."
+fi
+
+mkdir -p "${CACHE_DIR}"
+
+# --- Find the latest release -----------------------------------------------
 log "Finding the latest testOS release..."
 RELEASE_JSON_RAW="$(curl -fsSL "$API_URL" || true)"
-[[ -n "$RELEASE_JSON_RAW" ]] || die "Could not fetch release info from $API_URL. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
+[[ -n "$RELEASE_JSON_RAW" ]] || \
+    die "Could not fetch release info from $API_URL. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
 
-# Extract the first non-draft release. GitHub's /releases endpoint returns
-# drafts first; we want the latest published release (prerelease or not).
-# We use python3 (available on virtually all modern Linux/macOS) to parse
-# JSON reliably. If python3 is missing, fall back to jq, then to a fragile
-# awk grep that handles the common case.
+# Extract the first non-draft release.
 if command -v python3 >/dev/null; then
     RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | python3 -c '
 import sys, json
 r = json.load(sys.stdin)
-if isinstance(r, dict): r = [r]  # single-object unwrap
+if isinstance(r, dict): r = [r]
 pub = [x for x in r if not x.get("draft")]
 if not pub:
     sys.exit(1)
-# indent=2 so the rest of the script can grep line-by-line for asset URLs
 print(json.dumps(pub[0], indent=2))
-' 2>/dev/null)" || die "No non-draft releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
+' 2>/dev/null)" || die "No non-draft releases found at $API_URL. The release workflow may not have run yet."
 elif command -v jq >/dev/null; then
-    RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | jq '[.[] | select(.draft != true)][0]' 2>/dev/null)" || die "No non-draft releases found."
+    RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | jq '[.[] | select(.draft != true)][0]' 2>/dev/null)" || \
+        die "No non-draft releases found."
 else
-    # Fallback: awk to extract the first non-draft release block.
-    # This is fragile — assumes the JSON is pretty-printed with one field per line.
     RELEASE_JSON="$(printf '%s' "$RELEASE_JSON_RAW" | awk '
         /"draft": false/ { in_block = 1 }
         in_block { print }
         in_block && /^}/ { in_block = 0; exit }
     ')"
-    [[ -n "$RELEASE_JSON" ]] || die "Could not parse releases (no python3/jq). Install one: apt install python3 / pacman -S python / brew install python"
+    [[ -n "$RELEASE_JSON" ]] || die "Could not parse releases (no python3/jq). Install one: apt install python3 / brew install python3"
 fi
 
-# Extract the tag name (version).
 VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')"
 [[ -n "$VERSION" ]] || die "Could not parse release tag. The release may be malformed."
 
@@ -149,93 +177,190 @@ if $LIST_ONLY; then
     exit 0
 fi
 
-# ─── Check that a release image exists ────────────────────────────
+# --- Check that a release image exists -------------------------------------
 ASSET_URLS="$(printf '%s' "$RELEASE_JSON" | grep '"browser_download_url"' | sed -E 's/.*"browser_download_url": "([^"]+)".*/\1/')"
 echo "$ASSET_URLS" | grep -qE 'testos-.*\.raw(\.zst)?$' || {
     warn "The latest release (${VERSION}) does not contain a testOS-*.raw(.zst) image."
-    warn "This usually means the release workflow is still running, or the project"
-    warn "hasn't published a testOS image yet."
+    warn "This usually means the release workflow is still running."
     echo
     echo "To build from source instead, see:"
     echo "  https://github.com/${REPO}#build-from-source"
     exit 1
 }
 
-# ─── Set up a working directory ───────────────────────────────────
+IMAGE_URL="$(echo "$ASSET_URLS" | grep -E 'testos-.*\.raw(\.zst)?$' | head -1)"
+IMAGE_BASENAME="$(basename "$IMAGE_URL")"
+IS_ZST=false
+[[ "$IMAGE_BASENAME" == *.zst ]] && IS_ZST=true
+RAW_BASENAME="${IMAGE_BASENAME%.zst}"
+
+SUMS_URL="$(echo "$ASSET_URLS" | grep -E 'SHA256SUMS$' | head -1 || true)"
+
+# --- Working directory ------------------------------------------------------
 WORK_DIR="$(mktemp -d -t testos-install.XXXXXX)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+trap 'rm -rf "${WORK_DIR}"' EXIT
 
-cd "$WORK_DIR"
-
-# ─── Download assets ──────────────────────────────────────────────
-download() {
-    local url="$1" dest="$2"
-    log "Downloading ${dest}..."
-    curl -fsSL -o "$dest" "$url" || die "Download failed: $url"
+# --- Helper: sha256 check one file against SHA256SUMS content -------------
+# Usage: check_sha256 <filepath> <sums_content>
+# Returns 0 if match, 1 if filename not in sums. Exits on mismatch.
+check_sha256() {
+    local filepath="$1"
+    local sums_content="$2"
+    local fname
+    fname="$(basename "$filepath")"
+    local expected
+    expected="$(printf '%s' "$sums_content" | grep -E "^[0-9a-fA-F]{64}[[:space:]]+\*?${fname}[[:space:]]*$" | awk '{print $1}' | head -1 || true)"
+    if [[ -z "$expected" ]]; then
+        return 1  # not found in sums
+    fi
+    log "Verifying SHA256 for ${fname} ..."
+    local actual
+    if command -v sha256sum >/dev/null; then
+        actual="$(sha256sum "$filepath" | awk '{print $1}')"
+    else
+        actual="$(shasum -a 256 "$filepath" | awk '{print $1}')"
+    fi
+    if [[ "${actual,,}" == "${expected,,}" ]]; then
+        ok "SHA256 OK for ${fname}"
+        return 0
+    else
+        warn "SHA256 MISMATCH for ${fname}"
+        warn "  Expected: ${expected}"
+        warn "  Actual:   ${actual}"
+        die "Checksum verification failed. The file may be corrupted or stale."
+    fi
 }
 
-IMAGE_URL="$(echo "$ASSET_URLS" | grep -E 'testos-.*\.raw(\.zst)?$' | head -1)"
-IMAGE_FILE="$(basename "$IMAGE_URL")"
-download "$IMAGE_URL" "$IMAGE_FILE"
-
-# Decompress if the image is zstd-compressed.
-if [[ "$IMAGE_FILE" == *.zst ]]; then
-    command -v zstd >/dev/null || die "zstd is required to decompress $IMAGE_FILE. Install with: apt install zstd / pacman -S zstd / brew install zstd"
-    log "Decompressing ${IMAGE_FILE}..."
-    # zstd -d removes the .zst suffix by default.
-    zstd -d -f "$IMAGE_FILE" || die "zstd decompression failed."
-    IMAGE_FILE="${IMAGE_FILE%.zst}"
+# --- Fetch SHA256SUMS (always fresh, it's tiny) ----------------------------
+SUMS_CONTENT=""
+if [[ -n "$SUMS_URL" ]] && ! $SKIP_VERIFY; then
+    log "Downloading SHA256SUMS..."
+    curl -fsSL -o "${WORK_DIR}/SHA256SUMS" "$SUMS_URL" || die "Failed to download SHA256SUMS."
+    SUMS_CONTENT="$(cat "${WORK_DIR}/SHA256SUMS")"
 fi
 
-SUMS_URL="$(echo "$ASSET_URLS" | grep -E 'SHA256SUMS$' | head -1)"
-if [[ -n "$SUMS_URL" ]]; then
-    download "$SUMS_URL" "SHA256SUMS"
+# --- Cache paths -----------------------------------------------------------
+ZST_CACHE="${CACHE_DIR}/${IMAGE_BASENAME}"    # e.g. cache/testos-0.7.0-beta.2.raw.zst
+RAW_CACHE="${CACHE_DIR}/${RAW_BASENAME}"      # e.g. cache/testos-0.7.0-beta.2.raw
+
+RESOLVED_RAW=""  # will be set to the final .raw path before writing
+
+# --- PATH A: user supplied a local file ------------------------------------
+if [[ -n "$IMAGE_FLAG" ]]; then
+    [[ -f "$IMAGE_FLAG" ]] || die "The file specified with --image does not exist: ${IMAGE_FLAG}"
+    log "Using local file: ${IMAGE_FLAG}"
+
+    if [[ "$IMAGE_FLAG" == *.zst ]]; then
+        if $SKIP_VERIFY; then
+            warn "Skipping SHA256 verification (--skip-verification)."
+        elif [[ -n "$SUMS_CONTENT" ]]; then
+            check_sha256 "$IMAGE_FLAG" "$SUMS_CONTENT" || {
+                warn "$(basename "$IMAGE_FLAG") not found in SHA256SUMS. Pass --skip-verification to proceed anyway."
+                exit 1
+            }
+        fi
+        log "Decompressing $(basename "$IMAGE_FLAG") ..."
+        zstd -d -f "$IMAGE_FLAG" -o "${RAW_CACHE}" || die "zstd decompression failed."
+        RESOLVED_RAW="${RAW_CACHE}"
+    else
+        if ! $SKIP_VERIFY && [[ -n "$SUMS_CONTENT" ]]; then
+            check_sha256 "$IMAGE_FLAG" "$SUMS_CONTENT" || {
+                warn "$(basename "$IMAGE_FLAG") not found in SHA256SUMS. Pass --skip-verification to proceed anyway."
+                exit 1
+            }
+        elif $SKIP_VERIFY; then
+            warn "Skipping SHA256 verification (--skip-verification)."
+        fi
+        RESOLVED_RAW="$IMAGE_FLAG"
+    fi
+else
+    # --- PATH B: download with cache --------------------------------------
+    log "Checking cache at ${CACHE_DIR} ..."
+
+    # B1: both .raw and .zst cached, .zst hash OK -> skip download + decompress
+    if $IS_ZST && [[ -f "${RAW_CACHE}" && -f "${ZST_CACHE}" ]] && ! $SKIP_VERIFY && [[ -n "$SUMS_CONTENT" ]]; then
+        if check_sha256 "${ZST_CACHE}" "$SUMS_CONTENT" 2>/dev/null; then
+            ok "Cache hit (raw+zst): using ${RAW_CACHE} (skipping download and decompression)."
+            RESOLVED_RAW="${RAW_CACHE}"
+        else
+            warn "Cached .zst hash mismatch - stale cache. Deleting and re-downloading."
+            rm -f "${ZST_CACHE}" "${RAW_CACHE}"
+        fi
+    fi
+
+    # B2: .zst cached, hash OK -> skip download, decompress to .raw
+    if [[ -z "$RESOLVED_RAW" ]] && $IS_ZST && [[ -f "${ZST_CACHE}" ]] && ! $SKIP_VERIFY && [[ -n "$SUMS_CONTENT" ]]; then
+        if check_sha256 "${ZST_CACHE}" "$SUMS_CONTENT" 2>/dev/null; then
+            ok "Cache hit (.zst): using cached ${ZST_CACHE}"
+            log "Decompressing cached ${IMAGE_BASENAME} ..."
+            zstd -d -f "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression of cached file failed."
+            RESOLVED_RAW="${RAW_CACHE}"
+        else
+            warn "Cached .zst hash mismatch - deleting stale file."
+            rm -f "${ZST_CACHE}"
+        fi
+    fi
+
+    # B3: cache miss - download from GitHub
+    if [[ -z "$RESOLVED_RAW" ]]; then
+        log "Cache miss - downloading from GitHub..."
+        DOWNLOAD_DEST="${WORK_DIR}/${IMAGE_BASENAME}"
+        curl -fsSL --progress-bar -o "${DOWNLOAD_DEST}" "$IMAGE_URL" || die "Download failed: $IMAGE_URL"
+
+        if ! $SKIP_VERIFY && [[ -n "$SUMS_CONTENT" ]]; then
+            check_sha256 "${DOWNLOAD_DEST}" "$SUMS_CONTENT" || \
+                warn "Image filename not found in SHA256SUMS - skipping verification."
+        fi
+
+        log "Caching downloaded image to ${ZST_CACHE} ..."
+        cp "${DOWNLOAD_DEST}" "${ZST_CACHE}"
+
+        if $IS_ZST; then
+            log "Decompressing ${IMAGE_BASENAME} ..."
+            zstd -d -f "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression failed."
+            RESOLVED_RAW="${RAW_CACHE}"
+        else
+            RESOLVED_RAW="${ZST_CACHE}"
+        fi
+    fi
 fi
 
-# Download the launcher and ingest binaries too (Linux only — they're
-# Linux x86_64 ELF binaries).
-LAUNCHER_BIN=""
+# --- Download side-car binaries (ingest + bench-list) ---------------------
 if [[ "$(uname -s)" == "Linux" ]]; then
     LAUNCHER_URL="$(echo "$ASSET_URLS" | grep -E 'testos-launcher-.*-linux-x86_64$' | head -1 || true)"
-    INGEST_URL="$(echo "$ASSET_URLS" | grep -E 'testos-ingest-.*-linux-x86_64$' | head -1 || true)"
+    INGEST_URL="$(echo "$ASSET_URLS"   | grep -E 'testos-ingest-.*-linux-x86_64$'   | head -1 || true)"
     if [[ -n "$LAUNCHER_URL" ]]; then
-        download "$LAUNCHER_URL" "testos-launcher"
-        chmod +x testos-launcher
-        LAUNCHER_BIN="$WORK_DIR/testos-launcher"
+        log "Downloading testos-launcher..."
+        curl -fsSL -o "${WORK_DIR}/testos-launcher" "$LAUNCHER_URL"
+        chmod +x "${WORK_DIR}/testos-launcher"
     fi
     if [[ -n "$INGEST_URL" ]]; then
-        download "$INGEST_URL" "testos-ingest"
-        chmod +x testos-ingest
+        log "Downloading testos-ingest..."
+        curl -fsSL -o "${WORK_DIR}/testos-ingest" "$INGEST_URL"
+        chmod +x "${WORK_DIR}/testos-ingest"
     fi
 fi
-
-# ─── Verify checksums ─────────────────────────────────────────────
-if [[ -f SHA256SUMS ]]; then
-    log "Verifying checksums..."
-    if command -v sha256sum >/dev/null; then
-        sha256sum -c SHA256SUMS --ignore-missing || die "Checksum verification failed. The download may be corrupted."
-    else
-        # macOS shasum
-        ( cd "$WORK_DIR" && shasum -a 256 -c SHA256SUMS 2>/dev/null ) || warn "Checksum verification skipped (shasum failed)."
-    fi
-    ok "Checksums verified."
+BENCH_URL="$(echo "$ASSET_URLS" | grep 'bench-list.toml' | head -1 || true)"
+if [[ -n "$BENCH_URL" ]]; then
+    curl -fsSL -o "${WORK_DIR}/bench-list.toml" "$BENCH_URL" 2>/dev/null || true
 fi
 
-# Image size for the confirmation prompt.
-IMAGE_SIZE_BYTES="$(stat -c %s "$IMAGE_FILE" 2>/dev/null || stat -f %z "$IMAGE_FILE" 2>/dev/null || echo 0)"
+IMAGE_SIZE_BYTES="$(stat -c %s "${RESOLVED_RAW}" 2>/dev/null || stat -f %z "${RESOLVED_RAW}" 2>/dev/null || echo 0)"
 IMAGE_SIZE_MB=$(( IMAGE_SIZE_BYTES / 1024 / 1024 ))
 
-# ─── Dry-run stops here ───────────────────────────────────────────
+# --- Dry-run stops here ---------------------------------------------------
 if $DRY_RUN; then
-    ok "Dry run complete. Downloaded and verified:"
-    ls -lh "$WORK_DIR"
+    ok "Dry run complete."
+    echo
+    echo "Image: ${RESOLVED_RAW} (${IMAGE_SIZE_MB} MB)"
+    echo "Cache: ${CACHE_DIR}"
     echo
     echo "Re-run without --dry-run and with a USB device to write:"
     echo "  sudo bash $0 /dev/sdX"
     exit 0
 fi
 
-# ─── Device selection and safety checks ───────────────────────────
+# --- Device selection and safety checks -----------------------------------
 [[ -n "$DEVICE" ]] || {
     echo
     echo "Available block devices:"
@@ -256,64 +381,50 @@ fi
 if [[ "$(uname -s)" == "Linux" ]]; then
     ROOT_DEV="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
     if [[ -n "$ROOT_DEV" ]]; then
-        # Strip partition digits to get base device.
         ROOT_BASE="$ROOT_DEV"
         ROOT_BASE="${ROOT_BASE%p[0-9]}"
         ROOT_BASE="${ROOT_BASE%[0-9]}"
         if [[ "$DEVICE" == "$ROOT_BASE" ]]; then
-            die "Device $DEVICE is the host's root disk. Refusing to overwrite. If you really meant to write to your boot disk, you're holding the script wrong — use a USB stick."
+            die "Device $DEVICE is the host's root disk. Refusing to overwrite."
         fi
     fi
 fi
 
-# ─── Safety check: refuse non-removable disks unless --force ──────
-# lsblk reports RM=1 for removable media (USB sticks, SD cards). Internal
-# SATA/NVMe disks report RM=0. Refusing non-removable disks catches the
-# most common accident: targeting an internal data disk.
+# Refuse non-removable disks unless --force.
 if [[ "$FORCE" != "true" ]] && command -v lsblk >/dev/null; then
     RM_FLAG="$(lsblk -d -n -o RM "$DEVICE" 2>/dev/null | tr -d ' ' || true)"
     if [[ "$RM_FLAG" == "0" ]]; then
-        warn "Device $DEVICE reports RM=0 (not removable). This looks like an internal disk, not a USB stick."
-        warn "Writing to it would destroy any data on it."
-        die "Refusing to write to a non-removable disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with --force."
+        warn "Device $DEVICE reports RM=0 (not removable). This looks like an internal disk."
+        die "Refusing to write to a non-removable disk. Re-run with --force if intentional."
     fi
 fi
 
-# ─── Safety check: size sanity ────────────────────────────────────
-# If the target disk is more than 4x the image size, warn. People
-# sometimes image a 500MB USB onto a 2TB HDD by mistake.
+# Size sanity.
 if command -v lsblk >/dev/null; then
     DISK_SIZE_BYTES="$(lsblk -b -d -n -o SIZE "$DEVICE" 2>/dev/null | head -1 || echo 0)"
     if [[ -n "$DISK_SIZE_BYTES" && "$DISK_SIZE_BYTES" -gt 0 ]]; then
         DISK_SIZE_MB=$(( DISK_SIZE_BYTES / 1024 / 1024 ))
-        IMAGE_SIZE_MB=$(( IMAGE_SIZE_BYTES / 1024 / 1024 ))
         if [[ "$DISK_SIZE_MB" -gt $(( IMAGE_SIZE_MB * 4 )) ]]; then
-            warn "Target disk is $DISK_SIZE_MB MB but the image is only $IMAGE_SIZE_MB MB."
-            warn "This is unusual — you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
-            if [[ "$FORCE" != "true" ]]; then
-                die "Refusing to write to a disk that's much larger than the image. If this is intentional (e.g. a large USB stick), re-run with --force."
-            fi
+            warn "Target disk is ${DISK_SIZE_MB} MB but the image is only ${IMAGE_SIZE_MB} MB."
+            [[ "$FORCE" != "true" ]] && die "Refusing to write to a disk much larger than the image. Re-run with --force if intentional."
         fi
         if [[ "$DISK_SIZE_MB" -lt "$IMAGE_SIZE_MB" ]]; then
-            die "Target disk ($DISK_SIZE_MB MB) is smaller than the image ($IMAGE_SIZE_MB MB). The write would fail mid-way and leave the disk in a broken state."
+            die "Target disk (${DISK_SIZE_MB} MB) is smaller than the image (${IMAGE_SIZE_MB} MB)."
         fi
     fi
 fi
 
-# Don't run as root? Actually we need root for dd. Check.
 if [[ $EUID -ne 0 ]]; then
     warn "Not running as root. dd will probably fail. Re-run with sudo."
 fi
 
-# ─── Confirm: show the disk's identity and ask 'yes' ─────────────
+# --- Confirm: show disk identity and ask 'yes' ----------------------------
 echo
 echo "${BOLD}About to write ${IMAGE_SIZE_MB} MiB to:${RESET}"
 echo "  Device:  ${DEVICE}"
 if command -v lsblk >/dev/null; then
     DISK_INFO="$(lsblk -d -n -o VENDOR,MODEL,SIZE,TRAN,RM "$DEVICE" 2>/dev/null | head -1 || true)"
-    if [[ -n "$DISK_INFO" ]]; then
-        echo "  Identity: ${DISK_INFO}"
-    fi
+    [[ -n "$DISK_INFO" ]] && echo "  Identity: ${DISK_INFO}"
 fi
 echo
 echo "${RED}ALL DATA ON THIS DISK WILL BE LOST.${RESET}"
@@ -325,30 +436,30 @@ if [[ "$FORCE" != "true" ]]; then
     [[ "$CONFIRM" == "yes" ]] || die "Confirmation was not 'yes'. Aborting."
 fi
 
-# ─── Write the image ──────────────────────────────────────────────
-log "Writing ${IMAGE_FILE} to ${DEVICE} with dd..."
-dd if="$IMAGE_FILE" of="$DEVICE" bs=4M status=progress conv=fsync
+# --- Write the image -------------------------------------------------------
+log "Writing ${RESOLVED_RAW} to ${DEVICE} with dd..."
+dd if="${RESOLVED_RAW}" of="$DEVICE" bs=4M status=progress conv=fsync
 sync
-command -v blockdev >/dev/null && blockdev --flushbufs "$DEVICE" 2>/dev/null || true
-command -v partprobe >/dev/null && partprobe "$DEVICE" 2>/dev/null || true
+command -v blockdev  >/dev/null && blockdev --flushbufs "$DEVICE"  2>/dev/null || true
+command -v partprobe >/dev/null && partprobe "$DEVICE"             2>/dev/null || true
 
 ok "Write complete."
 echo
 echo "${BOLD}Next steps:${RESET}"
 echo
 echo "  1. Plug the USB into the test machine."
-echo "  2. Reboot. Enter the boot menu (F12, F8, F11, or Esc — depends on vendor)."
+echo "  2. Reboot. Enter the boot menu (F12, F8, F11, or Esc -- depends on vendor)."
 echo "  3. Pick the USB from the list."
-echo "  4. (If it refuses to boot) Disable Secure Boot — testOS UKIs are unsigned for now."
+echo "  4. (If it refuses to boot) Disable Secure Boot -- testOS UKIs are unsigned for now."
 echo "  5. testOS boots, shows a menu of benchmarks."
 echo "  6. Pick 'Run all' (0) or specific test numbers. Press Esc to abort."
 echo "  7. When done, testOS syncs the USB and reboots back to the host OS."
 echo "  8. Plug the USB back here, then pull the results:"
 echo
-if [[ -n "$LAUNCHER_BIN" ]]; then
-    echo "       sudo $WORK_DIR/testos-ingest pull $DEVICE"
-    echo "       $WORK_DIR/testos-ingest format"
-    echo "       $WORK_DIR/testos-ingest commit"
+if [[ -f "${WORK_DIR}/testos-ingest" ]]; then
+    echo "       sudo ${WORK_DIR}/testos-ingest pull $DEVICE"
+    echo "       ${WORK_DIR}/testos-ingest format"
+    echo "       ${WORK_DIR}/testos-ingest commit"
 else
     echo "       # Download testos-ingest from the same release:"
     echo "       curl -fsSL -o testos-ingest <url-from-release-assets>"
