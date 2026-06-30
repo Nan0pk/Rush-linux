@@ -28,6 +28,10 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 The fastest way to see Rush Linux in action: download the prebuilt **testOS** image, write it to a USB stick, boot any x86_64 machine from it, run the benchmark suite, and pull the results back into your repo. About 5 minutes of actual work, no toolchain install required.
 
+> **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)** (prerelease — the installer fetches it automatically)
+>
+> Browse all releases: [github.com/Nan0pk/Rush-linux/releases](https://github.com/Nan0pk/Rush-linux/releases)
+
 **You need:**
 
 - A USB stick (≥ 1 GB)

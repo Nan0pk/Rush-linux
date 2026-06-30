@@ -1,4 +1,4 @@
-﻿# testos/install.ps1 - download the latest prebuilt testOS image and write it to a USB stick.
+# testos/install.ps1 - download the latest prebuilt testOS image and write it to a USB stick.
 #
 # Usage (from an elevated PowerShell):
 #   .\install.ps1 -Device \\.\PhysicalDrive1
@@ -96,6 +96,23 @@ if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
     Write-Warn "Re-run from an elevated PowerShell: right-click PowerShell -> 'Run as Administrator'."
     Write-Warn "Continuing anyway in 3 seconds... (Ctrl-C to abort)"
     Start-Sleep -Seconds 3
+}
+
+# --- Proactive decompressor check ---------------------------------
+# Check NOW (before the download) that we have something to decompress with.
+# zstd.exe (winget install Meta.Zstandard) is preferred. tar.exe ships with
+# Windows 10 1803+ and is the built-in fallback.
+if (-not $ListOnly) {
+    $zstdAvail = Get-Command zstd    -ErrorAction SilentlyContinue
+    $tarAvail  = Get-Command tar.exe -ErrorAction SilentlyContinue
+    if (-not $zstdAvail -and -not $tarAvail) {
+        Write-Warn "Neither zstd.exe nor tar.exe was found on PATH."
+        Write-Warn "tar.exe ships with Windows 10 1803+ at C:\Windows\System32\tar.exe."
+        Write-Warn "If you are on an older Windows, install zstd first:"
+        Write-Warn "  winget install Meta.Zstandard"
+        Write-Warn "Then re-run this script."
+        exit 1
+    }
 }
 
 # --- Find latest release ------------------------------------------
@@ -236,7 +253,7 @@ try {
             & cmd.exe /c "tar.exe --use-compress-program=zstd -xf `"$ImageFile`" --to-stdout > `"$DecompressedFile`" 2>`"$tmpError`""
             if ($LASTEXITCODE -ne 0) {
                 $errDetail = if (Test-Path $tmpError) { Get-Content $tmpError -Raw } else { "(no stderr)" }
-                Write-Err "Could not decompress $($ImageAsset.name) (tar.exe exit $LASTEXITCODE). $errDetail. Install zstd: winget install Facebook.Zstd"
+                Write-Err "Could not decompress $($ImageAsset.name) (tar.exe exit $LASTEXITCODE). $errDetail. Install zstd: winget install Meta.Zstandard"
             }
         }
         if (-not (Test-Path $DecompressedFile) -or (Get-Item $DecompressedFile).Length -eq 0) {
