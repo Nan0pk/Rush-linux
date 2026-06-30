@@ -100,13 +100,25 @@ if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
 
 # --- Find latest release ------------------------------------------
 $Repo = "Nan0pk/Rush-linux"
-$ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+# Use /releases?per_page=1 instead of /releases/latest because the latter
+# filters out prereleases, and Rush's testOS releases are marked prerelease
+# until v1.0. This returns the most recent non-draft release, prerelease or
+# not.
+$ApiUrl = "https://api.github.com/repos/$Repo/releases?per_page=1"
 
 Write-Info "Finding the latest testOS release..."
 try {
-    $Release = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "testos-installer" } -ErrorAction Stop
+    $Releases = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "testos-installer" } -ErrorAction Stop
 } catch {
     Write-Err "Could not fetch release info from $ApiUrl. Either there are no releases yet, or you're rate-limited. Try again in a few minutes, or build from source: see the README's 'Build from source' section."
+}
+
+# /releases returns an array; take the first (newest) element. PowerShell
+# auto-unwraps single-element arrays, but explicitly selecting the first
+# is robust to both 0-element and many-element responses.
+$Release = $Releases | Select-Object -First 1
+if (-not $Release) {
+    Write-Err "No releases found at $ApiUrl. The release workflow may not have run yet - see the README's 'Build from source' section."
 }
 
 $Version = $Release.tag_name

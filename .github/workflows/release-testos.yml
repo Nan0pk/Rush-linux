@@ -33,6 +33,10 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
+      tag:
+        description: 'Release tag to create (e.g. v0.7.0-beta.2). If empty, derives from the VERSION file.'
+        required: false
+        default: ''
 
 permissions:
   contents: write   # needed by softprops/action-gh-release to create the release
@@ -87,9 +91,35 @@ jobs:
           dd if=/dev/urandom of=build/testos.raw bs=1M count=1 status=none
           echo "mock testOS image" > build/MOCK.txt
 
-      - name: Stage release artifacts
+      - name: Derive release tag
+        id: reltag
         run: |
-          VERSION="${GITHUB_REF_NAME:-$(cat VERSION)}"
+          # Tag priority:
+          #   1. Manual input (`inputs.tag`) from workflow_dispatch
+          #   2. Pushed tag (`github.ref_name`) when triggered by `on.push.tags`
+          #   3. `v<VERSION>` from the VERSION file
+          INPUT_TAG="${{ inputs.tag }}"
+          REF_TAG="${{ github.ref_name }}"
+          FILE_VER="$(cat VERSION)"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [[ "$REF_TAG" == v* ]]; then
+            TAG="$REF_TAG"
+          else
+            TAG="v$FILE_VER"
+          fi
+          # Strip a leading 'v' for the bare version string used in asset names.
+          # (Tags look like 'v0.7.0-beta.2'; asset names use '0.7.0-beta.2'.)
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG (version: $VERSION)"
+
+      - name: Stage release artifacts
+        env:
+          RELEASE_VERSION: ${{ steps.reltag.outputs.version }}
+        run: |
+          VERSION="$RELEASE_VERSION"
           STAGE=/tmp/release-stage
           mkdir -p "$STAGE"
 
@@ -115,10 +145,18 @@ jobs:
           path: /tmp/release-stage/*
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.reltag.outputs.tag }}
           files: /tmp/release-stage/*
           generate_release_notes: true
           draft: false
           prerelease: true   # Rush is beta; mark releases as prerelease until v1.0
+          body: |
+            ## testOS ${{ steps.reltag.outputs.version }}
+
+            Prebuilt testOS image for USB benchmarking. See `install.sh` (Linux/macOS) or `install.ps1` (Windows) in the repo to flash this to a USB stick.
+
+            **Mock build:** ${{ github.event.inputs.mock == 'true' }}
+
+            See the [testOS README](https://github.com/Nan0pk/Rush-linux/blob/main/testos/README.md) for usage.
