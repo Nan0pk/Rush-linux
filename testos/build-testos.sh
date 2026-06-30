@@ -282,7 +282,12 @@ echo ""
 
 # ── Step 6: Rename output and report ─────────────────────────────
 echo ">> [6/6] Renaming output and fixing permissions..."
-chown -R "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "${REPO_ROOT}/build" 2>/dev/null || true
+# chown to the invoking user when running under sudo (SUDO_USER), otherwise
+# to the current user (USER). In CI containers USER may be unset; default
+# to root in that case so the chown is a no-op. The `2>/dev/null || true`
+# guards against chown failures (e.g. running as non-root without sudo).
+CHOWN_USER="${SUDO_USER:-${USER:-root}}"
+chown -R "${CHOWN_USER}:${CHOWN_USER}" "${REPO_ROOT}/build" 2>/dev/null || true
 
 # mkosi produces build/rush-linux-testos.raw (because of ImageId in the profile).
 # We symlink it to build/testos.raw for a stable name.
