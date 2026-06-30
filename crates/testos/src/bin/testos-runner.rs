@@ -301,9 +301,18 @@ fn main() {
         ("cpuinfo.txt", "cat /proc/cpuinfo"),
         ("meminfo.txt", "cat /proc/meminfo"),
         ("cmdline.txt", "cat /proc/cmdline"),
-        ("lsblk.txt", "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL"),
-        ("lspci.txt", "lspci -nn 2>/dev/null || echo 'lspci not installed'"),
-        ("lsusb.txt", "lsusb 2>/dev/null || echo 'lsusb not installed'"),
+        (
+            "lsblk.txt",
+            "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL",
+        ),
+        (
+            "lspci.txt",
+            "lspci -nn 2>/dev/null || echo 'lspci not installed'",
+        ),
+        (
+            "lsusb.txt",
+            "lsusb 2>/dev/null || echo 'lsusb not installed'",
+        ),
     ];
     for (filename, cmd) in captures.iter() {
         let content = match Command::new("bash").arg("-c").arg(*cmd).output() {
