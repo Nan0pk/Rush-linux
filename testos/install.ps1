@@ -220,8 +220,15 @@ try {
         Write-Info "Decompressing $name ..."
         $zstdExe = Get-Command zstd -ErrorAction SilentlyContinue
         if ($zstdExe) {
+            # PS 5.1 with $ErrorActionPreference="Stop" still throws NativeCommandError
+            # for any stderr output from native exes, even with 2>$null.
+            # Temporarily relax EAP, run zstd, capture exit code, then restore.
+            $savedEAP = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
             & zstd -d -f $ZstPath -o $DestPath 2>$null
-            if ($LASTEXITCODE -ne 0) { Write-Err "zstd decompression failed (exit $LASTEXITCODE)." }
+            $zstdExit = $LASTEXITCODE
+            $ErrorActionPreference = $savedEAP
+            if ($zstdExit -ne 0) { Write-Err "zstd decompression failed (exit $zstdExit)." }
         } else {
             # bsdtar (Windows 10 1803+ tar.exe) can stream-decompress a .zst.
             # Use cmd.exe so the redirect works correctly.
