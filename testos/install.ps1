@@ -512,18 +512,24 @@ try {
     }
 
     # --- Safety check 4: size sanity ----------------------------
-    # If the target disk is more than 4x the image size, warn. People
-    # sometimes image a 500MB USB onto a 2TB HDD by mistake.
+    # Two cases:
+    #   1. Target disk LARGER than image: this is normal for USB sticks
+    #      (a 3 GB image on a 57 GB USB is fine, a 3 GB image on a 256 GB
+    #      USB is fine). We print an informational note but do NOT abort -
+    #      the user confirms the disk identity in the 'yes' prompt below,
+    #      which is the real safety. The old behavior of aborting here
+    #      fired on every USB stick bigger than 12 GB, which is every USB
+    #      stick made in the last decade.
+    #   2. Target disk SMALLER than image: this is genuinely fatal. The
+    #      write would fail mid-way and leave the disk in a broken state.
+    #      We abort with a clear error.
     $DiskSizeBytes = $DiskInfo.Size
     $DiskSizeGB = [math]::Round($DiskSizeBytes / 1GB, 1)
     if ($DiskSizeBytes -gt ($ImageSizeBytes * 4)) {
-        Write-Warn "Target disk is $DiskSizeGB GB but the image is only $ImageSizeMB MB."
-        Write-Warn "This is unusual - you may be targeting the wrong disk (e.g. an internal HDD instead of a USB stick)."
-        if (-not $Force) {
-            Write-Err "Refusing to write to a disk that's much larger than the image. If this is intentional (e.g. a large USB stick), re-run with -Force."
-        }
+        Write-Info "Note: target disk is $DiskSizeGB GB, image is $ImageSizeMB MB."
+        Write-Info "      Only $ImageSizeMB MB will be written; the rest of the disk will be"
+        Write-Info "      unallocated space (testOS doesn't claim the whole disk)."
     }
-    # Also warn if the target is smaller than the image (would fail mid-write).
     if ($DiskSizeBytes -lt $ImageSizeBytes) {
         Write-Err "Target disk ($DiskSizeGB GB) is smaller than the image ($ImageSizeMB MB). The write would fail mid-way and leave the disk in a broken state."
     }
