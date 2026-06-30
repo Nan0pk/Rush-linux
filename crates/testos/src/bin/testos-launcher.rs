@@ -57,7 +57,9 @@ fn print_usage() {
     println!("  3. Plug USB into test machine, reboot, pick USB from boot menu.");
     println!("  4. testOS boots, runs benchmarks, writes results to the USB.");
     println!("  5. Reboot test machine back to its host OS.");
-    println!("  6. testos-ingest pull /dev/sdX       (pulls and formats results, commits to repo).");
+    println!(
+        "  6. testos-ingest pull /dev/sdX       (pulls and formats results, commits to repo)."
+    );
 }
 
 fn cmd_build(args: &[String]) {
@@ -95,12 +97,19 @@ fn cmd_build(args: &[String]) {
     if img.exists() {
         let size = std::fs::metadata(img).map(|m| m.len()).unwrap_or(0);
         println!();
-        println!("Image ready: {} ({} MiB)", img.display(), size / (1024 * 1024));
+        println!(
+            "Image ready: {} ({} MiB)",
+            img.display(),
+            size / (1024 * 1024)
+        );
         println!();
         println!("Next: find your USB device with `lsblk`, then:");
         println!("  sudo testos-launcher write /dev/sdX");
     } else {
-        eprintln!("Build script reported success but image not found at {}", img.display());
+        eprintln!(
+            "Build script reported success but image not found at {}",
+            img.display()
+        );
         std::process::exit(1);
     }
 }
@@ -120,27 +129,41 @@ fn cmd_write(args: &[String]) {
 
     let img = Path::new(IMAGE_PATH);
     if !img.exists() {
-        eprintln!("ERROR: image not found at {}. Run `testos-launcher build` first.", img.display());
+        eprintln!(
+            "ERROR: image not found at {}. Run `testos-launcher build` first.",
+            img.display()
+        );
         std::process::exit(1);
     }
 
     // Safety check: refuse to write to a mounted or in-use device.
     if is_device_mounted(device) {
-        eprintln!("ERROR: device {} appears to be mounted. Unmount it first:", device);
+        eprintln!(
+            "ERROR: device {} appears to be mounted. Unmount it first:",
+            device
+        );
         eprintln!("  sudo umount {}*", device);
         std::process::exit(1);
     }
 
     // Safety check: refuse to write to the host's root device.
     if is_root_device(device) {
-        eprintln!("ERROR: device {} looks like the host's root disk. Refusing to overwrite.", device);
+        eprintln!(
+            "ERROR: device {} looks like the host's root disk. Refusing to overwrite.",
+            device
+        );
         eprintln!("       If this is wrong, check `lsblk` and `findmnt /`.");
         std::process::exit(1);
     }
 
     // Confirm with the user.
     let size = std::fs::metadata(img).map(|m| m.len()).unwrap_or(0);
-    println!("About to write {} ({} MiB) to {}.", img.display(), size / (1024 * 1024), device);
+    println!(
+        "About to write {} ({} MiB) to {}.",
+        img.display(),
+        size / (1024 * 1024),
+        device
+    );
     println!("ALL DATA ON {} WILL BE LOST.", device);
     print!("Type the device name again to confirm: ");
     use std::io::Write;
@@ -169,7 +192,10 @@ fn cmd_write(args: &[String]) {
 
     // Sync and tell the kernel to re-read the partition table.
     let _ = Command::new("sync").status();
-    let _ = Command::new("blockdev").arg("--flushbufs").arg(device).status();
+    let _ = Command::new("blockdev")
+        .arg("--flushbufs")
+        .arg(device)
+        .status();
     let _ = Command::new("partprobe").arg(device).status();
 
     println!();
@@ -206,7 +232,8 @@ fn cmd_preview(args: &[String]) {
                 let mnt = "/mnt/testos-preview";
                 let _ = std::fs::create_dir_all(mnt);
                 let mount_ok = Command::new("mount")
-                    .arg("-o").arg("ro")
+                    .arg("-o")
+                    .arg("ro")
                     .arg(p)
                     .arg(mnt)
                     .status()
@@ -219,11 +246,14 @@ fn cmd_preview(args: &[String]) {
                         match testos::BenchList::load(&bench_list) {
                             Ok(list) => {
                                 for (i, b) in list.benches.iter().enumerate() {
-                                    println!("  [{}] {} ({}s)",
-                                        i + 1, b.name, b.estimated_seconds);
+                                    println!("  [{}] {} ({}s)", i + 1, b.name, b.estimated_seconds);
                                 }
-                                println!("  Total ETA: {}",
-                                    testos::BenchList::format_duration(list.total_estimated_seconds()));
+                                println!(
+                                    "  Total ETA: {}",
+                                    testos::BenchList::format_duration(
+                                        list.total_estimated_seconds()
+                                    )
+                                );
                             }
                             Err(e) => println!("  (failed to parse: {})", e),
                         }
@@ -240,7 +270,10 @@ fn cmd_preview(args: &[String]) {
     }
     if !found_esp {
         println!();
-        println!("No Rush ESP partition found on {}. Wrong device, or USB not yet written?", device);
+        println!(
+            "No Rush ESP partition found on {}. Wrong device, or USB not yet written?",
+            device
+        );
     }
 }
 
@@ -269,7 +302,7 @@ fn is_device_mounted(device: &str) -> bool {
 fn is_root_device(device: &str) -> bool {
     // findmnt / -> source device. Compare the base name.
     let out = Command::new("findmnt")
-        .args(&["-n", "-o", "SOURCE", "/"])
+        .args(["-n", "-o", "SOURCE", "/"])
         .output();
     if let Ok(o) = out {
         let root_dev = String::from_utf8_lossy(&o.stdout).trim().to_string();
@@ -307,7 +340,7 @@ fn strip_partition(dev: &str) -> String {
 fn find_partitions(device: &str) -> Vec<String> {
     // lsblk -ln -o NAME <device>
     let out = Command::new("lsblk")
-        .args(&["-ln", "-o", "NAME", device])
+        .args(["-ln", "-o", "NAME", device])
         .output();
     let mut parts = Vec::new();
     if let Ok(o) = out {
@@ -324,7 +357,7 @@ fn find_partitions(device: &str) -> Vec<String> {
 
 fn read_partition_label(part: &str) -> Option<String> {
     let out = Command::new("lsblk")
-        .args(&["-ln", "-o", "LABEL", part])
+        .args(["-ln", "-o", "LABEL", part])
         .output()
         .ok()?;
     let label = String::from_utf8_lossy(&out.stdout).trim().to_string();

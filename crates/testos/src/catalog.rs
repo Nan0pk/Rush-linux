@@ -59,8 +59,8 @@ impl BenchList {
     pub fn load(path: &std::path::Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| format!("failed to read bench list at {}: {}", path.display(), e))?;
-        let list: BenchList = toml::from_str(&text)
-            .map_err(|e| format!("failed to parse bench list TOML: {}", e))?;
+        let list: BenchList =
+            toml::from_str(&text).map_err(|e| format!("failed to parse bench list TOML: {}", e))?;
         Ok(list)
     }
 

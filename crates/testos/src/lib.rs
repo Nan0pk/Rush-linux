@@ -15,9 +15,9 @@
 //!   rigs can be joined later without translation.
 
 pub mod catalog;
-pub mod results;
 pub mod host;
+pub mod results;
 
-pub use catalog::{Bench, BenchList, BenchKind};
-pub use results::{BenchResult, RunManifest, SCHEMA_VERSION};
+pub use catalog::{Bench, BenchKind, BenchList};
 pub use host::HostFingerprint;
+pub use results::{BenchResult, RunManifest, SCHEMA_VERSION};

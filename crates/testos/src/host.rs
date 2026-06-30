@@ -52,9 +52,14 @@ impl HostFingerprint {
             // Simple FNV-1a 64-bit, hex-encoded. Good enough for a directory name;
             // not a security primitive.
             let mut hash: u64 = 0xcbf29ce484222325;
-            for b in kernel.as_bytes().iter().chain(b"|".iter())
-                .chain(cpu_model.as_bytes().iter()).chain(b"|".iter())
-                .chain(dmi_board.as_bytes().iter()).chain(b"|".iter())
+            for b in kernel
+                .as_bytes()
+                .iter()
+                .chain(b"|".iter())
+                .chain(cpu_model.as_bytes().iter())
+                .chain(b"|".iter())
+                .chain(dmi_board.as_bytes().iter())
+                .chain(b"|".iter())
                 .chain(battery_design_uwh.to_string().as_bytes().iter())
             {
                 hash ^= *b as u64;

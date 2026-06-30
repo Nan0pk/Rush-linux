@@ -21,7 +21,9 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
-use testos::{Bench, BenchKind, BenchList, HostFingerprint, RunManifest, BenchResult, SCHEMA_VERSION};
+use testos::{
+    Bench, BenchKind, BenchList, BenchResult, HostFingerprint, RunManifest, SCHEMA_VERSION,
+};
 
 const USB_MOUNT: &str = "/run/testos/usb";
 const RESULTS_SUBDIR: &str = "testos-results";
@@ -49,12 +51,20 @@ fn main() {
     let list = match BenchList::load(&bench_list_path) {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("ERROR: cannot load bench list from {}: {}", bench_list_path.display(), e);
+            eprintln!(
+                "ERROR: cannot load bench list from {}: {}",
+                bench_list_path.display(),
+                e
+            );
             std::process::exit(1);
         }
     };
 
-    println!("Loaded {} benchmarks from catalog v{}.", list.benches.len(), list.version);
+    println!(
+        "Loaded {} benchmarks from catalog v{}.",
+        list.benches.len(),
+        list.version
+    );
     println!("USB mounted at: {}", USB_MOUNT);
     println!();
 
@@ -83,16 +93,27 @@ fn main() {
 
     // 5. Create results directory on the USB.
     let started_at = iso_utc_now();
-    let results_dir = usb.join(RESULTS_SUBDIR).join(&started_at.replace(':', "-"));
+    let results_dir = usb.join(RESULTS_SUBDIR).join(started_at.replace(':', "-"));
     if let Err(e) = std::fs::create_dir_all(&results_dir) {
-        eprintln!("ERROR: cannot create results dir {}: {}", results_dir.display(), e);
+        eprintln!(
+            "ERROR: cannot create results dir {}: {}",
+            results_dir.display(),
+            e
+        );
         std::process::exit(1);
     }
 
     let mode = if selection.len() == list.benches.len() {
         "all".to_string()
     } else {
-        format!("selection:{}", selection.iter().map(|b| b.id.as_str()).collect::<Vec<_>>().join(","))
+        format!(
+            "selection:{}",
+            selection
+                .iter()
+                .map(|b| b.id.as_str())
+                .collect::<Vec<_>>()
+                .join(",")
+        )
     };
 
     println!();
@@ -166,7 +187,7 @@ fn main() {
             started_at: started_iso,
             finished_at: finished_iso,
             elapsed_seconds: elapsed,
-            value: value.clone(),
+            value,
             unit: unit.clone(),
             stdout: Some(BenchResult::stdout_truncated(&stdout)),
             stderr: Some(BenchResult::stdout_truncated(&stderr)),
@@ -178,7 +199,11 @@ fn main() {
         match serde_json::to_string_pretty(&result) {
             Ok(json) => {
                 if let Err(e) = std::fs::write(&result_path, json) {
-                    eprintln!("   WARNING: failed to write result to {}: {}", result_path.display(), e);
+                    eprintln!(
+                        "   WARNING: failed to write result to {}: {}",
+                        result_path.display(),
+                        e
+                    );
                 }
             }
             Err(e) => eprintln!("   WARNING: failed to serialize result: {}", e),
@@ -192,7 +217,11 @@ fn main() {
                     (Some(v), Some(u)) => format!(" — {} {}", v, u),
                     _ => String::new(),
                 };
-                println!("   PASS{} ({})", val_str, BenchList::format_duration(elapsed as u64));
+                println!(
+                    "   PASS{} ({})",
+                    val_str,
+                    BenchList::format_duration(elapsed as u64)
+                );
             }
             "fail" => {
                 failed.push(bench.id.clone());
@@ -200,7 +229,10 @@ fn main() {
             }
             _ => {
                 skipped.push(bench.id.clone());
-                println!("   SKIPPED ({})", BenchList::format_duration(elapsed as u64));
+                println!(
+                    "   SKIPPED ({})",
+                    BenchList::format_duration(elapsed as u64)
+                );
             }
         }
         println!();
@@ -213,9 +245,11 @@ fn main() {
     let testos_version = std::fs::read_to_string("/etc/os-release")
         .ok()
         .and_then(|t| {
-            t.lines()
-                .find(|l| l.starts_with("VERSION="))
-                .and_then(|l| l.split('=').nth(1).map(|s| s.trim().trim_matches('"').to_string()))
+            t.lines().find(|l| l.starts_with("VERSION=")).and_then(|l| {
+                l.split('=')
+                    .nth(1)
+                    .map(|s| s.trim().trim_matches('"').to_string())
+            })
         })
         .unwrap_or_else(|| TESTOS_VERSION_FALLBACK.to_string());
 
@@ -236,7 +270,11 @@ fn main() {
     match serde_json::to_string_pretty(&manifest) {
         Ok(json) => {
             if let Err(e) = std::fs::write(&manifest_path, json) {
-                eprintln!("WARNING: failed to write manifest to {}: {}", manifest_path.display(), e);
+                eprintln!(
+                    "WARNING: failed to write manifest to {}: {}",
+                    manifest_path.display(),
+                    e
+                );
             }
         }
         Err(e) => eprintln!("WARNING: failed to serialize manifest: {}", e),
@@ -246,7 +284,12 @@ fn main() {
 
     println!("════════════════════════════════════════════════════");
     println!("  Run complete");
-    println!("  Passed: {}   Failed: {}   Skipped: {}", manifest.passed.len(), manifest.failed.len(), manifest.skipped.len());
+    println!(
+        "  Passed: {}   Failed: {}   Skipped: {}",
+        manifest.passed.len(),
+        manifest.failed.len(),
+        manifest.skipped.len()
+    );
     println!("  Results: {}", results_dir.display());
     println!();
     println!("  Syncing USB... ");
@@ -277,7 +320,9 @@ fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
         print!("Select (comma-separated numbers, or 0 for all, or 'q' to quit): ");
         io::stdout().flush().map_err(|e| e.to_string())?;
         let mut line = String::new();
-        io::stdin().read_line(&mut line).map_err(|e| e.to_string())?;
+        io::stdin()
+            .read_line(&mut line)
+            .map_err(|e| e.to_string())?;
         let line = line.trim();
 
         if line == "q" {
@@ -319,7 +364,17 @@ fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
 }
 
 /// Run a single benchmark and return (status, value, unit, stdout, stderr, exit_code).
-fn run_benchmark(bench: &Bench, results_dir: &Path) -> (String, Option<f64>, Option<String>, String, String, Option<i32>) {
+fn run_benchmark(
+    bench: &Bench,
+    results_dir: &Path,
+) -> (
+    String,
+    Option<f64>,
+    Option<String>,
+    String,
+    String,
+    Option<i32>,
+) {
     // For ShellJson we pass the result file path via env.
     let result_file = results_dir.join(format!("{}.out.json", bench.id));
     let _ = std::fs::remove_file(&result_file);
@@ -368,7 +423,14 @@ fn run_benchmark(bench: &Bench, results_dir: &Path) -> (String, Option<f64>, Opt
                 .find(|l| !l.trim().is_empty())
                 .and_then(|l| l.trim().parse::<f64>().ok());
             match num {
-                Some(v) => ("pass".to_string(), Some(v), Some("numeric".to_string()), stdout, stderr, exit_code),
+                Some(v) => (
+                    "pass".to_string(),
+                    Some(v),
+                    Some("numeric".to_string()),
+                    stdout,
+                    stderr,
+                    exit_code,
+                ),
                 None => ("fail".to_string(), None, None, stdout, stderr, exit_code),
             }
         }
@@ -380,9 +442,19 @@ fn run_benchmark(bench: &Bench, results_dir: &Path) -> (String, Option<f64>, Opt
             };
             // Expect JSON like {"value": 1234.5, "unit": "iops"}
             #[derive(serde::Deserialize)]
-            struct Out { value: f64, unit: String }
+            struct Out {
+                value: f64,
+                unit: String,
+            }
             match serde_json::from_str::<Out>(&text) {
-                Ok(o) => ("pass".to_string(), Some(o.value), Some(o.unit), stdout, stderr, exit_code),
+                Ok(o) => (
+                    "pass".to_string(),
+                    Some(o.value),
+                    Some(o.unit),
+                    stdout,
+                    stderr,
+                    exit_code,
+                ),
                 Err(_) => ("fail".to_string(), None, None, stdout, stderr, exit_code),
             }
         }
@@ -393,17 +465,22 @@ fn run_benchmark(bench: &Bench, results_dir: &Path) -> (String, Option<f64>, Opt
             // This is a simple wrapper; full integration can come later.
             if output.status.success() {
                 // Try to extract "median: 1.23" from stdout.
-                let med = stdout
-                    .lines()
-                    .find_map(|l| {
-                        let l = l.trim();
-                        if l.starts_with("median:") {
-                            l.trim_start_matches("median:").trim().parse::<f64>().ok()
-                        } else {
-                            None
-                        }
-                    });
-                ("pass".to_string(), med, Some("ms".to_string()), stdout, stderr, exit_code)
+                let med = stdout.lines().find_map(|l| {
+                    let l = l.trim();
+                    if l.starts_with("median:") {
+                        l.trim_start_matches("median:").trim().parse::<f64>().ok()
+                    } else {
+                        None
+                    }
+                });
+                (
+                    "pass".to_string(),
+                    med,
+                    Some("ms".to_string()),
+                    stdout,
+                    stderr,
+                    exit_code,
+                )
             } else {
                 ("fail".to_string(), None, None, stdout, stderr, exit_code)
             }
@@ -448,7 +525,10 @@ unsafe fn libc_read(fd: i32, buf: *mut u8, count: usize) -> isize {
 fn iso_utc_now() -> String {
     use std::time::SystemTime;
     let now = SystemTime::now();
-    let secs = now.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = now
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     // Simple ISO 8601 from epoch seconds, no chrono dependency needed in this binary.
     // Format: YYYY-MM-DDTHH:MM:SSZ
     iso_from_epoch(secs)
@@ -465,12 +545,19 @@ fn iso_from_epoch(epoch: u64) -> String {
 
     // Convert days to year/month/day. Algorithm from Howard Hinnant's date library.
     let (y, m, d) = civil_from_days(days as i64);
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", y, m, d, hour, min, sec)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        y, m, d, hour, min, sec
+    )
 }
 
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719468;
-    let era = if z >= 0 { z / 146097 } else { (z - 146096) / 146097 };
+    let era = if z >= 0 {
+        z / 146097
+    } else {
+        (z - 146096) / 146097
+    };
     let doe = (z - era * 146097) as u64; // [0, 146096]
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // [0, 399]
     let y = yoe as i64 + era * 400;
