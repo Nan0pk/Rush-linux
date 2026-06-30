@@ -65,7 +65,7 @@ Find your USB device first with `lsblk` (look for `RM=1` — removable). Safety 
 <details>
 <summary><strong>Windows</strong> — native PowerShell, no WSL, no Rufus</summary>
 
-Open **PowerShell as Administrator**, find your USB's physical drive number, then run:
+Open **PowerShell as Administrator** (right-click PowerShell → "Run as Administrator"), find your USB's physical drive number, then run:
 
 ```powershell
 # Step 1: Find your USB drive (look for BusType=USB and the right size):
@@ -74,14 +74,16 @@ Get-Disk | Format-Table Number, FriendlyName, Size, PartitionStyle, BusType
 # Step 2: Download the installer:
 curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
 
-# Step 3: Inspect it if you like, then run:
-.\install.ps1 -Device \\.\PhysicalDrive<N>
+# Step 3: Run it (bypass execution policy for this process only — Windows
+#         blocks downloaded scripts by default):
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 ```
 
-Or, one-liner (downloads and runs in one go, using a scriptblock to pass the parameter):
+If Step 3 still fails with "cannot be loaded because running scripts is disabled," unblock the file first (Windows marks downloaded files with a "Mark of the Web"):
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1))) -Device \\.\PhysicalDrive<N>
+Unblock-File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Device \\.\PhysicalDrive<N>
 ```
 
 The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. Safety checks:
