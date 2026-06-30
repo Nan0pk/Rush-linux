@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 # testos/install.sh — download the latest prebuilt testOS image and write it to a USB stick.
 #
-# Usage (recommended — download, inspect, then run):
-#   wget https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
+# Usage (one-liner):
+#   curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash
+#
+# Or specify a disk explicitly:
 #   sudo bash install.sh /dev/sdX
-#
-# Or one-liner (if you trust the source):
-#   wget -qO- https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
-#
-# Or with curl:
-#   curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
 #
 # What it does:
 #   1. Finds the latest testOS release on GitHub.
 #   2. Downloads testos-<version>.raw.zst (cached in ~/.cache/testos-installer/),
 #      decompresses it, verifies SHA256SUMS.
-#   3. Refuses to write to a mounted device or anything that looks like the
-#      host's root disk.
-#   4. Asks you to type 'yes' to confirm.
-#   5. Writes the image to the USB with dd, syncs, and prints next steps.
+#   3. Auto-detects the USB stick if no device is specified.
+#   4. Refuses the host root disk and disks smaller than the image.
+#   5. Auto-unmounts mounted USB partitions, asks for confirmation, writes with dd.
 #
 # Supported platforms:
 #   - Linux x86_64 (uses the prebuilt testos-launcher binary)
@@ -55,6 +50,14 @@ ok()   { echo "${GREEN}[OK]${RESET} $*"; }
 warn() { echo "${AMBER}[!] ${RESET}$*" >&2; }
 die()  { echo "${RED}[X] ${RESET}$*" >&2; exit 1; }
 
+# --- Cache + transcript logging --------------------------------------------
+CACHE_BASE="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+CACHE_DIR="${CACHE_BASE}/testos-installer"
+mkdir -p "${CACHE_DIR}"
+LOGFILE="${CACHE_DIR}/install-log-$(date -u +%Y%m%d-%H%M%SZ).txt"
+exec > >(tee -a "$LOGFILE") 2>&1
+log "Install transcript: ${LOGFILE}"
+
 # --- Argument parsing ------------------------------------------------------
 DEVICE=""
 IMAGE_FLAG=""          # --image <path>
@@ -80,14 +83,15 @@ while [[ $# -gt 0 ]]; do
 testOS installer -- download and write the latest testOS image to USB.
 
 Usage:
+  sudo bash install.sh                            Auto-detect USB, download + write
   sudo bash install.sh /dev/sdX                   Download + write to /dev/sdX
   sudo bash install.sh --list                     Show latest release assets
-  sudo bash install.sh --dry-run /dev/sdX         Download and verify, don't write
+  sudo bash install.sh --dry-run                  Download and verify, don't write
   sudo bash install.sh --image /path/to/img.raw   Use a local image, skip download
   sudo bash install.sh --clean-cache              Delete cache and re-download
 
 Options:
-  /dev/sdX             Target USB device.
+  /dev/sdX             Target USB device. If omitted, scans removable USB disks.
   --image <path>       Path to a local .raw or .raw.zst. Skips the GitHub download.
                        SHA256 is still verified against the release SHA256SUMS
                        unless you also pass --skip-verification.
@@ -124,13 +128,10 @@ if [[ -z "$IMAGE_FLAG" && "$LIST_ONLY" != "true" ]]; then
 fi
 
 # --- Cache directory -------------------------------------------------------
-CACHE_BASE="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
-CACHE_DIR="${CACHE_BASE}/testos-installer"
-
 if $CLEAN_CACHE; then
-    log "Cleaning cache at ${CACHE_DIR} ..."
-    rm -rf "${CACHE_DIR}"
-    ok "Cache cleared."
+    log "Cleaning cached images at ${CACHE_DIR} ..."
+    rm -f "${CACHE_DIR}"/testos-*.raw "${CACHE_DIR}"/testos-*.raw.zst 2>/dev/null || true
+    ok "Cached images cleared. Install logs kept."
 fi
 
 mkdir -p "${CACHE_DIR}"
@@ -348,6 +349,68 @@ fi
 IMAGE_SIZE_BYTES="$(stat -c %s "${RESOLVED_RAW}" 2>/dev/null || stat -f %z "${RESOLVED_RAW}" 2>/dev/null || echo 0)"
 IMAGE_SIZE_MB=$(( IMAGE_SIZE_BYTES / 1024 / 1024 ))
 
+# --- Device helpers --------------------------------------------------------
+partition_paths() {
+    local dev="$1" name type
+    lsblk -ln -o NAME,TYPE "$dev" 2>/dev/null | while read -r name type _; do
+        [[ "$type" == "part" ]] && printf '/dev/%s\n' "$name"
+    done
+}
+
+root_base_device() {
+    local src pk
+    src="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
+    [[ -n "$src" ]] || return 0
+    pk="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1 || true)"
+    [[ -n "$pk" ]] && printf '/dev/%s\n' "$pk" || true
+}
+
+select_usb_device() {
+    log "No device specified. Scanning for removable USB disks..."
+    mapfile -t usb_lines < <(lsblk -b -d -P -o NAME,SIZE,RM,TRAN,MODEL,VENDOR 2>/dev/null | awk 'BEGIN{FS="\""} /RM="1"/ && /TRAN="usb"/ {print}')
+    if [[ ${#usb_lines[@]} -eq 0 ]]; then
+        echo
+        echo "No removable USB disks found."
+        echo
+        echo "All disks currently visible:"
+        lsblk -b -d -o NAME,SIZE,RM,TRAN,MODEL,VENDOR 2>/dev/null || lsblk
+        die "Plug in a USB stick and re-run, or pass /dev/sdX explicitly."
+    fi
+    if [[ ${#usb_lines[@]} -eq 1 ]]; then
+        eval "${usb_lines[0]}"
+        DEVICE="/dev/${NAME}"
+        ok "Found 1 USB disk: ${DEVICE} (${SIZE} bytes, ${VENDOR:-} ${MODEL:-})"
+        return
+    fi
+    echo
+    echo "Multiple USB disks found:"
+    local i line
+    for i in "${!usb_lines[@]}"; do
+        eval "${usb_lines[$i]}"
+        printf '  [%d] /dev/%s  %s bytes  %s %s\n' "$((i+1))" "$NAME" "$SIZE" "${VENDOR:-}" "${MODEL:-}"
+    done
+    echo
+    local choice
+    read -r -p "Select a USB disk by number (1-${#usb_lines[@]}): " choice
+    [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le ${#usb_lines[@]} ]] || die "Invalid selection: $choice"
+    eval "${usb_lines[$((choice-1))]}"
+    DEVICE="/dev/${NAME}"
+    log "Selected ${DEVICE}"
+}
+
+auto_unmount_partitions() {
+    local dev="$1" part targets target
+    while read -r part; do
+        [[ -n "$part" ]] || continue
+        mapfile -t targets < <(findmnt -rn -S "$part" -o TARGET 2>/dev/null || true)
+        for target in "${targets[@]}"; do
+            [[ -n "$target" ]] || continue
+            log "Unmounting ${part} from ${target} ..."
+            umount "$target" || die "Failed to unmount ${part} from ${target}. Close open files and retry."
+        done
+    done < <(partition_paths "$dev")
+}
+
 # --- Dry-run stops here ---------------------------------------------------
 if $DRY_RUN; then
     ok "Dry run complete."
@@ -355,38 +418,20 @@ if $DRY_RUN; then
     echo "Image: ${RESOLVED_RAW} (${IMAGE_SIZE_MB} MB)"
     echo "Cache: ${CACHE_DIR}"
     echo
-    echo "Re-run without --dry-run and with a USB device to write:"
-    echo "  sudo bash $0 /dev/sdX"
+    echo "Re-run without --dry-run to auto-detect and write a USB:"
+    echo "  sudo bash $0"
     exit 0
 fi
 
 # --- Device selection and safety checks -----------------------------------
-[[ -n "$DEVICE" ]] || {
-    echo
-    echo "Available block devices:"
-    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,RM,VENDOR,MODEL 2>/dev/null || lsblk
-    echo
-    die "No device specified. Find your USB stick above (look for RM=1 and the right size), then re-run:\n  sudo bash $0 /dev/sdX"
-}
+[[ -n "$DEVICE" ]] || select_usb_device
 [[ -e "$DEVICE" ]] || die "Device $DEVICE does not exist. Check with 'lsblk'."
-
-# Refuse to write to a mounted device.
-if command -v findmnt >/dev/null; then
-    if findmnt --source "$DEVICE" >/dev/null 2>&1 || findmnt | grep -q "^${DEVICE}"; then
-        die "Device $DEVICE (or a partition on it) is mounted. Unmount first:\n  sudo umount ${DEVICE}*\n  sudo umount ${DEVICE}p*"
-    fi
-fi
 
 # Refuse to write to the host's root disk.
 if [[ "$(uname -s)" == "Linux" ]]; then
-    ROOT_DEV="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
-    if [[ -n "$ROOT_DEV" ]]; then
-        ROOT_BASE="$ROOT_DEV"
-        ROOT_BASE="${ROOT_BASE%p[0-9]}"
-        ROOT_BASE="${ROOT_BASE%[0-9]}"
-        if [[ "$DEVICE" == "$ROOT_BASE" ]]; then
-            die "Device $DEVICE is the host's root disk. Refusing to overwrite."
-        fi
+    ROOT_BASE="$(root_base_device)"
+    if [[ -n "$ROOT_BASE" && "$DEVICE" == "$ROOT_BASE" ]]; then
+        die "Device $DEVICE is the host's root disk. Refusing to overwrite."
     fi
 fi
 
@@ -405,8 +450,7 @@ if command -v lsblk >/dev/null; then
     if [[ -n "$DISK_SIZE_BYTES" && "$DISK_SIZE_BYTES" -gt 0 ]]; then
         DISK_SIZE_MB=$(( DISK_SIZE_BYTES / 1024 / 1024 ))
         if [[ "$DISK_SIZE_MB" -gt $(( IMAGE_SIZE_MB * 4 )) ]]; then
-            warn "Target disk is ${DISK_SIZE_MB} MB but the image is only ${IMAGE_SIZE_MB} MB."
-            [[ "$FORCE" != "true" ]] && die "Refusing to write to a disk much larger than the image. Re-run with --force if intentional."
+            log "Note: target disk is ${DISK_SIZE_MB} MB, image is ${IMAGE_SIZE_MB} MB; remaining space will stay unallocated."
         fi
         if [[ "$DISK_SIZE_MB" -lt "$IMAGE_SIZE_MB" ]]; then
             die "Target disk (${DISK_SIZE_MB} MB) is smaller than the image (${IMAGE_SIZE_MB} MB)."
@@ -436,7 +480,8 @@ if [[ "$FORCE" != "true" ]]; then
     [[ "$CONFIRM" == "yes" ]] || die "Confirmation was not 'yes'. Aborting."
 fi
 
-# --- Write the image -------------------------------------------------------
+# --- Unmount then write the image ------------------------------------------
+auto_unmount_partitions "$DEVICE"
 log "Writing ${RESOLVED_RAW} to ${DEVICE} with dd..."
 dd if="${RESOLVED_RAW}" of="$DEVICE" bs=4M status=progress conv=fsync
 sync
@@ -454,20 +499,11 @@ echo "  4. (If it refuses to boot) Disable Secure Boot -- testOS UKIs are unsign
 echo "  5. testOS boots, shows a menu of benchmarks."
 echo "  6. Pick 'Run all' (0) or specific test numbers. Press Esc to abort."
 echo "  7. When done, testOS syncs the USB and reboots back to the host OS."
-echo "  8. Plug the USB back here, then pull the results:"
+echo "  8. Plug the USB back here, then collect + push results:"
 echo
-if [[ -f "${WORK_DIR}/testos-ingest" ]]; then
-    echo "       sudo ${WORK_DIR}/testos-ingest pull $DEVICE"
-    echo "       ${WORK_DIR}/testos-ingest format"
-    echo "       ${WORK_DIR}/testos-ingest commit"
-else
-    echo "       # Download testos-ingest from the same release:"
-    echo "       curl -fsSL -o testos-ingest <url-from-release-assets>"
-    echo "       chmod +x testos-ingest"
-    echo "       sudo ./testos-ingest pull $DEVICE"
-    echo "       ./testos-ingest format"
-    echo "       ./testos-ingest commit"
-fi
-echo "       git push"
+echo "       export GITHUB_TOKEN=github_pat_xxx"
+echo "       curl -fsSL https://raw.githubusercontent.com/${REPO}/main/testos/collect-results.sh | sudo bash"
 echo
-echo "  Results land in benchmarks/results/<date>/<host-fingerprint>/."
+echo "  Results land in benchmarks/results/<date>/<host-fingerprint>/ and merge to main after CI passes."
+echo
+echo "Install log saved to: ${LOGFILE}"
