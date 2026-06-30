@@ -596,94 +596,71 @@ try {
     }
 
     # --- Write the image ------------------------------------------
-    # Open the physical drive for raw write access with retry logic.
-    # After Clear-Disk, Windows may briefly deny access (Win32 error 5,
-    # ERROR_ACCESS_DENIED) because PnP/antivirus/Windows Search is still
-    # releasing handles. We retry the entire open+write up to 5 times.
-    Add-Type -Namespace Win32 -Name Native -MemberDefinition @"
-        [DllImport("kernel32.dll", SetLastError=true, CharSet=System.Runtime.InteropServices.CharSet.Auto)]
-        public static extern System.IntPtr CreateFile(
-            string lpFileName, uint dwDesiredAccess, uint dwShareMode,
-            System.IntPtr lpSecurityAttributes, uint dwCreationDisposition,
-            uint dwFlagsAndAttributes, System.IntPtr hTemplateFile);
-        [DllImport("kernel32.dll", SetLastError=true)]
-        public static extern bool WriteFile(
-            System.IntPtr hFile, byte[] lpBuffer, uint nNumberOfBytesToWrite,
-            out uint lpNumberOfBytesWritten, System.IntPtr lpOverlapped);
-        [DllImport("kernel32.dll", SetLastError=true)]
-        public static extern bool FlushFileBuffers(System.IntPtr hFile);
-        [DllImport("kernel32.dll", SetLastError=true)]
-        public static extern bool CloseHandle(System.IntPtr hObject);
-        [DllImport("kernel32.dll")]
-        public static extern uint GetLastError();
-"@
-
-    # Cast to [uint32] explicitly. In PowerShell 5.1, hex literals like
-    # 0x80000000 are treated as [int32] (-2147483648 due to overflow), and
-    # -bor on two int32s produces a negative number that fails to convert
-    # to uint32 for the P/Invoke call. [uint32] cast forces the right type.
-    $GENERIC_WRITE = [uint32]0x40000000
-    $GENERIC_READ  = [uint32]0x80000000
-    $FILE_SHARE_NONE = [uint32]0
-    $OPEN_EXISTING = [uint32]3
-    $DesiredAccess = [uint32]($GENERIC_WRITE -bor $GENERIC_READ)
-
-    # Retry the entire open+write loop up to 5 times. ACCESS_DENIED after
-    # Clear-Disk is transient and resolves within a few seconds. If the
-    # first WriteFile succeeds, subsequent writes will also succeed (the
-    # handle is held exclusively), so we only retry on the first block.
+    # Use .NET FileStream to open the raw device for writing. This avoids
+    # the P/Invoke CreateFile/WriteFile uint32 marshalling pitfalls that
+    # broke in PS 5.1 (hex literals 0x80000000 overflow int32, -bor on
+    # int32 produces negative, cast to uint32 fails). FileStream handles
+    # all the type conversion internally and is just as fast.
+    #
+    # Retry logic: after Clear-Disk, Windows' storage stack is in a
+    # transitional state. PnP re-enumerates, antivirus may briefly hold
+    # the device. We retry the open+write up to 5 times with 2-second
+    # delays. If the first write succeeds, the handle is exclusive and
+    # subsequent writes are guaranteed to succeed.
     $MaxAttempts = 5
     $WriteCompleted = $false
+    $BufferSize = 4MB
 
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
         Write-Info "Opening $Device for raw write (attempt $Attempt of $MaxAttempts)..."
-        $Handle = [Win32.Native]::CreateFile($Device, $DesiredAccess, $FILE_SHARE_NONE, [IntPtr]::Zero, $OPEN_EXISTING, [uint32]0, [IntPtr]::Zero)
-        if ($Handle -eq [IntPtr]-1) {
+
+        $OutStream = $null
+        $InStream = $null
+        try {
+            # Open the raw device. FileShare.None = exclusive (no other
+            # process can open it while we hold the handle). This is what
+            # we want - if another process has the disk, this throws and
+            # we retry.
+            $OutStream = [System.IO.FileStream]::new(
+                $Device,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Write,
+                [System.IO.FileShare]::None,
+                $BufferSize,
+                [System.IO.FileOptions]::WriteThrough
+            )
+        } catch {
             $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-            Write-Warn "Could not open $Device (Win32 error $ErrCode). Retrying in 2 seconds..."
-            Start-Sleep -Seconds 2
-            try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
-            continue
+            if ($Attempt -lt $MaxAttempts) {
+                Write-Warn "Could not open $Device (Win32 error $ErrCode). This is common right after disk clear. Retrying in 2 seconds..."
+                Start-Sleep -Seconds 2
+                try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+                Start-Sleep -Seconds 1
+                continue
+            }
+            Write-Err "Failed to open $Device after $MaxAttempts attempts (Win32 error $ErrCode). Try: 1) Close all Explorer/Disk Management windows. 2) Run 'diskpart' as admin, 'select disk $DiskNum', 'clean'. 3) Re-run this script."
         }
 
         try {
-            $Stream = [System.IO.File]::OpenRead($ImageFile)
-            $BufferSize = 4MB
+            $InStream = [System.IO.File]::OpenRead($ImageFile)
             $Buffer = New-Object byte[] $BufferSize
             $TotalBytes = 0
-            $TotalSize = $Stream.Length
+            $TotalSize = $InStream.Length
             $StartTime = Get-Date
             $FirstWrite = $true
+            $RetryThisAttempt = $false
 
             while ($true) {
-                $Read = $Stream.Read($Buffer, 0, $BufferSize)
+                $Read = $InStream.Read($Buffer, 0, $BufferSize)
                 if ($Read -eq 0) { break }
                 if ($Read -lt $BufferSize) {
-                    $SmallBuffer = New-Object byte[] $Read
-                    [Array]::Copy($Buffer, $SmallBuffer, $Read)
-                    $Written = 0
-                    $Success = [Win32.Native]::WriteFile($Handle, $SmallBuffer, $Read, [ref]$Written, [IntPtr]::Zero)
+                    $OutStream.Write($Buffer, 0, $Read)
                 } else {
-                    $Written = 0
-                    $Success = [Win32.Native]::WriteFile($Handle, $Buffer, $BufferSize, [ref]$Written, [IntPtr]::Zero)
+                    $OutStream.Write($Buffer, 0, $BufferSize)
                 }
-                if (-not $Success) {
-                    $ErrCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                    if ($FirstWrite -and $Attempt -lt $MaxAttempts) {
-                        # ACCESS_DENIED on the first write is transient after
-                        # Clear-Disk. Close, wait, refresh storage cache, retry.
-                        Write-Warn "First write failed (Win32 error $ErrCode). This is common right after disk clear. Retrying in 2 seconds..."
-                        $Stream.Close()
-                        [void][Win32.Native]::CloseHandle($Handle)
-                        Start-Sleep -Seconds 2
-                        try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
-                        Start-Sleep -Seconds 1
-                        break  # break out of while loop, continue for loop
-                    }
-                    Write-Err "Write failed at offset $TotalBytes (Win32 error $ErrCode)."
-                }
-                $FirstWrite = $false
-                $TotalBytes += $Written
+                $OutStream.Flush($true)
+
+                $TotalBytes += $Read
                 $Pct = [math]::Round(($TotalBytes / $TotalSize) * 100, 1)
                 $Elapsed = (Get-Date) - $StartTime
                 if ($Elapsed.TotalSeconds -gt 0) {
@@ -693,27 +670,33 @@ try {
                     $ProgressLine = "`r  " + $Pct + "% " + $WrittenMB + " MB / " + $TotalMB + " MB @ " + $Rate + " MB/s"
                     Write-Host $ProgressLine -NoNewline
                 }
+                $FirstWrite = $false
             }
 
-            # If we reached here without breaking, the write completed.
-            if ($Stream.Position -eq $Stream.Length) {
-                Write-Host ""
-                $Stream.Close()
-                [void][Win32.Native]::FlushFileBuffers($Handle)
-                [void][Win32.Native]::CloseHandle($Handle)
-                $WriteCompleted = $true
-                break  # break out of for loop
-            }
+            Write-Host ""
+            $InStream.Close()
+            $OutStream.Flush()
+            $OutStream.Close()
+            $WriteCompleted = $true
+            break
         } catch {
-            Write-Warn "Exception during write: $($_.Exception.Message). Retrying..."
-            try { $Stream.Close() } catch {}
-            [void][Win32.Native]::CloseHandle($Handle)
-            Start-Sleep -Seconds 2
+            $ErrMsg = $_.Exception.Message
+            try { if ($InStream) { $InStream.Close() } } catch {}
+            try { if ($OutStream) { $OutStream.Close() } } catch {}
+
+            if ($Attempt -lt $MaxAttempts) {
+                Write-Warn "Write failed: $ErrMsg. Retrying in 2 seconds..."
+                Start-Sleep -Seconds 2
+                try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+                Start-Sleep -Seconds 1
+                continue
+            }
+            Write-Err "Write failed after $MaxAttempts attempts: $ErrMsg"
         }
     }
 
     if (-not $WriteCompleted) {
-        Write-Err "Failed to write image after $MaxAttempts attempts. The disk may be held by another process. Try: 1) Close all Explorer/Disk Management windows. 2) Run 'diskpart' as admin, 'select disk $DiskNum', 'clean'. 3) Re-run this script."
+        Write-Err "Failed to write image. See messages above."
     }
 
     Write-OK "Write complete."
