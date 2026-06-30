@@ -424,7 +424,7 @@ try {
         # No -Device specified. Find all USB disks and offer a picker.
         Write-Host ""
         Write-Info "No -Device specified. Scanning for USB disks..."
-        $UsbDisks = Get-Disk | Where-Object { $_.BusType -eq 'USB' } | Sort-Object Number
+        $UsbDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'USB' } | Sort-Object Number)
 
         if ($UsbDisks.Count -eq 0) {
             Write-Host ""
