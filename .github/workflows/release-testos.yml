@@ -345,7 +345,7 @@ jobs:
             -smp 2 \
             -drive file=testos.raw,format=raw,if=virtio \
             $PFLASH_ARGS \
-            -serial file=qemu-serial.log \
+            -serial file:qemu-serial.log \
             -nographic \
             -no-reboot \
             > qemu-stdout.log 2>&1 &
