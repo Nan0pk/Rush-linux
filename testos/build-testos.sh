@@ -22,12 +22,19 @@
 set -euo pipefail
 
 # ── Parse arguments ──────────────────────────────────────────────
-CLEAN=false
+# The build is ALWAYS clean. There is no --clean flag anymore because
+# a non-clean build produced stale images that broke boot (cached
+# overlay layers from a previous broken commit got copied forward).
+# If you think you want a non-clean build for speed, you don't — the
+# cost of a stale image is always higher than the time saved.
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --clean|-c) CLEAN=true; shift ;;
         --help|-h)
-            echo "Usage: $0 [--clean]"
+            echo "Usage: $0"
+            echo ""
+            echo "Builds a clean testOS image from the current source tree."
+            echo "There are no caching options — every build is fully clean"
+            echo "to guarantee the image matches the source."
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -39,16 +46,30 @@ MKOSI_DIR="${REPO_ROOT}/mkosi"
 EXTRA_DIR="${MKOSI_DIR}/mkosi.extra"
 VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.7.0-beta.1")"
 
+# Capture the source git SHA so we can embed it in the image. This lets
+# you verify on boot that the USB actually contains the code you think
+# it does — the runner prints this SHA on tty1. If the SHA doesn't match
+# what you built, you're running a stale cached image.
+SOURCE_GIT_SHA="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+SOURCE_GIT_DIRTY="$(git -C "${REPO_ROOT}" status --porcelain 2>/dev/null | head -1)"
+if [[ -n "${SOURCE_GIT_DIRTY}" ]]; then
+    SOURCE_GIT_SHA="${SOURCE_GIT_SHA}-dirty"
+fi
+
 echo "════════════════════════════════════════════════════"
 echo "  testOS Builder"
 echo "════════════════════════════════════════════════════"
-echo "  Version:  ${VERSION}"
-echo "  Clean:    ${CLEAN}"
+echo "  Version:    ${VERSION}"
+echo "  Source SHA: ${SOURCE_GIT_SHA}"
+echo "  Build mode: ALWAYS CLEAN (no cache)"
 echo ""
 
 # ── Step 1: Build all workspace binaries (including testos-runner) ──
 echo ">> [1/6] Building workspace in release mode..."
 cd "${REPO_ROOT}"
+# cargo clean first to guarantee no stale artifacts from a previous
+# broken build get linked into the new image.
+cargo clean
 cargo build --workspace --release
 echo "   Done."
 echo ""
@@ -125,6 +146,15 @@ EOF
 # Hostname
 echo "testos" > "${EXTRA_DIR}/etc/hostname"
 
+# Embed the source git SHA so the runner can print it on boot. This lets
+# you verify at boot time that the USB actually contains the code you
+# built — if the SHA doesn't match, you're running a stale cached image.
+# The runner reads this file and prints it in its startup banner.
+mkdir -p "${EXTRA_DIR}/etc/testos"
+cat > "${EXTRA_DIR}/etc/testos/source-sha" << EOF
+${SOURCE_GIT_SHA}
+EOF
+
 # OS metadata
 cat > "${EXTRA_DIR}/etc/os-release" << EOF
 NAME="testOS"
@@ -132,9 +162,10 @@ VERSION="${VERSION}"
 ID=testos
 ID_LIKE=arch
 VERSION_ID="$(echo "${VERSION}" | sed 's/-.*//')"
-PRETTY_NAME="testOS (Rush Linux ${VERSION})"
+PRETTY_NAME="testOS (Rush Linux ${VERSION}, SHA ${SOURCE_GIT_SHA})"
 HOME_URL="https://github.com/Nan0pk/Rush-linux"
 BUG_REPORT_URL="https://github.com/Nan0pk/Rush-linux/issues"
+SOURCE_GIT_SHA="${SOURCE_GIT_SHA}"
 EOF
 
 # fstab — root is auto-mounted by systemd-gpt-auto-generator.
@@ -258,17 +289,19 @@ ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/s
 echo "   Done."
 echo ""
 
-# ── Step 4: Clean if requested ───────────────────────────────────
-if [[ "${CLEAN}" == true ]]; then
-    echo ">> [4/6] Cleaning previous build artifacts..."
-    rm -rf "${REPO_ROOT}/build"
-    rm -rf "${MKOSI_DIR}/.mkosi-private"
-    echo "   Done."
-    echo ""
-else
-    echo ">> [4/6] Skipping clean (--clean not specified)."
-    echo ""
-fi
+# ── Step 4: ALWAYS clean previous build artifacts ───────────────
+# No conditional. No --clean flag. Every build wipes the build dir and
+# the mkosi private cache. This is the only way to guarantee the image
+# matches the current source. The mkosi package cache (downloaded pacman
+# packages) is preserved via MKOSI_CACHE if set, but the image/overlay
+# cache is always wiped.
+echo ">> [4/6] Cleaning previous build artifacts (always)..."
+rm -rf "${REPO_ROOT}/build"
+rm -rf "${MKOSI_DIR}/.mkosi-private"
+# Also wipe any stale mkosi output/images from previous runs
+rm -f "${MKOSI_DIR}"/*.raw 2>/dev/null || true
+echo "   Done."
+echo ""
 
 # ── Step 5: Invoke mkosi with the testos profile ─────────────────
 echo ">> [5/6] Invoking mkosi build (profile: testos)..."
@@ -279,6 +312,9 @@ MKOSI_ARGS=(
     --force
 )
 
+# MKOSI_CACHE (if set) only caches downloaded pacman packages, NOT the
+# image overlay or build layers. This is safe — it speeds up the build
+# without risking stale overlay content.
 if [[ -n "${MKOSI_CACHE:-}" ]]; then
     MKOSI_ARGS+=(--cache-dir="${MKOSI_CACHE}")
 fi
