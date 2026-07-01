@@ -78,6 +78,49 @@ fn main() {
         ));
     }
 
+    // 1b. Verify the mount is real (not tmpfs) by writing + reading a test
+    //     file. This catches the case where testos-usb-mount failed but
+    //     /run/testos/usb was mkdir'd anyway — without this check, the
+    //     runner would write results to tmpfs and they'd evaporate on
+    //     reboot. This is the root cause of the "collect-results can't
+    //     find results" bug.
+    let test_file = usb.join(".testos-write-test");
+    if let Err(e) = std::fs::write(&test_file, b"testos mount write test\n") {
+        fail_with_diag(&format!(
+            "ERROR: cannot write to USB mount at {} (write-test failed): {}\n\
+             The mount may be read-only or point to the wrong partition.\n\
+             Results would be lost on reboot.",
+            usb.display(),
+            e
+        ));
+    }
+    match std::fs::read_to_string(&test_file) {
+        Ok(s) if s.contains("testos mount write test") => {
+            // Write-test passed — the mount is writable and reads back
+            // correctly. Safe to proceed.
+        }
+        Ok(other) => {
+            fail_with_diag(&format!(
+                "ERROR: USB mount write-test at {} returned wrong data.\n\
+                 Expected 'testos mount write test', got: {:?}\n\
+                 The mount may be corrupted or pointing to the wrong partition.",
+                test_file.display(),
+                other
+            ));
+        }
+        Err(e) => {
+            fail_with_diag(&format!(
+                "ERROR: cannot read back write-test at {}: {}\n\
+                 The mount may be corrupted.",
+                test_file.display(),
+                e
+            ));
+        }
+    }
+    let _ = std::fs::remove_file(&test_file);
+    let _ = Command::new("sync").status();
+    println!("USB mount write-test passed.");
+
     // 2. Load bench list from the USB.
     let bench_list_path = usb.join(BENCH_LIST_REL);
     let list = match BenchList::load(&bench_list_path) {

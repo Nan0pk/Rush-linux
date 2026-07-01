@@ -181,10 +181,20 @@ WantedBy=multi-user.target
 EOF
 
 # testos-usb-mount script
+#
+# This script is critical: if the mount fails or mounts the wrong thing,
+# the runner will either fail to start or silently write results to tmpfs
+# (which evaporates on reboot, losing all benchmark data). Two robustness
+# measures:
+#   1. udev settle + retry loop for blkid (fixes first-boot race where udev
+#      hasn't populated partition labels yet — root cause of the first-boot
+#      root-prompt issue)
+#   2. Post-mount verification: bench-list.toml must exist at the expected
+#      path, proving we mounted the real ESP (not an empty/wrong partition)
+#   3. If verification fails, unmount and exit 1 so the runner fails loudly
+#      with diagnostics instead of silently writing to tmpfs
 cat > "${EXTRA_DIR}/usr/libexec/testos-usb-mount" << 'EOF'
 #!/usr/bin/env bash
-# Mount the USB's ESP at /run/testos/usb so testos-runner can find the bench list
-# and write results back to it.
 set -euo pipefail
 
 # Parse testos.usb_label= from the kernel command line.
@@ -200,22 +210,67 @@ if [[ -z "$LABEL" ]]; then
     exit 1
 fi
 
+# Wait for udev to settle so blkid can see partition labels. On first boot,
+# udev may not have processed the USB's partitions yet, causing blkid to
+# return empty — this is the root cause of the first-boot root-prompt issue.
+udevadm settle --timeout=10 2>/dev/null || true
+
 mkdir -p /run/testos/usb
 
-# Try to find a partition with the given label.
-PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
+# Find the partition by label, with retries. On first boot the label may
+# not be visible to blkid until udev finishes processing the block devices.
+PART=""
+for attempt in 1 2 3 4 5; do
+    PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
+    if [[ -n "$PART" ]]; then
+        echo "testos-usb-mount: found partition '$LABEL' at $PART (attempt $attempt)"
+        break
+    fi
+    echo "testos-usb-mount: attempt $attempt - partition '$LABEL' not found yet, retrying..." >&2
+    # Force udev to re-scan block devices and re-settle
+    udevadm trigger --subsystem-match=block 2>/dev/null || true
+    udevadm settle --timeout=5 2>/dev/null || true
+    sleep 2
+done
 
 if [[ -z "$PART" ]]; then
-    echo "testos-usb-mount: no partition with label '$LABEL' found" >&2
-    echo "  Available partitions:"
+    echo "testos-usb-mount: no partition with label '$LABEL' found after 5 attempts" >&2
+    echo "  Available partitions (blkid):"
     blkid 2>/dev/null || true
+    echo "  Block devices (lsblk):"
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL 2>/dev/null || true
     exit 1
 fi
 
 echo "testos-usb-mount: mounting $PART at /run/testos/usb"
-mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000
+# Mount options:
+#   umask=0000 : all files world-writable (FAT32 has no real permissions)
+#   flush      : write data more often (safer for USB, reduces data loss on unplug)
+#   utf8       : handle non-ASCII filenames
+if ! mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000,utf8; then
+    echo "testos-usb-mount: mount failed for $PART" >&2
+    exit 1
+fi
+
 sync
-echo "testos-usb-mount: mounted successfully"
+
+# CRITICAL: verify we mounted the real ESP, not an empty/wrong partition.
+# The bench-list.toml is copied to the ESP at build time (via mkosi repart
+# CopyFiles=/boot:/). If it's not here, we mounted the wrong thing — unmount
+# and fail so the runner fails loudly instead of silently writing results
+# to a useless mount point (which is what caused the "results not found"
+# bug: the runner wrote to tmpfs because the mount silently failed).
+if [[ ! -f /run/testos/usb/testos/bench-list.toml ]]; then
+    echo "testos-usb-mount: MOUNTED $PART BUT bench-list.toml NOT FOUND at /run/testos/usb/testos/bench-list.toml" >&2
+    echo "  This means we mounted the wrong partition or the ESP is corrupt." >&2
+    echo "  Contents of /run/testos/usb:" >&2
+    ls -la /run/testos/usb/ >&2 || true
+    echo "  Unmounting and failing so the runner reports the error loudly." >&2
+    umount /run/testos/usb 2>/dev/null || true
+    exit 1
+fi
+
+echo "testos-usb-mount: mounted successfully, bench-list.toml verified"
 EOF
 chmod +x "${EXTRA_DIR}/usr/libexec/testos-usb-mount"
 
@@ -225,6 +280,12 @@ cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-runner.service" << 'EOF'
 Description=testOS - benchmark runner
 After=testos-usb-mount.service network-online.target
 Wants=testos-usb-mount.service
+# Stop the default getty on tty1 so it doesn't race with the runner for
+# the console. Without this, if the runner fails (e.g. mount issue), the
+# user sees a login prompt from getty@tty1 instead of the runner's
+# diagnostic output — making it look like the runner never started.
+# When the runner exits, systemd restarts getty@tty1 (conflict is gone).
+Conflicts=getty@tty1.service
 # No ConditionKernelCommandLine: this service file only exists in the
 # testOS image. The condition 'testos.runner' was not matching
 # 'testos.runner=1' (assignment form) on systemd 261, causing the
