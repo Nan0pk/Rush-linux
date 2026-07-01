@@ -173,36 +173,46 @@ On the test machine:
 - At least 1GB RAM (testOS runs from RAM)
 - A USB port
 
-## Quick start
+## Quick start — Linux one-command flow
+
+```sh
+# Set your token (needs repo scope):
+export GITHUB_TOKEN="github_pat_xxx..."
+
+# Write the USB (auto-detects the USB stick; prompts before destructive write):
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash
+
+# Boot testOS on the test machine, run benchmarks, let it reboot, then plug
+# the USB back into this Linux workstation.
+
+# Collect results, push a PR, wait for CI, and merge to main:
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo bash
+```
+
+If your sudo configuration strips `GITHUB_TOKEN`, pass it explicitly:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash
+```
+
+## Manual developer flow
 
 ```sh
 # 1. Build the testOS image (one-time, ~10 minutes)
 cargo build --workspace --release
 sudo bash testos/build-testos.sh
 
-# 2. Find your USB stick
-lsblk
+# 2. Write the image to the USB (will auto-detect if /dev/sdX is omitted)
+sudo bash testos/install.sh
 
-# 3. Write the image to the USB (will prompt for confirmation)
-sudo ./target/release/testos-launcher write /dev/sdX
-
-# 4. Plug the USB into the test machine, reboot, pick USB from the boot menu.
+# 3. Plug the USB into the test machine, reboot, pick USB from the boot menu.
 #    testOS will boot, show a menu, run benchmarks, write results, and reboot back.
 
-# 5. After testOS reboots the test machine back to its host OS,
+# 4. After testOS reboots the test machine back to its host OS,
 #    unplug the USB and plug it back into your workstation.
 
-# 6. Pull the results into the repo
-sudo ./target/release/testos-ingest pull /dev/sdX
-
-# 7. Generate the Markdown summary
-./target/release/testos-ingest format
-
-# 8. Commit to the repo
-./target/release/testos-ingest commit
-
-# 9. Push
-git push
+# 5. Collect, push, open PR, wait for CI, merge
+sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash testos/collect-results.sh
 ```
 
 ## What's NOT yet built (known limitations)
