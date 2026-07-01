@@ -313,13 +313,8 @@ EOF
 ln -sf /usr/lib/systemd/system/testos-usb-mount.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-usb-mount.service"
 ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-runner.service"
 
-# Explicitly disable getty@tty1 so it can't race the runner for the console.
-# The runner service has Conflicts=getty@tty1.service, but that only stops
-# getty@tty1 when the runner is *starting* — it doesn't prevent getty@tty1
-# from being wanted by getty.target at boot. We mask it here so systemd
-# never even tries to start it on tty1.
-mkdir -p "${EXTRA_DIR}/etc/systemd/system"
-ln -sf /dev/null "${EXTRA_DIR}/etc/systemd/system/getty@tty1.service"
+# Suppress the normal getty on tty1 (testos-runner takes it over).
+ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/testos-runner.service"
 
 echo "   Done."
 echo ""
