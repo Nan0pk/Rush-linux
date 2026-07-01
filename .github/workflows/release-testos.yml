@@ -233,20 +233,61 @@ jobs:
           #   "Available benchmarks:"
           # We wait for either within 120 seconds.
           #
-          # -m 2048       : 2 GB RAM (testOS needs >= 1 GB)
-          # -smp 2        : 2 CPUs
-          # -drive        : raw disk image, virtio bus
-          # -serial       : serial console to log file
-          # -nographic    : no display, serial only
-          # -no-reboot    : don't reboot if the runner triggers reboot
+          # Key QEMU flags:
+          #   -machine q35     : modern chipset (needed for UEFI + virtio)
+          #   -accel kvm       : hardware acceleration (or tcg fallback)
+          #   -m 2048          : 2 GB RAM (testOS needs >= 1 GB)
+          #   -smp 2           : 2 CPUs
+          #   -drive           : raw disk image, virtio bus
+          #   -serial          : serial console to log file
+          #   -nographic       : no display, serial only
+          #   -no-reboot       : don't reboot if the runner triggers reboot
+          #   -bios /usr/share/OVMF/OVMF_CODE.fd : UEFI firmware (required
+          #     because testOS uses a UKI in the ESP, which BIOS can't boot)
+          #
+          # The kernel cmdline has console=ttyS0,115200 so kernel + runner
+          # output goes to the serial port, which QEMU writes to the log.
+
+          # Find OVMF firmware (location varies by distro)
+          OVMF_CODE=""
+          for path in \
+            /usr/share/OVMF/OVMF_CODE.fd \
+            /usr/share/ovmf/OVMF.fd \
+            /usr/share/qemu/OVMF_CODE.fd; do
+            if [ -f "$path" ]; then
+              OVMF_CODE="$path"
+              break
+            fi
+          done
+          if [ -z "$OVMF_CODE" ]; then
+            echo "ERROR: OVMF UEFI firmware not found. Tried standard locations."
+            find /usr/share -name "OVMF*" -o -name "ovmf*" 2>/dev/null | head -10
+            exit 1
+          fi
+          echo "Using UEFI firmware: $OVMF_CODE"
+
+          # Create a writable copy of OVMF_VARS (the firmware variables store)
+          OVMF_VARS=$(find /usr/share -name "OVMF_VARS*.fd" 2>/dev/null | head -1)
+          if [ -z "$OVMF_VARS" ]; then
+            # Some packages ship only the code file; create empty vars
+            dd if=/dev/zero of=/tmp/ovmf_vars.fd bs=1M count=64 2>/dev/null
+            OVMF_VARS=/tmp/ovmf_vars.fd
+          else
+            cp "$OVMF_VARS" /tmp/ovmf_vars.fd
+            OVMF_VARS=/tmp/ovmf_vars.fd
+          fi
+
           timeout 120 qemu-system-x86_64 \
-            -machine accel=${ACCEL} \
+            -machine q35 \
+            -accel ${ACCEL} \
             -m 2048 \
             -smp 2 \
             -drive file=testos.raw,format=raw,if=virtio \
+            -drive file=/tmp/ovmf_vars.fd,format=raw,if=pflash \
             -serial file=qemu-serial.log \
             -nographic \
             -no-reboot \
+            -bios "$OVMF_CODE" \
             > qemu-stdout.log 2>&1 &
           QEMU_PID=$!
 
@@ -265,6 +306,11 @@ jobs:
               SUCCESS=1  # The runner ran, just failed - we want to see the diag
               break
             fi
+            # Check for login prompt (means runner didn't start - condition issue)
+            if grep -q "login:" qemu-serial.log 2>/dev/null; then
+              echo "=== Got login prompt - runner service did not start ==="
+              break
+            fi
             echo "  Waiting for testOS menu... ($((i*2))s elapsed)"
           done
 
@@ -273,8 +319,8 @@ jobs:
           wait $QEMU_PID 2>/dev/null || true
 
           echo ""
-          echo "=== Serial console output (last 50 lines) ==="
-          tail -50 qemu-serial.log 2>/dev/null || echo "(no serial output)"
+          echo "=== Serial console output (last 80 lines) ==="
+          tail -80 qemu-serial.log 2>/dev/null || echo "(no serial output)"
 
           if [ $SUCCESS -eq 0 ]; then
             echo ""
