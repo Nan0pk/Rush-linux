@@ -248,46 +248,83 @@ jobs:
           # The kernel cmdline has console=ttyS0,115200 so kernel + runner
           # output goes to the serial port, which QEMU writes to the log.
 
-          # Find OVMF firmware (location varies by distro)
+          # Find OVMF firmware. Ubuntu's ovmf package ships:
+          #   /usr/share/OVMF/OVMF_CODE.fd  (read-only firmware code)
+          #   /usr/share/OVMF/OVMF_VARS.fd  (writable variable store template)
+          # Some older packages ship a combined /usr/share/ovmf/OVMF.fd.
+          # We handle both cases.
           OVMF_CODE=""
+          OVMF_VARS_TEMPLATE=""
           for path in \
             /usr/share/OVMF/OVMF_CODE.fd \
-            /usr/share/ovmf/OVMF.fd \
+            /usr/share/ovmf/OVMF_CODE.fd \
             /usr/share/qemu/OVMF_CODE.fd; do
             if [ -f "$path" ]; then
               OVMF_CODE="$path"
               break
             fi
           done
+          for path in \
+            /usr/share/OVMF/OVMF_VARS.fd \
+            /usr/share/ovmf/OVMF_VARS.fd; do
+            if [ -f "$path" ]; then
+              OVMF_VARS_TEMPLATE="$path"
+              break
+            fi
+          done
+
+          # Combined OVMF.fd fallback (single file, used as read-only pflash)
+          COMBINED_OVMF=""
           if [ -z "$OVMF_CODE" ]; then
-            echo "ERROR: OVMF UEFI firmware not found. Tried standard locations."
-            find /usr/share -name "OVMF*" -o -name "ovmf*" 2>/dev/null | head -10
+            for path in /usr/share/ovmf/OVMF.fd /usr/share/qemu/OVMF.fd; do
+              if [ -f "$path" ]; then
+                COMBINED_OVMF="$path"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$OVMF_CODE" ] && [ -z "$COMBINED_OVMF" ]; then
+            echo "ERROR: No OVMF UEFI firmware found."
+            find /usr/share -name "OVMF*" -o -name "ovmf*" 2>/dev/null | head -20
             exit 1
           fi
-          echo "Using UEFI firmware: $OVMF_CODE"
 
-          # Create a writable copy of OVMF_VARS (the firmware variables store)
-          OVMF_VARS=$(find /usr/share -name "OVMF_VARS*.fd" 2>/dev/null | head -1)
-          if [ -z "$OVMF_VARS" ]; then
-            # Some packages ship only the code file; create empty vars
-            dd if=/dev/zero of=/tmp/ovmf_vars.fd bs=1M count=64 2>/dev/null
-            OVMF_VARS=/tmp/ovmf_vars.fd
+          # Prepare the pflash drives for QEMU
+          PFLASH_ARGS=""
+          if [ -n "$OVMF_CODE" ]; then
+            # Split format: code (read-only) + vars (writable copy)
+            cp "$OVMF_VARS_TEMPLATE" /tmp/ovmf_vars.fd 2>/dev/null || \
+              dd if=/dev/zero of=/tmp/ovmf_vars.fd bs=1M count=64 2>/dev/null
+            PFLASH_ARGS="-drive if=pflash,format=raw,readonly=on,file=$OVMF_CODE -drive if=pflash,format=raw,file=/tmp/ovmf_vars.fd"
+            echo "Using split OVMF: code=$OVMF_CODE, vars=/tmp/ovmf_vars.fd"
           else
-            cp "$OVMF_VARS" /tmp/ovmf_vars.fd
-            OVMF_VARS=/tmp/ovmf_vars.fd
+            # Combined format: copy the whole file (writable) and use as pflash
+            cp "$COMBINED_OVMF" /tmp/ovmf_combined.fd
+            PFLASH_ARGS="-drive if=pflash,format=raw,file=/tmp/ovmf_combined.fd"
+            echo "Using combined OVMF: $COMBINED_OVMF -> /tmp/ovmf_combined.fd"
           fi
 
+          # Boot the image. Key flags:
+          #   -machine q35     : modern chipset (needed for UEFI + virtio)
+          #   -accel kvm       : hardware acceleration (or tcg fallback)
+          #   -m 2048          : 2 GB RAM (testOS needs >= 1 GB)
+          #   -smp 2           : 2 CPUs
+          #   -drive virtio    : raw disk image
+          #   -serial file=    : serial console to log file (kernel cmdline
+          #     has console=ttyS0,115200 so all output goes here)
+          #   -nographic       : no display, serial only
+          #   -no-reboot       : don't reboot if the runner triggers reboot
           timeout 120 qemu-system-x86_64 \
             -machine q35 \
             -accel ${ACCEL} \
             -m 2048 \
             -smp 2 \
             -drive file=testos.raw,format=raw,if=virtio \
-            -drive file=/tmp/ovmf_vars.fd,format=raw,if=pflash \
+            $PFLASH_ARGS \
             -serial file=qemu-serial.log \
             -nographic \
             -no-reboot \
-            -bios "$OVMF_CODE" \
             > qemu-stdout.log 2>&1 &
           QEMU_PID=$!
 
@@ -321,6 +358,10 @@ jobs:
           echo ""
           echo "=== Serial console output (last 80 lines) ==="
           tail -80 qemu-serial.log 2>/dev/null || echo "(no serial output)"
+
+          echo ""
+          echo "=== QEMU stdout/stderr ==="
+          cat qemu-stdout.log 2>/dev/null || echo "(no QEMU output)"
 
           if [ $SUCCESS -eq 0 ]; then
             echo ""
