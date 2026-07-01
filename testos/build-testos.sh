@@ -161,11 +161,15 @@ install -m0644 "${REPO_ROOT}/testos/bench-list.toml" "${EXTRA_DIR}/boot/testos/b
 # testos-usb-mount.service — finds the USB's ESP by label and mounts it.
 cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-usb-mount.service" << 'EOF'
 [Unit]
-Description=testOS — mount USB ESP partition at /run/testos/usb
+Description=testOS - mount USB ESP partition at /run/testos/usb
 DefaultDependencies=no
 After=local-fs-pre.target
 Before=local-fs.target
-ConditionKernelCommandLine=testos.usb_label
+# No ConditionKernelCommandLine: this service file only exists in the
+# testOS image, so it only runs when testOS boots. The condition was
+# preventing the service from starting because systemd's bare-word match
+# for 'testos.usb_label' doesn't match 'testos.usb_label=RUSHESP'
+# (assignment form) on systemd 261.
 
 [Service]
 Type=oneshot
@@ -218,10 +222,14 @@ chmod +x "${EXTRA_DIR}/usr/libexec/testos-usb-mount"
 # testos-runner.service — starts the runner on tty1.
 cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-runner.service" << 'EOF'
 [Unit]
-Description=testOS — benchmark runner
+Description=testOS - benchmark runner
 After=testos-usb-mount.service network-online.target
 Wants=testos-usb-mount.service
-ConditionKernelCommandLine=testos.runner
+# No ConditionKernelCommandLine: this service file only exists in the
+# testOS image. The condition 'testos.runner' was not matching
+# 'testos.runner=1' (assignment form) on systemd 261, causing the
+# service to be skipped and the user to get a login prompt instead
+# of the benchmark menu.
 
 [Service]
 Type=idle
