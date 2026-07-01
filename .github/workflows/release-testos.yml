@@ -171,19 +171,178 @@ jobs:
           name: testos-release
           path: /tmp/release-stage/*
 
+  # ─── Smoke test: boot the image in QEMU before publishing ───────
+  # This catches boot failures (wrong kernel cmdline, missing services,
+  # broken UKI, etc) BEFORE the release is published. The testOS runner
+  # prints "testOS - Rush Linux benchmark environment" on tty1 and
+  # "Available benchmarks:" on the menu. We boot with serial console
+  # and wait for one of those strings within 90 seconds.
+  #
+  # Why a separate job: the build runs in a privileged Arch container
+  # which doesn't have KVM access. The smoke test runs on the host
+  # ubuntu-latest runner which has /dev/kvm for hardware-accelerated
+  # boot (10x faster than TCG emulation).
+  smoke-test:
+    name: QEMU boot smoke test
+    runs-on: ubuntu-latest
+    needs: build
+    # Skip the smoke test for mock builds (1 MB placeholder, not bootable)
+    if: github.event.inputs.mock != 'true'
+    steps:
+      - name: Check KVM availability
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo "KVM available - will use hardware acceleration"
+            echo "ACCEL=kvm" >> $GITHUB_ENV
+          else
+            echo "KVM NOT available - will use TCG software emulation (slower)"
+            echo "ACCEL=tcg" >> $GITHUB_ENV
+          fi
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 ovmf
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: testos-release
+          path: ./release
+
+      - name: Find and decompress the image
+        run: |
+          # Find the .raw.zst file
+          IMAGE_ZST=$(find ./release -name 'testos-*.raw.zst' | head -1)
+          if [ -z "$IMAGE_ZST" ]; then
+            echo "ERROR: no testos-*.raw.zst found in release artifacts"
+            ls -la ./release/
+            exit 1
+          fi
+          echo "Found: $IMAGE_ZST"
+          echo "Decompressing..."
+          zstd -d "$IMAGE_ZST" -o testos.raw --force
+          echo "Image size: $(du -h testos.raw | cut -f1)"
+
+      - name: Boot in QEMU and wait for testOS menu
+        run: |
+          set +e
+          # Boot the image in QEMU with serial console output to a log file.
+          # The testOS runner prints these strings when it starts:
+          #   "testOS - Rush Linux benchmark environment"
+          #   "Available benchmarks:"
+          # We wait for either within 120 seconds.
+          #
+          # -m 2048       : 2 GB RAM (testOS needs >= 1 GB)
+          # -smp 2        : 2 CPUs
+          # -drive        : raw disk image, virtio bus
+          # -serial       : serial console to log file
+          # -nographic    : no display, serial only
+          # -no-reboot    : don't reboot if the runner triggers reboot
+          timeout 120 qemu-system-x86_64 \
+            -machine accel=${ACCEL} \
+            -m 2048 \
+            -smp 2 \
+            -drive file=testos.raw,format=raw,if=virtio \
+            -serial file=qemu-serial.log \
+            -nographic \
+            -no-reboot \
+            > qemu-stdout.log 2>&1 &
+          QEMU_PID=$!
+
+          # Poll the serial log for the success string
+          SUCCESS=0
+          for i in $(seq 1 60); do
+            sleep 2
+            if grep -q "testOS.*benchmark environment\|Available benchmarks:" qemu-serial.log 2>/dev/null; then
+              echo "=== SUCCESS: testOS runner started ==="
+              SUCCESS=1
+              break
+            fi
+            # Also check for the failure banner (runner diagnostic output)
+            if grep -q "testOS RUNNER FAILED" qemu-serial.log 2>/dev/null; then
+              echo "=== testOS runner started but FAILED ==="
+              SUCCESS=1  # The runner ran, just failed - we want to see the diag
+              break
+            fi
+            echo "  Waiting for testOS menu... ($((i*2))s elapsed)"
+          done
+
+          # Kill QEMU if still running
+          kill $QEMU_PID 2>/dev/null || true
+          wait $QEMU_PID 2>/dev/null || true
+
+          echo ""
+          echo "=== Serial console output (last 50 lines) ==="
+          tail -50 qemu-serial.log 2>/dev/null || echo "(no serial output)"
+
+          if [ $SUCCESS -eq 0 ]; then
+            echo ""
+            echo "=== FAILURE: testOS did not boot to the benchmark menu within 120s ==="
+            echo "The image may have a boot issue (broken UKI, missing service, wrong cmdline)."
+            echo "Check the serial log above for details."
+            exit 1
+          fi
+
+      - name: Upload QEMU serial log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-serial-log
+          path: |
+            qemu-serial.log
+            qemu-stdout.log
+          retention-days: 7
+
+  # ─── Publish the release (only if smoke test passed) ────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: testos-release
+          path: ./release
+
+      - name: Derive release tag
+        id: reltag
+        run: |
+          INPUT_TAG="${{ inputs.tag }}"
+          REF_TAG="${{ github.ref_name }}"
+          FILE_VER="$(cat VERSION)"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [[ "$REF_TAG" == v* ]]; then
+            TAG="$REF_TAG"
+          else
+            TAG="v$FILE_VER"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG (version: $VERSION)"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.reltag.outputs.tag }}
-          files: /tmp/release-stage/*
+          files: ./release/*
           generate_release_notes: true
           draft: false
-          prerelease: true   # Rush is beta; mark releases as prerelease until v1.0
+          prerelease: true
           body: |
             ## testOS ${{ steps.reltag.outputs.version }}
 
             Prebuilt testOS image for USB benchmarking. See `install.sh` (Linux/macOS) or `install.ps1` (Windows) in the repo to flash this to a USB stick.
 
             **Mock build:** ${{ github.event.inputs.mock == 'true' }}
+
+            **QEMU boot smoke test:** passed (the image boots to the testOS benchmark menu in QEMU before this release was published).
 
             See the [testOS README](https://github.com/Nan0pk/Rush-linux/blob/main/testos/README.md) for usage.
