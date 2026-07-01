@@ -191,9 +191,24 @@ jobs:
     steps:
       - name: Check KVM availability
         run: |
-          if [ -e /dev/kvm ]; then
-            echo "KVM available - will use hardware acceleration"
+          # Check if /dev/kvm exists AND we can actually access it.
+          # GitHub Actions runners have /dev/kvm but the default user
+          # may not have permission. We try to read from it; if that
+          # fails, we fall back to TCG (software emulation, slower).
+          if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            echo "KVM available and accessible - will use hardware acceleration"
             echo "ACCEL=kvm" >> $GITHUB_ENV
+          elif [ -e /dev/kvm ]; then
+            echo "KVM device exists but not accessible (permission denied)."
+            echo "Trying to fix permissions with sudo..."
+            sudo chmod 666 /dev/kvm 2>/dev/null || true
+            if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+              echo "Fixed KVM permissions - will use hardware acceleration"
+              echo "ACCEL=kvm" >> $GITHUB_ENV
+            else
+              echo "Could not fix KVM permissions - falling back to TCG"
+              echo "ACCEL=tcg" >> $GITHUB_ENV
+            fi
           else
             echo "KVM NOT available - will use TCG software emulation (slower)"
             echo "ACCEL=tcg" >> $GITHUB_ENV
@@ -315,7 +330,15 @@ jobs:
           #     has console=ttyS0,115200 so all output goes here)
           #   -nographic       : no display, serial only
           #   -no-reboot       : don't reboot if the runner triggers reboot
-          timeout 120 qemu-system-x86_64 \
+          # TCG (software emulation) is ~10x slower than KVM. Give it
+          # more time to boot. KVM boots in ~20-30s; TCG may take 2-4 min.
+          BOOT_TIMEOUT=300
+          if [ "${ACCEL}" = "kvm" ]; then
+            BOOT_TIMEOUT=120
+          fi
+          echo "Boot timeout: ${BOOT_TIMEOUT}s (accel=${ACCEL})"
+
+          timeout $BOOT_TIMEOUT qemu-system-x86_64 \
             -machine q35 \
             -accel ${ACCEL} \
             -m 2048 \
@@ -330,8 +353,10 @@ jobs:
 
           # Poll the serial log for the success string
           SUCCESS=0
-          for i in $(seq 1 60); do
-            sleep 2
+          POLL_INTERVAL=3
+          MAX_POLLS=$(( BOOT_TIMEOUT / POLL_INTERVAL ))
+          for i in $(seq 1 $MAX_POLLS); do
+            sleep $POLL_INTERVAL
             if grep -q "testOS.*benchmark environment\|Available benchmarks:" qemu-serial.log 2>/dev/null; then
               echo "=== SUCCESS: testOS runner started ==="
               SUCCESS=1
@@ -348,7 +373,7 @@ jobs:
               echo "=== Got login prompt - runner service did not start ==="
               break
             fi
-            echo "  Waiting for testOS menu... ($((i*2))s elapsed)"
+            echo "  Waiting for testOS menu... ($((i*POLL_INTERVAL))s elapsed)"
           done
 
           # Kill QEMU if still running
