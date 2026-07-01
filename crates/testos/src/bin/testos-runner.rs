@@ -37,6 +37,18 @@ fn main() {
     println!("════════════════════════════════════════════════════");
     println!();
 
+    // Print the source git SHA so the user can verify the USB contains
+    // the code they actually built. If this SHA doesn't match what
+    // `git rev-parse --short HEAD` shows in the repo, the USB is stale
+    // and needs to be re-flashed. This file is written by build-testos.sh.
+    let source_sha = std::fs::read_to_string("/etc/testos/source-sha")
+        .unwrap_or_else(|_| "unknown".to_string())
+        .trim()
+        .to_string();
+    println!("  Source SHA: {}", source_sha);
+    println!("  (verify this matches your repo's `git rev-parse --short HEAD`)");
+    println!();
+
     // Helper: print an error, dump diagnostics, wait for keypress, then
     // drop to a shell so the user can diagnose. This prevents the runner
     // from flashing an error and immediately falling through to a login
