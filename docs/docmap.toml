@@ -670,3 +670,39 @@ deps = ["docs/plans/v0.6-hardware-aware-optid-proposal.md", "docs/strategy/refer
 freshens = ["release/milestones.toml", "release/evidence/README.md"]
 last_verified = "2026-06-29"
 validator = "optional_file"
+
+[docs."docs/research/0020-third-pass-tech-debt-audit.md"]
+purpose = "Third-pass technical debt audit (2026-07-02): audit-of-audits with 20 findings, recursive truth maintenance thesis, phased remediation plan"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/decisions/0017-rush-telemetry-fate.md", "docs/plans/phase0-policy-fail-closed-design.md", "docs/plans/phase0-host-bench-evidence-schema.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "HANDOFF.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/decisions/0017-rush-telemetry-fate.md"]
+purpose = "ADR: decide whether rush_telemetry is fixed-and-reincluded, moved out, feature-flagged, or deleted — before v0.7 desktop work multiplies the integration surface"
+owner_area = "area:docs"
+covers_code = ["crates/rush_telemetry/"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/plans/phase0-policy-fail-closed-design.md"]
+purpose = "Phase 0 design doc: fail-closed Policy::load and allowlist override handling in --apply mode, with boot-time status surface and migration plan"
+owner_area = "area:docs"
+covers_code = ["crates/optid/src/policy.rs", "crates/optid/src/allowlist.rs", "crates/optid/src/main.rs"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/plans/phase0-host-bench-evidence-schema.md"]
+purpose = "Phase 0 evidence schema: content-aware validation for host-bench transcripts (required markers, validation rules, test fixtures) — closes the existence-vs-truth gap"
+owner_area = "area:docs"
+covers_code = ["tools/validate-evidence.py"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md", "release/milestones.toml"]
+freshens = ["release/evidence/README.md", "tools/validate-evidence.py"]
+last_verified = "2026-07-02"
+validator = "optional_file"
