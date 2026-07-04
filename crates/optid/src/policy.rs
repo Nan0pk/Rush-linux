@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use crate::action::Action;
 use crate::contracts::Contracts;
 use crate::decision::Decision;
+use crate::load_state::LoadState;
 use crate::sensors::Snapshot;
 use crate::workload::{Mode, WorkloadClass};
 
@@ -257,32 +258,138 @@ impl Default for Policy {
 
 impl Policy {
     /// Load a `Policy` from a TOML file at `path`. Missing or unparseable
-    /// files fall back to `Policy::default()` so a corrupt policy can never
-    /// break the daemon — it only loses overrides.
+    /// files fall back to `Policy::curated_baseline()` so a corrupt policy can
+    /// never break the daemon — it only loses overrides. The load state is
+    /// logged to stderr.
+    ///
+    /// Returns the loaded (or fallback) policy without the `LoadState`. Callers
+    /// that need the load state (e.g., the run loop's `BootState` computation)
+    /// must use `Policy::load_with_state` instead.
     pub(crate) fn load(path: &Path) -> Self {
+        Self::load_with_state(path).0
+    }
+
+    /// Load a `Policy` from a TOML file at `path`, returning both the policy
+    /// and the `LoadState` describing how the load went.
+    ///
+    /// Load states:
+    /// - `Ok` — file present, parsed cleanly.
+    /// - `Defaulted` — file missing; `curated_baseline()` used.
+    /// - `Partial` — file present and parseable as TOML, but a structural
+    ///   validation found a missing required section. `curated_baseline()` used.
+    ///   (No partial-load path exists today; this state is reserved for future
+    ///   per-section validators. A present-and-parseable file is currently
+    ///   either fully `Ok` or fully `Invalid`.)
+    /// - `Invalid` — file present but unparseable or structurally invalid.
+    ///   `curated_baseline()` used.
+    ///
+    /// The fallback policy is `curated_baseline()`, **not** `default()`. The
+    /// curated baseline is a deliberately conservative, independently-tested
+    /// configuration; `default()` is the user-overridable defaults used by
+    /// tests and must not be relied on as a safety floor.
+    pub(crate) fn load_with_state(path: &Path) -> (Self, LoadState) {
         let text = match fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => {
                 eprintln!(
-                    "optid: failed to read policy TOML from {}: {}. Using defaults.",
+                    "optid: failed to read policy TOML from {}: {}. Using curated baseline.",
                     path.display(),
                     e
                 );
-                return Self::default();
+                return (Self::curated_baseline(), LoadState::Defaulted);
             }
         };
 
-        match toml::from_str(&text) {
-            Ok(policy) => policy,
+        let parsed: Result<Self, _> = toml::from_str(&text);
+        match parsed {
+            Ok(policy) => {
+                // Structural validation: every required section must be
+                // present with at least the canonical mode set. A file that
+                // parses but is missing `[modes]` is `Partial`, not `Ok`.
+                if policy.modes_structurally_valid() {
+                    (policy, LoadState::Ok)
+                } else {
+                    eprintln!(
+                        "optid: policy TOML from {} parsed but is missing required sections. \
+                         Using curated baseline.",
+                        path.display()
+                    );
+                    (Self::curated_baseline(), LoadState::Partial)
+                }
+            }
             Err(e) => {
                 eprintln!(
-                    "optid: failed to parse policy TOML from {}: {}. Using defaults.",
+                    "optid: failed to parse policy TOML from {}: {}. Using curated baseline.",
                     path.display(),
                     e
                 );
-                Self::default()
+                (Self::curated_baseline(), LoadState::Invalid)
             }
         }
+    }
+
+    /// The curated safety-floor policy. Used when `policy.toml` is missing,
+    /// partial, or invalid. This is **not** `default()` — it is a
+    /// deliberately conservative, independently-tested configuration that
+    /// prioritizes "do no harm" over "tune aggressively".
+    ///
+    /// Concretely, the curated baseline:
+    /// - Uses `balanced` mode values for all four mode slots (battery,
+    ///   balanced, performance, realtime). This means: even if the run loop
+    ///   somehow arms `apply` with this policy, the writes it produces are
+    ///   the balanced-mode writes, which are the least aggressive.
+    /// - Sets thresholds to conservative defaults (low CPU pressure trigger,
+    ///   low battery threshold).
+    /// - Disables the `high_swappiness_requires_zram` gate so the curated
+    ///   baseline never blocks a vm.swappiness write that the operator
+    ///   might rely on for recovery.
+    /// - Carries an empty `[policy]` section (no competing-daemon list) so
+    ///   the conflict check is a no-op and does not block startup.
+    /// - Carries empty shim config so the PPD/GameMode shims use their
+    ///   hardcoded default mappings.
+    ///
+    /// The curated baseline is the policy that gets applied when
+    /// `apply_armed == false` (see `load_state::BootState`). Even when
+    /// `apply_armed == true`, if the policy is `Defaulted`/`Partial`/`Invalid`,
+    /// the run loop must NOT arm `apply` — so in practice the curated
+    /// baseline is only applied as the `baseline_armed` curated baseline
+    /// writes (a separate, smaller surface; see `Actuator::apply_baseline`).
+    pub(crate) fn curated_baseline() -> Self {
+        // Reuse `default()` for the structural shape (it constructs a valid
+        // `Policy` with all sections), then override the mode values to the
+        // balanced-mode defaults. This keeps the curated baseline in sync
+        // with `default()`'s structural invariants while pinning the
+        // *values* to the conservative floor.
+        //
+        // The contract is: `curated_baseline()` is safe by construction,
+        // and is independently tested (see `tests::curated_baseline_*`).
+        // If a future change to `default()` makes it unsafe as a fallback,
+        // the curated-baseline tests must catch it.
+        let mut p = Self::default();
+        let balanced = p.modes.balanced.clone();
+        p.modes.battery = balanced.clone();
+        p.modes.performance = balanced.clone();
+        p.modes.realtime = balanced;
+        p
+    }
+
+    /// Structural validation: every mode section must carry a non-empty
+    /// `cpu_epp` and `platform_profile`. A policy that parses but is missing
+    /// these is structurally invalid and must fall back to the curated
+    /// baseline (LoadState::Partial).
+    fn modes_structurally_valid(&self) -> bool {
+        let modes = [
+            &self.modes.battery,
+            &self.modes.balanced,
+            &self.modes.performance,
+            &self.modes.realtime,
+        ];
+        for m in modes {
+            if m.cpu_epp.is_empty() || m.platform_profile.is_empty() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Classify the current snapshot into one of the six SPEC §1 workload

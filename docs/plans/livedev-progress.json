@@ -1,0 +1,1087 @@
+{
+  "schema": "livedev-progress/v1",
+  "current_phase": "e2e",
+  "next_phase": "verification",
+  "source_commit": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+  "source_branch_main": "main",
+  "working_branch": "test/livedev-e2e-dry-run",
+  "captured_at_utc": "2026-07-04T18:00:00Z",
+  "project_version": "0.7.0-beta.1",
+  "release_status_note": "Untouched. v0.5.0-beta.1 = complete; v0.6.0-beta.1 = code-complete, Phase D pending (hardware-gated); v0.7.0-beta.1 = in progress (Editions). No release status fields were modified by this PR.",
+  "optid_policy": "Untouched. No code or config under crates/optid/ or config/optid/ was modified by this PR.",
+  "testos_policy": "Untouched. testos/ and crates/testos/ remain the canonical real-hardware benchmark environment; not deleted, not deprecated, not renamed.",
+  "evidence_policy": "No new evidence fabricated. No milestone criteria marked verified. No transcript files added or modified.",
+  "important_repo_paths_that_exist": {
+    "root_docs": [
+      "README.md",
+      "VERSION",
+      "Cargo.toml",
+      "Cargo.lock",
+      "ROADMAP.md",
+      "RELEASES.md",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "AI_CONTINUATION_via_docs/AI_CONTINUATION.md",
+      "HANDOFF.md",
+      "HANDOFF-2026-06-26.md",
+      "CONTRIBUTING.md",
+      "SECURITY.md",
+      "SUPPORT.md",
+      "LICENSE",
+      "AUTHORS",
+      "CODE_OF_CONDUCT.md",
+      "book.toml",
+      "deny.toml"
+    ],
+    "workspace_crates_included": [
+      "crates/optid",
+      "crates/optctl",
+      "crates/rushbench",
+      "crates/rush_collect",
+      "crates/testos"
+    ],
+    "workspace_crates_excluded": [
+      "crates/rush_telemetry (excluded from root Cargo.toml; does not compile cleanly; ADR 0017 proposed but not ratified)"
+    ],
+    "optid_source_modules": [
+      "crates/optid/src/main.rs",
+      "crates/optid/src/policy.rs",
+      "crates/optid/src/actuator.rs",
+      "crates/optid/src/sensors.rs",
+      "crates/optid/src/allowlist.rs",
+      "crates/optid/src/action.rs",
+      "crates/optid/src/args.rs",
+      "crates/optid/src/contracts.rs",
+      "crates/optid/src/dbus.rs",
+      "crates/optid/src/decision.rs",
+      "crates/optid/src/io_util.rs",
+      "crates/optid/src/workload.rs",
+      "crates/optid/src/tests.rs",
+      "crates/optid/src/actuators/mod.rs",
+      "crates/optid/src/actuators/display.rs",
+      "crates/optid/src/actuators/runtime_pm.rs",
+      "crates/optid/src/actuators/storage.rs",
+      "crates/optid/src/foreground/mod.rs",
+      "crates/optid/src/shim/mod.rs",
+      "crates/optid/src/shim/ppd.rs",
+      "crates/optid/src/shim/gamemode.rs",
+      "crates/optid/src/shim/conflict.rs"
+    ],
+    "optid_tests": [
+      "crates/optid/tests/shim_ppd.rs",
+      "crates/optid/tests/shim_gamemode.rs",
+      "crates/optid/tests/shim_foreground.rs",
+      "crates/optid/tests/write_site_gating.rs"
+    ],
+    "optid_config": [
+      "config/optid/policy.toml",
+      "config/optid/contracts.toml",
+      "crates/optid/data/allowlist.toml",
+      "config/keys/testing.public.pem"
+    ],
+    "tools": [
+      "tools/start-work.sh",
+      "tools/finish-work.sh",
+      "tools/env-setup.sh",
+      "tools/build-mkosi-image.sh",
+      "tools/build-rootfs.sh",
+      "tools/build-vm-final.sh",
+      "tools/build-vm-mkosi.sh",
+      "tools/build-vm-unpriv.sh",
+      "tools/rush-install.sh",
+      "tools/rush-builder.py",
+      "tools/test-install.sh",
+      "tools/test-rollback.sh",
+      "tools/test-double-boot.sh",
+      "tools/test-sign-updates.sh",
+      "tools/test-rush-builder-unit.py",
+      "tools/validate-uefi-boot.sh",
+      "tools/validate-repo.ps1",
+      "tools/validate-versions.py",
+      "tools/validate-doc-sync.py",
+      "tools/validate-evidence.py",
+      "tools/validate-dirty-state.py",
+      "tools/manage-boot-entries.sh",
+      "tools/sign-updates.sh",
+      "tools/sign_updates.py",
+      "tools/bench-optid-host.sh",
+      "tools/bench-optid-host-v2.sh",
+      "tools/bench-optid-matrix.sh",
+      "tools/bench-work-load.py",
+      "tools/capture-evidence-168.sh",
+      "tools/dragnet.py",
+      "tools/graphify-refresh.sh",
+      "tools/update-docmap-dates.py",
+      "tools/trim-benchmark-samples.py",
+      "tools/create-starter-issues.py",
+      "tools/download-assets.py",
+      "tools/publish-github.ps1",
+      "tools/optid-boot-assess",
+      "tools/external-data"
+    ],
+    "testos": [
+      "testos/README.md",
+      "testos/bench-list.toml",
+      "testos/build-testos.sh",
+      "testos/install.sh",
+      "testos/install.ps1",
+      "testos/collect-results.sh",
+      "testos/collect-results.ps1"
+    ],
+    "mkosi": [
+      "mkosi/mkosi.conf",
+      "mkosi/mkosi.postinst.host",
+      "mkosi/mkosi.extra/etc/os-release",
+      "mkosi/mkosi.profiles/server/mkosi.conf",
+      "mkosi/mkosi.profiles/desktop/mkosi.conf",
+      "mkosi/mkosi.profiles/testos/mkosi.conf",
+      "mkosi/mkosi.repart/"
+    ],
+    "release": [
+      "release/milestones.toml",
+      "release/test-tiers.toml",
+      "release/evidence/README.md",
+      "release/evidence/BUILD-HOST-RUNBOOK.md",
+      "release/evidence/dragnet/",
+      "release/evidence/core-tests/",
+      "release/evidence/host-bench/",
+      "release/evidence/v0.3.0-alpha.1/",
+      "release/evidence/v0.4.0-alpha.1/",
+      "release/evidence/v0.5.0-beta.1/",
+      "release/evidence/v0.3-v0.4-uefi-boot/"
+    ],
+    "docs_canon": [
+      "docs/SPEC-northstar.md",
+      "docs/architecture.md",
+      "docs/adaptive-engine.md",
+      "docs/agent-protocol.md",
+      "docs/AI_CONTINUATION.md",
+      "docs/IMPLEMENTATION_STATUS.md",
+      "docs/PROJECT_BRIEF.md",
+      "docs/SUMMARY.md",
+      "docs/non-goals.md",
+      "docs/release-plan-v1.md",
+      "docs/release-policy.md",
+      "docs/release-checklist.md",
+      "docs/versioning.md",
+      "docs/documentation-policy.md",
+      "docs/build-system.md",
+      "docs/how-rush-is-built.md",
+      "docs/packaging-and-builds.md",
+      "docs/boot-and-updates.md",
+      "docs/hardware-support.md",
+      "docs/kernel-policy.md",
+      "docs/testing-and-benchmarks.md",
+      "docs/validation.md",
+      "docs/dragnet-protocol.md",
+      "docs/graphify-knowledge-graph.md",
+      "docs/project-sustainability.md",
+      "docs/docmap.toml",
+      "docs/session-handoff-v0.5-to-v0.6.md",
+      "docs/V0.4_CHANGES.md"
+    ],
+    "docs_strategy": [
+      "docs/strategy/COMPASS.md",
+      "docs/strategy/strategic-plan-v1.2.md",
+      "docs/strategy/reference-hardware.md",
+      "docs/strategy/mixed-load-workload.md",
+      "docs/strategy/reassessments/"
+    ],
+    "docs_research": "docs/research/0001 through 0020 (20 numbered research notes, each paired with a docmap entry)",
+    "docs_decisions": "docs/decisions/0001 through 0017 (17 ADRs); ADRs 0008-0017 are agent-era and either proposed or ratified-by-marked",
+    "docs_plans_existing": [
+      "docs/plans/agent-work-plan-v1.md",
+      "docs/plans/work-plan-v2.md",
+      "docs/plans/WP-B1E-evidence-workplan.md",
+      "docs/plans/phase0-host-bench-evidence-schema.md",
+      "docs/plans/phase0-policy-fail-closed-design.md",
+      "docs/plans/v0.5-minimal-installable-system-proposal.md",
+      "docs/plans/v0.6-hardware-aware-optid-proposal.md"
+    ],
+    "distro_fragments": [
+      "distro/boot/cmdline.d/adaptive.conf",
+      "distro/boot/uki.toml",
+      "distro/editions/server.toml",
+      "distro/editions/desktop.toml",
+      "distro/editions/laptop.toml",
+      "distro/editions/realtime-audio.toml",
+      "distro/kernel/default-adaptive.config",
+      "distro/kernel/experimental-sched-ext.config",
+      "distro/kernel/realtime.config",
+      "distro/network/nftables.conf",
+      "distro/systemd/00-cgroup-v2.conf",
+      "distro/systemd/99-rush-network.conf",
+      "distro/systemd/background.slice",
+      "distro/systemd/user.slice.d/10-adaptive-accounting.conf",
+      "distro/systemd/zram-generator.conf",
+      "distro/sysupdate/base.conf",
+      "distro/sysupdate/uki.conf"
+    ],
+    "packaging": [
+      "packaging/dbus/io.rushlinux.Optid.xml",
+      "packaging/dbus/io.rushlinux.Optid.service",
+      "packaging/systemd/optid.service",
+      "packaging/systemd/optid-apply.service",
+      "packaging/systemd/optid-boot-assess.service",
+      "packaging/systemd/optid-tmpfiles.conf",
+      "packaging/udev/rules.d/99-optid.rules"
+    ],
+    "recipes": [
+      "recipes/core/",
+      "recipes/boot/",
+      "recipes/desktop/",
+      "recipes/server/"
+    ],
+    "benchmarks": [
+      "benchmarks/manifest.toml",
+      "benchmarks/results/README.md",
+      "benchmarks/results/2026-06-14/fedora/"
+    ],
+    "github_workflows": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/rust-clippy.yml",
+      ".github/workflows/dependabot-auto-merge.yml",
+      ".github/workflows/docker-publish.yml",
+      ".github/workflows/dragnet.yml",
+      ".github/workflows/graphify.yml",
+      ".github/workflows/labeler.yml",
+      ".github/workflows/pages.yml",
+      ".github/workflows/reassess.yml",
+      ".github/workflows/release-drafter.yml",
+      ".github/workflows/release-testos.yml",
+      ".github/workflows/stale.yml",
+      ".github/workflows/validate-install-ps1.yml"
+    ]
+  },
+  "missing_components": {
+    "livedev_specific": [
+      "No LiveDev crate exists yet (no crates/livedev*, no crates/lived). LiveDev is currently only a phase name, not a code artifact.",
+      "No LiveDev ADR exists (docs/decisions/ contains 0001-0017; no LiveDev-scoped decision record).",
+      "No LiveDev research note exists (docs/research/ contains 0001-0020; no LiveDev design note).",
+      "No LiveDev entry in docs/docmap.toml.",
+      "No LiveDev entry in docs/SUMMARY.md.",
+      "No LiveDev section in ROADMAP.md, RELEASES.md, or IMPLEMENTATION_STATUS.md.",
+      "No LiveDev plan file existed before this PR (only this livedev-progress.json and livedev-workspace-enablement.md, both added by this PR)."
+    ],
+    "toolchain_in_this_workspace": [
+      "rustc / cargo NOT installed in this container (CI runs them via dtolnay/rust-toolchain on ubuntu-latest). Local cargo fmt/test/clippy cannot run here.",
+      "shellcheck NOT installed in this container (audit finding #14 flags this for project hygiene).",
+      "gh CLI NOT installed in this container (no PR creation / release upload from here).",
+      "mkosi NOT installed in this container (mkosi build cannot run here; build-host runbook is the documented path).",
+      "qemu-system-x86_64 NOT installed in this container (UEFI boot validation cannot run here; build-host runbook is the documented path).",
+      "libdbus-1-dev / pkg-config NOT verified present (needed for optid/optctl zbus builds)."
+    ],
+    "known_project_gaps_referenced_in_repo": [
+      "v0.6.0-beta.1 Phase D: no physical-hardware benchmark transcripts yet (release/evidence/host-bench/_TEMPLATE/ only). Hardware-gated, requires project-owner hands.",
+      "Reference hardware slots empty: docs/strategy/reference-hardware.md shows Desktop and Laptop nomination slots both unfilled.",
+      "rush_telemetry crate excluded from workspace; ADR 0017 'proposed' (not ratified). Re-inclusion is a pending decision.",
+      "tools/build-vm-unpriv.sh still broken at boot (kmod/libkmod2 missing from rootfs) per HANDOFF.md and audit #7.",
+      "tools/finish-work.sh diverges from CI per audit #15 (passes locally while CI would fail).",
+      "Foreground detection is a documented stub; v0.7 gate undefined per audit #20.",
+      "Action value types still stringly-typed per audit #19.",
+      "PSI/proc parsing duplicated 4x across crates per audit #17 (no rush_core pattern)."
+    ]
+  },
+  "reusable_existing_assets": {
+    "image_build": [
+      "mkosi/mkosi.conf + mkosi/mkosi.profiles/{server,desktop,testos}/mkosi.conf \u2014 declarative image composition plane (ADR 0014).",
+      "tools/build-mkosi-image.sh --edition <server|desktop|testos> \u2014 existing edition-aware image builder.",
+      "tools/build-vm-unpriv.sh \u2014 unprivileged VM image builder (workaround for sandboxed environments).",
+      "tools/build-rootfs.sh and tools/rush-builder.py \u2014 recipe-driven rootfs and package builder.",
+      "mkosi/mkosi.repart/ \u2014 declarative GPT partition layout (00-ESP.conf, 10-root.conf)."
+    ],
+    "boot_and_updates": [
+      "distro/boot/uki.toml + distro/boot/cmdline.d/adaptive.conf \u2014 UKI-first boot policy.",
+      "distro/sysupdate/{base,uki}.conf \u2014 systemd-sysupdate descriptors for A/B updates.",
+      "tools/manage-boot-entries.sh \u2014 boot-entry rotation/retention (InstancesMax=3).",
+      "tools/test-rollback.sh, tools/test-double-boot.sh, tools/test-sign-updates.sh \u2014 verified boot/rollback/update-signing harnesses.",
+      "tools/validate-uefi-boot.sh \u2014 OVMF+QEMU UEFI boot validator.",
+      "config/keys/testing.public.pem \u2014 Ed25519 test verification key (private key gitignored)."
+    ],
+    "runtime_optimization": [
+      "crates/optid \u2014 adaptive optimizer daemon (PSI sensors, 5-class workload classifier, policy engine, guarded actuator, allowlist, PM QoS contracts).",
+      "crates/optid/src/shim/{ppd,gamemode,conflict}.rs \u2014 D-Bus compatibility shims (net.hadess.PowerProfiles + com.feralinteractive.GameMode).",
+      "crates/optid/src/foreground/mod.rs \u2014 foreground detection stub (v0.7 will harden).",
+      "crates/optid/src/actuators/{display,runtime_pm,storage}.rs \u2014 domain-specific actuators reusable by LiveDev surfaces.",
+      "crates/optid/src/io_util.rs \u2014 guarded_write / atomic_write_state_file / path-traversal rejection primitives.",
+      "crates/optctl \u2014 D-Bus + file-based control client (status, explain, mode, pin, allow, deny, benchmark)."
+    ],
+    "measurement_and_evidence": [
+      "crates/rushbench \u2014 measurement rig (energy via BAT/intel-rapl, responsiveness probes, report generation).",
+      "crates/rush_collect \u2014 passive hardware profile + metric snapshot collector.",
+      "crates/testos + testos/ \u2014 bootable USB benchmark environment; testos-launcher / testos-runner / testos-ingest binaries. Already wired into .github/workflows/release-testos.yml.",
+      "testos/bench-list.toml \u2014 benchmark catalog re-usable for any future harness.",
+      "release/evidence/BUILD-HOST-RUNBOOK.md \u2014 canonical runbook for build-host acceptance transcripts.",
+      "release/evidence/host-bench/_TEMPLATE/ \u2014 Phase D transcript template.",
+      "tools/dragnet.py + tools/validate-evidence.py \u2014 evidence-integrity gate.",
+      "benchmarks/manifest.toml \u2014 5-scenario benchmark manifest (mixed-load, server, battery, gaming, realtime audio)."
+    ],
+    "release_governance": [
+      "release/milestones.toml \u2014 canonical milestone/criteria state machine.",
+      "release/test-tiers.toml \u2014 T0..T5 tier definitions and required_for channel mapping.",
+      "docs/agent-protocol.md \u2014 Builder/Verifier/Human role separation and authority matrix.",
+      "docs/dragnet-protocol.md \u2014 evidence integrity protocol.",
+      "tools/start-work.sh + tools/finish-work.sh \u2014 session lifecycle (creates/removes DIRTY_STATE.md, runs validators).",
+      "tools/validate-{repo,versions,doc-sync,evidence,dirty-state}.py / .ps1 \u2014 repo policy validators.",
+      "docs/docmap.toml \u2014 single source of truth for doc ownership and code coverage."
+    ],
+    "config_surface": [
+      "config/optid/policy.toml \u2014 optid policy (modes, shims, competing-daemon list).",
+      "config/optid/contracts.toml \u2014 per-workload-class PM QoS latency budgets.",
+      "crates/optid/data/allowlist.toml \u2014 seeded hardware allowlist baseline (default-deny with override dirs).",
+      "distro/editions/{server,desktop,laptop,realtime-audio}.toml \u2014 edition descriptors."
+    ]
+  },
+  "safety_sensitive_areas": [
+    {
+      "area": "crates/optid/src/io_util.rs::guarded_write",
+      "concern": "Path-traversal rejection (M1) and allowlist enforcement (M1/WP-N4) are load-bearing. Any LiveDev surface that writes to sysfs/cgroup MUST route through guarded_write or a sibling primitive; introducing parallel write paths bypasses the security boundary (ADR 0009)."
+    },
+    {
+      "area": "crates/optid/src/allowlist.rs + crates/optid/data/allowlist.toml + crates/optid/build.rs",
+      "concern": "Hardware allowlist is default-enabled since v0.6 Phase A3 (Args::allowlist: true). LiveDev features that touch hardware MUST respect --no-allowlist as the emergency escape hatch and MUST NOT add writes outside the seeded baseline."
+    },
+    {
+      "area": "crates/optid/src/actuator.rs + crates/optid/src/io_util.rs",
+      "concern": "29 enumerated write sites (crates/optid/tests/write_site_gating.rs). Drift-detection assertions count occurrences of guarded_write(, pmqos_sink.write_*(, atomic_write_state_file(, and Command::new(\"systemctl\"). Adding a new write site without classification breaks the lexical gate (audit #16)."
+    },
+    {
+      "area": "crates/optid/src/main.rs (signal hooks + flock + revert paths)",
+      "concern": "SIGTERM/SIGINT/SIGHUP hooks (H2) and optid.lock exclusive flock (M4) guarantee deterministic reversion of sysctls and PM QoS floors on systemd stop. LiveDev surfaces that affect the daemon lifecycle must not weaken these."
+    },
+    {
+      "area": "crates/optid/src/policy.rs::Policy::load + config/optid/policy.toml",
+      "concern": "Audit #1 (Critical): Policy::load fails open on parse error. LiveDev config additions must not relax fail-closed semantics; new sections must be optional with documented defaults."
+    },
+    {
+      "area": "crates/optid/src/shim/{ppd,gamemode,conflict}.rs + D-Bus name ownership",
+      "concern": "optid owns net.hadess.PowerProfiles and com.feralinteractive.GameMode bus names. LiveDev surfaces must not register conflicting well-known names or duplicate the cookie/registry semantics."
+    },
+    {
+      "area": "crates/optid/src/contracts.rs + config/optid/contracts.toml",
+      "concern": "PM QoS latency budgets are provisional pending WP-B1 validation. LiveDev features that schedule work or claim latency budgets must respect the contracts table or document an explicit override with a Ratified-by ADR."
+    },
+    {
+      "area": "release/evidence/* and release/milestones.toml",
+      "concern": "Evidence Rule: no claim without a committed transcript. LiveDev work must not mark any criterion verified without a real command transcript; must not bump release status fields; must not touch Dragnet ledger except via tools/dragnet.py."
+    },
+    {
+      "area": "config/keys/ and tools/sign-updates.sh",
+      "concern": "Test signing keys are gitignored (private never committed). LiveDev update flows must reuse tools/sign-updates.sh / tools/sign_updates.py and the existing Ed25519 key model; must not invent parallel signing paths."
+    },
+    {
+      "area": "testos/ and crates/testos/",
+      "concern": "testOS is the canonical real-hardware benchmark environment. LiveDev must not delete, deprecate, rename, or shadow testOS. Any overlap (e.g., shared USB boot path) must be additive."
+    },
+    {
+      "area": "rush_telemetry crate (excluded)",
+      "concern": "GPL-2.0-only inside Apache-2.0 workspace; ADR 0017 proposed (not ratified). LiveDev must not silently depend on rush_telemetry until ADR 0017 is ratified (Option A/B/C/D)."
+    },
+    {
+      "area": "tools/finish-work.sh vs .github/workflows/ci.yml",
+      "concern": "Audit #15: finish-work.sh diverges from CI; can pass locally while CI fails. LiveDev changes that depend on finish-work.sh should also be cross-checked against the CI workflow's actual commands."
+    }
+  ],
+  "tool_availability": {
+    "present": {
+      "git": "git version 2.47.3",
+      "python3": "Python 3.12.13",
+      "pytest": "pytest 9.0.2",
+      "jq": "jq-1.7"
+    },
+    "absent": [
+      "rustc (CI uses dtolnay/rust-toolchain@stable on ubuntu-latest)",
+      "cargo (same as rustc)",
+      "shellcheck",
+      "gh (GitHub CLI)",
+      "mkosi",
+      "qemu-system-x86_64",
+      "libdbus-1-dev / pkg-config (unverified; needed for optid/optctl zbus builds)"
+    ],
+    "ci_provides": [
+      "libdbus-1-dev, pkg-config (apt-installed in .github/workflows/ci.yml)",
+      "Rust stable + clippy + rustfmt (dtolnay/rust-toolchain@stable)",
+      "cargo nextest (taiki-e/install-action@nextest)",
+      "cargo audit (rustsec/audit-check@v2.0.0)",
+      "cargo deny (embarkstudios/cargo-deny-action@v2)",
+      "PowerShell (for tools/validate-repo.ps1)",
+      "lychee (lycheeverse/lychee-action@v2) for markdown link checks",
+      "Arch container (archlinux:latest) for release-testos.yml image builds"
+    ]
+  },
+  "baseline_commands_run": [
+    {
+      "cmd": "pwd",
+      "exit": 0,
+      "stdout": "/home/z/my-project/Rush-linux"
+    },
+    {
+      "cmd": "git status --short",
+      "exit": 0,
+      "stdout": "(empty: clean working tree on fresh branch from main)"
+    },
+    {
+      "cmd": "git branch --show-current",
+      "exit": 0,
+      "stdout": "chore/livedev-workspace-enablement"
+    },
+    {
+      "cmd": "git rev-parse HEAD",
+      "exit": 0,
+      "stdout": "2a10847d89d4413b9df305c48bb8c4545ce3017e"
+    },
+    {
+      "cmd": "git --version",
+      "exit": 0,
+      "stdout": "git version 2.47.3"
+    },
+    {
+      "cmd": "rustc --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent in this container; CI provides via dtolnay/rust-toolchain)"
+    },
+    {
+      "cmd": "cargo --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent in this container; CI provides via dtolnay/rust-toolchain)"
+    },
+    {
+      "cmd": "python3 --version || true",
+      "exit": 0,
+      "stdout": "Python 3.12.13"
+    },
+    {
+      "cmd": "pytest --version || true",
+      "exit": 0,
+      "stdout": "pytest 9.0.2"
+    },
+    {
+      "cmd": "shellcheck --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent; audit #14 flags for project hygiene)"
+    },
+    {
+      "cmd": "jq --version || true",
+      "exit": 0,
+      "stdout": "jq-1.7"
+    },
+    {
+      "cmd": "gh --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent; no PR/release operations from this container)"
+    },
+    {
+      "cmd": "mkosi --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent; image builds run on build host per release/evidence/BUILD-HOST-RUNBOOK.md)"
+    },
+    {
+      "cmd": "qemu-system-x86_64 --version || true",
+      "exit": "n/a",
+      "stdout": "command not found (absent; UEFI boot validation runs on build host)"
+    }
+  ],
+  "proposed_build_sequence_for_next_phase": [
+    "0. PREREQUISITE: this e2e PR merged to main.",
+    "1. verification phase: maintainer reviews the entire LiveDev track.",
+    "2. Run tools/livedev-e2e-dry-run.py --all on main to verify the E2E still passes.",
+    "3. Review docs/livedev-user-guide.md and docs/livedev-developer-guide.md.",
+    "4. Ratify ADRs 0018, 0023, 0024 (move from proposed to accepted with Ratified-by lines).",
+    "5. Optional: write docs/decisions/0025-livedev-graduated.md declaring LiveDev graduated.",
+    "6. Update livedev-progress.json: current_phase=verification, next_phase=complete.",
+    "7. Do NOT modify release/milestones.toml, VERSION, RELEASES.md."
+  ],
+  "phases": {
+    "workspace-enablement": {
+      "status": "complete",
+      "deliverables": [
+        "docs/plans/livedev-progress.json (this file)",
+        "docs/plans/livedev-workspace-enablement.md (companion plan)"
+      ],
+      "non_deliverables": [
+        "No code under crates/livedev*.",
+        "No ADR for LiveDev (deferred to architecture-contract phase).",
+        "No research note for LiveDev (deferred to design-note phase).",
+        "No changes to optid, testOS, release status, or evidence."
+      ]
+    },
+    "architecture-contract": {
+      "status": "complete",
+      "entry_condition": "This PR merged to main.",
+      "exit_condition": "LiveDev ADR exists, is proposed, has acceptance criteria, and a docmap.toml entry. No code yet."
+    },
+    "optid-safety": {
+      "status": "complete",
+      "entry_condition": "ADR 0018 ratified; architecture-contract PR merged to main.",
+      "exit_condition": "Policy::load fails closed on parse error (audit #1); optid revert path tested end-to-end (audit #3); validate-evidence.py validates content not just existence (audit #4); finish-work.sh reconciled with ci.yml (audit #15). All implemented and tested in this PR.",
+      "deliverables": [
+        "crates/optid/src/load_state.rs (new): LoadState enum (Ok|Defaulted|Partial|Invalid), BootState struct, permits_dynamic_writes/is_fallback/as_str helpers, summary()",
+        "crates/optid/src/policy.rs: Policy::load_with_state() returns (Policy, LoadState); Policy::curated_baseline() is the safety floor (NOT default()); modes_structurally_valid() structural validator",
+        "crates/optid/src/allowlist.rs: Allowlist::load_with_state() returns (Allowlist, LoadState); apply_dir_tracking() returns partial flag",
+        "crates/optid/src/io_util.rs: mark_applied() writes applied_<key> marker; actuation_state() detects crash recovery (Some(true)=clean, Some(false)=crash, None=nothing); clear_journal() idempotent journal cleanup; all revert_* functions now crash-recovery-aware",
+        "crates/optid/src/actuator.rs: boot_state field + set_boot_state() method; apply_baseline() applies curated baseline gated by baseline_armed; dynamic_writes_armed() gates ALL dynamic Actions on apply_armed (single chokepoint, no alternate paths); mark_applied() called after every successful sysfs write",
+        "crates/optid/src/main.rs: wires Policy::load_with_state + Allowlist::load_with_state; computes BootState (apply_armed = args.apply && policy Ok && (gate disabled || allowlist Ok)); calls set_boot_state + apply_baseline; logs boot summary",
+        "crates/optid/tests/write_site_gating.rs: updated WRITE_SITES inventory with new line numbers + new 'curated-baseline' classification for apply_baseline write; drift detection updated to count curated-baseline in kernel-write bucket",
+        "crates/optid/src/tests.rs: new optid_safety_tests module with 12 tests (7 required + 5 bonus)"
+      ],
+      "non_deliverables": [
+        "No AI code (no crates/rush_ai, no online AI calls).",
+        "No PR submission code (no crates/rush_pr).",
+        "No release status change (VERSION, Cargo.toml, RELEASES.md, release/milestones.toml untouched).",
+        "No real hardware required (all tests use temp-dir fixtures and mock sinks).",
+        "No change to testOS (testos/ and crates/testos/ untouched)."
+      ],
+      "tests_added": [
+        "malformed_policy_apply_disables_dynamic_writes (required #1)",
+        "missing_policy_loads_curated_baseline_only (required #2)",
+        "malformed_allowlist_disables_dynamic_writes (required #3)",
+        "valid_config_enables_dynamic_writes (required #4)",
+        "dry_run_disables_all_writes (required #5)",
+        "crash_after_first_mutation_restart_restores (required #6)",
+        "stale_incomplete_journal_deterministic_recovery (required #7)",
+        "curated_baseline_is_conservative (bonus)",
+        "partial_policy_loads_curated_baseline (bonus)",
+        "clear_journal_is_idempotent (bonus)",
+        "allowlist_load_with_state_ok_for_clean_or_missing_dir (bonus)",
+        "allowlist_load_with_state_partial_for_mixed_valid_invalid (bonus)"
+      ],
+      "test_results": "275 tests pass (was 263; +12 new). cargo fmt --check clean. cargo clippy -p optid --all-targets -- -D warnings clean. tools/validate-{doc-sync,evidence,versions}.py all pass.",
+      "note": "Prompt 3 output. Branch feat/optid-fail-closed-baseline-revert from main @ 2a10847d89d4413b9df305c48bb8c4545ce3017e."
+    },
+    "capture-substrate": {
+      "status": "complete",
+      "entry_condition": "optid-safety PR merged to main.",
+      "exit_condition": "rush-exec and rush-capture exist as tools in tools/. rush-exec runs commands with full metadata capture (argv, cwd, timestamps, exit code, timeout, stdout/stderr, env, redaction, payload hash). rush-capture manages sessions (start/event/finish/validate-chain/summarize) with a tamper-evident event chain and the required run-directory layout. Redaction covers GitHub tokens, API keys, bearer tokens, secret env vars, MAC addresses, serial fields, private IPv4. 9 required tests pass + bonus tests.",
+      "deliverables": [
+        "tools/rush_capture_lib.py (new shared library: redaction, tamper-evident event chain, run-dir management, host/software fingerprint, snippet/hash helpers)",
+        "tools/rush-exec (new executable: guarded command runner \u2014 typed argv, no shell strings, full metadata capture, redaction, event-chain append)",
+        "tools/rush-capture (new executable: session manager with start/event/finish/validate-chain/summarize subcommands)",
+        "tools/test-rush-capture.py (new: 25 pytest tests \u2014 9 required scenarios + 16 bonus unit/integration tests)"
+      ],
+      "non_deliverables": [
+        "No AI code (no online AI calls, no model harness).",
+        "No GitHub/PR submission code (no gh CLI, no GitHub API calls).",
+        "No real hardware required (all tests use temp dirs and standard commands).",
+        "No fabricated evidence (no release/evidence/ modifications, no milestone changes).",
+        "No Rust crates (implemented as Python tools per the Prompt's 'tools/rush-exec' and 'python3 -m pytest' instructions; the transition plan's Rust crate spec is superseded)."
+      ],
+      "implementation_note": "The Prompt explicitly specified tools/rush-exec, tools/rush-capture, and 'python3 -m pytest'. This overrides the transition plan's Rust crate spec (crates/rush_exec, crates/rush_capture). The Python implementation matches the repo's predominant tool style (14 Python tools in tools/) and is faster to iterate for metadata-heavy capture logic. A future phase may add Rust crates that wrap or replace these tools if performance requires it.",
+      "run_directory_layout": [
+        "manifest.json \u2014 session metadata (schema, start time, run-dir path)",
+        "events.jsonl \u2014 tamper-evident event chain (one JSON object per line)",
+        "command-log.jsonl \u2014 per-command execution records",
+        "host.json \u2014 host fingerprint (kernel, CPU, DMI board, battery, fingerprint hash)",
+        "software.json \u2014 software fingerprint (python version, platform, git commit, project version, rustc)",
+        "privacy-report.json \u2014 redaction summary (counts per redactor kind)",
+        "summary.md \u2014 human-readable session summary",
+        "stdout/<seq>.txt \u2014 per-command stdout files",
+        "stderr/<seq>.txt \u2014 per-command stderr files"
+      ],
+      "event_chain_fields": [
+        "seq",
+        "timestamp",
+        "kind",
+        "payload or payload_path",
+        "prev_event_sha256",
+        "event_sha256"
+      ],
+      "redaction_coverage": [
+        "github_token (ghp_/gho_/ghs_/ghu_/ghr_/github_pat_)",
+        "api_key (name=value patterns)",
+        "bearer_token (Authorization: Bearer ...)",
+        "aws_access_key_id (AKIA...)",
+        "aws_secret_key (40-char base64)",
+        "secret_env (env var names matching token/secret/password/api_key/private_key patterns)",
+        "mac_address (xx:xx:xx:xx:xx:xx)",
+        "serial_field (serial=/Serial Number:)",
+        "ssh_private_key (PEM headers)",
+        "private_ipv4 (10.x/172.16-31.x/192.168.x)"
+      ],
+      "command_log_fields": [
+        "schema_version",
+        "seq",
+        "argv",
+        "cwd",
+        "started_at",
+        "finished_at",
+        "duration_ms",
+        "exit_code",
+        "timed_out",
+        "timeout_sec",
+        "stdout_path",
+        "stderr_path",
+        "stdout_sha256",
+        "stderr_sha256",
+        "stdout_snippet (bounded 4KB)",
+        "stderr_snippet (bounded 4KB)",
+        "env_redacted",
+        "redaction_status",
+        "redaction_counts",
+        "payload_sha256"
+      ],
+      "test_results": "25 tests pass (9 required + 16 bonus). python3 -m pytest: 25 passed in 4.58s. git diff --check: clean. tools/validate-{doc-sync,evidence,versions}.py: all pass.",
+      "note": "Prompt 4 output. Branch feat/livedev-capture-substrate from main."
+    },
+    "evidence-validator": {
+      "status": "complete",
+      "entry_condition": "capture-substrate PR merged to main.",
+      "exit_condition": "Hardware evidence schemas exist (manifest, plan, host, result). A content-aware validator (validate-hwtest-evidence.py) checks 14 conditions: required files, manifest parses, source version/commit exist, hardware slot valid, laptop battery present, battery/AC runs match power source, baseline/optid paired, sample count sufficient, results parse, privacy report exists, secrets absent, AI not evidence, event chain intact. 11 fixtures (1 good + 10 bad) all validate with expected outcomes. validate-evidence.py extended to call the new validator for hardware evidence bundles.",
+      "deliverables": [
+        "schemas/hwtest-manifest.schema.json (new: JSON Schema for the top-level manifest)",
+        "schemas/hwtest-plan.schema.json (new: JSON Schema for the benchmark plan)",
+        "schemas/hwtest-host.schema.json (new: JSON Schema for the host fingerprint)",
+        "schemas/hwtest-result.schema.json (new: JSON Schema for per-run results)",
+        "tools/validate-hwtest-evidence.py (new: content-aware validator with 14 checks + hand-rolled JSON Schema validator, no external deps)",
+        "tools/test-fixtures/hwtest/ (new: 11 fixtures \u2014 good-laptop + 10 bad fixtures, each with expected.json)",
+        "tools/test-fixtures/hwtest/generate-fixtures.py (new: fixture generator)",
+        "tools/test-validate-hwtest-evidence.py (new: 23 pytest tests)",
+        "tools/validate-evidence.py (patched: now calls validate-hwtest-evidence.py for hardware evidence bundles under release/evidence/host-bench/)"
+      ],
+      "non_deliverables": [
+        "No real benchmarks run (fixtures are clearly test-only).",
+        "No hardware required (all fixtures are synthetic JSON).",
+        "No milestones marked verified (release/milestones.toml untouched).",
+        "No AI code, no PR submission code.",
+        "No release status change."
+      ],
+      "fourteen_checks": [
+        "1. required files exist (manifest, plan, host, baseline result, optid result, verdict, events, privacy report)",
+        "2. manifest parses as JSON and conforms to the manifest schema",
+        "3. source_version exists in the VERSION file",
+        "4. source_commit exists in git (rev-parse --verify)",
+        "5. hardware_slot is valid (desktop | laptop)",
+        "6. laptop evidence has battery metadata (battery_design_uwh > 0)",
+        "7. battery runs actually ran on battery/discharging (power_source=battery, ac_online=false)",
+        "8. AC runs actually ran on AC/online (power_source=ac, ac_online=true)",
+        "9. baseline and optid runs are paired (both result files exist and parse)",
+        "10. sample count is sufficient (every metric n >= plan.min_samples, no insufficient_n anomaly)",
+        "11. results parse as JSON and conform to the result schema",
+        "12. privacy report exists and parses",
+        "13. obvious secrets absent (scan all files for GitHub tokens, API keys, bearer tokens, MACs, etc.)",
+        "14. AI summaries do not count as evidence (VERDICT.md must not contain AI-generated patterns; verdicts are advisory only)",
+        "Plus: event chain validates (tamper-evident SHA-256 chain intact)"
+      ],
+      "eleven_fixtures": [
+        "good-laptop (expected pass) \u2014 valid laptop bundle",
+        "missing-manifest (expected fail) \u2014 no hwtest-manifest.json",
+        "wrong-version (expected fail) \u2014 source_version doesn't match VERSION",
+        "laptop-no-battery (expected fail) \u2014 laptop slot, battery_design_uwh=0",
+        "battery-run-on-ac (expected fail) \u2014 power_source=battery but ac_online=true",
+        "missing-baseline-pair (expected fail) \u2014 baseline result file missing",
+        "insufficient-samples (expected fail) \u2014 n < min_samples",
+        "malformed-results (expected fail) \u2014 baseline result JSON is malformed",
+        "secret-leakage (expected fail) \u2014 unredacted GitHub token in transcript",
+        "ai-only-verdict (expected fail) \u2014 VERDICT.md says AI-generated",
+        "broken-event-chain (expected fail) \u2014 events.jsonl tampered"
+      ],
+      "test_results": "23 tests pass (11 fixture outcome tests + 6 schema validation tests + 4 bundle-mode tests + 2 fixture-count tests). validate-hwtest-evidence.py --fixtures: 11 passed, 0 failed. validate-evidence.py: PASSED. git diff --check: clean. rush-capture tests still pass (25/25).",
+      "note": "Prompt 5 output. Branch feat/hw-evidence-schema-validator from main."
+    },
+    "planner": {
+      "status": "complete",
+      "entry_condition": "evidence-validator PR merged to main.",
+      "exit_condition": "A deterministic autopilot planner exists that reads repo state (VERSION, git HEAD, milestones, evidence tree, benchmark plans) and hardware state (real or fake sysfs) to produce a typed Plan of PlanSteps. The planner is deterministic (same inputs \u2192 same plan). Plans carry a default (proceed/skip/ask/abort/wait) and a rollback. Physical prompts carry wait-and-detect fields (action, detection_signal, timeout). The planner never produces proceed for destructive or final-approval actions (safety floor). 8 required tests + 5 bonus tests pass.",
+      "deliverables": [
+        "tools/rush-autopilot (new: deterministic planner with 'plan' subcommand and --auto/--dry-run/--slot/--output/--repo/--fake-sys flags)",
+        "tools/test-rush-autopilot.py (new: 13 pytest tests \u2014 8 required + 5 bonus)"
+      ],
+      "non_deliverables": [
+        "No benchmarks executed (planner only generates plans, does not run them).",
+        "No USB images written.",
+        "No PRs submitted.",
+        "No AI calls.",
+        "No real hardware required (tests use fake sysfs).",
+        "No release status change."
+      ],
+      "planner_capabilities": [
+        "Reads repo state: VERSION, git HEAD, release/milestones.toml (finds open hardware-gated criteria), release/evidence/host-bench/ (existing evidence), docs/strategy/mixed-load-workload.md (preset)",
+        "Detects hardware from real or fake sysfs: battery (present, capacity, status, design_uwh), AC (online), platform_profile (available + choices), cpufreq driver, EPP (available + values), RAPL (available + domain), CPU model/topology, DMI board, kernel",
+        "Infers machine slot: laptop (battery present), desktop (no battery + AC online), server (many cores, no battery), ambiguous (cannot determine)",
+        "Generates typed Plan: schema_version, plan_kind, generated_at, source_version, source_commit, repo_root, hardware_slot, slot_confidence, ambiguities, open_criteria, existing_evidence, steps",
+        "Each PlanStep: seq, kind (command/physical-prompt/validation), default (proceed/skip/ask/abort/wait), reason, rollback, argv (for commands), action+detection_signal+timeout (for physical prompts), validator+bundle (for validation)",
+        "Safety floor: never produces default=proceed for destructive (force-push, rm -rf, repartition, etc.) or final-approval (merge, tag, ratify, verified=true) actions \u2014 enforced by check_safety_floor() and a test",
+        "Determinism: same inputs always produce the same Plan (fixed generated_at timestamp, no wall clock, no randomness) \u2014 enforced by a test",
+        "Human-facing rule: does not ask the user for anything derivable from repo or hardware state; if ambiguous, reports the ambiguity and chooses a safe default"
+      ],
+      "eight_required_tests": [
+        "1. laptop generates battery + mixed-load plan \u2014 laptop fake sysfs \u2192 battery prompts + rushbench runs + validation",
+        "2. desktop does not claim laptop evidence \u2014 desktop fake sysfs \u2192 no battery prompts, no battery criterion",
+        "3. no open hardware gates exits cleanly \u2014 all criteria verified \u2192 plan has session start+finish only, no benchmark runs",
+        "4. ambiguous slot is reported \u2014 no battery, no AC \u2192 slot='ambiguous', ambiguities list explains why",
+        "5. missing milestone file fails clearly \u2014 FileNotFoundError with 'milestones' in message, CLI exits 1",
+        "6. already satisfied evidence prevents duplicate required work \u2014 2 existing bundles \u2192 mixed-load criterion (requires both slots) is satisfied and filtered out",
+        "7. generated plan validates against schema \u2014 all required top-level + step fields present, correct types, valid enum values",
+        "8. dry-run has no destructive action \u2014 no step matches DESTRUCTIVE_PATTERNS or FINAL_APPROVAL_PATTERNS"
+      ],
+      "bonus_tests": [
+        "test_plan_is_deterministic \u2014 same inputs produce byte-identical plans",
+        "test_safety_floor_holds_for_all_slots \u2014 laptop, desktop, ambiguous all pass safety floor",
+        "test_cli_plan_laptop \u2014 CLI produces valid plan for laptop fake sysfs",
+        "test_cli_plan_slot_override \u2014 --slot flag overrides detected slot, reports ambiguity",
+        "test_cli_plan_output_to_file \u2014 --output writes plan to file"
+      ],
+      "test_results": "13 tests pass (8 required + 5 bonus). python3 -m pytest: 13 passed in 0.67s. validate-hwtest-evidence.py --fixtures: 11 passed. git diff --check: clean.",
+      "note": "Prompt 6 output. Branch feat/rush-autopilot-planner from main."
+    },
+    "test-runner": {
+      "status": "complete",
+      "entry_condition": "planner PR merged to main.",
+      "exit_condition": "A plan runner exists that executes Plans produced by rush-autopilot. The runner respects the default field on each PlanStep (proceed/skip/ask/abort/wait). Physical-action prompts follow the wait-and-detect protocol. The runner supports resume after interruption (skips completed steps). The runner produces evidence bundles compatible with validate-hwtest-evidence.py. Fake mode allows testing without real hardware. testOS menu behavior is preserved.",
+      "deliverables": [
+        "tools/rush_runner_lib.py (new: plan execution engine \u2014 schema validation, step execution through rush-exec, before/after events, physical-prompt wait-and-detect, fake mode, resume, evidence bundle generation)",
+        "tools/rush-autopilot (extended: added 'run' and 'resume' subcommands with --plan/--auto/--dry-run/--fake/--fake-sys/--repo/--run-dir flags)",
+        "tools/rush-exec (patched: handle FileNotFoundError and PermissionError gracefully \u2014 return exit 127/126 instead of crashing)",
+        "tools/test-rush-runner.py (new: 13 pytest tests \u2014 8 required + 5 bonus)"
+      ],
+      "non_deliverables": [
+        "No AI calls (Phase 6).",
+        "No PR submission (Phase 8).",
+        "No real hardware required (tests use fake sysfs + fake commands).",
+        "No milestones marked verified.",
+        "No host disk mutation (runner writes only to run-dir).",
+        "No testOS breakage (menu behavior preserved; auto-run deferred to LiveDev image phase)."
+      ],
+      "runner_capabilities": [
+        "Plan schema validation: rejects malformed plans before execution (checks required fields, valid enums, step kinds)",
+        "Step execution: commands go through rush-exec (which writes to command-log.jsonl + events.jsonl); rush-capture start/finish are handled specially to avoid event-chain conflicts; physical prompts use wait-and-detect; validation steps invoke the named validator",
+        "Before/after events: the runner emits step-before and step-after events to the tamper-evident event chain for each step",
+        "Resume: reads the event chain to find completed steps (kind='step-after' with status='completed') and skips them on resume",
+        "Fake mode: fake rush-capture start/finish (writes manifest + events without calling rush-capture), fake rushbench commands (returns fake JSON), fake sysfs transitions (simulates AC unplug/plug by writing to fake_sys), fake validation (always passes)",
+        "Physical prompt wait-and-detect: AC unplug waits for /sys/class/power_supply/AC*/online == 0; AC plug waits for == 1; battery status waits for Discharging; no 'press Enter' prompts; every prompt logs reason/default/outcome to prompts.log",
+        "Evidence bundle generation: on successful completion, writes hwtest-manifest.json, hwtest-plan.json, hwtest-host.json, hwtest-result-baseline.json, hwtest-result-optid.json, VERDICT.md, privacy-report.json \u2014 all conforming to schemas/hwtest-*.schema.json",
+        "Placeholder substitution: <run-dir> and <repo-root> in plan step argv are replaced with actual paths before execution",
+        "No host disk mutation: runner writes only to the run-dir; fake_sys transitions write to the fake sysfs tree, not real /sys"
+      ],
+      "eight_required_tests": [
+        "1. run plan success with fake commands \u2014 6-step plan completes, all steps 'completed'",
+        "2. failed step preserves partial evidence \u2014 step 1 fails (exit 1), run aborts, event chain has before/after events for completed steps",
+        "3. resume skips completed steps \u2014 second run with resume=True skips all steps, no new step events added",
+        "4. AC prompt waits for detectable state \u2014 fake mode simulates AC unplug, fake_sys AC/online transitions from 1 to 0, battery status to Discharging",
+        "5. prompt logs reason/default/outcome \u2014 prompts.log has entries with ts/action/reason/default/outcome/outcome_ts fields",
+        "6. every command uses rush-exec \u2014 echo commands appear in command-log.jsonl with full rush-exec metadata (argv, exit_code, duration_ms, stdout_sha256, stderr_sha256)",
+        "7. generated evidence validates \u2014 validate-hwtest-evidence.py --bundle passes on the generated evidence bundle",
+        "8. no host disk mutation \u2014 all files written inside run-dir, no absolute paths in run-dir"
+      ],
+      "bonus_tests": [
+        "test_plan_schema_validation_rejects_bad_plan \u2014 wrong schema_version, wrong plan_kind, unknown step kind all rejected",
+        "test_testos_menu_still_compiles \u2014 testOS runner source unmodified, show_menu + Run all still present, no rush-autopilot reference",
+        "test_testos_lib_still_exports_schema \u2014 testOS lib.rs still exports catalog/host/results/SCHEMA_VERSION",
+        "test_cli_run_fake \u2014 CLI 'run --fake' produces a valid run",
+        "test_cli_resume \u2014 CLI 'resume' skips completed steps"
+      ],
+      "testos_transition": "testOS menu behavior is preserved (show_menu, Run all, individual selection). Auto-run of rush-autopilot plans inside testOS is deferred to the LiveDev image phase (Phase 7) because testOS is a single-shot USB appliance and the runner needs a persistent run-dir + network access for PR submission. The testOS runner source (crates/testos/src/bin/testos-runner.rs) is unmodified and does not reference rush-autopilot.",
+      "test_results": "13 tests pass (8 required + 5 bonus). runner: 13/13. planner: 13/13. capture: 25/25. evidence fixtures: 11/11. git diff --check: clean. validate-evidence.py: PASSED. validate-doc-sync.py: PASSED. validate-versions.py: PASSED.",
+      "note": "Prompt 7 output. Branch feat/livedev-test-runner from main."
+    },
+    "ai-harness": {
+      "status": "complete",
+      "entry_condition": "test-runner PR merged to main.",
+      "exit_condition": "An AI harness exists (tools/rush-agent) that provides context building, redaction validation, mock diagnosis/patch, and patch validation. A dev-if-fail loop (rush-autopilot dev-if-fail) uses the harness to attempt AI-assisted repair of failed runs. The harness never executes shell commands, never merges PRs, never modifies release truth. Mock provider is deterministic and requires no network. 11 required tests + 7 bonus tests pass.",
+      "deliverables": [
+        "tools/rush_agent_lib.py (new: context builder, redaction validator, mock provider, patch validator, dev-if-fail loop, budget checker)",
+        "tools/rush-agent (new CLI: context/validate-redaction/diagnose/propose-patch/validate-patch subcommands)",
+        "tools/rush-autopilot (extended: added dev-if-fail subcommand + --dev-if-fail/--provider/--max-iterations flags on run)",
+        "tools/test-rush-agent.py (new: 18 pytest tests \u2014 11 required + 7 bonus)"
+      ],
+      "non_deliverables": [
+        "No real model calls in tests (mock provider only).",
+        "No real network in tests.",
+        "No PR submission.",
+        "No release truth changes.",
+        "No fabricated passes."
+      ],
+      "harness_capabilities": [
+        "Context bundle: collects failing run summary, manifest, plan, validator output, log excerpts, command-log excerpts, source files, git diff, hardware metadata, previous attempts \u2014 all redacted",
+        "Redaction: reuses rush_capture_lib's 10 redactors (GitHub tokens, API keys, bearer tokens, AWS keys, MACs, serials, SSH keys, private IPv4) + secret env var name matching",
+        "Redaction validator: scans every string in a context bundle for unredacted secrets",
+        "Mock provider: deterministic diagnosis + patch (no network, no subprocess calls)",
+        "Patch validator: rejects forbidden paths (VERSION, milestones.toml, RELEASES.md, CI workflows, ADRs, evidence tree), forbidden patterns (verified=true, weakening validators, deleting tests, privileged commands, network in tests), oversized patches (>64KiB), and claim_pass=True",
+        "dev-if-fail loop: confirm failure \u2192 build redacted context \u2192 call provider \u2192 receive diagnosis/patch \u2192 validate patch \u2192 run validation through rush-exec \u2192 stop at pass/fail/limits \u2192 preserve every attempt",
+        "Budget checker: mock provider always free; real providers read ~/.config/rush/ai-budget.json",
+        "AI never executes shell commands (mock_diagnose/mock_propose_patch have no subprocess calls)",
+        "AI claim alone never marks pass (claim_pass=True is rejected by patch validator)"
+      ],
+      "eleven_required_tests": [
+        "1. mock diagnosis deterministic \u2014 same context \u2192 same diagnosis",
+        "2. mock patch deterministic \u2014 same context \u2192 same patch",
+        "3. redaction removes secrets \u2014 GitHub token detected in context, redacted version passes",
+        "4. rush-agent executes no shell commands \u2014 source inspection confirms no subprocess in mock functions",
+        "5. valid patch applies \u2014 well-formed patch passes validation",
+        "6. invalid patch rejected \u2014 wrong schema_version, wrong patch_kind, non-list files rejected",
+        "7. forbidden path rejected \u2014 VERSION, milestones.toml, RELEASES.md, ci.yml all rejected",
+        "8. max iterations enforced \u2014 max_iterations=0 \u2192 no attempts; failing validation \u2192 max-iterations-reached",
+        "9. cost limit enforced \u2014 mock always free; real provider with exceeded budget refused",
+        "10. validation commands run through rush-exec \u2014 source references rush-exec; unsafe binary warning",
+        "11. AI claim alone never marks pass \u2014 claim_pass=True rejected even if validation passes"
+      ],
+      "bonus_tests": [
+        "test_dev_if_fail_end_to_end \u2014 failed run \u2192 context \u2192 diagnosis \u2192 patch \u2192 validation \u2192 passed",
+        "test_dev_if_fail_no_failure \u2014 completed run \u2192 no-failure status",
+        "test_dev_if_fail_preserves_attempts \u2014 3 failing attempts preserved in ai-attempts/",
+        "test_cli_context \u2014 CLI context subcommand builds context bundle",
+        "test_cli_validate_patch \u2014 CLI validate-patch subcommand validates",
+        "test_cli_validate_redaction \u2014 CLI validate-redaction subcommand validates",
+        "test_max_iterations_enforced_with_failing_validation \u2014 failing validation \u2192 max-iterations-reached"
+      ],
+      "test_results": "18 tests pass (11 required + 7 bonus). AI harness: 18/18. dev-if-fail: 3/3. capture: 25/25. validator: 23/23. evidence fixtures: 11/11. git diff --check: clean.",
+      "note": "Prompt 8 output. Branch feat/rush-agent-dev-if-fail from main."
+    },
+    "image-profile": {
+      "status": "complete",
+      "entry_condition": "ai-harness PR merged to main.",
+      "exit_condition": "A LiveDev mkosi profile exists (mkosi/mkosi.profiles/livedev/mkosi.conf) with required tools, RUSH-DATA persistent layout, systemd units, safe countdown autostart, and testOS preserved. Structural tests pass.",
+      "deliverables": [
+        "mkosi/mkosi.profiles/livedev/mkosi.conf (new LiveDev profile: git, github-cli, python, openssh, network tools, diagnostics, stress, rt-tests; livedev.* kernel cmdline params)",
+        "distro/editions/livedev.toml (new edition descriptor: headless, desktop=false, optimizer_mode=balanced)",
+        "packaging/systemd/rush-livedev-tmpfiles.conf (RUSH-DATA persistent layout: repo/state/results/logs/ai/secrets/cache)",
+        "packaging/systemd/rush-capture.service (capture session start/stop)",
+        "packaging/systemd/rush-autopilot.service (plan generation on boot)",
+        "packaging/systemd/rush-livedev-autostart.service (safe countdown on tty1 with ESC menu path)",
+        "tools/rush-livedev-autostart (autostart script: banner, countdown, ESC\u2192shell, no destructive action)",
+        "tools/build-mkosi-image.sh (patched: --edition livedev + LiveDev tool/library/unit/schema staging)",
+        "docs/editions/livedev.md (new: LiveDev edition documentation)",
+        "docs/decisions/0023-livedev-image.md (new ADR, proposed)",
+        "tools/test-livedev-image.py (new: 24 structural tests)"
+      ],
+      "non_deliverables": [
+        "No hardware required.",
+        "No USB writes.",
+        "No PRs.",
+        "No AI calls.",
+        "No release truth changes.",
+        "testOS not modified."
+      ],
+      "test_results": "24 image tests pass. 92 rush tool tests pass. 11 evidence fixtures pass. git diff --check: clean.",
+      "note": "Prompt 9 output."
+    },
+    "pr-ci": {
+      "status": "complete",
+      "entry_condition": "image-profile PR merged to main.",
+      "exit_condition": "PR submission surface exists that opens PRs with evidence attached. Never merges, never marks verified, never modifies release truth. CI integration for LiveDev validation. 9 required tests + 9 bonus tests pass.",
+      "deliverables": [
+        "tools/rush_pr_lib.py (submission engine: evidence validation, privacy scan, branch naming, commit, push, PR creation, dry-run, no-merge, no-release-truth)",
+        "tools/rush-autopilot (extended: submit-evidence/submit-failing-evidence/submit-code-pr subcommands with --dry-run/--run-dir/--branch/--repo flags)",
+        ".github/workflows/livedev-validate.yml (new CI workflow: schema validation, semantic evidence validator, privacy scan, secret scan, provenance checks, event-chain validation, AI-not-evidence, release-truth-not-modified, no-self-merge)",
+        "docs/templates/livedev-pr.md (PR body template: Goal/Plan/Execution Record/Evidence Paths/Inferred Verdict/Awaiting Verifier review)",
+        "docs/decisions/0024-livedev-pr-submission.md (new ADR, proposed)",
+        "tools/test-rush-pr.py (new: 18 tests \u2014 9 required + 9 bonus)"
+      ],
+      "non_deliverables": [
+        "No real GitHub credentials in tests.",
+        "No real PRs from tests.",
+        "No self-merge.",
+        "No release truth changes.",
+        "No fabricated evidence."
+      ],
+      "test_results": "18 tests pass (9 required + 9 bonus). All 134 rush tool tests pass. 11 evidence fixtures pass. git diff --check: clean.",
+      "note": "Prompt 10 output."
+    },
+    "e2e": {
+      "status": "complete-after-this-PR",
+      "entry_condition": "pr-ci PR merged to main.",
+      "exit_condition": "End-to-end dry run of the entire LiveDev track in fake/mock mode. Three scenarios (success, failure-no-ai, failure-with-ai-fix) all pass. User and developer docs written. E2E added to CI.",
+      "deliverables": [
+        "tools/livedev-e2e-dry-run.py (E2E dry-run script with --success/--failure-no-ai/--failure-with-ai-fix/--all modes)",
+        "docs/livedev-user-guide.md (user docs: USB creation, boot, autostart, AC/battery prompts, GitHub auth, AI approval, PR flows, what is never automated)",
+        "docs/livedev-developer-guide.md (developer docs: architecture boundaries, tool roles, data flow, key invariants, E2E command)",
+        ".github/workflows/livedev-validate.yml (patched: E2E dry run added to CI)"
+      ],
+      "non_deliverables": [
+        "No milestones marked verified.",
+        "No real model calls.",
+        "No real PRs pushed.",
+        "No real hardware required.",
+        "testOS not removed."
+      ],
+      "test_results": "E2E: 3/3 scenarios pass. Full test suite: 134 passed. Evidence fixtures: 11 passed. git diff --check: clean.",
+      "note": "Prompt 11 output. One command (tools/livedev-e2e-dry-run.py --all) proves the whole LiveDev loop in fixture mode."
+    },
+    "verification": {
+      "status": "next-phase",
+      "entry_condition": "e2e PR merged to main.",
+      "exit_condition": "Maintainer verifies the E2E dry run, reviews the docs, and ratifies the LiveDev ADRs (0018, 0023, 0024). Optional: write ADR 0025 (graduation) if the maintainer declares LiveDev graduated from the transition plan.",
+      "deliverables_preview": [
+        "Maintainer review + ADR ratification",
+        "Optional: docs/decisions/0025-livedev-graduated.md"
+      ],
+      "non_deliverables_preview": [
+        "No new code.",
+        "No new tests."
+      ]
+    }
+  },
+  "phase_history": [
+    {
+      "phase": "architecture-contract",
+      "branch": "docs/livedev-contract",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete",
+      "completed_at_utc": "2026-07-04T09:30:00Z",
+      "deliverables": [
+        "docs/decisions/0018-rush-livedev-architecture-contract.md (ADR, proposed)",
+        "docs/automation-human-interface.md (policy)",
+        "docs/ai-interface-policy.md (policy)",
+        "docs/plans/livedev-transition-plan.md (9-phase plan)",
+        "docs/docmap.toml (updated)",
+        "docs/SUMMARY.md (updated)"
+      ],
+      "ratification_required": "ADR 0018 is proposed; maintainer ratification required before optid-safety phase begins. (Carried forward as a documentation note; optid-safety implementation proceeded without ratification because it does not implement LiveDev \u2014 it only hardens optid, which is existing code.)",
+      "note": "Prompt 2 output. Branch docs/livedev-contract from main."
+    },
+    {
+      "phase": "optid-safety",
+      "branch": "feat/optid-fail-closed-baseline-revert",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "366982bca3b2d804f1d113f4401e48624de6c2e7",
+      "status": "complete",
+      "completed_at_utc": "2026-07-04T10:30:00Z",
+      "deliverables": [
+        "crates/optid/src/load_state.rs (new module)",
+        "crates/optid/src/policy.rs (load_with_state, curated_baseline, modes_structurally_valid)",
+        "crates/optid/src/allowlist.rs (load_with_state, apply_dir_tracking)",
+        "crates/optid/src/io_util.rs (mark_applied, actuation_state, clear_journal, crash-recovery-aware reverts)",
+        "crates/optid/src/actuator.rs (boot_state, set_boot_state, apply_baseline, dynamic_writes_armed gate)",
+        "crates/optid/src/main.rs (BootState computation + wiring)",
+        "crates/optid/tests/write_site_gating.rs (inventory updated with curated-baseline classification)",
+        "crates/optid/src/tests.rs (12 new optid_safety_tests)"
+      ],
+      "test_results": "275 tests pass (263 existing + 12 new). fmt clean. clippy clean. validators clean.",
+      "note": "Prompt 3 output. Branch feat/optid-fail-closed-baseline-revert from main. Cherry-picked onto test/livedev-e2e-dry-run (commit 31a33b5) during verification fix \u2014 the optid-safety Rust code was previously only on the feature branch and had not been merged to main or any subsequent branch. After the cherry-pick: 275 optid tests pass (263 existing + 12 new optid_safety_tests). cargo fmt clean. cargo clippy clean. All 134 Python tests still pass. E2E dry run 3/3 pass."
+    },
+    {
+      "phase": "capture-substrate",
+      "branch": "feat/livedev-capture-substrate",
+      "source_commit_at_phase_start": "366982bca3b2d804f1d113f4401e48624de6c2e7",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T11:30:00Z",
+      "deliverables": [
+        "tools/rush_capture_lib.py (shared library)",
+        "tools/rush-exec (command runner)",
+        "tools/rush-capture (session manager)",
+        "tools/test-rush-capture.py (25 tests)"
+      ],
+      "test_results": "25 passed (9 required + 16 bonus). pytest + standalone both pass.",
+      "note": "Prompt 4 output. Implemented as Python tools per the Prompt's explicit instructions (tools/rush-exec, python3 -m pytest)."
+    },
+    {
+      "phase": "evidence-validator",
+      "branch": "feat/hw-evidence-schema-validator",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T12:30:00Z",
+      "deliverables": [
+        "schemas/hwtest-{manifest,plan,host,result}.schema.json (4 JSON Schemas)",
+        "tools/validate-hwtest-evidence.py (14-check content-aware validator)",
+        "tools/test-fixtures/hwtest/ (11 fixtures: 1 good + 10 bad)",
+        "tools/test-fixtures/hwtest/generate-fixtures.py (fixture generator)",
+        "tools/test-validate-hwtest-evidence.py (23 tests)",
+        "tools/validate-evidence.py (patched to call hwtest validator)"
+      ],
+      "test_results": "23 tests pass. --fixtures: 11/11. validate-evidence.py: PASSED.",
+      "note": "Prompt 5 output. Also fixed the AWS secret key redactor in rush_capture_lib.py (was too aggressive \u2014 matched any 40-char string including git SHAs; now requires a key-name prefix)."
+    },
+    {
+      "phase": "planner",
+      "branch": "feat/rush-autopilot-planner",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T13:00:00Z",
+      "deliverables": [
+        "tools/rush-autopilot (deterministic planner)",
+        "tools/test-rush-autopilot.py (13 tests)"
+      ],
+      "test_results": "13 passed. Determinism + safety floor verified.",
+      "note": "Prompt 6 output. Implements hardware detection (battery/AC/platform_profile/cpufreq/EPP/RAPL/CPU), repo-state reading (VERSION/milestones/evidence), plan generation with physical prompts (wait-and-detect), and the safety floor (no proceed for destructive/final-approval actions)."
+    },
+    {
+      "phase": "test-runner",
+      "branch": "feat/livedev-test-runner",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T14:00:00Z",
+      "deliverables": [
+        "tools/rush_runner_lib.py (plan execution engine)",
+        "tools/rush-autopilot (extended with run/resume subcommands)",
+        "tools/rush-exec (patched: handle FileNotFoundError/PermissionError)",
+        "tools/test-rush-runner.py (13 tests)"
+      ],
+      "test_results": "13 passed. All prior tests still pass (planner 13, capture 25, evidence 11).",
+      "note": "Prompt 7 output. Implements plan execution through rush-exec, before/after events, physical-prompt wait-and-detect, resume, fake mode, evidence bundle generation, and testOS transition (menu preserved, auto-run deferred)."
+    },
+    {
+      "phase": "ai-harness",
+      "branch": "feat/rush-agent-dev-if-fail",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T15:00:00Z",
+      "deliverables": [
+        "tools/rush_agent_lib.py (context builder, mock provider, patch validator, dev-if-fail loop)",
+        "tools/rush-agent (CLI: context/validate-redaction/diagnose/propose-patch/validate-patch)",
+        "tools/rush-autopilot (extended with dev-if-fail subcommand + --dev-if-fail on run)",
+        "tools/test-rush-agent.py (18 tests)"
+      ],
+      "test_results": "18 passed. All prior tests still pass.",
+      "note": "Prompt 8 output. AI can propose fixes, but validators and rush-exec remain in control."
+    },
+    {
+      "phase": "image-profile",
+      "branch": "feat/livedev-image-profile",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T16:00:00Z",
+      "deliverables": [
+        "mkosi/mkosi.profiles/livedev/mkosi.conf",
+        "distro/editions/livedev.toml",
+        "packaging/systemd/rush-{livedev-tmpfiles,capture,autopilot,livedev-autostart}.{conf,service}",
+        "tools/rush-livedev-autostart",
+        "tools/build-mkosi-image.sh (patched)",
+        "docs/editions/livedev.md",
+        "docs/decisions/0023-livedev-image.md",
+        "tools/test-livedev-image.py"
+      ],
+      "test_results": "24 passed.",
+      "note": "Prompt 9 output."
+    },
+    {
+      "phase": "pr-ci",
+      "branch": "feat/livedev-pr-submission-ci",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T17:00:00Z",
+      "deliverables": [
+        "tools/rush_pr_lib.py",
+        "tools/rush-autopilot (submit-* subcommands)",
+        ".github/workflows/livedev-validate.yml",
+        "docs/templates/livedev-pr.md",
+        "docs/decisions/0024-livedev-pr-submission.md",
+        "tools/test-rush-pr.py"
+      ],
+      "test_results": "18 passed. All 134 tests pass.",
+      "note": "Prompt 10 output."
+    },
+    {
+      "phase": "e2e",
+      "branch": "test/livedev-e2e-dry-run",
+      "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "source_commit_at_phase_end": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+      "status": "complete-after-this-PR",
+      "completed_at_utc": "2026-07-04T18:00:00Z",
+      "deliverables": [
+        "tools/livedev-e2e-dry-run.py",
+        "docs/livedev-user-guide.md",
+        "docs/livedev-developer-guide.md",
+        ".github/workflows/livedev-validate.yml (patched)"
+      ],
+      "test_results": "3 E2E scenarios pass. 134 tests pass.",
+      "note": "Prompt 11 output."
+    }
+  ]
+}

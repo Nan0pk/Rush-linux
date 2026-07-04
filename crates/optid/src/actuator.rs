@@ -19,7 +19,10 @@ use crate::actuators::{display, runtime_pm, storage};
 use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
-use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, guarded_write};
+use crate::io_util::{
+    append_log, atomic_write_state_file, get_path_hash, guarded_write, mark_applied,
+};
+use crate::load_state::BootState;
 use crate::sensors::{discover_cpu_epp_paths, now_unix};
 
 pub(crate) trait PmqosSink {
@@ -93,6 +96,13 @@ pub(crate) struct Actuator {
     /// are default-denied unless the device HWID is allowlisted, and every
     /// denial is appended to `audit_path` with its reason.
     pub(crate) allowlist: Option<Allowlist>,
+    /// optid-safety: the boot-time decision surface. `None` until
+    /// `set_boot_state` is called from `main`. When `None`, the actuator
+    /// behaves as before (dynamic writes gated only by `--apply` and the
+    /// allowlist). When `Some(_)`, dynamic writes are additionally gated by
+    /// `boot_state.apply_armed`. The curated baseline is gated by
+    /// `boot_state.baseline_armed` and applied via `apply_baseline`.
+    pub(crate) boot_state: Option<BootState>,
 }
 
 impl Actuator {
@@ -111,6 +121,7 @@ impl Actuator {
             last_sata_alpm: HashMap::new(),
             last_backlight: HashMap::new(),
             allowlist: None,
+            boot_state: None,
         }
     }
 
@@ -130,6 +141,7 @@ impl Actuator {
             last_sata_alpm: HashMap::new(),
             last_backlight: HashMap::new(),
             allowlist: None,
+            boot_state: None,
         }
     }
 
@@ -137,6 +149,116 @@ impl Actuator {
     /// allowlist. Called from `main` when `--allowlist` is set.
     pub(crate) fn enable_allowlist(&mut self, allowlist: Allowlist) {
         self.allowlist = Some(allowlist);
+    }
+
+    /// optid-safety: install the boot-time decision surface. After this call,
+    /// `apply()` checks `boot_state.apply_armed` before performing any dynamic
+    /// write, and `apply_baseline()` checks `boot_state.baseline_armed` before
+    /// applying the curated baseline.
+    pub(crate) fn set_boot_state(&mut self, boot_state: BootState) {
+        self.boot_state = Some(boot_state);
+    }
+
+    /// optid-safety: apply the curated baseline. This is a small, fixed set of
+    /// conservative writes that put the system into a known-good state at
+    /// startup. It is independent of the per-cycle `Action`s produced by
+    /// `Policy::decide_resolved`.
+    ///
+    /// Currently the curated baseline writes:
+    /// - `/proc/sys/vm/swappiness` = 100 (the balanced-mode default; the
+    ///   curated baseline uses balanced values for all four modes).
+    ///
+    /// The curated baseline is gated by `boot_state.baseline_armed`. If
+    /// `boot_state` is `None` (the actuator was constructed without
+    /// `set_boot_state`), this is a no-op logged as "boot state not set".
+    /// If `baseline_armed` is `false` (dry-run), this is a no-op logged as
+    /// "baseline disarmed (dry-run)".
+    ///
+    /// Returns `Ok(())` on success. A failure to write the baseline is
+    /// logged but does NOT propagate — the daemon should still start so the
+    /// operator can diagnose.
+    pub(crate) fn apply_baseline(&mut self) -> io::Result<()> {
+        let armed = match self.boot_state.as_ref() {
+            None => return Ok(()),
+            Some(bs) => bs.baseline_armed,
+        };
+        if !armed {
+            // Dry-run: skip silently. The boot summary in decisions.log
+            // already records that baseline_armed=false; logging here would
+            // pollute actions.log and break the "dry-run produces no actions"
+            // contract that tests rely on.
+            return Ok(());
+        }
+
+        // Curated baseline write 1: vm.swappiness = 100 (balanced default).
+        // The journal + applied marker ensure crash-consistent revert.
+        let path = Path::new("/proc/sys/vm/swappiness");
+        let key = "vm_swappiness";
+        let value = "100";
+
+        // Read current value (best-effort).
+        let old_value = fs::read_to_string(path)
+            .ok()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+
+        // Journal original if not already journaled.
+        let orig_file = self.state_dir.join(format!("original_{key}"));
+        if !orig_file.exists() {
+            if let Ok(current_val) = fs::read_to_string(path) {
+                let _ = atomic_write_state_file(&orig_file, current_val.trim());
+            }
+        }
+
+        // Write intended.
+        let intended_file = self.state_dir.join(format!("intended_{key}"));
+        let _ = atomic_write_state_file(&intended_file, value);
+
+        // Apply.
+        match guarded_write(path, value) {
+            Ok(_) => {
+                mark_applied(&self.state_dir, key, value);
+                self.log(&format!(
+                    "baseline: write {} = {value} (was {old_value})",
+                    path.display()
+                ))?;
+            }
+            Err(e) => {
+                self.log(&format!("baseline: skip {path:?}: write failed: {e}"))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// optid-safety: gate dynamic `Action`s on `boot_state.apply_armed`.
+    /// Returns `Ok(true)` when the action may proceed, `Ok(false)` when it
+    /// must be skipped (with a logged reason), and `Err` on I/O failure
+    /// during the log write.
+    ///
+    /// When `boot_state` is `None` (legacy callers, integration tests), the
+    /// gate is open — the actuator behaves as before. This preserves
+    /// back-compat for tests that construct an `Actuator` directly without
+    /// calling `set_boot_state`.
+    fn dynamic_writes_armed(&mut self) -> io::Result<bool> {
+        match self.boot_state.as_ref() {
+            None => Ok(true),
+            Some(bs) => {
+                if bs.apply_armed {
+                    Ok(true)
+                } else {
+                    self.log(&format!(
+                        "skip dynamic write: apply_armed=false \
+                         (policy_load_state={} allowlist_load_state={} allowlist_gate={} baseline_armed={})",
+                        bs.policy_load_state,
+                        bs.allowlist_load_state,
+                        bs.allowlist_gate_enabled,
+                        bs.baseline_armed,
+                    ))?;
+                    Ok(false)
+                }
+            }
+        }
     }
 
     /// The WP-N4 safety gate (SPEC §3 clause 2). Returns `true` when actuation
@@ -216,6 +338,15 @@ impl Actuator {
     }
 
     pub(crate) fn apply(&mut self, action: &Action) -> io::Result<()> {
+        // optid-safety: gate ALL dynamic Actions on boot_state.apply_armed.
+        // This is the single chokepoint — there is no alternate actuator path
+        // that bypasses this gate. When apply_armed is false (config failure,
+        // dry-run, or competing-daemon downgrade), every Action is skipped
+        // with a logged reason. The curated baseline is applied separately
+        // via apply_baseline(), gated by baseline_armed.
+        if !self.dynamic_writes_armed()? {
+            return Ok(());
+        }
         match action {
             Action::CpuEpp { value, .. } => {
                 let paths = discover_cpu_epp_paths();
@@ -331,6 +462,7 @@ impl Actuator {
                     .to_string();
                 match guarded_write(path, value) {
                     Ok(_) => {
+                        mark_applied(&self.state_dir, &key, value);
                         self.log(&format!(
                             "write {} = {value} (was {old_value})",
                             path.display()
@@ -361,6 +493,10 @@ impl Actuator {
                     match self.pmqos_sink.write_cpu_latency(*value) {
                         Ok(_) => {
                             self.last_cpu_latency = Some(*value);
+                            // optid-safety: mark applied so crash recovery
+                            // knows the write landed. The PM QoS sink has no
+                            // stable sysfs path; the journal key is fixed.
+                            mark_applied(&self.state_dir, "cpu_dma_latency", &val_str);
                             self.log(&format!(
                                 "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
                             ))?;
@@ -421,6 +557,7 @@ impl Actuator {
                     match self.pmqos_sink.write_device_latency(path, &val_str) {
                         Ok(_) => {
                             self.last_device_latencies.insert(path.clone(), *value);
+                            mark_applied(&self.state_dir, &key, &val_str);
                             self.log(&format!(
                                 "write {} = {val_str} (was {old_value}) reason: {reason}",
                                 path.display()
@@ -510,6 +647,8 @@ impl Actuator {
                     Ok(_) => {
                         self.last_runtime_pm
                             .insert(device_dir.clone(), *autosuspend_delay_ms);
+                        let rpm_key = format!("rpm_{hash}");
+                        mark_applied(&self.state_dir, &rpm_key, &format!("auto\n{delay_str}"));
                         self.log(&format!(
                             "write {} control=auto autosuspend_delay_ms={delay_str} reason: {reason}",
                             device_dir.display()
@@ -570,6 +709,8 @@ impl Actuator {
                 match guarded_write(&aspm_path, val) {
                     Ok(_) => {
                         self.last_pcie_aspm.insert(device_dir.clone(), *enable);
+                        let aspm_key = format!("aspm_{hash}");
+                        mark_applied(&self.state_dir, &aspm_key, val);
                         self.log(&format!(
                             "write {} l1_aspm={val} reason: {reason}",
                             aspm_path.display()
@@ -622,6 +763,8 @@ impl Actuator {
                 match guarded_write(&policy_path, policy) {
                     Ok(_) => {
                         self.last_sata_alpm.insert(host_dir.clone(), policy.clone());
+                        let alpm_key = format!("alpm_{hash}");
+                        mark_applied(&self.state_dir, &alpm_key, policy);
                         self.log(&format!(
                             "write {} policy={policy} reason: {reason}",
                             policy_path.display()
@@ -686,6 +829,8 @@ impl Actuator {
                 match guarded_write(&bright_path, &target_str) {
                     Ok(_) => {
                         self.last_backlight.insert(device_dir.clone(), target);
+                        let bl_key = format!("bl_{hash}");
+                        mark_applied(&self.state_dir, &bl_key, &target_str);
                         self.log(&format!(
                             "write {} brightness={target_str} (target {target_pct}% of {max}) reason: {reason}",
                             bright_path.display()

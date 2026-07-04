@@ -1,0 +1,17 @@
+{
+  "baseline_result_path": "hwtest-result-baseline.json",
+  "bundle_created_at": "2026-07-04T12:30:00Z",
+  "events_path": "events.jsonl",
+  "hardware_slot": "laptop",
+  "host_path": "hwtest-host.json",
+  "manifest_kind": "hwtest-manifest",
+  "notes": "TEST FIXTURE \u2014 not real evidence.",
+  "operator": "test-fixture",
+  "optid_result_path": "hwtest-result-optid.json",
+  "plan_path": "hwtest-plan.json",
+  "privacy_report_path": "privacy-report.json",
+  "schema_version": 1,
+  "source_commit": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
+  "source_version": "0.7.0-beta.1",
+  "verdict_path": "VERDICT.md"
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Rush LiveDev autostart (safe countdown before autopilot)
+Documentation=docs/editions/livedev.md
+After=multi-user.target systemd-networkd.service
+Before=rush-capture.service rush-autopilot.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rush-livedev-autostart
+RemainAfterExit=yes
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Environment=RUSH_DATA=/RUSH-DATA
+
+[Install]
+WantedBy=multi-user.target

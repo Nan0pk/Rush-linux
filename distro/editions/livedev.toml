@@ -1,0 +1,34 @@
+# LiveDev edition — Rush Linux
+#
+# A minimal bootable Rush Linux skeleton for continuous LiveDev operation.
+# Not a consumer distribution; the long-term successor path to testOS.
+# See docs/editions/livedev.md for the full description.
+
+[edition]
+name = "livedev"
+description = "Minimal bootable skeleton for LiveDev benchmark campaigns, evidence capture, and AI-assisted development"
+
+[defaults]
+filesystem = "ext4"
+network = "systemd-networkd"
+firewall = "nftables"
+optimizer_mode = "balanced"
+desktop = false
+
+[packages]
+required = [
+    "git",
+    "github-cli",
+    "python",
+    "openssh",
+    "iproute2",
+    "iputils",
+    "curl",
+    "jq",
+    "optid",
+    "optctl",
+    "rush-exec",
+    "rush-capture",
+    "rush-autopilot",
+    "rush-agent",
+]

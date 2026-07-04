@@ -28,6 +28,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
+use crate::load_state::LoadState;
+
 /// Action stored in a compiled-in seeded entry. Mirrors `EntryAction` but is a
 /// `'static`-friendly type the generated table can reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,19 +197,55 @@ impl Allowlist {
 
     /// Production load: seeded baseline + the default override directories
     /// (distro then admin), applied in precedence order.
+    #[allow(dead_code)]
     pub(crate) fn load() -> Self {
-        Self::load_from(DEFAULT_OVERRIDE_DIRS)
+        Self::load_with_state(DEFAULT_OVERRIDE_DIRS).0
+    }
+
+    /// Production load with explicit `LoadState`. Returns the loaded allowlist
+    /// and a state describing how the load went:
+    ///
+    /// - `Ok` — every override directory either did not exist or parsed
+    ///   cleanly. The seeded baseline + all overrides are in effect.
+    /// - `Defaulted` — never returned for the allowlist (the seeded baseline
+    ///   is always present, compiled into the binary). Reserved for future
+    ///   use.
+    /// - `Partial` — at least one override file was present but unparseable
+    ///   or structurally invalid. The seeded baseline + the parseable
+    ///   overrides are in effect; the malformed override was skipped with a
+    ///   stderr warning. Dynamic writes are disabled because the operator's
+    ///   intent is ambiguous.
+    /// - `Invalid` — never returned today (a fully-invalid allowlist would
+    ///   require the seeded baseline itself to be unparseable, which is a
+    ///   compile-time error). Reserved for future use.
+    ///
+    /// The allowlist gate is consulted by the run loop's `BootState`
+    /// computation: if `allowlist_load_state != Ok`, `apply_armed` is
+    /// disarmed even if the policy loaded cleanly.
+    pub(crate) fn load_with_state<P: AsRef<Path>>(dirs: &[P]) -> (Self, LoadState) {
+        let mut al = Self::seeded();
+        let mut saw_partial = false;
+        for dir in dirs {
+            let p = dir.as_ref();
+            let partial = al.apply_dir_tracking(p);
+            if partial {
+                saw_partial = true;
+            }
+        }
+        let state = if saw_partial {
+            LoadState::Partial
+        } else {
+            LoadState::Ok
+        };
+        (al, state)
     }
 
     /// Load the seeded baseline then apply each override directory in order.
     /// Later directories (and lexicographically later files within a directory)
     /// win. Exposed for tests so they can point at temp dirs.
+    #[allow(dead_code)]
     pub(crate) fn load_from<P: AsRef<Path>>(dirs: &[P]) -> Self {
-        let mut al = Self::seeded();
-        for dir in dirs {
-            al.apply_dir(dir.as_ref());
-        }
-        al
+        Self::load_with_state(dirs).0
     }
 
     /// Apply every `*.toml` file in `dir` in lexicographic order. Missing dirs
@@ -215,9 +253,14 @@ impl Allowlist {
     /// Unparseable files are skipped with a stderr warning rather than aborting
     /// — a corrupt drop-in must never break the daemon, only lose its overrides
     /// (mirrors `Contracts::load`).
-    fn apply_dir(&mut self, dir: &Path) {
+    ///
+    /// Returns `true` if any file in the directory was present but unparseable
+    /// or contained invalid entries (the `Partial` load state). The seeded
+    /// baseline and any parseable overrides are still applied; only the
+    /// malformed file is skipped.
+    fn apply_dir_tracking(&mut self, dir: &Path) -> bool {
         let Ok(read) = fs::read_dir(dir) else {
-            return;
+            return false;
         };
         let mut files: Vec<_> = read
             .filter_map(Result::ok)
@@ -225,12 +268,14 @@ impl Allowlist {
             .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("toml"))
             .collect();
         files.sort();
+        let mut saw_partial = false;
         for path in files {
             let source = path.display().to_string();
             let text = match fs::read_to_string(&path) {
                 Ok(t) => t,
                 Err(e) => {
                     eprintln!("optid: skipping allowlist override {source}: {e}");
+                    saw_partial = true;
                     continue;
                 }
             };
@@ -238,6 +283,7 @@ impl Allowlist {
                 Ok(p) => p,
                 Err(e) => {
                     eprintln!("optid: skipping malformed allowlist override {source}: {e}");
+                    saw_partial = true;
                     continue;
                 }
             };
@@ -249,6 +295,7 @@ impl Allowlist {
                         eprintln!(
                             "optid: skipping allowlist entry in {source}: invalid action {other:?}"
                         );
+                        saw_partial = true;
                         continue;
                     }
                 };
@@ -267,6 +314,16 @@ impl Allowlist {
                 );
             }
         }
+        saw_partial
+    }
+
+    /// Back-compat wrapper for callers that don't need the partial flag.
+    /// Kept so the existing `apply_dir` name still resolves if anything
+    /// outside this module referenced it (nothing does today, but the
+    /// function is `pub(crate)`-adjacent and the rename is mechanical).
+    #[allow(dead_code)]
+    fn apply_dir(&mut self, dir: &Path) {
+        let _ = self.apply_dir_tracking(dir);
     }
 
     /// The effective allowlist version (the seeded baseline's version string).
