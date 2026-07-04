@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "bench_id": "nginx-rps",
+  "bench_name": "nginx — requests per second",
+  "scenario": "server-throughput",
+  "status": "pass",
+  "started_at": "2026-07-04T23:55:41Z",
+  "finished_at": "2026-07-04T23:55:42Z",
+  "elapsed_seconds": 1.234121427,
+  "value": 58965.05,
+  "unit": "numeric",
+  "stdout": "58965.05\n",
+  "stderr": "",
+  "exit_code": 0,
+  "host": {
+    "kernel": "7.0.14-arch1-1",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "HP 8BC2",
+    "battery_design_uwh": 70070000,
+    "fingerprint": "700e5013535e9e96"
+  }
+}
