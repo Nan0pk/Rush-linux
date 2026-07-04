@@ -345,17 +345,15 @@ We are looking for kernel engineers, Rustaceans, and systems programmers who val
 
 ---
 
-## LiveDev
-
-For the current Rush LiveDev operator workflow, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
-
-Quick start:
+## Current LiveDev operator path
 
 ```sh
-python3 tools/livedev-next          # check repo state + next commands
-python3 tools/livedev-next --mock   # run mock tests (no hardware, no network)
-python3 tools/livedev-next --plan   # generate a benchmark plan
+python3 tools/livedev-next
+python3 tools/livedev-next --mock
+python3 tools/livedev-next --plan
 ```
+
+For the full runbook, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
 
 ---
 

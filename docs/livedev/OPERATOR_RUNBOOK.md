@@ -23,6 +23,23 @@ This prints the repo state, checks that all required LiveDev tools are present, 
 | Full E2E dry run | `python3 tools/livedev-e2e-dry-run.py --all` |
 | Validate evidence fixtures | `python3 tools/validate-hwtest-evidence.py --fixtures` |
 
+## What exists today
+
+- **Planner** (`rush-autopilot plan`) — reads repo state + hardware, generates a typed plan. Wired.
+- **Runner** (`rush-autopilot run`) — executes plans through `rush-exec`, captures sessions through `rush-capture`. Wired (fake mode works; real hardware requires actual hardware).
+- **Evidence validator** (`validate-hwtest-evidence.py`) — 14 semantic checks on evidence bundles. Wired.
+- **AI harness** (`rush-agent`) — mock provider for dev-if-fail repair. Wired (mock only; real providers not ratified).
+- **PR submission** (`rush-autopilot submit-evidence`) — dry-run and real submission. Wired.
+- **LiveDev image** (`mkosi/mkosi.profiles/livedev/`) — mkosi profile skeleton. Created but not yet built on real hardware.
+- **E2E dry run** (`livedev-e2e-dry-run.py`) — three scenarios that exercise the full loop in fake/mock mode. Wired.
+
+## What is not wired yet
+
+- **Real AI providers** — only the mock provider is available. Real providers (OpenAI, Anthropic, etc.) require maintainer ratification via an ADR.
+- **Real hardware evidence** — no physical hardware transcripts have been submitted. The v0.6.0-beta.1 milestone criteria remain `verified = false`.
+- **LiveDev image boot** — the mkosi profile exists but has not been built or booted on real hardware.
+- **Milestone close** — milestone-close PRs (flipping `verified = true`) are separate from evidence PRs and require explicit maintainer approval.
+
 ## After clone
 
 ```sh
@@ -107,10 +124,6 @@ Do not set the token in the environment before that point.
 - **No release-truth edit** — `VERSION`, `Cargo.toml` workspace version, `RELEASES.md`, `release/milestones.toml`, `release/test-tiers.toml`, `.github/workflows/ci.yml`, ADR `Status:` lines are all forbidden paths.
 - **No fabricated hardware evidence** — all evidence must come from a real run directory produced by `rush-autopilot run`.
 
-## Current state
+## testOS compatibility
 
-- LiveDev foundation is infrastructure.
-- It claims no real hardware evidence.
-- Hardware evidence must be submitted in a separate evidence PR.
-- Milestone/release truth must be changed only in a separate maintainer-approved PR.
-- testOS is NOT replaced or deprecated. It remains the "Try it on real hardware" target.
+testOS is NOT replaced or deprecated by LiveDev. testOS remains the "Try it on real hardware" target. LiveDev is a parallel track for continuous operation. The two coexist.
