@@ -706,3 +706,66 @@ deps = ["docs/research/0020-third-pass-tech-debt-audit.md", "release/milestones.
 freshens = ["release/evidence/README.md", "tools/validate-evidence.py"]
 last_verified = "2026-07-02"
 validator = "optional_file"
+
+[docs."docs/decisions/0018-rush-livedev-architecture-contract.md"]
+purpose = "ADR: scope Rush LiveDev as the long-term successor path to testOS — minimal bootable skeleton, can test hardware/capture evidence/sync with repo/submit PRs/optionally use online AI; hard limits: no self-verify, no self-merge, no host-disk mutation by default. testOS remains available during transition."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md", "docs/decisions/0014-image-composition-mkosi-arch.md", "docs/decisions/0016-retire-epic-issues-to-spec.md", "docs/decisions/0017-rush-telemetry-fate.md", "docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md", "docs/automation-human-interface.md", "docs/ai-interface-policy.md", "testos/README.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/plans/livedev-progress.json", "ROADMAP.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/automation-human-interface.md"]
+purpose = "Policy: boundary between what the system may infer and what requires a human — humans handle physical actions, secrets, money, destructive confirmation, and final approval; physical prompts wait for detectable state; every prompt logs reason/default/outcome."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/ai-interface-policy.md"]
+freshens = ["docs/agent-protocol.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/ai-interface-policy.md"]
+purpose = "Policy: AI interface is CLI/harness-based (not browser-chat); browser only for auth and PR viewing; online AI providers for serious model work; tests must use a mock provider; no local LLM inference during benchmarks; AI cannot verify evidence, execute shell commands, merge PRs, or change release truth."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0013-detection-and-ml-boundary.md", "docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/automation-human-interface.md"]
+freshens = ["docs/agent-protocol.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-transition-plan.md"]
+purpose = "LiveDev transition plan: exact 9-phase build sequence (optid-safety → rush-exec/rush-capture → evidence schema/validator → autopilot planner → plan runner/testOS transition → AI harness → LiveDev image/profile → PR submission/CI → E2E dry run). Phases are fixed-order with explicit entry/exit conditions and deliverables."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/automation-human-interface.md", "docs/ai-interface-policy.md", "docs/plans/livedev-progress.json", "docs/plans/livedev-workspace-enablement.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/plans/livedev-progress.json", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-workspace-enablement.md"]
+purpose = "LiveDev workspace-enablement plan (Prompt 1 output): repo map, reusable assets, missing components, safety-sensitive areas, testOS role (preserved), evidence/release/version state (untouched), tool availability, proposed build sequence. Companion to livedev-progress.json."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/plans/livedev-progress.json", "docs/plans/livedev-transition-plan.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/plans/livedev-progress.json"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-progress.json"]
+purpose = "LiveDev machine-readable phase handoff: current_phase, next_phase, source_commit, working branch, verified repo paths, missing components, reusable assets, safety-sensitive areas, tool availability, baseline commands, proposed build sequence, per-phase state."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md"]
+freshens = ["docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."testos/README.md"]
+purpose = "testOS — real-hardware benchmark environment for Rush Linux: bootable USB image, single-shot appliance, results-to-USB workflow. Canonical record of what testOS is and is not; LiveDev (ADR 0018) does not modify testOS's role."
+owner_area = "area:release"
+covers_code = ["crates/testos/", "testos/", ".github/workflows/release-testos.yml"]
+deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md"]
+freshens = ["README.md", "release/evidence/README.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"

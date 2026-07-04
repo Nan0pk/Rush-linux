@@ -1,0 +1,7 @@
+{
+  "description": "Missing manifest \u2014 check 1 fails.",
+  "expect_errors": [
+    "missing required file: hwtest-manifest.json"
+  ],
+  "expect_pass": false
+}

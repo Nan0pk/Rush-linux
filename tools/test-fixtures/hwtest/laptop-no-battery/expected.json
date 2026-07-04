@@ -1,0 +1,7 @@
+{
+  "description": "Laptop slot with no battery \u2014 check 6 fails.",
+  "expect_errors": [
+    "laptop slot requires battery_design_uwh"
+  ],
+  "expect_pass": false
+}

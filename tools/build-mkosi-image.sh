@@ -7,6 +7,7 @@
 # Usage:
 #   sudo bash tools/build-mkosi-image.sh                     # server (default)
 #   sudo bash tools/build-mkosi-image.sh --edition desktop   # desktop
+#   sudo bash tools/build-mkosi-image.sh --edition livedev   # LiveDev (benchmark/CI)
 #   sudo bash tools/build-mkosi-image.sh --edition server --clean  # full rebuild
 #
 # Prerequisites (Arch host):
@@ -37,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [--edition server|desktop] [--clean]"
+            echo "Usage: $0 [--edition server|desktop|livedev] [--clean]"
             exit 0
             ;;
         *)
@@ -146,6 +147,55 @@ PRETTY_NAME="Rush Linux ${VERSION}"
 HOME_URL="https://github.com/Nan0pk/Rush-linux"
 BUG_REPORT_URL="https://github.com/Nan0pk/Rush-linux/issues"
 EOF
+
+# ── LiveDev edition: install rush-* tools + support libraries + units ─
+if [[ "${EDITION}" == "livedev" ]]; then
+    echo "   Staging LiveDev tools..."
+
+    # Rush LiveDev Python tools (installed to /usr/bin)
+    for tool in rush-exec rush-capture rush-autopilot rush-agent rush-livedev-autostart; do
+        install -m0755 "${REPO_ROOT}/tools/${tool}" "${EXTRA_DIR}/usr/bin/${tool}"
+    done
+
+    # Rush LiveDev Python support libraries (installed to /usr/lib/rush)
+    mkdir -p "${EXTRA_DIR}/usr/lib/rush"
+    for lib in rush_capture_lib.py rush_runner_lib.py rush_agent_lib.py; do
+        install -m0644 "${REPO_ROOT}/tools/${lib}" "${EXTRA_DIR}/usr/lib/rush/${lib}"
+    done
+
+    # Evidence validator + schemas
+    install -m0755 "${REPO_ROOT}/tools/validate-hwtest-evidence.py" "${EXTRA_DIR}/usr/bin/validate-hwtest-evidence"
+    mkdir -p "${EXTRA_DIR}/usr/share/rush/schemas"
+    for schema in "${REPO_ROOT}"/schemas/hwtest-*.schema.json; do
+        install -m0644 "${schema}" "${EXTRA_DIR}/usr/share/rush/schemas/$(basename "${schema}")"
+    done
+
+    # LiveDev systemd units
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-capture.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-capture.service"
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-autopilot.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-autopilot.service"
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-autostart.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-livedev-autostart.service"
+
+    # RUSH-DATA tmpfiles
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/rush-livedev.conf"
+
+    # Enable LiveDev services in the preset
+    cat >> "${EXTRA_DIR}/usr/lib/systemd/system-preset/00-rush.preset" << 'EOF'
+enable rush-livedev-autostart.service
+enable rush-capture.service
+enable rush-autopilot.service
+EOF
+
+    # Symlink LiveDev service enablement
+    ln -sf /usr/lib/systemd/system/rush-livedev-autostart.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-livedev-autostart.service"
+    ln -sf /usr/lib/systemd/system/rush-capture.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-capture.service"
+    ln -sf /usr/lib/systemd/system/rush-autopilot.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-autopilot.service"
+
+    # PYTHONPATH for rush-* tools to find their support libraries
+    mkdir -p "${EXTRA_DIR}/etc/profile.d"
+    echo 'export PYTHONPATH="/usr/lib/rush:${PYTHONPATH}"' > "${EXTRA_DIR}/etc/profile.d/rush-livedev.sh"
+
+    echo "   Done."
+fi
 
 # fstab (systemd-gpt-auto-generator handles root=, but explicit is clearer for VMs)
 cat > "${EXTRA_DIR}/etc/fstab" << 'EOF'

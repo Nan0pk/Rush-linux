@@ -12,17 +12,29 @@ Also scans release/milestones.toml and release/evidence/**/*.md for any
 blind spot left by the markdown-link checker, which does not inspect paths
 inside code blocks, tables, or TOML strings).
 
+evidence-validator phase (Prompt 5): also calls tools/validate-hwtest-evidence.py
+for every hardware evidence bundle (any directory under release/evidence/host-bench/
+that contains a hwtest-manifest.json file). The hardware validator performs
+content-aware validation (manifest parses, source version/commit exist, hardware
+slot valid, laptop battery present, battery/AC runs match power source, baseline/
+optid paired, sample count sufficient, results parse, privacy report exists,
+secrets absent, AI not evidence, event chain intact).
+
 Exit non-zero on any violation. This is a required CI status check; it runs on
 every push and PR with no path filter and cannot be skipped by editing a doc.
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 import tomllib
 
 MILESTONES = Path("release/milestones.toml")
 EVIDENCE_DIR = Path("release/evidence")
+HOST_BENCH_DIR = EVIDENCE_DIR / "host-bench"
+HWTEST_VALIDATOR = Path("tools/validate-hwtest-evidence.py")
+ROOT = Path(__file__).resolve().parent.parent
 
 # Matches a repo-relative evidence path mention in free text / TOML / markdown.
 PATH_RE = re.compile(r"release/evidence/[A-Za-z0-9._/\-]+")
@@ -96,6 +108,51 @@ def check_path_mentions_resolve() -> list[str]:
     return errors
 
 
+def check_hwtest_evidence_bundles() -> list[str]:
+    """evidence-validator phase: call tools/validate-hwtest-evidence.py for every
+    hardware evidence bundle under release/evidence/host-bench/ that contains a
+    hwtest-manifest.json file. Returns a list of error strings (empty if no
+    bundles or all pass).
+
+    Skips the _TEMPLATE/ directory (it's a shape template, not evidence).
+    """
+    errors: list[str] = []
+    if not HOST_BENCH_DIR.exists():
+        return errors
+
+    # Find every directory containing hwtest-manifest.json, excluding _TEMPLATE.
+    bundles = []
+    for p in HOST_BENCH_DIR.rglob("hwtest-manifest.json"):
+        if "_TEMPLATE" in p.parts:
+            continue
+        bundles.append(p.parent)
+
+    if not bundles:
+        return errors
+
+    for bundle in sorted(bundles):
+        rel = bundle.relative_to(ROOT)
+        try:
+            r = subprocess.run(
+                ["python3", str(HWTEST_VALIDATOR), "--bundle", str(bundle)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=str(ROOT),
+            )
+            if r.returncode != 0:
+                # Collect the validator's error lines.
+                for line in r.stdout.splitlines() + r.stderr.splitlines():
+                    if line.strip().startswith("error:"):
+                        errors.append(f"{rel}: {line.strip()}")
+                if not any("error:" in l for l in r.stdout.splitlines() + r.stderr.splitlines()):
+                    errors.append(f"{rel}: hardware evidence validation failed (see validator output)")
+        except (OSError, subprocess.TimeoutExpired) as e:
+            errors.append(f"{rel}: could not run hardware validator: {e}")
+
+    return errors
+
+
 def main() -> None:
     print("=" * 60)
     print("Rush Linux — Evidence Integrity Check (Dragnet gate)")
@@ -104,6 +161,14 @@ def main() -> None:
     data = load_milestones()
     errors = check_verified_have_transcripts(data)
     errors += check_path_mentions_resolve()
+
+    # evidence-validator phase: also validate hardware evidence bundles.
+    hw_errors = check_hwtest_evidence_bundles()
+    if hw_errors:
+        print("\n── Check: Hardware evidence bundles (content-aware) ──")
+        for e in hw_errors:
+            print(f"  ✗ {e}")
+    errors.extend(hw_errors)
 
     # De-duplicate while preserving order.
     seen = set()

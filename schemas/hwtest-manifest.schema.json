@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nan0pk/Rush-linux/raw/main/schemas/hwtest-manifest.schema.json",
+  "title": "Hardware Test Evidence Manifest",
+  "description": "Top-level manifest for a hardware evidence bundle. Each release/evidence/host-bench/<date>-<hostname>/ directory contains exactly one hwtest-manifest.json that ties together the plan, host, baseline result, optid result, and verdict.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest_kind",
+    "source_version",
+    "source_commit",
+    "hardware_slot",
+    "bundle_created_at",
+    "plan_path",
+    "host_path",
+    "baseline_result_path",
+    "optid_result_path",
+    "verdict_path",
+    "events_path",
+    "privacy_report_path"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Frozen at 1; future versions must bump and the validator must handle old versions or refuse."
+    },
+    "manifest_kind": {
+      "type": "string",
+      "const": "hwtest-manifest",
+      "description": "Discriminator field so the validator can confirm it's reading the right file type."
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+      "description": "The Rush Linux project version this evidence certifies (e.g. '0.7.0-beta.1'). Must match the VERSION file."
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The 40-character git commit SHA this evidence was produced against."
+    },
+    "hardware_slot": {
+      "type": "string",
+      "enum": ["desktop", "laptop"],
+      "description": "Which reference-hardware slot this bundle certifies. 'laptop' is required for battery criteria."
+    },
+    "bundle_created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 UTC timestamp when the bundle was assembled."
+    },
+    "plan_path": {
+      "type": "string",
+      "description": "Relative path to the hwtest-plan.json file."
+    },
+    "host_path": {
+      "type": "string",
+      "description": "Relative path to the hwtest-host.json file."
+    },
+    "baseline_result_path": {
+      "type": "string",
+      "description": "Relative path to the baseline hwtest-result.json file."
+    },
+    "optid_result_path": {
+      "type": "string",
+      "description": "Relative path to the optid hwtest-result.json file."
+    },
+    "verdict_path": {
+      "type": "string",
+      "description": "Relative path to the VERDICT.md file. The verdict is ADVISORY ONLY — AI summaries do not count as evidence."
+    },
+    "events_path": {
+      "type": "string",
+      "description": "Relative path to the events.jsonl tamper-evident event chain."
+    },
+    "privacy_report_path": {
+      "type": "string",
+      "description": "Relative path to the privacy-report.json file."
+    },
+    "operator": {
+      "type": "string",
+      "description": "Optional: name or handle of the operator who produced the evidence."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional: free-text notes."
+    }
+  }
+}

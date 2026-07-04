@@ -18,6 +18,13 @@
 - [0004: Adaptive optid](decisions/0004-adaptive-optid.md)
 - [0009: optid Security Boundary](decisions/0009-optid-security-boundary.md)
 - [0012: Reproducible Build Discipline](decisions/0012-reproducible-build-discipline.md)
+- [0018: Rush LiveDev Architecture Contract](decisions/0018-rush-livedev-architecture-contract.md)
+
+## LiveDev Track
+- [LiveDev Workspace Enablement](plans/livedev-workspace-enablement.md)
+- [LiveDev Transition Plan](plans/livedev-transition-plan.md)
+- [Automation–Human Interface Policy](automation-human-interface.md)
+- [AI Interface Policy](ai-interface-policy.md)
 
 ## Research
 - [0001: Apple Power Stack Analysis](research/0001-apple-power-stack-analysis.md)

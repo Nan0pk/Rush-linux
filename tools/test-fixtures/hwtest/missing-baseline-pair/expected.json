@@ -1,0 +1,8 @@
+{
+  "description": "Missing baseline result \u2014 check 9 fails.",
+  "expect_errors": [
+    "baseline result file missing",
+    "no baseline pair"
+  ],
+  "expect_pass": false
+}
