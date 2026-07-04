@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "bench_id": "psi-cpu-avg10",
+  "bench_name": "PSI — CPU pressure avg10",
+  "scenario": "mixed-load-responsiveness",
+  "status": "fail",
+  "started_at": "2026-07-04T23:55:42Z",
+  "finished_at": "2026-07-04T23:55:42Z",
+  "elapsed_seconds": 0.010188048,
+  "stdout": "avg10=002\n",
+  "stderr": "",
+  "exit_code": 0,
+  "host": {
+    "kernel": "7.0.14-arch1-1",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "HP 8BC2",
+    "battery_design_uwh": 70070000,
+    "fingerprint": "700e5013535e9e96"
+  }
+}

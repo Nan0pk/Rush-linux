@@ -1,0 +1,1 @@
+Linux testos 7.0.14-arch1-1 #1 SMP PREEMPT_DYNAMIC Sat, 27 Jun 2026 16:15:10 +0000 x86_64 GNU/Linux
