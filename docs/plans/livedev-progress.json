@@ -934,7 +934,7 @@
       "branch": "feat/optid-fail-closed-baseline-revert",
       "source_commit_at_phase_start": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
       "source_commit_at_phase_end": "366982bca3b2d804f1d113f4401e48624de6c2e7",
-      "status": "complete-after-this-PR",
+      "status": "complete",
       "completed_at_utc": "2026-07-04T10:30:00Z",
       "deliverables": [
         "crates/optid/src/load_state.rs (new module)",
@@ -947,7 +947,7 @@
         "crates/optid/src/tests.rs (12 new optid_safety_tests)"
       ],
       "test_results": "275 tests pass (263 existing + 12 new). fmt clean. clippy clean. validators clean.",
-      "note": "Prompt 3 output. Branch feat/optid-fail-closed-baseline-revert from main."
+      "note": "Prompt 3 output. Branch feat/optid-fail-closed-baseline-revert from main. Cherry-picked onto test/livedev-e2e-dry-run (commit 31a33b5) during verification fix \u2014 the optid-safety Rust code was previously only on the feature branch and had not been merged to main or any subsequent branch. After the cherry-pick: 275 optid tests pass (263 existing + 12 new optid_safety_tests). cargo fmt clean. cargo clippy clean. All 134 Python tests still pass. E2E dry run 3/3 pass."
     },
     {
       "phase": "capture-substrate",
