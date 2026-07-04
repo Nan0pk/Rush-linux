@@ -97,6 +97,12 @@ function Find-RepoRoot {
 function Ensure-Repo {
     if (Find-RepoRoot) {
         Write-OK "Inside repo: $RepoDir"
+    } elseif ((Test-Path (Join-Path (Get-Location) $WorkDirName)) `
+              -and (Test-Path (Join-Path (Get-Location) "$WorkDirName\tools\livedev-next")) `
+              -and (Test-Path (Join-Path (Get-Location) "$WorkDirName\.git"))) {
+        # A Rush-linux checkout already exists in .\$WorkDirName. Use it.
+        $script:RepoDir = Join-Path (Get-Location) $WorkDirName
+        Write-OK "Found existing checkout: $RepoDir"
     } else {
         Write-Info "Not inside repo. Cloning into .\$WorkDirName ..."
         if ($DryRun) {
