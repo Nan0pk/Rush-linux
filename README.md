@@ -24,36 +24,67 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 ---
 
-## Rush LiveDev quick start
+## Rush LiveDev — one-command hardware test
+
+Run real hardware benchmarks and open an evidence PR for maintainer review with a single command. The script clones or fetches the repo, runs mock verification, generates a plan, prepares a USB using the current testOS backend, and tells you when to boot. After the test environment reboots back, the same script resumes: it copies results, validates them, and submits a PR for maintainer review (no auto-merge).
+
+**Linux/macOS:**
 
 ```sh
-python3 tools/livedev-next
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh --auto
 ```
 
-- `livedev-next` is the operator entrypoint — it tells you what to do next.
-- It runs safe mock verification and generates hardware benchmark plans.
-- Real hardware evidence is submitted as a PR for maintainer review — it does not auto-merge or auto-verify milestones.
+**Windows PowerShell:**
+
+```powershell
+curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
+```
+
+What happens, end to end:
+
+1. Prepares a USB test environment (using testOS as the current boot backend).
+2. Tells the user to boot it.
+3. Runs hardware tests on the test machine.
+4. Reboots back to the host OS.
+5. Resumes collection (`bash livedev-bootstrap.sh --resume`) — copies results from the USB, validates them.
+6. Validates results (manifest parses, pass/fail counts present, LiveDev validator run if applicable).
+7. Opens an evidence PR for maintainer review.
+
+You only approve USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, and never edits release truth.
+
+To resume after the test machine reboots back:
 
 ```sh
-python3 tools/livedev-next --mock                               # verify tools work (no hardware, 10s)
-python3 tools/livedev-next --auto                               # full pipeline: plan → run → validate → submit dry-run
-python3 tools/livedev-next --plan                               # generate a benchmark plan
-python3 tools/livedev-next --run /tmp/rush-livedev-plan.json    # execute the plan (fake mode)
-python3 tools/livedev-next --submit <RUN_DIR> --dry-run         # see what would be committed
+bash livedev-bootstrap.sh --resume              # copy + validate + submit dry-run
+bash livedev-bootstrap.sh --resume --submit     # open a real evidence PR (no auto-merge)
+```
+
+Operator commands inside the repo (after clone):
+
+```sh
+python3 tools/livedev-next                       # show the one-command path + repo state
+python3 tools/livedev-next --mock                # mock tests (no hardware, ~10s)
+python3 tools/livedev-next --auto                # full pipeline: plan -> run -> validate -> submit dry-run
+python3 tools/livedev-next --auto --dry-run      # show the full pipeline without writing USB
+python3 tools/livedev-next --prepare-usb         # prepare USB using the testOS backend
+python3 tools/livedev-next --resume              # resume after reboot
+python3 tools/livedev-next --plan                # generate a benchmark plan
+python3 tools/livedev-next --run /tmp/rush-livedev-plan.json
+python3 tools/livedev-next --submit <RUN_DIR> --dry-run
 ```
 
 Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
 
 ---
 
-## Try it on real hardware (testOS — legacy/manual path)
+## testOS — current boot backend / manual fallback
 
-Prefer a USB stick and a real machine? testOS boots a minimal Rush Linux image, runs the benchmark suite, and writes results back to the USB. No toolchain install required.
+testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB. It is preserved as a manual fallback path for users who want to drive each step themselves. The LiveDev image is not yet wired as a separate boot backend, so testOS is the current boot backend.
 
 > **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)**
 
 <details>
-<summary><strong>Linux</strong> — write the USB</summary>
+<summary><strong>Linux</strong> — write the USB manually</summary>
 
 ```bash
 wget https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
@@ -88,16 +119,7 @@ sudo bash install.sh /dev/diskN
 
 **After writing the USB:** plug it into the test machine, reboot, pick USB from the boot menu (disable Secure Boot if it refuses). testOS boots to a console menu — type `0` for all benchmarks, or pick specific numbers. Press Esc to abort early. Results are saved to the USB; testOS reboots back to the host OS when done.
 
-**Pull results into the repo:**
-
-```bash
-sudo testos-ingest pull /dev/sdX
-testos-ingest format
-testos-ingest commit
-git push
-```
-
-Or on Windows: `.\collect-results.ps1` does everything (mount, copy, branch, commit, push, PR) in one command. Full testOS docs: [`testos/README.md`](testos/README.md).
+**Pull results into the repo (manual fallback):** use `livedev-bootstrap.sh --resume` (or `.\livedev-bootstrap.ps1 -Resume`) which copies and validates the results, then opens an evidence PR for maintainer review. The manual collector scripts (`testos/collect-results.sh`, `testos/collect-results.ps1`) are also available. Full testOS docs: [`testos/README.md`](testos/README.md).
 
 ---
 
