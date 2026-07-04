@@ -31,6 +31,18 @@ $RepoUrl = "https://github.com/Nan0pk/Rush-linux.git"
 $RepoHost = "Nan0pk/Rush-linux"
 $WorkDirName = "Rush-linux"
 
+# --- Env overrides ----------------------------------------------------------
+# RUSH_LIVEDEV_REPO_DIR:     use this path as the repo. If missing, clone there.
+# RUSH_LIVEDEV_SOURCE_REPO:  clone from this local path instead of GitHub.
+#                            (Used by RUSH_LIVEDEV_TEST_STUB so tests do not
+#                            touch the network.)
+# RUSH_LIVEDEV_TEST_STUB:    real repo resolution still runs, but USB write,
+#                            reboot instructions requiring action, PR
+#                            submission, and real hardware are skipped.
+$TestStub = $env:RUSH_LIVEDEV_TEST_STUB
+$SourceRepo = $env:RUSH_LIVEDEV_SOURCE_REPO
+$RepoDirOverride = $env:RUSH_LIVEDEV_REPO_DIR
+
 # --- Helpers ------------------------------------------------------
 function Write-Info  { param([string]$msg) Write-Host ">> $msg" -ForegroundColor White }
 function Write-OK    { param([string]$msg) Write-Host "[OK] $msg" -ForegroundColor Green }
@@ -81,9 +93,10 @@ $RepoDir = ""
 function Find-RepoRoot {
     $d = (Get-Location).Path
     while ($d -ne "" -and $d -ne $null) {
-        $probe = Join-Path $d "tools\livedev-next"
+        $probe1 = Join-Path $d "tools\livedev-next"
         $probe2 = Join-Path $d "testos\install.ps1"
-        if ((Test-Path $probe) -and (Test-Path $probe2)) {
+        $probeGit = Join-Path $d ".git"
+        if ((Test-Path $probe1) -and (Test-Path $probe2) -and (Test-Path $probeGit)) {
             $script:RepoDir = $d
             return $true
         }
@@ -94,47 +107,133 @@ function Find-RepoRoot {
     return $false
 }
 
-function Ensure-Repo {
-    if (Find-RepoRoot) {
-        Write-OK "Inside repo: $RepoDir"
-    } elseif ((Test-Path (Join-Path (Get-Location) $WorkDirName)) `
-              -and (Test-Path (Join-Path (Get-Location) "$WorkDirName\tools\livedev-next")) `
-              -and (Test-Path (Join-Path (Get-Location) "$WorkDirName\.git"))) {
-        # A Rush-linux checkout already exists in .\$WorkDirName. Use it.
-        $script:RepoDir = Join-Path (Get-Location) $WorkDirName
-        Write-OK "Found existing checkout: $RepoDir"
-    } else {
-        Write-Info "Not inside repo. Cloning into .\$WorkDirName ..."
-        if ($DryRun) {
-            Write-Host "    [dry-run] git clone --depth 1 $RepoUrl $WorkDirName"
-            $script:RepoDir = Join-Path (Get-Location) $WorkDirName
-        } else {
-            git clone --depth 1 $RepoUrl $WorkDirName
-            $script:RepoDir = Join-Path (Get-Location) $WorkDirName
-        }
+function Test-IsGitRepo {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $false }
+    $gitDir = Join-Path $Path ".git"
+    if (Test-Path $gitDir) { return $true }
+    # .git file (worktree) — verify via git
+    if (Test-Path $gitDir -PathType Leaf) {
+        try { git -C $Path rev-parse --git-dir 2>$null | Out-Null; return $true } catch {}
     }
+    return $false
+}
 
-    Set-Location $RepoDir
+function Get-CloneSource {
+    if ($SourceRepo) { return $SourceRepo }
+    return $RepoUrl
+}
 
-    if (-not $DryRun) {
-        Write-Info "Fetching latest main ..."
-        git fetch origin --prune --quiet
-        $current = git rev-parse --abbrev-ref HEAD 2>$null
-        if ($current -ne "main") {
-            $dirty = git status --porcelain 2>$null
-            if (-not $dirty) {
-                git checkout main --quiet 2>$null
-            } else {
-                Write-Warn "Working tree is dirty on branch '$current'. Staying on this branch."
-            }
-        }
-        git pull --ff-only origin main --quiet 2>$null
-        Write-OK "Repo is up to date."
+function Invoke-Clone {
+    param([string]$Target)
+    $src = Get-CloneSource
+    if ($TestStub -and $SourceRepo) {
+        Write-Info "Cloning from local fixture: $src -> $Target"
     } else {
+        Write-Info "Cloning from $src -> $Target"
+    }
+    git clone --depth 1 $src $Target
+    if ($LASTEXITCODE -ne 0) { Write-Err "git clone failed (exit $LASTEXITCODE)." }
+}
+
+function Sync-ExistingRepo {
+    if ($DryRun) {
         Write-Host "    [dry-run] git fetch origin --prune"
-        Write-Host "    [dry-run] git checkout main"
+        Write-Host "    [dry-run] git checkout main (if clean and main exists)"
         Write-Host "    [dry-run] git pull --ff-only origin main"
+        return
     }
+    $remotes = git -C $RepoDir remote 2>$null
+    if (-not $remotes) {
+        Write-Warn "Repo at $RepoDir has no git remotes. Skipping fetch/pull."
+        return
+    }
+    Write-Info "Fetching latest main ..."
+    git -C $RepoDir fetch origin --prune --quiet 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "git fetch failed (offline?). Continuing with current state."
+    }
+    $current = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null
+    if ($current -ne "main") {
+        $dirty = git -C $RepoDir status --porcelain 2>$null
+        if (-not $dirty) {
+            $hasMain = git -C $RepoDir rev-parse --verify main 2>$null
+            if ($hasMain) {
+                git -C $RepoDir checkout main --quiet 2>$null
+                if ($LASTEXITCODE -ne 0) { Write-Warn "Could not switch to main. Staying on '$current'." }
+            } else {
+                Write-Warn "Branch 'main' does not exist in $RepoDir. Staying on '$current'."
+            }
+        } else {
+            Write-Warn "Working tree is dirty on branch '$current'. Staying on this branch."
+            Write-Warn "Your local work is preserved."
+        }
+    }
+    git -C $RepoDir pull --ff-only origin main --quiet 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "git pull --ff-only failed (diverged or offline?). Continuing with current state."
+    }
+    Write-OK "Repo synced."
+}
+
+function Ensure-Repo {
+    # --- Rule E: explicit override ---
+    if ($RepoDirOverride) {
+        if (Test-Path $RepoDirOverride) {
+            if (Test-IsGitRepo -Path $RepoDirOverride) {
+                $script:RepoDir = $RepoDirOverride
+                Write-OK "Using RUSH_LIVEDEV_REPO_DIR: $RepoDir"
+            } else {
+                Write-Err "RUSH_LIVEDEV_REPO_DIR exists but is not a git repo: $RepoDirOverride"
+            }
+        } else {
+            Write-Info "RUSH_LIVEDEV_REPO_DIR=$RepoDirOverride does not exist. Cloning there."
+            Invoke-Clone -Target $RepoDirOverride
+            $script:RepoDir = $RepoDirOverride
+            Write-OK "Cloned into: $RepoDir"
+        }
+        Set-Location $RepoDir
+        Sync-ExistingRepo
+        return
+    }
+
+    # --- Rule A: already inside a Rush-linux repo ---
+    if (Find-RepoRoot) {
+        Write-OK "Using current Rush-linux repo: $RepoDir"
+        Set-Location $RepoDir
+        Sync-ExistingRepo
+        return
+    }
+
+    # --- Rules B/C/D: not inside a repo; consider .\$WorkDirName ---
+    $candidate = Join-Path (Get-Location) $WorkDirName
+    if (Test-Path $candidate) {
+        if (Test-IsGitRepo -Path $candidate) {
+            # --- Rule B: reuse existing git repo ---
+            $script:RepoDir = $candidate
+            Write-OK "Found existing Rush-linux git repo: $RepoDir"
+            Set-Location $RepoDir
+            Sync-ExistingRepo
+            return
+        } else {
+            # --- Rule C: existing dir but NOT a git repo. Use timestamped alternate. ---
+            $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+            $alternate = Join-Path (Get-Location) "$WorkDirName-livedev-$stamp"
+            Write-Warn "Existing .\$WorkDirName is not a git repo; cloning into $alternate"
+            Invoke-Clone -Target $alternate
+            $script:RepoDir = $alternate
+            Write-OK "Cloned into: $RepoDir"
+            Set-Location $RepoDir
+            return
+        }
+    }
+
+    # --- Rule D: clean directory — clone into .\$WorkDirName ---
+    $script:RepoDir = $candidate
+    Write-Info "No .\$WorkDirName found. Cloning into $RepoDir ..."
+    Invoke-Clone -Target $RepoDir
+    Write-OK "Cloned into: $RepoDir"
+    Set-Location $RepoDir
 }
 
 # --- AUTO MODE ---------------------------------------------------
@@ -147,8 +246,23 @@ function Do-Auto {
     Write-Host ""
     Write-Host "You only approve USB erase, boot from USB, physical AC/battery"
     Write-Host "prompts, and GitHub auth."
+    if ($TestStub) {
+        Write-Host ""
+        Write-Warn "RUSH_LIVEDEV_TEST_STUB=1: USB write, reboot, PR, and hardware are skipped."
+        Write-Warn "Repo resolution still runs for real."
+    }
 
+    # Repo resolution ALWAYS runs (real), even in TEST_STUB mode.
     Ensure-Repo
+
+    # In TEST_STUB mode: skip mock/plan/USB/boot — we only needed to prove
+    # repo resolution worked end-to-end without USB/network/PR side effects.
+    if ($TestStub) {
+        Write-Host ""
+        Write-OK "[TEST_STUB] Repo resolution succeeded. Skipping USB/reboot/PR."
+        Write-Host "[TEST_STUB] REPO_DIR=$RepoDir"
+        return
+    }
 
     # Step 1: mock verification.
     if (-not $SkipMock) {
