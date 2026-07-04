@@ -26,17 +26,50 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 ## Rush LiveDev quick start
 
-Run benchmarks, capture evidence, and prepare PRs — all from one command:
+**What this is:** LiveDev automates the benchmark → evidence → PR loop. You run one command, it tells you what to do next. No hardware needed to try it.
+
+**Step 1:** Clone and check what's available:
 
 ```sh
-python3 tools/livedev-next          # check repo state + next commands
-python3 tools/livedev-next --mock   # run mock tests (no hardware, no network)
-python3 tools/livedev-next --plan   # generate a benchmark plan
+git clone https://github.com/Nan0pk/Rush-linux.git
+cd Rush-linux
+python3 tools/livedev-next
 ```
 
-Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
+This prints the repo state and checks that all LiveDev tools are present.
 
-LiveDev is the automation foundation: it plans benchmark campaigns, runs them through `rush-exec`, captures tamper-evident evidence with `rush-capture`, validates with `validate-hwtest-evidence`, optionally repairs failures with the mock AI harness (`rush-agent`), and prepares evidence PRs for maintainer review. It never merges, never marks milestones verified, and never edits release truth.
+**Step 2:** Run the mock tests (no hardware, no network, no PRs — just verifies the tools work):
+
+```sh
+python3 tools/livedev-next --mock
+```
+
+This runs three end-to-end scenarios (success, failure, AI-assisted repair) plus the evidence fixture validation. Takes about 10 seconds.
+
+**Step 3:** Generate a benchmark plan:
+
+```sh
+python3 tools/livedev-next --plan
+```
+
+This reads the repo state and your hardware, figures out what needs testing, and writes a plan to `/tmp/rush-livedev-plan.json`.
+
+**Step 4:** Execute the plan (fake mode — safe, no real hardware):
+
+```sh
+python3 tools/livedev-next --run /tmp/rush-livedev-plan.json
+```
+
+**Step 5:** Submit the evidence as a PR (dry-run first, then real):
+
+```sh
+python3 tools/livedev-next --submit <RUN_DIR> --dry-run    # see what would be committed
+python3 tools/livedev-next --submit <RUN_DIR>              # actually push + open PR
+```
+
+The tool will ask for `GH_TOKEN` when it needs it. It never merges the PR — that's the maintainer's job.
+
+Full runbook with details: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
 
 ---
 
