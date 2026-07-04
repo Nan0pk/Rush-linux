@@ -21,6 +21,18 @@ REPO_URL="https://github.com/Nan0pk/Rush-linux.git"
 REPO_HOST="Nan0pk/Rush-linux"
 WORK_DIR_NAME="Rush-linux"
 
+# --- Env overrides ----------------------------------------------------------
+# RUSH_LIVEDEV_REPO_DIR:     use this path as the repo. If missing, clone there.
+# RUSH_LIVEDEV_SOURCE_REPO:  clone from this local path instead of GitHub.
+#                            (Used by RUSH_LIVEDEV_TEST_STUB so tests do not
+#                            touch the network.)
+# RUSH_LIVEDEV_TEST_STUB:    real repo resolution still runs, but USB write,
+#                            reboot instructions requiring action, PR
+#                            submission, and real hardware are skipped.
+TEST_STUB="${RUSH_LIVEDEV_TEST_STUB:-0}"
+SOURCE_REPO="${RUSH_LIVEDEV_SOURCE_REPO:-}"
+REPO_DIR_OVERRIDE="${RUSH_LIVEDEV_REPO_DIR:-}"
+
 # --- Args -------------------------------------------------------------------
 AUTO=false
 RESUME=false
@@ -88,10 +100,12 @@ die()  { echo "[X] $*" >&2; exit 1; }
 
 # --- Locate or clone the repo ----------------------------------------------
 REPO_DIR=""
+
+# Walk up from $PWD looking for tools/livedev-next + testos/install.sh inside a .git tree.
 find_repo_root() {
     local d="$PWD"
     while [[ "$d" != "/" ]]; do
-        if [[ -f "$d/tools/livedev-next" && -f "$d/testos/install.sh" ]]; then
+        if [[ -f "$d/tools/livedev-next" && -f "$d/testos/install.sh" && -d "$d/.git" ]]; then
             REPO_DIR="$d"
             return 0
         fi
@@ -100,47 +114,138 @@ find_repo_root() {
     return 1
 }
 
-ensure_repo() {
-    if find_repo_root; then
-        ok "Inside repo: $REPO_DIR"
-    elif [[ -d "$PWD/$WORK_DIR_NAME" ]] \
-         && [[ -f "$PWD/$WORK_DIR_NAME/tools/livedev-next" ]] \
-         && [[ -d "$PWD/$WORK_DIR_NAME/.git" ]]; then
-        # A Rush-linux checkout already exists in ./$WORK_DIR_NAME. Use it.
-        REPO_DIR="$PWD/$WORK_DIR_NAME"
-        ok "Found existing checkout: $REPO_DIR"
-    else
-        log "Not inside repo. Cloning into ./$WORK_DIR_NAME ..."
-        if [[ "$DRY_RUN" == "true" ]]; then
-            echo "    [dry-run] git clone --depth 1 $REPO_URL $WORK_DIR_NAME"
-            REPO_DIR="$PWD/$WORK_DIR_NAME"
-        else
-            git clone --depth 1 "$REPO_URL" "$WORK_DIR_NAME"
-            REPO_DIR="$PWD/$WORK_DIR_NAME"
-        fi
+# Returns 0 if $1 is a git repo (has a .git dir or is a valid gitdir), 1 otherwise.
+is_git_repo() {
+    local p="$1"
+    [[ -d "$p" ]] || return 1
+    if [[ -d "$p/.git" ]]; then
+        return 0
     fi
+    if [[ -f "$p/.git" ]] && git -C "$p" rev-parse --git-dir >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
 
-    cd "$REPO_DIR"
-
-    if [[ "$DRY_RUN" != "true" ]]; then
-        log "Fetching latest main ..."
-        git fetch origin --prune --quiet
-        local current
-        current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
-        if [[ "$current" != "main" ]]; then
-            if git diff --quiet && git diff --cached --quiet; then
-                git checkout main --quiet 2>/dev/null || true
-            else
-                warn "Working tree is dirty on branch '$current'. Staying on this branch."
-            fi
-        fi
-        git pull --ff-only origin main --quiet 2>/dev/null || true
-        ok "Repo is up to date."
+# Choose the clone source: local override if provided, else GitHub.
+clone_source_url() {
+    if [[ -n "$SOURCE_REPO" ]]; then
+        echo "$SOURCE_REPO"
     else
+        echo "$REPO_URL"
+    fi
+}
+
+# Clone into $1. Uses clone_source_url. Real clone (not dry-run).
+do_clone() {
+    local target="$1"
+    local src
+    src="$(clone_source_url)"
+    if [[ "$TEST_STUB" == "1" && -n "$SOURCE_REPO" ]]; then
+        log "Cloning from local fixture: $src -> $target"
+    else
+        log "Cloning from $src -> $target"
+    fi
+    git clone --depth 1 "$src" "$target"
+}
+
+# Sync the existing repo at $REPO_DIR: fetch origin, try to fast-forward main.
+# Never destroys user work. If dirty or on a feature branch, warns and stays.
+sync_existing_repo() {
+    if [[ "$DRY_RUN" == "true" ]]; then
         echo "    [dry-run] git fetch origin --prune"
-        echo "    [dry-run] git checkout main"
+        echo "    [dry-run] git checkout main (if clean and main exists)"
         echo "    [dry-run] git pull --ff-only origin main"
+        return 0
     fi
+    local remote_count
+    remote_count="$(git -C "$REPO_DIR" remote 2>/dev/null | wc -l || echo 0)"
+    if [[ "$remote_count" -eq 0 ]]; then
+        warn "Repo at $REPO_DIR has no git remotes. Skipping fetch/pull."
+        return 0
+    fi
+    log "Fetching latest main ..."
+    git -C "$REPO_DIR" fetch origin --prune --quiet 2>/dev/null || \
+        warn "git fetch failed (offline?). Continuing with current state."
+    local current
+    current="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+    if [[ "$current" != "main" ]]; then
+        if git -C "$REPO_DIR" diff --quiet 2>/dev/null && git -C "$REPO_DIR" diff --cached --quiet 2>/dev/null; then
+            if git -C "$REPO_DIR" rev-parse --verify main >/dev/null 2>&1; then
+                git -C "$REPO_DIR" checkout main --quiet 2>/dev/null || \
+                    warn "Could not switch to main. Staying on '$current'."
+            else
+                warn "Branch 'main' does not exist in $REPO_DIR. Staying on '$current'."
+            fi
+        else
+            warn "Working tree is dirty on branch '$current'. Staying on this branch."
+            warn "Your local work is preserved."
+        fi
+    fi
+    git -C "$REPO_DIR" pull --ff-only origin main --quiet 2>/dev/null || \
+        warn "git pull --ff-only failed (diverged or offline?). Continuing with current state."
+    ok "Repo synced."
+}
+
+ensure_repo() {
+    # --- Rule E: explicit override ---
+    if [[ -n "$REPO_DIR_OVERRIDE" ]]; then
+        if [[ -d "$REPO_DIR_OVERRIDE" ]]; then
+            if is_git_repo "$REPO_DIR_OVERRIDE"; then
+                REPO_DIR="$REPO_DIR_OVERRIDE"
+                ok "Using RUSH_LIVEDEV_REPO_DIR: $REPO_DIR"
+            else
+                die "RUSH_LIVEDEV_REPO_DIR exists but is not a git repo: $REPO_DIR_OVERRIDE"
+            fi
+        else
+            log "RUSH_LIVEDEV_REPO_DIR=$REPO_DIR_OVERRIDE does not exist. Cloning there."
+            do_clone "$REPO_DIR_OVERRIDE"
+            REPO_DIR="$REPO_DIR_OVERRIDE"
+            ok "Cloned into: $REPO_DIR"
+        fi
+        cd "$REPO_DIR"
+        sync_existing_repo
+        return 0
+    fi
+
+    # --- Rule A: already inside a Rush-linux repo ---
+    if find_repo_root; then
+        ok "Using current Rush-linux repo: $REPO_DIR"
+        cd "$REPO_DIR"
+        sync_existing_repo
+        return 0
+    fi
+
+    # --- Rules B/C/D: not inside a repo; consider ./$WORK_DIR_NAME ---
+    local candidate="$PWD/$WORK_DIR_NAME"
+    if [[ -d "$candidate" ]]; then
+        if is_git_repo "$candidate"; then
+            # --- Rule B: reuse existing git repo ---
+            REPO_DIR="$candidate"
+            ok "Found existing Rush-linux git repo: $REPO_DIR"
+            cd "$REPO_DIR"
+            sync_existing_repo
+            return 0
+        else
+            # --- Rule C: existing dir but NOT a git repo. Use timestamped alternate. ---
+            local stamp alternate
+            stamp="$(date -u +%Y%m%d-%H%M%S)"
+            alternate="$PWD/${WORK_DIR_NAME}-livedev-${stamp}"
+            warn "Existing ./$WORK_DIR_NAME is not a git repo; cloning into $alternate"
+            do_clone "$alternate"
+            REPO_DIR="$alternate"
+            ok "Cloned into: $REPO_DIR"
+            cd "$REPO_DIR"
+            return 0
+        fi
+    fi
+
+    # --- Rule D: clean directory — clone into ./$WORK_DIR_NAME ---
+    REPO_DIR="$candidate"
+    log "No ./$WORK_DIR_NAME found. Cloning into $REPO_DIR ..."
+    do_clone "$REPO_DIR"
+    ok "Cloned into: $REPO_DIR"
+    cd "$REPO_DIR"
 }
 
 # --- AUTO MODE --------------------------------------------------------------
@@ -153,8 +258,23 @@ do_auto() {
     echo
     echo "You only approve USB erase, boot from USB, physical AC/battery"
     echo "prompts, and GitHub auth."
+    if [[ "$TEST_STUB" == "1" ]]; then
+        echo
+        warn "RUSH_LIVEDEV_TEST_STUB=1: USB write, reboot, PR, and hardware are skipped."
+        warn "Repo resolution still runs for real."
+    fi
 
+    # Repo resolution ALWAYS runs (real), even in TEST_STUB mode.
     ensure_repo
+
+    # In TEST_STUB mode: skip mock/plan/USB/boot — we only needed to prove
+    # repo resolution worked end-to-end without USB/network/PR side effects.
+    if [[ "$TEST_STUB" == "1" ]]; then
+        echo
+        ok "[TEST_STUB] Repo resolution succeeded. Skipping USB/reboot/PR."
+        echo "[TEST_STUB] REPO_DIR=$REPO_DIR"
+        return 0
+    fi
 
     # Step 1: mock verification.
     if [[ "$SKIP_MOCK" != "true" ]]; then

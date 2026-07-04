@@ -262,6 +262,244 @@ def test_bootstrap_sh_resume_dry_run_works():
     assert "[dry-run]" in r.stdout
 
 
+# --- Regression tests: REAL mode (not dry-run) using RUSH_LIVEDEV_TEST_STUB -
+# These exercise the actual --auto repo-resolution path that broke for users
+# with an existing ~/Rush-linux directory. They use a local fixture repo via
+# RUSH_LIVEDEV_SOURCE_REPO so no network, USB, GitHub, or hardware is touched.
+
+def _make_fixture_repo() -> Path:
+    """Create a minimal git repo that looks enough like Rush-linux for the
+    bootstrap script's find_repo_root() to detect it as 'inside repo'.
+    Returns the path to the fixture repo."""
+    fixture = Path(tempfile.mkdtemp(prefix="rush-fixture-"))
+    # tools/livedev-next + testos/install.sh + .git are what find_repo_root
+    # checks for. tools/livedev-bootstrap.sh is what we copy in for the test.
+    (fixture / "tools").mkdir(parents=True)
+    (fixture / "testos").mkdir()
+    (fixture / "tools" / "livedev-next").write_text("#!/usr/bin/env python3\n")
+    (fixture / "testos" / "install.sh").write_text("#!/usr/bin/env bash\n")
+    subprocess.run(["git", "init", str(fixture)], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(fixture), "config", "user.email",
+                    "test@example.com"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(fixture), "config", "user.name",
+                    "test"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(fixture), "add", "."], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(fixture), "commit", "-m", "fixture"],
+                   capture_output=True, check=True)
+    return fixture
+
+
+def _run_bootstrap_real(workdir: Path, fixture: Path, extra_env: dict | None = None):
+    """Copy bootstrap.sh into workdir and run it with RUSH_LIVEDEV_TEST_STUB=1
+    + RUSH_LIVEDEV_SOURCE_REPO=<fixture>. Returns the CompletedProcess."""
+    bootstrap = _TOOLS_DIR / "livedev-bootstrap.sh"
+    target = workdir / "livedev-bootstrap.sh"
+    target.write_text(bootstrap.read_text())
+    target.chmod(0o755)
+    env = os.environ.copy()
+    env["RUSH_LIVEDEV_TEST_STUB"] = "1"
+    env["RUSH_LIVEDEV_SOURCE_REPO"] = str(fixture)
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        ["bash", str(target), "--auto"],
+        capture_output=True, text=True, timeout=120, cwd=str(workdir), env=env,
+    )
+
+
+def test_real_auto_existing_non_git_dir_clones_to_alternate():
+    """Spec: real --auto with existing non-git ./Rush-linux exits 0 and
+    clones into timestamped alternate dir. This is the EXACT failing case
+    from the user report."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            # Existing ./Rush-linux that is NOT a git repo.
+            (workdir / "Rush-linux").mkdir()
+            (workdir / "Rush-linux" / "not-a-repo").write_text("garbage")
+            r = _run_bootstrap_real(workdir, fixture)
+            assert r.returncode == 0, \
+                f"Should exit 0, got {r.returncode}. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            # Must NOT print the fatal clone error.
+            assert "fatal: destination path 'Rush-linux' already exists" not in r.stdout, \
+                f"Found fatal clone error in stdout: {r.stdout}"
+            assert "fatal: destination path 'Rush-linux' already exists" not in r.stderr, \
+                f"Found fatal clone error in stderr: {r.stderr}"
+            # Must print that existing ./Rush-linux is not a git repo.
+            assert "is not a git repo" in r.stderr.lower() or \
+                   "is not a git repo" in r.stdout.lower(), \
+                f"Should say 'not a git repo'. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            # Must use a timestamped Rush-linux-livedev-* alternate dir.
+            alternates = list(workdir.glob("Rush-linux-livedev-*"))
+            assert len(alternates) == 1, \
+                f"Expected 1 timestamped alternate dir, found {len(alternates)}: {alternates}"
+            # TEST_STUB success message should mention the alternate dir.
+            assert "[TEST_STUB]" in r.stdout
+            assert "Repo resolution succeeded" in r.stdout
+            assert str(alternates[0].name) in r.stdout or \
+                   str(alternates[0]) in r.stdout
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_real_auto_existing_git_dir_reuses_it():
+    """Spec: real --auto with existing git ./Rush-linux reuses it."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            # Pre-clone ./Rush-linux from the fixture so it IS a git repo.
+            subprocess.run(
+                ["git", "clone", "--depth", "1", str(fixture),
+                 str(workdir / "Rush-linux")],
+                capture_output=True, check=True,
+            )
+            r = _run_bootstrap_real(workdir, fixture)
+            assert r.returncode == 0, \
+                f"Should exit 0, got {r.returncode}. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            assert "Found existing Rush-linux git repo" in r.stdout, \
+                f"Should print 'Found existing Rush-linux git repo'. stdout:\n{r.stdout}"
+            # Must NOT have cloned into a timestamped alternate dir.
+            alternates = list(workdir.glob("Rush-linux-livedev-*"))
+            assert len(alternates) == 0, \
+                f"Should not create alternate dir when ./Rush-linux is a git repo. Found: {alternates}"
+            # Must NOT print the fatal clone error.
+            assert "fatal: destination path" not in r.stdout
+            assert "fatal: destination path" not in r.stderr
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_real_auto_no_existing_dir_clones_into_rush_linux():
+    """Spec: real --auto with no ./Rush-linux clones into ./Rush-linux."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            r = _run_bootstrap_real(workdir, fixture)
+            assert r.returncode == 0, \
+                f"Should exit 0, got {r.returncode}. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            # Must clone into ./Rush-linux (not an alternate).
+            assert (workdir / "Rush-linux" / ".git").exists() or \
+                   (workdir / "Rush-linux").is_dir(), \
+                f"Should create ./Rush-linux. workdir contents: {list(workdir.iterdir())}"
+            alternates = list(workdir.glob("Rush-linux-livedev-*"))
+            assert len(alternates) == 0, \
+                f"Should not create alternate dir for clean workdir. Found: {alternates}"
+            assert "Cloned into" in r.stdout
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_real_auto_inside_repo_does_not_clone():
+    """Spec: real --auto from inside repo does not clone."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            # Make workdir look like a Rush-linux repo.
+            (workdir / "tools").mkdir()
+            (workdir / "testos").mkdir()
+            (workdir / "tools" / "livedev-next").write_text("#!/usr/bin/env python3\n")
+            (workdir / "testos" / "install.sh").write_text("#!/usr/bin/env bash\n")
+            subprocess.run(["git", "init", str(workdir)], capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(workdir), "config", "user.email",
+                            "test@example.com"], capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(workdir), "config", "user.name",
+                            "test"], capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(workdir), "add", "."],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(workdir), "commit", "-m", "init"],
+                           capture_output=True, check=True)
+            r = _run_bootstrap_real(workdir, fixture)
+            assert r.returncode == 0, \
+                f"Should exit 0, got {r.returncode}. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            assert "Using current Rush-linux repo" in r.stdout, \
+                f"Should print 'Using current Rush-linux repo'. stdout:\n{r.stdout}"
+            # Must NOT clone anywhere.
+            assert "Cloning from" not in r.stdout
+            assert "Cloned into" not in r.stdout
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_real_auto_repo_dir_override_uses_existing_git_repo():
+    """Spec: RUSH_LIVEDEV_REPO_DIR existing git repo is used."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            r = _run_bootstrap_real(workdir, fixture,
+                                    extra_env={"RUSH_LIVEDEV_REPO_DIR": str(fixture)})
+            assert r.returncode == 0, \
+                f"Should exit 0, got {r.returncode}. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            assert "Using RUSH_LIVEDEV_REPO_DIR" in r.stdout, \
+                f"Should print 'Using RUSH_LIVEDEV_REPO_DIR'. stdout:\n{r.stdout}"
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_real_auto_repo_dir_override_non_git_fails_clearly():
+    """Spec: RUSH_LIVEDEV_REPO_DIR existing non-git dir fails clearly."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            nongit = workdir / "notgit"
+            nongit.mkdir()
+            (nongit / "junk").write_text("not a repo")
+            r = _run_bootstrap_real(workdir, fixture,
+                                    extra_env={"RUSH_LIVEDEV_REPO_DIR": str(nongit)})
+            assert r.returncode != 0, \
+                f"Should fail, got exit 0. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            combined = r.stdout + r.stderr
+            assert "RUSH_LIVEDEV_REPO_DIR exists but is not a git repo" in combined, \
+                f"Should fail clearly. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_dry_run_also_uses_same_repo_resolution():
+    """Spec: dry-run also uses same repo resolution. In particular, an existing
+    non-git ./Rush-linux should NOT cause a fatal error in --dry-run either."""
+    fixture = _make_fixture_repo()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "Rush-linux").mkdir()
+            (workdir / "Rush-linux" / "not-a-repo").write_text("garbage")
+            bootstrap = _TOOLS_DIR / "livedev-bootstrap.sh"
+            target = workdir / "livedev-bootstrap.sh"
+            target.write_text(bootstrap.read_text())
+            target.chmod(0o755)
+            env = os.environ.copy()
+            env["RUSH_LIVEDEV_SOURCE_REPO"] = str(fixture)
+            r = subprocess.run(
+                ["bash", str(target), "--auto", "--dry-run"],
+                capture_output=True, text=True, timeout=60,
+                cwd=str(workdir), env=env,
+            )
+            assert r.returncode == 0, \
+                f"Dry-run should exit 0. stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+            # Must NOT print the fatal clone error.
+            assert "fatal: destination path 'Rush-linux' already exists" not in r.stdout
+            assert "fatal: destination path 'Rush-linux' already exists" not in r.stderr
+            # Must indicate the alternate-dir path (even in dry-run).
+            assert "is not a git repo" in (r.stderr + r.stdout).lower() or \
+                   "Rush-linux-livedev-" in r.stdout or \
+                   "Rush-linux-livedev-" in r.stderr
+    finally:
+        import shutil
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
 # --- livedev-bootstrap.ps1 --------------------------------------------------
 
 def test_bootstrap_ps1_exists():
@@ -288,6 +526,35 @@ def test_bootstrap_ps1_supports_required_flags():
     assert "[TOKEN NEEDED]" in text
     # Must use Invoke-RestMethod for PR creation (not merge)
     assert "Invoke-RestMethod" in text or "Invoke-WebRequest" in text
+
+
+def test_bootstrap_ps1_has_matching_existing_dir_handling():
+    """Spec: PowerShell script contains matching existing-dir handling.
+
+    Must include: Test-IsGitRepo, alternate-dir logic, RUSH_LIVEDEV_REPO_DIR
+    override, and RUSH_LIVEDEV_TEST_STUB support.
+    """
+    p = _TOOLS_DIR / "livedev-bootstrap.ps1"
+    text = p.read_text()
+    # Existing-dir handling
+    assert "Test-IsGitRepo" in text, "ps1 must define Test-IsGitRepo"
+    assert "is not a git repo" in text.lower(), \
+        "ps1 must handle existing non-git .\\Rush-linux case"
+    assert "livedev-" in text, \
+        "ps1 must use timestamped Rush-linux-livedev-* alternate dir"
+    # Env overrides
+    assert "$env:RUSH_LIVEDEV_REPO_DIR" in text, \
+        "ps1 must read RUSH_LIVEDEV_REPO_DIR env var"
+    assert "$env:RUSH_LIVEDEV_TEST_STUB" in text, \
+        "ps1 must read RUSH_LIVEDEV_TEST_STUB env var"
+    assert "$env:RUSH_LIVEDEV_SOURCE_REPO" in text, \
+        "ps1 must read RUSH_LIVEDEV_SOURCE_REPO env var"
+    # Rule E: explicit override fail-clearly message
+    assert "RUSH_LIVEDEV_REPO_DIR exists but is not a git repo" in text, \
+        "ps1 must fail clearly when RUSH_LIVEDEV_REPO_DIR is non-git"
+    # TEST_STUB must NOT skip repo resolution
+    assert "Ensure-Repo" in text, \
+        "ps1 must call Ensure-Repo even in TEST_STUB mode"
 
 
 # --- No auto-merge claims ---------------------------------------------------

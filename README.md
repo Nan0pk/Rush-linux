@@ -59,6 +59,8 @@ bash livedev-bootstrap.sh --resume              # copy + validate + submit dry-r
 bash livedev-bootstrap.sh --resume --submit     # open a real evidence PR (no auto-merge)
 ```
 
+If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo. If it is not a git repo, the bootstrap clones into a timestamped `Rush-linux-livedev-*` directory instead of failing.
+
 Operator commands inside the repo (after clone):
 
 ```sh
