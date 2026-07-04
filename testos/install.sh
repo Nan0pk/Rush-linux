@@ -245,7 +245,7 @@ check_sha256() {
 SUMS_CONTENT=""
 if [[ -n "$SUMS_URL" ]] && ! $SKIP_VERIFY; then
     log "Downloading SHA256SUMS..."
-    curl -fsSL -o "${WORK_DIR}/SHA256SUMS" "$SUMS_URL" || die "Failed to download SHA256SUMS."
+    curl -fsSL --progress-bar -o "${WORK_DIR}/SHA256SUMS" "$SUMS_URL" || die "Failed to download SHA256SUMS."
     SUMS_CONTENT="$(cat "${WORK_DIR}/SHA256SUMS")"
 fi
 
@@ -303,7 +303,7 @@ else
         if check_sha256 "${ZST_CACHE}" "$SUMS_CONTENT" 2>/dev/null; then
             ok "Cache hit (.zst): using cached ${ZST_CACHE}"
             log "Decompressing cached ${IMAGE_BASENAME} ..."
-            zstd -d -f "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression of cached file failed."
+            zstd -d -f -v "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression of cached file failed."
             RESOLVED_RAW="${RAW_CACHE}"
         else
             warn "Cached .zst hash mismatch - deleting stale file."
@@ -327,7 +327,7 @@ else
 
         if $IS_ZST; then
             log "Decompressing ${IMAGE_BASENAME} ..."
-            zstd -d -f "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression failed."
+            zstd -d -f -v "${ZST_CACHE}" -o "${RAW_CACHE}" || die "zstd decompression failed."
             RESOLVED_RAW="${RAW_CACHE}"
         else
             RESOLVED_RAW="${ZST_CACHE}"
@@ -341,18 +341,18 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     INGEST_URL="$(echo "$ASSET_URLS"   | grep -E 'testos-ingest-.*-linux-x86_64$'   | head -1 || true)"
     if [[ -n "$LAUNCHER_URL" ]]; then
         log "Downloading testos-launcher..."
-        curl -fsSL -o "${WORK_DIR}/testos-launcher" "$LAUNCHER_URL"
+        curl -fsSL --progress-bar -o "${WORK_DIR}/testos-launcher" "$LAUNCHER_URL"
         chmod +x "${WORK_DIR}/testos-launcher"
     fi
     if [[ -n "$INGEST_URL" ]]; then
         log "Downloading testos-ingest..."
-        curl -fsSL -o "${WORK_DIR}/testos-ingest" "$INGEST_URL"
+        curl -fsSL --progress-bar -o "${WORK_DIR}/testos-ingest" "$INGEST_URL"
         chmod +x "${WORK_DIR}/testos-ingest"
     fi
 fi
 BENCH_URL="$(echo "$ASSET_URLS" | grep 'bench-list.toml' | head -1 || true)"
 if [[ -n "$BENCH_URL" ]]; then
-    curl -fsSL -o "${WORK_DIR}/bench-list.toml" "$BENCH_URL" 2>/dev/null || true
+    curl -fsSL --progress-bar -o "${WORK_DIR}/bench-list.toml" "$BENCH_URL" 2>/dev/null || true
 fi
 
 IMAGE_SIZE_BYTES="$(stat -c %s "${RESOLVED_RAW}" 2>/dev/null || stat -f %z "${RESOLVED_RAW}" 2>/dev/null || echo 0)"
@@ -509,9 +509,9 @@ echo "  6. Pick 'Run all' (0) or specific test numbers. Press Esc to abort."
 echo "  7. When done, testOS syncs the USB and reboots back to the host OS."
 echo "  8. Plug the USB back here, then collect + push results:"
 echo
-echo "       export GITHUB_TOKEN=github_pat_xxx"
+echo "       export GH_TOKEN=github_pat_xxx   # GITHUB_TOKEN is also accepted by LiveDev submit"
 echo "       curl -fsSL https://raw.githubusercontent.com/${REPO}/main/testos/collect-results.sh | sudo bash"
 echo
-echo "  Results land in benchmarks/results/<date>/<host-fingerprint>/ and merge to main after CI passes."
+echo "  Results land in benchmarks/results/<date>/<host-fingerprint>/ and open a PR for maintainer review."
 echo
 echo "Install log saved to: ${LOGFILE}"
