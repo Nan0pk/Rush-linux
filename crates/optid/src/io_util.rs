@@ -14,6 +14,8 @@ use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
+use crate::sensors::now_unix;
+
 pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
     if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(io::Error::new(
@@ -112,21 +114,31 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
         "vm_dirty_bytes",
     ];
     for key in &keys {
-        let orig_path = state_dir.join(format!("original_{key}"));
-        if orig_path.exists() {
-            if let Ok(orig_val) = fs::read_to_string(&orig_path) {
-                let sysctl_name = key.replace('_', ".");
-                let sysctl_path =
-                    PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
-                if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
-                    eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
-                } else {
-                    println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
-                }
+        match actuation_state(state_dir, key) {
+            None => continue,
+            Some(true) => {
+                // Clean-shutdown revert: actuation landed, marker present.
             }
-            let _ = fs::remove_file(&orig_path);
-            let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
+            Some(false) => {
+                // Crash recovery: original_<key> exists but no applied marker.
+                // The sysfs write may or may not have landed; restore to be safe.
+                eprintln!(
+                    "optid: crash recovery for sysctl {key} — applied marker absent, \
+                     restoring journaled original"
+                );
+            }
         }
+        let orig_path = state_dir.join(format!("original_{key}"));
+        if let Ok(orig_val) = fs::read_to_string(&orig_path) {
+            let sysctl_name = key.replace('_', ".");
+            let sysctl_path = PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
+            if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
+                eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
+            } else {
+                println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
+            }
+        }
+        clear_journal(state_dir, key);
     }
 }
 
@@ -137,33 +149,41 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
     for entry in entries.filter_map(Result::ok) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str.starts_with("original_dev_") {
-            let orig_path = entry.path();
-            if let Ok(content) = fs::read_to_string(&orig_path) {
-                let mut lines = content.lines();
-                if let (Some(dev_path_str), Some(orig_val)) = (lines.next(), lines.next()) {
-                    let dev_path = Path::new(dev_path_str);
-                    if let Err(e) = guarded_write(dev_path, orig_val.trim()) {
-                        eprintln!(
-                            "optid: failed to revert PM QoS for {}: {e}",
-                            dev_path.display()
-                        );
-                    } else {
-                        println!(
-                            "optid: reverted PM QoS for {} to {}",
-                            dev_path.display(),
-                            orig_val.trim()
-                        );
-                    }
-                }
-            }
-            let _ = fs::remove_file(&orig_path);
-            let hash = name_str.strip_prefix("original_dev_").unwrap_or("");
-            if !hash.is_empty() {
-                let intended_path = state_dir.join(format!("intended_dev_{hash}"));
-                let _ = fs::remove_file(intended_path);
+        let hash = match name_str.strip_prefix("original_dev_") {
+            Some(h) if !h.is_empty() => h,
+            _ => continue,
+        };
+        let key = format!("dev_{hash}");
+        match actuation_state(state_dir, &key) {
+            None => continue,
+            Some(true) => {}
+            Some(false) => {
+                eprintln!(
+                    "optid: crash recovery for PM QoS dev_{hash} — applied marker absent, \
+                     restoring journaled original"
+                );
             }
         }
+        let orig_path = entry.path();
+        if let Ok(content) = fs::read_to_string(&orig_path) {
+            let mut lines = content.lines();
+            if let (Some(dev_path_str), Some(orig_val)) = (lines.next(), lines.next()) {
+                let dev_path = Path::new(dev_path_str);
+                if let Err(e) = guarded_write(dev_path, orig_val.trim()) {
+                    eprintln!(
+                        "optid: failed to revert PM QoS for {}: {e}",
+                        dev_path.display()
+                    );
+                } else {
+                    println!(
+                        "optid: reverted PM QoS for {} to {}",
+                        dev_path.display(),
+                        orig_val.trim()
+                    );
+                }
+            }
+        }
+        clear_journal(state_dir, &key);
     }
 }
 
@@ -180,8 +200,20 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
     for entry in entries.filter_map(Result::ok) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if !name_str.starts_with("original_rpm_") {
-            continue;
+        let hash = match name_str.strip_prefix("original_rpm_") {
+            Some(h) if !h.is_empty() => h,
+            _ => continue,
+        };
+        let key = format!("rpm_{hash}");
+        match actuation_state(state_dir, &key) {
+            None => continue,
+            Some(true) => {}
+            Some(false) => {
+                eprintln!(
+                    "optid: crash recovery for runtime PM {hash} — applied marker absent, \
+                     restoring journaled original"
+                );
+            }
         }
         let orig_path = entry.path();
         if let Ok(content) = fs::read_to_string(&orig_path) {
@@ -210,11 +242,7 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
                 }
             }
         }
-        let _ = fs::remove_file(&orig_path);
-        let hash = name_str.strip_prefix("original_rpm_").unwrap_or("");
-        if !hash.is_empty() {
-            let _ = fs::remove_file(state_dir.join(format!("intended_rpm_{hash}")));
-        }
+        clear_journal(state_dir, &key);
     }
 }
 
@@ -229,13 +257,29 @@ pub(crate) fn revert_storage(state_dir: &Path) {
     for entry in entries.filter_map(Result::ok) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        let (prefix, rel): (&str, &[&str]) = if name_str.starts_with("original_aspm_") {
-            ("original_aspm_", &["link", "l1_aspm"])
-        } else if name_str.starts_with("original_alpm_") {
-            ("original_alpm_", &["link_power_management_policy"])
-        } else {
+        let (prefix, rel, journal_key): (&str, &[&str], &str) =
+            if name_str.starts_with("original_aspm_") {
+                ("original_aspm_", &["link", "l1_aspm"], "aspm")
+            } else if name_str.starts_with("original_alpm_") {
+                ("original_alpm_", &["link_power_management_policy"], "alpm")
+            } else {
+                continue;
+            };
+        let hash = name_str.strip_prefix(prefix).unwrap_or("");
+        if hash.is_empty() {
             continue;
-        };
+        }
+        let key = format!("{journal_key}_{hash}");
+        match actuation_state(state_dir, &key) {
+            None => continue,
+            Some(true) => {}
+            Some(false) => {
+                eprintln!(
+                    "optid: crash recovery for storage PM {journal_key}_{hash} — applied marker absent, \
+                     restoring journaled original"
+                );
+            }
+        }
         let orig_path = entry.path();
         if let Ok(content) = fs::read_to_string(&orig_path) {
             let mut lines = content.lines();
@@ -258,16 +302,7 @@ pub(crate) fn revert_storage(state_dir: &Path) {
                 }
             }
         }
-        let _ = fs::remove_file(&orig_path);
-        let hash = name_str.strip_prefix(prefix).unwrap_or("");
-        if !hash.is_empty() {
-            let intended_prefix = if prefix == "original_aspm_" {
-                "intended_aspm_"
-            } else {
-                "intended_alpm_"
-            };
-            let _ = fs::remove_file(state_dir.join(format!("{intended_prefix}{hash}")));
-        }
+        clear_journal(state_dir, &key);
     }
 }
 
@@ -281,8 +316,20 @@ pub(crate) fn revert_display(state_dir: &Path) {
     for entry in entries.filter_map(Result::ok) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if !name_str.starts_with("original_bl_") {
-            continue;
+        let hash = match name_str.strip_prefix("original_bl_") {
+            Some(h) if !h.is_empty() => h,
+            _ => continue,
+        };
+        let key = format!("bl_{hash}");
+        match actuation_state(state_dir, &key) {
+            None => continue,
+            Some(true) => {}
+            Some(false) => {
+                eprintln!(
+                    "optid: crash recovery for backlight {hash} — applied marker absent, \
+                     restoring journaled original"
+                );
+            }
         }
         let orig_path = entry.path();
         if let Ok(content) = fs::read_to_string(&orig_path) {
@@ -303,11 +350,7 @@ pub(crate) fn revert_display(state_dir: &Path) {
                 }
             }
         }
-        let _ = fs::remove_file(&orig_path);
-        let hash = name_str.strip_prefix("original_bl_").unwrap_or("");
-        if !hash.is_empty() {
-            let _ = fs::remove_file(state_dir.join(format!("intended_bl_{hash}")));
-        }
+        clear_journal(state_dir, &key);
     }
 }
 
@@ -325,6 +368,59 @@ pub(crate) fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<
     let tmp = path.with_extension("tmp");
     fs::write(&tmp, content)?;
     fs::rename(tmp, path)
+}
+
+/// optid-safety: write an `applied_<key>` marker after a successful sysfs
+/// mutation, so the next-boot revert can distinguish "clean shutdown"
+/// (marker present → normal revert) from "crash mid-actuation" (marker
+/// absent but `original_<key>` present → crash recovery).
+///
+/// The marker is written atomically (write-then-rename) so a crash during
+/// the marker write itself cannot leave a stale marker. The marker's
+/// contents are the timestamp and the written value, for forensic use.
+///
+/// Returns `Ok(())` on success. A failure to write the marker is logged to
+/// stderr but does NOT propagate — the sysfs write already succeeded, and
+/// failing here would leave the system in the new state without a marker,
+/// which the revert path treats as crash recovery (conservative).
+pub(crate) fn mark_applied(state_dir: &Path, key: &str, value: &str) {
+    let marker_path = state_dir.join(format!("applied_{key}"));
+    let content = format!("{}\n{}", now_unix(), value);
+    if let Err(e) = atomic_write_state_file(&marker_path, &content) {
+        eprintln!(
+            "optid: failed to write applied marker for {key}: {e} \
+             (next-boot revert will treat this as crash recovery)"
+        );
+    }
+}
+
+/// optid-safety: detect incomplete actuation by checking whether the
+/// `applied_<key>` marker exists. Returns:
+/// - `Some(true)` — marker present; the actuation landed cleanly.
+/// - `Some(false)` — `original_<key>` exists but no marker; crash recovery
+///   needed (the sysfs write may or may not have landed; revert to be safe).
+/// - `None` — neither file exists; nothing to revert.
+pub(crate) fn actuation_state(state_dir: &Path, key: &str) -> Option<bool> {
+    let orig = state_dir.join(format!("original_{key}"));
+    let applied = state_dir.join(format!("applied_{key}"));
+    if applied.exists() {
+        Some(true)
+    } else if orig.exists() {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// optid-safety: remove the `applied_<key>` marker and the `original_<key>`
+/// journal after a successful revert. Called by the revert functions once
+/// they have restored the original value. Best-effort; a failure to remove
+/// the marker is logged but does not propagate (the next revert will simply
+/// re-restore from `original_<key>`, which is idempotent).
+pub(crate) fn clear_journal(state_dir: &Path, key: &str) {
+    let _ = fs::remove_file(state_dir.join(format!("applied_{key}")));
+    let _ = fs::remove_file(state_dir.join(format!("original_{key}")));
+    let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
 }
 
 pub(crate) fn append_log(path: &Path, text: &str) -> io::Result<()> {

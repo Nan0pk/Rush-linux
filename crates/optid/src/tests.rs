@@ -14,9 +14,13 @@ use std::path::{Path, PathBuf};
 
 use crate::action::Action;
 use crate::actuator::{Actuator, PmqosSink};
+use crate::allowlist::Allowlist;
 use crate::args::Args;
 use crate::contracts::{fits_contract, Contracts};
-use crate::io_util::{get_path_hash, revert_pm_qos, revert_sysctls};
+use crate::io_util::{
+    actuation_state, clear_journal, get_path_hash, mark_applied, revert_pm_qos, revert_sysctls,
+};
+use crate::load_state::{BootState, LoadState};
 use crate::policy::Policy;
 use crate::run;
 use crate::sensors::{Pressure, Snapshot};
@@ -1927,5 +1931,517 @@ device_resume_latency = 100000
         // Since it fell back to signals, the workload class written should be "idle"
         let class_written = fs::read_to_string(temp_dir.join("workload_class")).unwrap();
         assert_eq!(class_written.trim(), "idle");
+    }
+}
+
+/// optid-safety phase tests (Prompt 3). Verifies the fail-closed behavior
+/// introduced in the optid-safety phase: malformed config disarms dynamic
+/// writes, the curated baseline is applied when the policy is missing, and
+/// crash recovery is deterministic.
+#[cfg(test)]
+mod optid_safety_tests {
+    use super::*;
+
+    /// A minimal valid `policy.toml` that parses cleanly and passes structural
+    /// validation.
+    fn valid_policy_toml() -> &'static str {
+        r#"[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+"#
+    }
+
+    fn malformed_policy_toml() -> &'static str {
+        r#"[thresholds
+cpu_pressure_perf_avg10 = 12.0
+"#
+    }
+
+    fn partial_policy_toml() -> &'static str {
+        r#"[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+"#
+    }
+
+    fn valid_allowlist_override(hwid: &str) -> String {
+        format!(
+            r#"[[entry]]
+domain = "nvme_apst"
+hwid = "{hwid}"
+action = "allow"
+max_state = 3
+reason = "test override"
+tested_on = "test-fixture"
+verified = false
+"#
+        )
+    }
+
+    fn malformed_allowlist_override() -> &'static str {
+        "this is not valid toml = = ="
+    }
+
+    fn boot_state(
+        policy: LoadState,
+        allowlist: LoadState,
+        apply_armed: bool,
+        baseline_armed: bool,
+        allowlist_gate_enabled: bool,
+    ) -> BootState {
+        BootState {
+            policy_load_state: policy,
+            allowlist_load_state: allowlist,
+            apply_armed,
+            baseline_armed,
+            allowlist_gate_enabled,
+        }
+    }
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "optid_safety_{}_{}_{}",
+            name,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn actions_log(state_dir: &Path) -> String {
+        fs::read_to_string(state_dir.join("actions.log")).unwrap_or_default()
+    }
+
+    // ─── Test 1: malformed policy + apply => no dynamic writes ──────────────
+
+    #[test]
+    fn malformed_policy_apply_disables_dynamic_writes() {
+        let dir = test_dir("malformed_policy");
+        let config_path = dir.join("policy.toml");
+        fs::write(&config_path, malformed_policy_toml()).unwrap();
+
+        let (policy, policy_load_state) = Policy::load_with_state(&config_path);
+        assert_eq!(
+            policy_load_state,
+            LoadState::Invalid,
+            "malformed policy.toml must return LoadState::Invalid"
+        );
+
+        let apply_armed = policy_load_state.permits_dynamic_writes();
+        assert!(
+            !apply_armed,
+            "apply_armed must be false when policy_load_state=Invalid"
+        );
+
+        let mut actuator = Actuator::new(dir.clone());
+        let bs = boot_state(policy_load_state, LoadState::Ok, false, true, false);
+        actuator.set_boot_state(bs);
+
+        let action = Action::vm_sysctl(
+            PathBuf::from("/proc/sys/vm/swappiness"),
+            "60".to_string(),
+            "test dynamic write".to_string(),
+        );
+        actuator.apply(&action).unwrap();
+
+        let log = actions_log(&dir);
+        assert!(
+            log.contains("skip dynamic write: apply_armed=false"),
+            "actuator must log the skip reason; log was:\n{log}"
+        );
+        assert!(
+            log.contains("policy_load_state=invalid"),
+            "skip reason must mention policy_load_state=invalid; log was:\n{log}"
+        );
+        assert!(
+            !dir.join("original_vm_swappiness").exists(),
+            "no journal entry should be created when the gate skips the action"
+        );
+
+        let _ = policy;
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 2: missing policy => baseline only ────────────────────────────
+
+    #[test]
+    fn missing_policy_loads_curated_baseline_only() {
+        let dir = test_dir("missing_policy");
+        let config_path = dir.join("nonexistent_policy.toml");
+
+        let (policy, policy_load_state) = Policy::load_with_state(&config_path);
+        assert_eq!(
+            policy_load_state,
+            LoadState::Defaulted,
+            "missing policy.toml must return LoadState::Defaulted"
+        );
+
+        // The curated baseline must be conservative: all four modes must have
+        // the balanced-mode cpu_epp value.
+        let balanced_epp = policy.modes.balanced.cpu_epp.clone();
+        assert_eq!(policy.modes.battery.cpu_epp, balanced_epp);
+        assert_eq!(policy.modes.performance.cpu_epp, balanced_epp);
+        assert_eq!(policy.modes.realtime.cpu_epp, balanced_epp);
+
+        assert!(
+            !policy_load_state.permits_dynamic_writes(),
+            "Defaulted policy must not permit dynamic writes"
+        );
+
+        let mut actuator = Actuator::new(dir.clone());
+        let bs = boot_state(policy_load_state, LoadState::Ok, false, true, false);
+        actuator.set_boot_state(bs);
+
+        actuator.apply_baseline().unwrap();
+        let log = actions_log(&dir);
+        assert!(
+            log.contains("baseline: write") || log.contains("baseline: skip"),
+            "apply_baseline must log its action; log was:\n{log}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 3: malformed allowlist => no dynamic writes ───────────────────
+
+    #[test]
+    fn malformed_allowlist_disables_dynamic_writes() {
+        let dir = test_dir("malformed_allowlist");
+        let override_dir = dir.join("allowlist.d");
+        fs::create_dir_all(&override_dir).unwrap();
+        fs::write(
+            override_dir.join("00-broken.toml"),
+            malformed_allowlist_override(),
+        )
+        .unwrap();
+
+        let (allowlist, allowlist_load_state) =
+            Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        assert_eq!(
+            allowlist_load_state,
+            LoadState::Partial,
+            "malformed allowlist override must return LoadState::Partial"
+        );
+
+        let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
+        assert!(
+            allowlist.check("nvme_apst", hwid, 0).is_allow(),
+            "seeded baseline must still allow the Samsung PM9A1"
+        );
+
+        let apply_armed_with_gate =
+            LoadState::Ok.permits_dynamic_writes() && allowlist_load_state.permits_dynamic_writes();
+        assert!(
+            !apply_armed_with_gate,
+            "apply_armed must be false when allowlist_load_state=Partial and gate is enabled"
+        );
+
+        let apply_armed_without_gate = LoadState::Ok.permits_dynamic_writes();
+        assert!(
+            apply_armed_without_gate,
+            "apply_armed must be true when allowlist gate is disabled"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 4: valid config => dynamic writes allowed ─────────────────────
+
+    #[test]
+    fn valid_config_enables_dynamic_writes() {
+        let dir = test_dir("valid_config");
+        let config_path = dir.join("policy.toml");
+        fs::write(&config_path, valid_policy_toml()).unwrap();
+
+        let (policy, policy_load_state) = Policy::load_with_state(&config_path);
+        assert_eq!(
+            policy_load_state,
+            LoadState::Ok,
+            "valid policy.toml must return LoadState::Ok"
+        );
+
+        let apply_armed = policy_load_state.permits_dynamic_writes();
+        assert!(
+            apply_armed,
+            "apply_armed must be true when policy_load_state=Ok and gate is disabled"
+        );
+
+        let mut actuator = Actuator::new(dir.clone());
+        let bs = boot_state(policy_load_state, LoadState::Ok, true, true, false);
+        actuator.set_boot_state(bs);
+
+        let sysctl_path = dir.join("swappiness");
+        fs::write(&sysctl_path, "100").unwrap();
+        let action = Action::vm_sysctl(
+            sysctl_path.clone(),
+            "60".to_string(),
+            "test valid config dynamic write".to_string(),
+        );
+        actuator.apply(&action).unwrap();
+
+        let log = actions_log(&dir);
+        assert!(
+            !log.contains("skip dynamic write: apply_armed=false"),
+            "gate must NOT skip the write when apply_armed=true; log was:\n{log}"
+        );
+        assert!(
+            log.contains("write ") || log.contains("skip vm.sysctl"),
+            "actuator must log the write attempt or soft-fail; log was:\n{log}"
+        );
+
+        let _ = policy;
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 5: dry-run => no writes ───────────────────────────────────────
+
+    #[test]
+    fn dry_run_disables_all_writes() {
+        let dir = test_dir("dry_run");
+        let config_path = dir.join("policy.toml");
+        fs::write(&config_path, valid_policy_toml()).unwrap();
+
+        let (_policy, policy_load_state) = Policy::load_with_state(&config_path);
+        assert_eq!(policy_load_state, LoadState::Ok);
+
+        let mut actuator = Actuator::new(dir.clone());
+        let bs = boot_state(policy_load_state, LoadState::Ok, false, false, false);
+        actuator.set_boot_state(bs);
+
+        actuator.apply_baseline().unwrap();
+        assert!(
+            actions_log(&dir).is_empty(),
+            "dry-run apply_baseline must not log anything"
+        );
+
+        let action = Action::vm_sysctl(
+            PathBuf::from("/proc/sys/vm/swappiness"),
+            "60".to_string(),
+            "test dry-run".to_string(),
+        );
+        actuator.apply(&action).unwrap();
+
+        let log = actions_log(&dir);
+        assert!(
+            log.contains("skip dynamic write: apply_armed=false"),
+            "dry-run apply must skip with apply_armed=false; log was:\n{log}"
+        );
+        assert!(
+            log.contains("baseline_armed=false"),
+            "skip reason must mention baseline_armed=false; log was:\n{log}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 6: crash after first mutation => restart restores ─────────────
+
+    #[test]
+    fn crash_after_first_mutation_restart_restores() {
+        let dir = test_dir("crash_after_mutation");
+
+        // Simulate: original journal written, applied marker written (write landed).
+        let orig_file = dir.join("original_vm_swappiness");
+        let applied_file = dir.join("applied_vm_swappiness");
+        fs::write(&orig_file, "100\n").unwrap();
+        mark_applied(&dir, "vm_swappiness", "60");
+        assert!(applied_file.exists(), "mark_applied must create the marker");
+
+        assert_eq!(
+            actuation_state(&dir, "vm_swappiness"),
+            Some(true),
+            "applied marker present ⇒ actuation_state = Some(true)"
+        );
+
+        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness
+        // (soft-fails without root) but must still clear the journal.
+        revert_sysctls(&dir);
+
+        assert!(
+            !orig_file.exists(),
+            "original_vm_swappiness must be removed after revert"
+        );
+        assert!(
+            !applied_file.exists(),
+            "applied_vm_swappiness must be removed after revert"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Test 7: stale incomplete journal => deterministic recovery ─────────
+
+    #[test]
+    fn stale_incomplete_journal_deterministic_recovery() {
+        let dir = test_dir("stale_incomplete_journal");
+
+        // Simulate: original journal written, NO applied marker (crash mid-actuation).
+        let orig_file = dir.join("original_vm_swappiness");
+        let applied_file = dir.join("applied_vm_swappiness");
+        fs::write(&orig_file, "100\n").unwrap();
+
+        assert_eq!(
+            actuation_state(&dir, "vm_swappiness"),
+            Some(false),
+            "original present + no applied marker ⇒ actuation_state = Some(false) (crash recovery)"
+        );
+
+        revert_sysctls(&dir);
+
+        assert!(
+            !orig_file.exists(),
+            "original_vm_swappiness must be removed after crash-recovery revert"
+        );
+        assert!(
+            !applied_file.exists(),
+            "applied_vm_swappiness must not exist (it was never created in the crash scenario)"
+        );
+
+        // Repeat to verify determinism.
+        fs::write(&orig_file, "100\n").unwrap();
+        assert_eq!(
+            actuation_state(&dir, "vm_swappiness"),
+            Some(false),
+            "second run: still crash recovery"
+        );
+        revert_sysctls(&dir);
+        assert!(
+            !orig_file.exists(),
+            "second run: journal cleared again (deterministic)"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── Bonus: curated baseline is independently testable ──────────────────
+
+    #[test]
+    fn curated_baseline_is_conservative() {
+        let p = Policy::curated_baseline();
+        let balanced_epp = p.modes.balanced.cpu_epp.clone();
+        let balanced_profile = p.modes.balanced.platform_profile.clone();
+        assert_eq!(p.modes.battery.cpu_epp, balanced_epp);
+        assert_eq!(p.modes.battery.platform_profile, balanced_profile);
+        assert_eq!(p.modes.performance.cpu_epp, balanced_epp);
+        assert_eq!(p.modes.performance.platform_profile, balanced_profile);
+        assert_eq!(p.modes.realtime.cpu_epp, balanced_epp);
+        assert_eq!(p.modes.realtime.platform_profile, balanced_profile);
+    }
+
+    #[test]
+    fn partial_policy_loads_curated_baseline() {
+        let dir = test_dir("partial_policy");
+        let config_path = dir.join("policy.toml");
+        fs::write(&config_path, partial_policy_toml()).unwrap();
+
+        let (policy, state) = Policy::load_with_state(&config_path);
+        // A policy missing [modes] fails serde deserialization (Modes has no
+        // #[serde(default)]), so the load returns Invalid, not Partial. The
+        // Partial state is reserved for a future per-section validator that
+        // uses #[serde(default)] and then checks structural validity after
+        // deserialization. For now, both Partial and Invalid fall back to
+        // the curated baseline and disable dynamic writes.
+        assert!(
+            matches!(state, LoadState::Invalid | LoadState::Partial),
+            "missing-[modes] policy must be Invalid or Partial, was {state:?}"
+        );
+        // The returned policy is the curated baseline.
+        let balanced_epp = policy.modes.balanced.cpu_epp.clone();
+        assert_eq!(policy.modes.battery.cpu_epp, balanced_epp);
+        assert!(!state.permits_dynamic_writes());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clear_journal_is_idempotent() {
+        let dir = test_dir("clear_journal_idempotent");
+        clear_journal(&dir, "nonexistent_key");
+        clear_journal(&dir, "nonexistent_key");
+        fs::write(dir.join("original_vm_swappiness"), "100\n").unwrap();
+        clear_journal(&dir, "vm_swappiness");
+        clear_journal(&dir, "vm_swappiness");
+        assert!(!dir.join("original_vm_swappiness").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn allowlist_load_with_state_ok_for_clean_or_missing_dir() {
+        let dir = test_dir("allowlist_ok_clean");
+        let override_dir = dir.join("allowlist.d");
+        fs::create_dir_all(&override_dir).unwrap();
+        let (_al, state) = Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        assert_eq!(state, LoadState::Ok);
+
+        let missing_dir = dir.join("does-not-exist");
+        let (_al2, state2) = Allowlist::load_with_state(std::slice::from_ref(&missing_dir));
+        assert_eq!(state2, LoadState::Ok);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn allowlist_load_with_state_partial_for_mixed_valid_invalid() {
+        let dir = test_dir("allowlist_partial_mixed");
+        let override_dir = dir.join("allowlist.d");
+        fs::create_dir_all(&override_dir).unwrap();
+        fs::write(
+            override_dir.join("10-valid.toml"),
+            valid_allowlist_override("pci:v00001234p00005678sv00001234sd00005678bc01sc08i02"),
+        )
+        .unwrap();
+        fs::write(
+            override_dir.join("20-broken.toml"),
+            malformed_allowlist_override(),
+        )
+        .unwrap();
+
+        let (al, state) = Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        assert_eq!(state, LoadState::Partial);
+        assert!(
+            al.check(
+                "nvme_apst",
+                "pci:v00001234p00005678sv00001234sd00005678bc01sc08i02",
+                0
+            )
+            .is_allow(),
+            "valid override must be applied even when a sibling is malformed"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

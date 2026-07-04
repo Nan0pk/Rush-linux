@@ -17,6 +17,12 @@
 //!       `/dev/cpu_dma_latency`). These are system-wide knobs with no
 //!       per-device HWID — the hardware allowlist does not apply.
 //!
+//!   (b') **Curated baseline** (optid-safety) — the `Actuator::apply_baseline`
+//!       write to `/proc/sys/vm/swappiness` at startup. Gated by
+//!       `boot_state.baseline_armed` (disarmed only in dry-run). Target is
+//!       an ADR-0009 always-safe path, but the gating is `baseline_armed`
+//!       rather than `apply_armed`, so it gets its own classification.
+//!
 //!   (c) **State-file write** — `atomic_write_state_file` writes to
 //!       `/run/optid/...` (the daemon's state directory). It is never a
 //!       kernel write and is therefore out of scope for Criterion 4.
@@ -79,214 +85,245 @@ struct WriteSite {
 /// appear here exactly once. The drift-detection assertions below cross-check
 /// the counts.
 const WRITE_SITES: &[WriteSite] = &[
+    // ── src/actuator.rs: Actuator::apply_baseline() write sites ───────────
+    // optid-safety: the curated baseline is a small, fixed set of conservative
+    // writes applied once at startup. Gated by boot_state.baseline_armed
+    // (disarmed only in dry-run). Classification is "curated-baseline" — a
+    // new classification, because these writes are NOT per-cycle dynamic
+    // Actions (they are gated by baseline_armed, not apply_armed) and they
+    // are NOT allowlist-gated (they target ADR-0009 always-safe paths).
+    WriteSite {
+        file: "src/actuator.rs",
+        line: 210,
+        function: "Actuator::apply_baseline (journal original)",
+        classification: "state-file",
+        reason: "atomic_write_state_file to state_dir/original_vm_swappiness — not a kernel write.",
+    },
+    WriteSite {
+        file: "src/actuator.rs",
+        line: 216,
+        function: "Actuator::apply_baseline (journal intended)",
+        classification: "state-file",
+        reason: "atomic_write_state_file to state_dir/intended_vm_swappiness — not a kernel write.",
+    },
+    WriteSite {
+        file: "src/actuator.rs",
+        line: 219,
+        function: "Actuator::apply_baseline",
+        classification: "curated-baseline",
+        reason: "/proc/sys/vm/swappiness — ADR-0009 always-safe path; gated by boot_state.baseline_armed (curated baseline, safe by construction; disarmed only in dry-run).",
+    },
+
     // ── src/actuator.rs: Action::apply() write sites ──────────────────────
     WriteSite {
         file: "src/actuator.rs",
-        line: 234,
+        line: 365,
         function: "Action::CpuEpp::apply",
         classification: "adr0009-baseline",
         reason: "Per-CPU EPP under /sys/devices/system/cpu/ — ADR-0009 always-safe.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 260,
+        line: 391,
         function: "Action::PlatformProfile::apply",
         classification: "adr0009-baseline",
         reason: "/sys/firmware/acpi/platform_profile — ADR-0009 always-safe.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 285,
+        line: 416,
         function: "Action::SystemdSetProperty::apply",
         classification: "non-sysfs",
         reason: "systemctl set-property --runtime invocation; argv constructed from typed Action constructors (see comment at call site).",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 318,
+        line: 449,
         function: "Action::VmSysctl::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_vm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 324,
+        line: 455,
         function: "Action::VmSysctl::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_vm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 332,
+        line: 463,
         function: "Action::VmSysctl::apply",
         classification: "adr0009-baseline",
         reason: "/proc/sys/vm/{swappiness,dirty_background_bytes,dirty_bytes} — ADR-0009 always-safe.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 361,
+        line: 493,
         function: "Action::CpuDmaLatency::apply",
         classification: "adr0009-baseline",
         reason: "/dev/cpu_dma_latency — system-wide PM QoS, no per-device HWID; ADR-0009 always-safe.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 402,
+        line: 538,
         function: "Action::DeviceResumeLatency::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_dev_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 411,
+        line: 547,
         function: "Action::DeviceResumeLatency::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_dev_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 421,
+        line: 557,
         function: "Action::DeviceResumeLatency::apply",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_attr_path(path), …) at actuator.rs:386; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_attr_path(path), …) at actuator.rs:527; default-deny + audit on Deny.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 494,
+        line: 631,
         function: "Action::RuntimePm::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_rpm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 497,
+        line: 634,
         function: "Action::RuntimePm::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_rpm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 502,
+        line: 639,
         function: "Action::RuntimePm::apply (autosuspend_delay_ms)",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:446; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:587; default-deny + audit on Deny.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 509,
+        line: 646,
         function: "Action::RuntimePm::apply (control=auto)",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:446; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:587; default-deny + audit on Deny.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 561,
+        line: 700,
         function: "Action::PcieAspm::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_aspm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 568,
+        line: 707,
         function: "Action::PcieAspm::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_aspm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 570,
+        line: 709,
         function: "Action::PcieAspm::apply",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"pci_aspm\", hwid_from_device_dir(device_dir), …) at actuator.rs:532; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"pci_aspm\", hwid_from_device_dir(device_dir), …) at actuator.rs:673; default-deny + audit on Deny.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 614,
+        line: 755,
         function: "Action::SataAlpm::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_alpm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 620,
+        line: 761,
         function: "Action::SataAlpm::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_alpm_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 622,
+        line: 763,
         function: "Action::SataAlpm::apply",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"sata_alpm\", hwid_from_ancestors(host_dir), …) at actuator.rs:594; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"sata_alpm\", hwid_from_ancestors(host_dir), …) at actuator.rs:735; default-deny + audit on Deny.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 677,
+        line: 820,
         function: "Action::Backlight::apply (journal original)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/original_bl_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 684,
+        line: 827,
         function: "Action::Backlight::apply (journal intended)",
         classification: "state-file",
         reason: "atomic_write_state_file to state_dir/intended_bl_* — not a kernel write.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 686,
+        line: 829,
         function: "Action::Backlight::apply",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"backlight\", hwid_from_ancestors(device_dir), …) at actuator.rs:645; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"backlight\", hwid_from_ancestors(device_dir), …) at actuator.rs:786; default-deny + audit on Deny.",
     },
 
     // ── src/io_util.rs: revert-path write sites ──────────────────────────
     // These write back journaled originals to paths whose first-write was
     // allowlist-gated. They never introduce a (path, value) pair the gate
     // has not already approved. See module docstring classification (d).
+    // optid-safety: the revert functions now also detect crash recovery
+    // (original_<key> present but applied_<key> absent) and log it.
     WriteSite {
         file: "src/io_util.rs",
-        line: 121,
+        line: 136,
         function: "revert_sysctls",
         classification: "revert-path",
-        reason: "Reverts /proc/sys/vm/* to journaled original; ADR-0009 baseline + safe-by-construction revert.",
+        reason: "Reverts /proc/sys/vm/* to journaled original; ADR-0009 baseline + safe-by-construction revert. Crash-recovery aware (checks applied_<key> marker).",
     },
     WriteSite {
         file: "src/io_util.rs",
-        line: 146,
+        line: 173,
         function: "revert_pm_qos",
         classification: "revert-path",
-        reason: "Reverts per-device PM QoS resume latency to journaled original; first-write was allowlist-gated by Action::DeviceResumeLatency.",
+        reason: "Reverts per-device PM QoS resume latency to journaled original; first-write was allowlist-gated by Action::DeviceResumeLatency. Crash-recovery aware.",
     },
     WriteSite {
         file: "src/io_util.rs",
-        line: 192,
+        line: 225,
         function: "revert_runtime_pm (control)",
         classification: "revert-path",
-        reason: "Reverts power/control to journaled original; first-write was allowlist-gated by Action::RuntimePm.",
+        reason: "Reverts power/control to journaled original; first-write was allowlist-gated by Action::RuntimePm. Crash-recovery aware.",
     },
     WriteSite {
         file: "src/io_util.rs",
-        line: 208,
+        line: 241,
         function: "revert_runtime_pm (autosuspend_delay_ms)",
         classification: "revert-path",
-        reason: "Reverts power/autosuspend_delay_ms to journaled original; first-write was allowlist-gated by Action::RuntimePm.",
-    },
-    WriteSite {
-        file: "src/io_util.rs",
-        line: 247,
-        function: "revert_storage",
-        classification: "revert-path",
-        reason: "Reverts link/l1_aspm or link_power_management_policy to journaled original; first-write was allowlist-gated by Action::PcieAspm / Action::SataAlpm.",
+        reason: "Reverts power/autosuspend_delay_ms to journaled original; first-write was allowlist-gated by Action::RuntimePm. Crash-recovery aware.",
     },
     WriteSite {
         file: "src/io_util.rs",
         line: 292,
+        function: "revert_storage",
+        classification: "revert-path",
+        reason: "Reverts link/l1_aspm or link_power_management_policy to journaled original; first-write was allowlist-gated by Action::PcieAspm / Action::SataAlpm. Crash-recovery aware.",
+    },
+    WriteSite {
+        file: "src/io_util.rs",
+        line: 340,
         function: "revert_display",
         classification: "revert-path",
-        reason: "Reverts brightness to journaled original; first-write was allowlist-gated by Action::Backlight.",
+        reason: "Reverts brightness to journaled original; first-write was allowlist-gated by Action::Backlight. Crash-recovery aware.",
     },
 ];
 
@@ -321,6 +358,7 @@ fn criterion_4_no_ungated_write_sites() {
     let valid = [
         "allowlist",
         "adr0009-baseline",
+        "curated-baseline",
         "state-file",
         "revert-path",
         "non-sysfs",
@@ -348,29 +386,35 @@ fn criterion_4_drift_detection_actuator_rs() {
     // `guarded_write(` matches:
     //   - the RealPmqosSink::write_device_latency impl at line 71 (1 occurrence;
     //     this is the actual sysfs write performed on behalf of
-    //     Action::DeviceResumeLatency; reached only via the gated call at L421,
+    //     Action::DeviceResumeLatency; reached only via the gated call,
     //     so it is covered by that call's classification — we subtract it here)
     //   - one call per Action variant in apply() (8 calls: CpuEpp,
     //     PlatformProfile, VmSysctl, RuntimePm ×2, PcieAspm, SataAlpm, Backlight)
+    //   - optid-safety: one call in apply_baseline() (curated baseline write
+    //     to /proc/sys/vm/swappiness)
     // The use-statement at L22 and the doc comment at L2 do not match because
     // they don't have `(` immediately after `guarded_write`.
     let guarded_calls = count(ACTUATOR_RS, "guarded_write(").saturating_sub(1);
     let pmqos_cpu_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_cpu_latency(");
     let pmqos_dev_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_device_latency(");
-    // `atomic_write_state_file(` matches only the 12 real call sites in
-    // apply() (the use-statement at L22 has a comma after, not `(`).
+    // `atomic_write_state_file(` matches only the real call sites in
+    // apply() + apply_baseline() (the use-statement at L22 has a comma after,
+    // not `(`). 14 sites as of optid-safety: 12 in apply() + 2 in apply_baseline().
     let atomic_calls = count(ACTUATOR_RS, "atomic_write_state_file(");
     let systemctl_calls = count(ACTUATOR_RS, "Command::new(\"systemctl\")");
 
     // Kernel-write calls = guarded_write + pmqos_sink calls (both reach sysfs
-    // or /dev/cpu_dma_latency). The inventory's "allowlist" + "adr0009-baseline"
-    // classifications cover ALL kernel-write call sites, including pmqos_sink.
+    // or /dev/cpu_dma_latency). The inventory's "allowlist" +
+    // "adr0009-baseline" + "curated-baseline" classifications cover ALL
+    // kernel-write call sites, including pmqos_sink.
     let kernel_write_calls = guarded_calls + pmqos_cpu_calls + pmqos_dev_calls;
     let inv_actuator_kernel = WRITE_SITES
         .iter()
         .filter(|s| {
             s.file == "src/actuator.rs"
-                && (s.classification == "allowlist" || s.classification == "adr0009-baseline")
+                && (s.classification == "allowlist"
+                    || s.classification == "adr0009-baseline"
+                    || s.classification == "curated-baseline")
         })
         .count();
     let inv_actuator_atomic = WRITE_SITES
@@ -384,7 +428,7 @@ fn criterion_4_drift_detection_actuator_rs() {
 
     assert_eq!(
         kernel_write_calls, inv_actuator_kernel,
-        "actuator.rs: counted {kernel_write_calls} kernel-write call sites (guarded_write + pmqos_sink) but inventory lists {inv_actuator_kernel} (allowlist + adr0009-baseline). Update WRITE_SITES."
+        "actuator.rs: counted {kernel_write_calls} kernel-write call sites (guarded_write + pmqos_sink) but inventory lists {inv_actuator_kernel} (allowlist + adr0009-baseline + curated-baseline). Update WRITE_SITES."
     );
     assert_eq!(
         atomic_calls, inv_actuator_atomic,

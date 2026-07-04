@@ -27,6 +27,7 @@ mod dbus;
 mod decision;
 mod foreground;
 mod io_util;
+mod load_state;
 mod policy;
 mod sensors;
 mod shim;
@@ -43,6 +44,7 @@ use dbus::OptidServer;
 use io_util::{
     append_log, revert_display, revert_pm_qos, revert_runtime_pm, revert_storage, revert_sysctls,
 };
+use load_state::{BootState, LoadState};
 use policy::Policy;
 use sensors::Snapshot;
 use shim::{GameModeServer, PpdServer};
@@ -98,7 +100,11 @@ fn run(args: Args) -> io::Result<()> {
     // dry-run with a logged reason when conflicts are present. The check
     // fails OPEN (no conflicts) if systemctl is unavailable, so the daemon
     // can still start in containers and non-systemd environments.
-    let policy_for_conflicts = Policy::load(&args.config_path);
+    //
+    // optid-safety: load the policy with explicit LoadState tracking. A
+    // missing/malformed policy returns LoadState::Defaulted/Partial/Invalid
+    // and the BootState computation below disarms apply_armed accordingly.
+    let (policy_for_conflicts, policy_load_state) = Policy::load_with_state(&args.config_path);
     let conflict_report =
         shim::detect_conflicts(&policy_for_conflicts.policy.competing_policy_daemons);
     let mut args = args;
@@ -117,6 +123,47 @@ fn run(args: Args) -> io::Result<()> {
             )?;
             args.apply = false;
         }
+    }
+
+    // optid-safety: load the hardware allowlist with explicit LoadState. The
+    // allowlist gate is consulted by BootState: if it loaded partially
+    // (malformed override file), apply_armed is disarmed even if the policy
+    // loaded cleanly.
+    let (allowlist, allowlist_load_state) = if args.allowlist {
+        allowlist::Allowlist::load_with_state(allowlist::DEFAULT_OVERRIDE_DIRS)
+    } else {
+        // Gate disabled via --no-allowlist. The load state is not consulted
+        // for apply_armed (see BootState computation below).
+        (allowlist::Allowlist::seeded(), LoadState::Ok)
+    };
+
+    // optid-safety: compute the boot-time decision surface. This is the
+    // single source of truth for whether dynamic writes (apply_armed) and
+    // curated-baseline writes (baseline_armed) are permitted.
+    let allowlist_gate_enabled = args.allowlist;
+    let apply_armed = args.apply
+        && policy_load_state.permits_dynamic_writes()
+        && (!allowlist_gate_enabled || allowlist_load_state.permits_dynamic_writes());
+    let baseline_armed = args.apply; // baseline is safe by construction; only dry-run disarms
+    let boot_state = BootState {
+        policy_load_state,
+        allowlist_load_state,
+        apply_armed,
+        baseline_armed,
+        allowlist_gate_enabled,
+    };
+    let boot_summary = format!("optid: boot state — {}\n", boot_state.summary());
+    eprint!("{boot_summary}");
+    append_log(&args.state_dir.join("decisions.log"), &boot_summary)?;
+    if !apply_armed && args.apply {
+        // We asked for --apply but the gate disarmed us. Log prominently.
+        let msg = format!(
+            "optid: --apply requested but apply_armed=false — dynamic writes disabled. \
+             Curated baseline will still be applied (baseline_armed={}).\n",
+            baseline_armed
+        );
+        eprintln!("{msg}");
+        append_log(&args.state_dir.join("decisions.log"), &msg)?;
     }
 
     // Revert sysctls on startup to clean up any left-over state
@@ -213,25 +260,38 @@ fn run(args: Args) -> io::Result<()> {
     let mut mode_hysteresis = ModeHysteresisState::new(Mode::Balanced);
 
     let mut actuator = Actuator::new(args.state_dir.clone());
-    if args.allowlist {
-        // WP-N4: load seeded baseline + runtime overrides and arm the gate.
-        let al = allowlist::Allowlist::load();
-        // Record the effective allowlist at startup so the audit trail shows
-        // exactly what the gate will admit (default-deny for everything else).
+    if allowlist_gate_enabled {
+        // WP-N4: the allowlist was already loaded above (with LoadState
+        // tracking). Record the effective allowlist at startup so the audit
+        // trail shows exactly what the gate will admit (default-deny for
+        // everything else).
         let mut summary = format!(
             "optid: WP-N4 hardware allowlist gate ENABLED (default-deny); \
-             version={} effective_entries={}\n",
-            al.version(),
-            al.len()
+             version={} effective_entries={} load_state={}\n",
+            allowlist.version(),
+            allowlist.len(),
+            allowlist_load_state,
         );
-        for entry in al.entries() {
+        for entry in allowlist.entries() {
             summary.push_str("optid:   allowlist ");
             summary.push_str(&entry.describe());
             summary.push('\n');
         }
         append_log(&args.state_dir.join("decisions.log"), &summary)?;
-        actuator.enable_allowlist(al);
+        actuator.enable_allowlist(allowlist);
     }
+
+    // optid-safety: install the boot-time decision surface on the actuator.
+    // After this call, every dynamic Action is gated by boot_state.apply_armed
+    // (see Actuator::dynamic_writes_armed), and the curated baseline is gated
+    // by boot_state.baseline_armed (see Actuator::apply_baseline).
+    actuator.set_boot_state(boot_state);
+
+    // optid-safety: apply the curated baseline once at startup. This puts
+    // the system into a known-good state (vm.swappiness = balanced default)
+    // regardless of whether dynamic writes are armed. The baseline is gated
+    // by baseline_armed, so it is skipped in dry-run mode.
+    actuator.apply_baseline()?;
 
     // v0.6 Phase C1: foreground-app detection. When --foreground=auto,
     // spawn the subscriber thread. In v0.6 this is a stub that never
