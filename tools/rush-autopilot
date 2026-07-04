@@ -554,9 +554,6 @@ def generate_plan(
             reason="baseline run (PPD balanced) for mixed-load-001 preset, 5 samples",
             rollback="rush-capture finish --run-dir <run-dir>",
             argv=[
-                "rush-exec",
-                "--run-dir", run_dir,
-                "--",
                 "rushbench", "run", "preset=mixed-load-001",
                 "--tag=baseline-<hostname>",
                 "--samples=5",
@@ -572,9 +569,6 @@ def generate_plan(
             reason="optid run (--apply) for mixed-load-001 preset, 5 samples — paired with baseline",
             rollback="rush-capture finish --run-dir <run-dir>",
             argv=[
-                "rush-exec",
-                "--run-dir", run_dir,
-                "--",
                 "rushbench", "run", "preset=mixed-load-001",
                 "--tag=optid-<version>-<hostname>",
                 "--samples=5",

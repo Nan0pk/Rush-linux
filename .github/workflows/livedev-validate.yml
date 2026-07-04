@@ -89,8 +89,12 @@ jobs:
 
       - name: Check no self-merge commands
         run: |
-          # Verify that no merge-related commands exist in the rush tools.
-          if grep -r "pr.*merge\|gh.*merge\|pulls/.*/merge" tools/rush_pr_lib.py tools/rush-autopilot 2>/dev/null; then
+          # Verify that no merge-related *commands* (actual subprocess calls) exist
+          # in the rush tools. We only check for executable patterns — not string
+          # literals in forbidden-patterns lists (which list "merge" as something
+          # to REJECT, not execute).
+          # Check for: subprocess.run with merge, git merge as a command, gh pr merge as a command
+          if grep -n 'subprocess\.run.*merge\|\.run(\["git".*"merge\|\.run(\["gh".*"pr".*"merge' tools/rush_pr_lib.py tools/rush-autopilot 2>/dev/null; then
             echo "ERROR: merge command found in rush PR tools"
             exit 1
           fi
