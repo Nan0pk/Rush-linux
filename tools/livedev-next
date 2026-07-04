@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """
-tools/livedev-next — the single operator entrypoint for Rush LiveDev.
+tools/livedev-next - the single operator entrypoint for Rush LiveDev.
 
 Usage:
-  python3 tools/livedev-next              # show repo state + next commands
-  python3 tools/livedev-next --auto       # full pipeline: plan → run → validate → submit dry-run
-  python3 tools/livedev-next --mock       # run mock tests (no hardware, no network)
-  python3 tools/livedev-next --plan       # generate a benchmark plan
-  python3 tools/livedev-next --run PLAN   # execute a plan (fake mode by default)
-  python3 tools/livedev-next --submit DIR --dry-run  # dry-run evidence submission
-  python3 tools/livedev-next --submit DIR            # real evidence submission
+  python3 tools/livedev-next                          # show the one-command path + repo state
+  python3 tools/livedev-next --mock                   # run mock tests (no hardware, no network)
+  python3 tools/livedev-next --auto                   # full pipeline: plan -> run -> validate -> submit dry-run
+  python3 tools/livedev-next --auto --dry-run         # show the full pipeline without writing USB
+  python3 tools/livedev-next --prepare-usb            # call the testOS USB backend
+  python3 tools/livedev-next --resume                 # call the bootstrap resume path (after reboot)
+  python3 tools/livedev-next --plan                   # generate a benchmark plan
+  python3 tools/livedev-next --run /tmp/plan.json     # execute a plan (fake mode by default)
+  python3 tools/livedev-next --submit <RUN_DIR> --dry-run   # dry-run evidence submission
+  python3 tools/livedev-next --submit <RUN_DIR>             # real evidence submission (no auto-merge)
+  python3 tools/livedev-next --help
 
 This tool does NOT run destructive actions, does NOT request GH_TOKEN
-(unless submit without --dry-run), and does NOT run hardware tests.
+(only --submit without --dry-run does, and it prints exactly
+"[TOKEN NEEDED]" if the token is missing), and does NOT run hardware
+tests on its own.
 """
 
 from __future__ import annotations
@@ -37,6 +43,26 @@ REQUIRED_TOOLS = [
     "tools/rush-agent",
 ]
 
+BOOTSTRAP_URL_SH = "https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh"
+BOOTSTRAP_URL_PS1 = "https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1"
+
+LINUX_MACOS_CMD = (
+    f"curl -fsSL {BOOTSTRAP_URL_SH} -o livedev-bootstrap.sh "
+    "&& bash livedev-bootstrap.sh --auto"
+)
+WINDOWS_CMD = (
+    f"curl.exe -L -o livedev-bootstrap.ps1 {BOOTSTRAP_URL_PS1}; "
+    "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1 -Auto"
+)
+
+USER_PATH_DESCRIPTION = (
+    "This writes a USB, boots the test environment, runs tests, reboots, "
+    "resumes collection, validates results, and opens an evidence PR for "
+    "maintainer review.\n"
+    "You only approve USB erase, boot from USB, physical AC/battery prompts, "
+    "and GitHub auth."
+)
+
 
 def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 180) -> tuple[int, str, str]:
     try:
@@ -51,22 +77,37 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 180) -> tuple[i
 
 
 def _print_result(label: str, rc: int, stdout: str) -> None:
-    symbol = "✅" if rc == 0 else "❌"
+    symbol = "[OK]" if rc == 0 else "[FAIL]"
     last_lines = stdout.strip().splitlines()[-3:] if stdout.strip() else []
     print(f"  {symbol} {label} (exit {rc})")
     for line in last_lines:
         print(f"       {line}")
 
 
-# ─── Default ─────────────────────────────────────────────────────────────────
+def _print_bootstrap_commands() -> None:
+    print("Linux/macOS:")
+    print(f"  {LINUX_MACOS_CMD}")
+    print()
+    print("Windows PowerShell:")
+    print(f"  {WINDOWS_CMD}")
+    print()
+    print(USER_PATH_DESCRIPTION)
+
+
+# --- Default ----------------------------------------------------------------
 
 
 def cmd_default() -> int:
-    print("═" * 60)
-    print("  Rush LiveDev Next Step")
-    print("═" * 60)
+    print("=" * 60)
+    print("  Rush LiveDev - one-command hardware test")
+    print("=" * 60)
     print()
-
+    _print_bootstrap_commands()
+    print()
+    print("-" * 60)
+    print("  Repo state")
+    print("-" * 60)
+    print()
     print(f"  Repo root:   {_REPO_ROOT}")
 
     rc, branch, _ = _run(["git", "-C", str(_REPO_ROOT), "branch", "--show-current"])
@@ -83,60 +124,90 @@ def cmd_default() -> int:
     all_present = True
     for tool in REQUIRED_TOOLS:
         exists = (_REPO_ROOT / tool).exists()
-        print(f"    {'✅' if exists else '❌'} {tool}")
+        print(f"    {'[OK]' if exists else '[MISSING]'} {tool}")
         if not exists:
             all_present = False
 
     runner_wired = (_REPO_ROOT / "tools/rush_runner_lib.py").exists()
     submit_wired = (_REPO_ROOT / "tools/rush_pr_lib.py").exists()
+    bootstrap_sh = (_REPO_ROOT / "tools/livedev-bootstrap.sh").exists()
+    bootstrap_ps1 = (_REPO_ROOT / "tools/livedev-bootstrap.ps1").exists()
 
     print()
-    print(f"  Hardware runner:  {'✅ wired (rush-autopilot run)' if runner_wired else '❌ not wired'}")
-    print(f"  Evidence submit:  {'✅ wired (rush-autopilot submit-evidence)' if submit_wired else '❌ not wired'}")
+    print(f"  Hardware runner:      {'wired (rush-autopilot run)' if runner_wired else 'not wired'}")
+    print(f"  Evidence submit:      {'wired (rush-autopilot submit-evidence)' if submit_wired else 'not wired'}")
+    print(f"  Bootstrap (Linux/macOS): {'present' if bootstrap_sh else 'missing'}")
+    print(f"  Bootstrap (Windows):     {'present' if bootstrap_ps1 else 'missing'}")
 
     print()
     print("  What is wired now:")
-    print("    • Planner reads repo state + hardware, generates typed plans")
-    print("    • Runner executes plans through rush-exec, captures tamper-evident evidence")
-    print("    • Validator checks 14 semantic properties on evidence bundles")
-    print("    • AI harness (mock) can diagnose failures and propose patches")
-    print("    • PR submission prepares evidence PRs for maintainer review")
+    print("    - Planner reads repo state + hardware, generates typed plans")
+    print("    - Runner executes plans through rush-exec, captures tamper-evident evidence")
+    print("    - Validator checks 14 semantic properties on evidence bundles")
+    print("    - AI harness (mock) can diagnose failures and propose patches")
+    print("    - PR submission prepares evidence PRs for maintainer review")
+    print("    - Bootstrap scripts drive the full USB workflow end-to-end")
 
     print()
     print("  What is NOT wired yet:")
-    print("    • Real AI providers (only mock available)")
-    print("    • Real hardware evidence (no transcripts submitted)")
-    print("    • LiveDev image boot (profile exists, not built on hardware)")
+    print("    - Real AI providers (only mock available)")
+    print("    - Real hardware evidence (no transcripts submitted)")
+    print("    - LiveDev image boot (testOS is the current boot backend)")
 
     print()
-    print("─" * 60)
-    print("  Next commands")
-    print("─" * 60)
+    print("-" * 60)
+    print("  Operator commands (inside the repo)")
+    print("-" * 60)
     print()
-    print("  ★ Run the full pipeline automatically (plan → run → validate → submit):")
+    print("  Mock tests (no hardware, no network):")
+    print("    python3 tools/livedev-next --mock")
+    print()
+    print("  Full pipeline (plan -> run -> validate -> submit dry-run):")
     print("    python3 tools/livedev-next --auto")
     print()
-    print("  Or step by step:")
-    print("    python3 tools/livedev-next --mock       # mock tests (no hardware)")
-    print("    python3 tools/livedev-next --plan       # generate a plan")
-    print(f"    python3 tools/livedev-next --run /tmp/rush-livedev-plan.json")
+    print("  Show the full pipeline without writing USB:")
+    print("    python3 tools/livedev-next --auto --dry-run")
+    print()
+    print("  Prepare USB using the testOS backend:")
+    print("    python3 tools/livedev-next --prepare-usb")
+    print()
+    print("  Resume after reboot (copy results, validate, submit dry-run):")
+    print("    python3 tools/livedev-next --resume")
+    print()
+    print("  Generate a plan / execute a plan / submit evidence:")
+    print("    python3 tools/livedev-next --plan")
+    print("    python3 tools/livedev-next --run /tmp/rush-livedev-plan.json")
     print("    python3 tools/livedev-next --submit <RUN_DIR> --dry-run")
     print()
     print("  Full runbook: docs/livedev/OPERATOR_RUNBOOK.md")
+    print()
+    print("  This tool never auto-merges. PRs are opened for maintainer review.")
+    print("  It never marks milestones verified. It never edits release truth.")
     print()
 
     return 0 if all_present else 1
 
 
-# ─── Auto (full pipeline) ────────────────────────────────────────────────────
+# --- Auto (full pipeline) ---------------------------------------------------
 
 
-def cmd_auto() -> int:
-    """Run the full pipeline: plan → run → validate → submit (dry-run)."""
-    print("═" * 60)
-    print("  Rush LiveDev — Full Pipeline")
-    print("═" * 60)
+def cmd_auto(dry_run: bool = False) -> int:
+    """Run the full pipeline: plan -> run -> validate -> submit (dry-run).
+
+    With --dry-run, prints every command instead of executing it. Does not
+    write a USB -- USB preparation is --prepare-usb's job, and the full
+    one-command USB workflow is the bootstrap script's job.
+    """
+    print("=" * 60)
+    print("  Rush LiveDev - Full Pipeline")
+    print("=" * 60)
     print()
+
+    if dry_run:
+        print("  [dry-run] Showing the full pipeline. No commands are executed.")
+        print("  [dry-run] USB is not written. Use tools/livedev-bootstrap.sh --auto")
+        print("  [dry-run]   for the full one-command USB workflow.")
+        print()
 
     run_dir = tempfile.mkdtemp(prefix="rush-livedev-auto-")
     plan_path = "/tmp/rush-livedev-plan.json"
@@ -147,26 +218,36 @@ def cmd_auto() -> int:
         "python3", "tools/rush-autopilot", "plan",
         "--dry-run", "--slot", "laptop", "--output", plan_path,
     ]
-    rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
-    _print_result("Plan", rc, stdout)
+    if dry_run:
+        print(f"    [dry-run] {' '.join(cmd)}")
+        rc = 0
+        stdout, stderr = "", ""
+    else:
+        rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
+        _print_result("Plan", rc, stdout)
     if rc != 0:
-        print(f"\n  ❌ Pipeline failed at step 1 (plan).")
-        if stderr.strip():
+        print("\n  [FAIL] Pipeline failed at step 1 (plan).")
+        if not dry_run and stderr.strip():
             print(f"     {stderr.strip()[-300:]}")
         return 1
     print()
 
-    # Step 2: Run (fake mode — safe, no hardware).
+    # Step 2: Run (fake mode - safe, no hardware).
     print("  Step 2/4: Executing plan (fake mode)...")
     cmd = [
         "python3", "tools/rush-autopilot", "run",
         "--plan", plan_path, "--run-dir", run_dir, "--fake",
     ]
-    rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=300)
-    _print_result("Run", rc, stdout)
+    if dry_run:
+        print(f"    [dry-run] {' '.join(cmd)}")
+        rc = 0
+        stdout, stderr = "", ""
+    else:
+        rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=300)
+        _print_result("Run", rc, stdout)
     if rc != 0:
-        print(f"\n  ❌ Pipeline failed at step 2 (run).")
-        if stderr.strip():
+        print("\n  [FAIL] Pipeline failed at step 2 (run).")
+        if not dry_run and stderr.strip():
             print(f"     {stderr.strip()[-300:]}")
         return 1
     print()
@@ -174,11 +255,16 @@ def cmd_auto() -> int:
     # Step 3: Validate.
     print("  Step 3/4: Validating evidence...")
     cmd = ["python3", "tools/validate-hwtest-evidence.py", "--bundle", run_dir]
-    rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
-    _print_result("Validate", rc, stdout)
+    if dry_run:
+        print(f"    [dry-run] {' '.join(cmd)}")
+        rc = 0
+        stdout, stderr = "", ""
+    else:
+        rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
+        _print_result("Validate", rc, stdout)
     if rc != 0:
-        print(f"\n  ⚠️  Evidence validation failed. The run completed but the evidence")
-        print(f"     bundle has issues. You can still submit it as failing evidence:")
+        print("\n  [WARN] Evidence validation failed. The run completed but the evidence")
+        print("     bundle has issues. You can still submit it as failing evidence:")
         print(f"     python3 tools/rush-autopilot submit-failing-evidence --run-dir {run_dir} --dry-run")
         print()
         print(f"  Run dir: {run_dir}")
@@ -191,30 +277,38 @@ def cmd_auto() -> int:
         "python3", "tools/rush-autopilot", "submit-evidence",
         "--run-dir", run_dir, "--dry-run",
     ]
-    rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
-    _print_result("Submit (dry-run)", rc, stdout)
+    if dry_run:
+        print(f"    [dry-run] {' '.join(cmd)}")
+        rc = 0
+        stdout, stderr = "", ""
+    else:
+        rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
+        _print_result("Submit (dry-run)", rc, stdout)
     print()
 
-    print("─" * 60)
-    print(f"  ✅ Pipeline complete. Run dir: {run_dir}")
+    print("-" * 60)
+    if dry_run:
+        print("  [dry-run] Pipeline complete (no commands executed).")
+    else:
+        print(f"  [OK] Pipeline complete. Run dir: {run_dir}")
     print()
     print("  To submit for real (opens a PR for maintainer review):")
     print(f"    python3 tools/livedev-next --submit {run_dir}")
     print()
     print("  The tool will ask for GH_TOKEN when it needs it.")
-    print("  It never merges the PR — that's the maintainer's job.")
+    print("  It never merges the PR - that's the maintainer's job.")
     print()
 
     return 0
 
 
-# ─── Mock ────────────────────────────────────────────────────────────────────
+# --- Mock -------------------------------------------------------------------
 
 
 def cmd_mock() -> int:
-    print("═" * 60)
-    print("  Rush LiveDev — Mock Tests")
-    print("═" * 60)
+    print("=" * 60)
+    print("  Rush LiveDev - Mock Tests")
+    print("=" * 60)
     print()
 
     commands = [
@@ -226,48 +320,48 @@ def cmd_mock() -> int:
 
     all_passed = True
     for cmd, label in commands:
-        print(f"  ▸ {label}...")
+        print(f"  > {label}...")
         rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=180)
         _print_result(label, rc, stdout)
         if rc != 0:
             all_passed = False
         print()
 
-    print("─" * 60)
+    print("-" * 60)
     if all_passed:
-        print("  ✅ All mock tests passed.")
+        print("  [OK] All mock tests passed.")
         print()
         print("  Next: run the full pipeline:")
         print("    python3 tools/livedev-next --auto")
     else:
-        print("  ❌ Some mock tests failed. Fix before proceeding.")
+        print("  [FAIL] Some mock tests failed. Fix before proceeding.")
     print()
     return 0 if all_passed else 1
 
 
-# ─── Plan ────────────────────────────────────────────────────────────────────
+# --- Plan -------------------------------------------------------------------
 
 
 def cmd_plan() -> int:
-    print("═" * 60)
-    print("  Rush LiveDev — Generate Plan")
-    print("═" * 60)
+    print("=" * 60)
+    print("  Rush LiveDev - Generate Plan")
+    print("=" * 60)
     print()
 
     plan_path = "/tmp/rush-livedev-plan.json"
-    cmd = ["python3", "tools/rush-autopilot", "plan", "--dry-run", "--output", plan_path]
+    cmd = ["python3", "tools/rush-autopilot", "plan", "--dry-run", "--slot", "laptop", "--output", plan_path]
     print(f"  Running: {' '.join(cmd)}")
     print()
     rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
 
     if rc != 0:
-        print(f"  ❌ Plan generation failed (exit {rc})")
+        print(f"  [FAIL] Plan generation failed (exit {rc})")
         if stderr.strip():
             print(f"     {stderr.strip()[-300:]}")
         return 1
 
     if Path(plan_path).exists():
-        print(f"  ✅ Plan written to: {plan_path}")
+        print(f"  [OK] Plan written to: {plan_path}")
         print()
         print("  Next: execute the plan:")
         print(f"    python3 tools/livedev-next --run {plan_path}")
@@ -275,24 +369,24 @@ def cmd_plan() -> int:
         print("  Or run the full pipeline:")
         print("    python3 tools/livedev-next --auto")
     else:
-        print(f"  ⚠️  Plan command exited 0 but file not found at {plan_path}")
+        print(f"  [WARN] Plan command exited 0 but file not found at {plan_path}")
         return 1
 
     print()
     return 0
 
 
-# ─── Run ─────────────────────────────────────────────────────────────────────
+# --- Run --------------------------------------------------------------------
 
 
 def cmd_run(plan_path: str) -> int:
-    print("═" * 60)
-    print("  Rush LiveDev — Execute Plan")
-    print("═" * 60)
+    print("=" * 60)
+    print("  Rush LiveDev - Execute Plan")
+    print("=" * 60)
     print()
 
     if not Path(plan_path).exists():
-        print(f"  ❌ Plan file not found: {plan_path}")
+        print(f"  [FAIL] Plan file not found: {plan_path}")
         print()
         print("  Generate a plan first:")
         print("    python3 tools/livedev-next --plan")
@@ -305,7 +399,7 @@ def cmd_run(plan_path: str) -> int:
     ]
     print(f"  Plan:    {plan_path}")
     print(f"  Run dir: {run_dir}")
-    print(f"  Mode:    fake (safe — no real hardware)")
+    print(f"  Mode:    fake (safe - no real hardware)")
     print()
     print(f"  Running: {' '.join(cmd)}")
     print()
@@ -315,28 +409,28 @@ def cmd_run(plan_path: str) -> int:
         print(stdout.strip()[-500:])
     if rc == 0:
         print()
-        print(f"  ✅ Plan executed. Run dir: {run_dir}")
+        print(f"  [OK] Plan executed. Run dir: {run_dir}")
         print()
         print("  Next: submit the evidence:")
         print(f"    python3 tools/livedev-next --submit {run_dir} --dry-run")
     else:
         print()
-        print(f"  ❌ Plan execution failed (exit {rc})")
+        print(f"  [FAIL] Plan execution failed (exit {rc})")
     print()
     return rc
 
 
-# ─── Submit ──────────────────────────────────────────────────────────────────
+# --- Submit -----------------------------------------------------------------
 
 
 def cmd_submit(run_dir: str, dry_run: bool) -> int:
-    print("═" * 60)
-    print("  Rush LiveDev — Submit Evidence")
-    print("═" * 60)
+    print("=" * 60)
+    print("  Rush LiveDev - Submit Evidence")
+    print("=" * 60)
     print()
 
     if not Path(run_dir).exists():
-        print(f"  ❌ Run directory not found: {run_dir}")
+        print(f"  [FAIL] Run directory not found: {run_dir}")
         return 1
 
     if dry_run:
@@ -344,20 +438,20 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
             "python3", "tools/rush-autopilot", "submit-evidence",
             "--run-dir", run_dir, "--dry-run",
         ]
-        print(f"  Mode: dry-run (no push, no PR)")
+        print(f"  Mode: dry-run (no push, no PR, no merge)")
         print()
         rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
         if stdout.strip():
             print(stdout.strip()[-1000:])
         if rc == 0:
             print()
-            print("  ✅ Dry-run complete.")
+            print("  [OK] Dry-run complete.")
             print()
             print("  To submit for real (opens a PR for maintainer review):")
             print(f"    python3 tools/livedev-next --submit {run_dir}")
         else:
             print()
-            print(f"  ❌ Dry-run failed (exit {rc})")
+            print(f"  [FAIL] Dry-run failed (exit {rc})")
             if stderr.strip():
                 print(f"     {stderr.strip()[-300:]}")
         return rc
@@ -373,20 +467,119 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
             "--run-dir", run_dir,
         ]
         print(f"  Mode: real (will push branch + open PR for maintainer review)")
+        print(f"  No auto-merge. A maintainer reviews and merges.")
         print()
         rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=120)
         if stdout.strip():
             print(stdout.strip()[-500:])
         if rc == 0:
             print()
-            print("  ✅ PR opened. Check the output above for the PR URL.")
+            print("  [OK] PR opened. Check the output above for the PR URL.")
         else:
             print()
-            print(f"  ❌ Submission failed (exit {rc})")
+            print(f"  [FAIL] Submission failed (exit {rc})")
         return rc
 
 
-# ─── CLI ─────────────────────────────────────────────────────────────────────
+# --- Prepare USB ------------------------------------------------------------
+
+
+def cmd_prepare_usb(dry_run: bool = False) -> int:
+    print("=" * 60)
+    print("  Rush LiveDev - Prepare USB")
+    print("=" * 60)
+    print()
+
+    bootstrap_sh = _REPO_ROOT / "tools/livedev-bootstrap.sh"
+    testos_install = _REPO_ROOT / "testos/install.sh"
+    testos_install_ps1 = _REPO_ROOT / "testos/install.ps1"
+
+    print("  Using testOS as the current LiveDev boot backend.")
+    print()
+
+    if not testos_install.exists() and not testos_install_ps1.exists():
+        print("  [FAIL] No testOS installer found (testos/install.sh or testos/install.ps1).")
+        return 1
+
+    if dry_run:
+        print("  [dry-run] Would prepare the USB by invoking the testOS installer.")
+        print("  [dry-run] The exact command depends on your OS:")
+        print()
+        if bootstrap_sh.exists():
+            print("    Linux/macOS:")
+            print("      bash tools/livedev-bootstrap.sh --auto")
+            print("    Or call the testOS installer directly:")
+            print("      sudo bash testos/install.sh")
+            print("      sudo bash testos/install.sh /dev/sdX   # explicit device")
+        print()
+        print("    Windows PowerShell:")
+        print("      powershell -ExecutionPolicy Bypass -File tools/livedev-bootstrap.ps1 -Auto")
+        print("      powershell -ExecutionPolicy Bypass -File testos/install.ps1")
+        print()
+        print("  [dry-run] Not writing USB.")
+        return 0
+
+    # Real prep: prefer the bootstrap script (it does repo sync + mock + plan first).
+    if bootstrap_sh.exists():
+        print("  Running: bash tools/livedev-bootstrap.sh --auto")
+        print("  (This will sync the repo, run mock verification, generate a plan,")
+        print("   then prepare the USB using testOS as the boot backend.)")
+        print()
+        rc, stdout, stderr = _run(
+            ["bash", str(bootstrap_sh), "--auto"], cwd=_REPO_ROOT, timeout=1800
+        )
+        if stdout.strip():
+            print(stdout.strip()[-1500:])
+        if rc != 0:
+            print(f"  [FAIL] bootstrap.sh exited {rc}")
+            if stderr.strip():
+                print(f"     {stderr.strip()[-300:]}")
+        return rc
+
+    print("  [FAIL] tools/livedev-bootstrap.sh not found. Cannot prepare USB.")
+    return 1
+
+
+# --- Resume -----------------------------------------------------------------
+
+
+def cmd_resume(dry_run: bool = False, submit: bool = False) -> int:
+    print("=" * 60)
+    print("  Rush LiveDev - Resume After Reboot")
+    print("=" * 60)
+    print()
+
+    bootstrap_sh = _REPO_ROOT / "tools/livedev-bootstrap.sh"
+
+    if not bootstrap_sh.exists():
+        print("  [FAIL] tools/livedev-bootstrap.sh not found. Cannot resume.")
+        return 1
+
+    args = ["--resume"]
+    if dry_run:
+        args.append("--dry-run")
+    if submit:
+        args.append("--submit")
+
+    print("  Running: bash tools/livedev-bootstrap.sh " + " ".join(args))
+    print("  (This will scan for the USB, copy results, validate, and run submit dry-run.)")
+    if submit:
+        print("  -Submit requested: will open a real evidence PR (no auto-merge).")
+    print()
+
+    rc, stdout, stderr = _run(
+        ["bash", str(bootstrap_sh)] + args, cwd=_REPO_ROOT, timeout=1800
+    )
+    if stdout.strip():
+        print(stdout.strip()[-2000:])
+    if rc != 0:
+        print(f"  [FAIL] bootstrap.sh exited {rc}")
+        if stderr.strip():
+            print(f"     {stderr.strip()[-300:]}")
+    return rc
+
+
+# --- CLI --------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -397,7 +590,8 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--auto", action="store_true",
-        help="Run the full pipeline: plan → run → validate → submit (dry-run).",
+        help="Run the full pipeline: plan -> run -> validate -> submit (dry-run). "
+             "With --dry-run, shows the pipeline without writing USB.",
     )
     group.add_argument("--mock", action="store_true", help="Run mock tests (no hardware, no network).")
     group.add_argument("--plan", action="store_true", help="Generate a benchmark plan.")
@@ -406,14 +600,26 @@ def main(argv: list[str] | None = None) -> int:
         "--submit", type=str, metavar="RUN_DIR",
         help="Submit evidence from a run directory.",
     )
+    group.add_argument(
+        "--prepare-usb", action="store_true",
+        help="Prepare a USB using the current testOS boot backend.",
+    )
+    group.add_argument(
+        "--resume", action="store_true",
+        help="Resume after reboot: copy results, validate, submit dry-run.",
+    )
     parser.add_argument(
         "--dry-run", action="store_true", default=False,
-        help="Dry-run mode for submit.",
+        help="Dry-run mode for --auto (show pipeline, do not write USB) or --submit.",
+    )
+    parser.add_argument(
+        "--submit-real", action="store_true", default=False,
+        help="Used with --resume: open a real evidence PR (no auto-merge).",
     )
     ns = parser.parse_args(argv)
 
     if ns.auto:
-        return cmd_auto()
+        return cmd_auto(dry_run=ns.dry_run)
     if ns.mock:
         return cmd_mock()
     if ns.plan:
@@ -422,6 +628,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(ns.run)
     if ns.submit:
         return cmd_submit(ns.submit, ns.dry_run)
+    if ns.prepare_usb:
+        return cmd_prepare_usb(dry_run=ns.dry_run)
+    if ns.resume:
+        return cmd_resume(dry_run=ns.dry_run, submit=ns.submit_real)
     return cmd_default()
 
 
