@@ -34,155 +34,55 @@ python3 tools/livedev-next --mock   # run mock tests (no hardware, no network)
 python3 tools/livedev-next --plan   # generate a benchmark plan
 ```
 
-Full runbook: `docs/livedev/OPERATOR_RUNBOOK.md`
+Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
+
+LiveDev is the automation foundation: it plans benchmark campaigns, runs them through `rush-exec`, captures tamper-evident evidence with `rush-capture`, validates with `validate-hwtest-evidence`, optionally repairs failures with the mock AI harness (`rush-agent`), and prepares evidence PRs for maintainer review. It never merges, never marks milestones verified, and never edits release truth.
 
 ---
 
 ## Try it on real hardware (testOS — legacy/manual path)
 
-The fastest way to see Rush Linux in action on bare metal: download the prebuilt **testOS** image, write it to a USB stick, boot any x86_64 machine from it, run the benchmark suite, and pull the results back into your repo. About 5 minutes of actual work, no toolchain install required.
+Prefer a USB stick and a real machine? testOS boots a minimal Rush Linux image, runs the benchmark suite, and writes results back to the USB. No toolchain install required.
 
-> **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)** (prerelease — the installer fetches it automatically)
->
-> Browse all releases: [github.com/Nan0pk/Rush-linux/releases](https://github.com/Nan0pk/Rush-linux/releases)
-
-**You need:**
-
-- A USB stick (≥ 1 GB)
-- A test machine — any x86_64 PC that can boot from USB, ≥ 1 GB RAM, no OS prerequisites
-- A workstation to write the USB and collect results
-
-Pick your workstation OS:
+> **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)**
 
 <details>
-<summary><strong>Linux</strong> — one-liner or download-then-run</summary>
+<summary><strong>Linux</strong> — write the USB</summary>
 
 ```bash
-# Recommended: download, inspect, then run.
 wget https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
 less install.sh    # inspect it if you like
 sudo bash install.sh /dev/sdX
 ```
 
-Or, if you trust the source and want a one-liner:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh | sudo bash -s -- /dev/sdX
-```
-
-Find your USB device first with `lsblk` (look for `RM=1` — removable). Safety checks:
-
-- Refuses to write to the host's root disk.
-- Refuses non-removable disks (`RM=0`) unless `--force` (catches accidental targeting of internal SATA/NVMe disks).
-- Refuses mounted devices.
-- Warns if the target disk is much larger than the image (suspicious — wrong disk?).
-- Shows the disk's VENDOR, MODEL, SIZE, TRAN, RM and asks `yes` before writing.
-
+Safety checks: refuses the host's root disk, refuses non-removable disks without `--force`, refuses mounted devices, warns if the target is much larger than the image, asks `yes` before writing.
 </details>
 
 <details>
-<summary><strong>Windows</strong> — native PowerShell, no WSL, no Rufus</summary>
-
-Open **PowerShell as Administrator** (right-click PowerShell → "Run as Administrator"), then run:
+<summary><strong>Windows</strong> — native PowerShell, no WSL</summary>
 
 ```powershell
-# Step 1: Download the installer:
 curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
-
-# Step 2: Run it (bypass execution policy for this process only — Windows
-#         blocks downloaded scripts by default):
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installer scans for USB disks automatically. If exactly one USB stick is plugged in, it uses it. If multiple USB sticks are plugged in, it shows a numbered list and asks you to pick. You can also pass `-Device \\.\PhysicalDrive<N>` explicitly if you prefer (find the number with `Get-Disk | Format-Table Number, FriendlyName, BusType`).
-
-If Step 2 still fails with "cannot be loaded because running scripts is disabled," unblock the file first (Windows marks downloaded files with a "Mark of the Web"):
-
-```powershell
-Unblock-File .\install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-The installer uses native Windows APIs (`CreateFile` + `WriteFile` via P/Invoke) to write the image directly to the raw disk — no Rufus, no Etcher, no WSL. Safety checks:
-
-- Refuses to write to the Windows system disk.
-- Refuses non-USB bus types unless `-Force` (catches accidental targeting of internal SATA/NVMe disks).
-- Auto-clears any existing partitions on the USB (Windows auto-mounts every USB stick, so the script handles this for you — no `-Force` needed for a fresh USB).
-- Shows the disk's FriendlyName, BusType, Size, PartitionStyle and asks `yes` before writing.
-
+If blocked: `Unblock-File .\install.ps1` first. The installer scans for USB disks automatically. Safety checks: refuses the system disk, refuses non-USB bus types without `-Force`, asks `yes` before writing.
 </details>
 
 <details>
 <summary><strong>macOS</strong> — download-then-run</summary>
 
 ```bash
-# Find your USB device:
 diskutil list
-
-# Download and run:
 curl -fsSL -o install.sh https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
 sudo bash install.sh /dev/diskN
 ```
 
-The installer uses `dd` on macOS. The `testos-launcher` and `testos-ingest` binaries are Linux-only — on macOS, you'll need to collect results from a Linux machine (or build the binaries from source).
-
 </details>
 
-### What happens after you write the USB
+**After writing the USB:** plug it into the test machine, reboot, pick USB from the boot menu (disable Secure Boot if it refuses). testOS boots to a console menu — type `0` for all benchmarks, or pick specific numbers. Press Esc to abort early. Results are saved to the USB; testOS reboots back to the host OS when done.
 
-1. Plug the USB into the test machine.
-2. Reboot. Enter the boot menu (F12, F8, F11, or Esc — depends on the vendor).
-3. Pick the USB from the list.
-4. If it refuses to boot, disable Secure Boot in the firmware — testOS UKIs are unsigned for now.
-
-testOS boots to a console menu on the screen. No login required.
-
-```
-Available benchmarks:
-  [0] Run all (estimated 3m 40s)
-  [1] fio — sequential read IOPS (30s)
-  [2] fio — sequential write IOPS (30s)
-  [3] iperf3 — TCP throughput (loopback) (20s)
-  [4] PostgreSQL — pgbench TPS (1m)
-  [5] nginx — requests per second (30s)
-  [6] PSI — CPU pressure avg10 (5s)
-  [7] PSI — IO pressure avg10 (5s)
-  [8] cyclictest — max latency (µs) (30s)
-  [9] foreground launch latency (ms) (10s)
-
-Select (comma-separated numbers, or 0 for all, or 'q' to quit):
-```
-
-Type `0` for all, or pick specific numbers separated by commas (e.g. `1,3,5`). Progress is printed line by line with per-test ETA. **Press Esc at any time to abort early** — partial results are saved. When the run finishes, testOS syncs the USB, waits 5 seconds, and reboots back to the host OS.
-
-### Pull the results into the repo
-
-Plug the USB back into your workstation.
-
-**On Windows (one command, fully automated):**
-
-```powershell
-# Set your GitHub token (needs repo scope for push + PR merge):
-$env:GITHUB_TOKEN = "github_pat_xxx..."
-
-# Download and run the collector - it does EVERYTHING:
-curl.exe -L -o collect-results.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.ps1
-powershell -ExecutionPolicy Bypass -File .\collect-results.ps1
-```
-
-The collector automatically:
-1. Finds the USB, mounts the ESP partition
-2. Copies `testos-results\` + install logs
-3. Reads `manifest.json` for pass/fail counts
-4. Clones the repo, creates a branch, commits the results
-5. Pushes the branch, opens a PR
-6. Waits for CI checks to pass (up to 10 min)
-7. Auto-merges the PR to main
-8. Cleans up the temp clone and unmounts the USB
-
-No manual git, no manual mount, no manual PR. One command, done.
-
-**On Linux:**
+**Pull results into the repo:**
 
 ```bash
 sudo testos-ingest pull /dev/sdX
@@ -191,9 +91,7 @@ testos-ingest commit
 git push
 ```
 
-Run `.\collect-results.ps1 -Diagnose` to see all disks/partitions if something goes wrong. Run with `-DryRun` to do everything except push (useful for testing).
-
-Results land in `benchmarks/results/<UTC-date>/<host-fingerprint>/`.
+Or on Windows: `.\collect-results.ps1` does everything (mount, copy, branch, commit, push, PR) in one command. Full testOS docs: [`testos/README.md`](testos/README.md).
 
 ---
 
@@ -236,12 +134,6 @@ flowchart LR
 
 Default mode is always **dry-run**. Kernel writes require explicit `--apply` on a supported host.
 
----
-
-## Power profile comparison
-
-What `optid` actually does per workload class, when run with `--apply` on supported hardware:
-
 | Workload class | CPU governor | EPP | Platform profile | PM QoS CPU latency | Use case |
 |:---------------|:-------------|:----|:------------------|:-------------------|:---------|
 | `idle` | powersave | power | low-power | 100 ms | Screen off, no foreground app |
@@ -250,9 +142,7 @@ What `optid` actually does per workload class, when run with `--apply` on suppor
 | `latency-critical` | performance | performance | performance | 10 µs | Video call, game, audio session |
 | `throughput` | performance | performance | performance | 10 ms | Compile, render, batch job |
 
-PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a C-state deeper than that floor allows. A `latency-critical` class holds a 10 µs floor, so the CPU stays in shallow C-states and wakes fast. A `throughput` class relaxes to 10 ms because raw throughput doesn't care about wake latency.
-
-EPP (`energy_perf_preference`) is the hint the CPU scheduler uses to trade frequency vs. efficiency. Platform profile is the ACPI-level hint that drives fan curves, dGPU power, USB autosuspend, etc.
+PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a C-state deeper than that floor allows. EPP is the hint the CPU scheduler uses to trade frequency vs. efficiency. Platform profile is the ACPI-level hint that drives fan curves, dGPU power, USB autosuspend, etc.
 
 ---
 
@@ -260,11 +150,12 @@ EPP (`energy_perf_preference`) is the hint the CPU scheduler uses to trade frequ
 
 - **`optid` daemon** — PSI + thermal + power-supply sensor polling, workload classification, PM QoS contract enforcement. Applies EPP, platform profile, and cgroup slices when run with `--apply`. Every decision is logged and explainable.
 - **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`. Machine-readable output via `--json`.
-- **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class. Structured energy windows, N-sample collection, anomaly detection.
-- **testOS** — bootable USB image for real-hardware benchmarking. See [Try it on real hardware](#try-it-on-real-hardware) above.
-- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified; transcript at `release/evidence/v0.3.0-alpha.1/`.
-- **Installable system** — `tools/rush-install.sh` stamps the mkosi-built image onto a blank disk via `systemd-repart`; installed system boots twice cleanly with `optid.service` active. Transcripts at `release/evidence/v0.5.0-beta.1/`.
-- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing. Bad-kernel rollback verified; transcript at `release/evidence/v0.4.0-alpha.1/c3-bad-kernel/`.
+- **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class.
+- **Rush LiveDev** — automation foundation: planner, runner, capture, evidence validator, AI harness, PR submission. See [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md).
+- **testOS** — bootable USB image for real-hardware benchmarking. See [testOS README](testos/README.md).
+- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified.
+- **Installable system** — `tools/rush-install.sh` stamps the mkosi-built image onto a blank disk via `systemd-repart`; installed system boots twice cleanly with `optid.service` active.
+- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing. Bad-kernel rollback verified.
 
 ---
 
@@ -285,8 +176,6 @@ EPP (`energy_perf_preference`) is the hint the CPU scheduler uses to trade frequ
 ---
 
 ## Build from source
-
-For developers who want to modify Rush itself, build the testOS image locally, or run the optimizer in dry-run mode:
 
 ```bash
 git clone https://github.com/Nan0pk/Rush-linux.git
@@ -316,9 +205,11 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 - [Architecture](docs/architecture.md) — how `optid`, `optctl`, and the systemd units fit together
 - [Boot and updates](docs/boot-and-updates.md) — UKI, systemd-boot, signed rollback
 - [Adaptive engine](docs/adaptive-engine.md) — workload classification, PM QoS contracts
+- [LiveDev operator runbook](docs/livedev/OPERATOR_RUNBOOK.md) — how to run benchmarks, capture evidence, submit PRs
+- [LiveDev developer guide](docs/livedev-developer-guide.md) — architecture boundaries, tool roles, data flow
 - [Benchmark methodology](docs/decisions/0011-benchmark-methodology.md) — how claims are measured
 - [Testing strategy](docs/testing-and-benchmarks.md) — release gates and tiers
-- [testOS README](testos/README.md) — full design rationale and known limitations for the USB benchmark environment
+- [testOS README](testos/README.md) — full design rationale for the USB benchmark environment
 - [Roadmap](ROADMAP.md) — where the project is going
 - [All docs](docs/SUMMARY.md)
 
