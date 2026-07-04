@@ -24,7 +24,7 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 ---
 
-## LiveDev quick start
+## Rush LiveDev quick start
 
 Run benchmarks, capture evidence, and prepare PRs — all from one command:
 
@@ -34,13 +34,13 @@ python3 tools/livedev-next --mock   # run mock tests (no hardware, no network)
 python3 tools/livedev-next --plan   # generate a benchmark plan
 ```
 
-For the full runbook, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
+Full runbook: `docs/livedev/OPERATOR_RUNBOOK.md`
 
 ---
 
-## Try it on real hardware
+## Try it on real hardware (testOS — legacy/manual path)
 
-The fastest way to see Rush Linux in action: download the prebuilt **testOS** image, write it to a USB stick, boot any x86_64 machine from it, run the benchmark suite, and pull the results back into your repo. About 5 minutes of actual work, no toolchain install required.
+The fastest way to see Rush Linux in action on bare metal: download the prebuilt **testOS** image, write it to a USB stick, boot any x86_64 machine from it, run the benchmark suite, and pull the results back into your repo. About 5 minutes of actual work, no toolchain install required.
 
 > **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)** (prerelease — the installer fetches it automatically)
 >
