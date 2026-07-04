@@ -247,6 +247,11 @@ fn cmd_preview(args: &[String]) {
                             Ok(list) => {
                                 for (i, b) in list.benches.iter().enumerate() {
                                     println!("  [{}] {} ({}s)", i + 1, b.name, b.estimated_seconds);
+                                    if let Some(notes) = &b.notes {
+                                        if !notes.trim().is_empty() {
+                                            println!("      {}", notes.trim());
+                                        }
+                                    }
                                 }
                                 println!(
                                     "  Total ETA: {}",

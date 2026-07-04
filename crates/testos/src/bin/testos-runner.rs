@@ -398,6 +398,11 @@ fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
         let eta = BenchList::format_duration(b.estimated_seconds);
         let bat = if b.requires_battery { " [battery]" } else { "" };
         println!("  [{}] {} ({}){}", i + 1, b.name, eta, bat);
+        if let Some(notes) = &b.notes {
+            if !notes.trim().is_empty() {
+                println!("      {}", notes.trim());
+            }
+        }
     }
     println!();
 

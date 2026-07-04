@@ -53,7 +53,7 @@ Flags:
   --dry-run        Print every command that would run. Do not write USB.
   --skip-mock      Skip the mock verification step (used with --auto).
   --submit         Used with --resume: open a real evidence PR for maintainer review.
-                   No auto-merge. Requires GH_TOKEN.
+                   No auto-merge. Requires GH_TOKEN or GITHUB_TOKEN.
   --device /dev/sdX  Optional USB device path (otherwise testOS auto-detects).
   --help           Show this message.
 
@@ -388,6 +388,7 @@ do_resume() {
         echo "    [dry-run] Would scan for removable USB, mount its ESP read-only,"
         echo "    [dry-run]   and copy testos-results/<latest>/ into: $RUN_DIR"
     else
+        log "sudo may ask for your password to mount the USB read-only."
         copy_results_into_run_dir "$RUN_DIR"
         if [[ -z "$(ls -A "$RUN_DIR" 2>/dev/null)" ]]; then
             warn "No results copied (USB may not be plugged in, or no testos-results/ on it)."
@@ -464,8 +465,11 @@ with open('$manifest') as f:
     m = json.load(f)
 assert 'host' in m, 'missing host fingerprint'
 assert 'passed' in m and 'failed' in m and 'skipped' in m, 'missing pass/fail/skip counts'
+passed, failed, skipped = len(m['passed']), len(m['failed']), len(m['skipped'])
 print('  manifest parses OK')
-print('  passed=%d failed=%d skipped=%d' % (len(m['passed']), len(m['failed']), len(m['skipped'])))
+print('  passed=%d failed=%d skipped=%d' % (passed, failed, skipped))
+if failed:
+    print('  NOTE: failed tests are preserved as evidence; submit is allowed for maintainer review.')
 "; then
         die "Manifest validation failed."
     fi
@@ -505,7 +509,8 @@ do_real_submit() {
     local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
     if [[ -z "$token" ]]; then
         echo "[TOKEN NEEDED]"
-        echo "Export GH_TOKEN, then rerun:"
+        echo "Export GH_TOKEN or GITHUB_TOKEN, then rerun:"
+        echo "    export GH_TOKEN=github_pat_xxx"
         echo "    bash livedev-bootstrap.sh --resume --submit"
         exit 2
     fi
@@ -564,6 +569,8 @@ print(m.get('host', {}).get('fingerprint', 'unknown-host'))
     local dest="benchmarks/results/$date_part/$host_fp"
     mkdir -p "$dest"
     cp -a "$run_dir/." "$dest/"
+    find "$dest" -type d -exec chmod 755 {} +
+    find "$dest" -type f -exec chmod 644 {} +
 
     git add benchmarks/results/
     commit_msg="evidence(bench): testOS run $date_part host=$host_fp"

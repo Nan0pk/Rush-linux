@@ -40,7 +40,7 @@ fio --name=seqread --rw=read --bs=4k --size=256M --numjobs=1 --time_based=0 \
   | jq '{value: (.jobs[0].read.iops), unit: "iops"}' > "$TESTOS_RESULT_FILE"
 """
 estimated_seconds = 30
-notes = "Sequential 4K read IOPS against /tmp (RAM-backed)."
+notes = "Measures cached small-block read speed; useful for spotting CPU/filesystem overhead, not disk limits."
 
 [[benches]]
 id = "fio-seq-write"
@@ -53,7 +53,7 @@ fio --name=seqwrite --rw=write --bs=4k --size=256M --numjobs=1 --time_based=0 \
   | jq '{value: (.jobs[0].write.iops), unit: "iops"}' > "$TESTOS_RESULT_FILE"
 """
 estimated_seconds = 30
-notes = "Sequential 4K write IOPS against /tmp (RAM-backed)."
+notes = "Measures cached small-block write speed; useful for spotting filesystem/write-path overhead, not disk limits."
 
 [[benches]]
 id = "iperf3-tcp"
@@ -67,7 +67,7 @@ iperf3 -c 127.0.0.1 -t 10 -J \
   | jq -r '.end.sum_received.bits_per_second / 1e9 | floor' | head -1
 """
 estimated_seconds = 20
-notes = "Loopback TCP throughput in Gbps."
+notes = "Measures local TCP stack throughput; useful for catching kernel/network-regression overhead without external LAN noise."
 
 [[benches]]
 id = "postgres-tps"
@@ -91,7 +91,7 @@ pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
 pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
 """
 estimated_seconds = 60
-notes = "Temporary local Postgres, pgbench scale=10, 4 clients."
+notes = "Measures local database transaction throughput; useful for server and scheduler regressions under mixed CPU/IO work."
 
 [[benches]]
 id = "nginx-rps"
@@ -126,7 +126,7 @@ ab -n 10000 -c 10 http://127.0.0.1:8080/ 2>/dev/null \
 nginx -c "$NGINX_CONF" -s stop 2>/dev/null
 """
 estimated_seconds = 30
-notes = "Local nginx serving a 3-byte static file, ab 10000 requests, 10 concurrent."
+notes = "Measures local HTTP request throughput; useful for web-serving responsiveness and syscall/network-stack overhead."
 
 # ─── Mixed-load responsiveness scenario ────────────────────────────
 
@@ -141,7 +141,7 @@ command = """
 awk '{gsub(/\\./,"",$2); print $2}' /proc/pressure/cpu | head -1
 """
 estimated_seconds = 5
-notes = "PSI CPU avg10 pressure, as reported by the kernel."
+notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
 
 [[benches]]
 id = "psi-io-avg10"
@@ -152,7 +152,7 @@ command = """
 awk '{gsub(/\\./,"",$2); print $2}' /proc/pressure/io | head -1
 """
 estimated_seconds = 5
-notes = "PSI IO avg10 pressure, as reported by the kernel."
+notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
 
 [[benches]]
 id = "cyclictest-max"
@@ -164,7 +164,7 @@ cyclictest -p 80 -t 1 -l 100000 -q 2>/dev/null \
   | awk -F: '/Max Latency/ {print $2}' | tr -d ' ' | head -1
 """
 estimated_seconds = 30
-notes = "100k iterations, prio 80, single thread. Reports max latency in µs."
+notes = "Measures worst-case wakeup latency; useful for real-time audio, input, and jitter-sensitive workloads."
 
 [[benches]]
 id = "foreground-launch"
@@ -178,7 +178,7 @@ for i in 1 2 3 4 5; do
 done | awk '{a[NR]=$1} END {n=NR; if (n%2==1) print a[(n+1)/2]*1000; else print (a[n/2]+a[n/2+1])/2*1000}'
 """
 estimated_seconds = 10
-notes = "Median of 5 'bash -c true' launches, in milliseconds."
+notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."
 
 # ─── Future scenarios (declared, not yet wired) ────────────────────
 # Add laptop-battery, gaming-frame-time, realtime-audio entries here as
