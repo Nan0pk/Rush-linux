@@ -18,8 +18,9 @@ submission surface: the ability to open PRs with evidence or code
 attached, so the Verifier and Human can review and merge.
 
 The existing testOS `collect-results.sh` already creates PRs via the
-GitHub API, but it also **auto-merges** them when CI passes. Phase 8
-forbids auto-merge for LiveDev — LiveDev is a Builder, not a Human.
+GitHub API and merges them automatically when CI passes. Phase 8
+forbids this for LiveDev — LiveDev opens a PR for maintainer review
+and never merges it. LiveDev is a Builder, not a Human.
 
 ## Decision
 
