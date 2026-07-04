@@ -215,6 +215,9 @@ class BundleValidator:
             return
 
         # Check the manifest-referenced files exist.
+        # STEP 4D hardening: reject path traversal — manifest path fields
+        # must be relative, must not contain "..", and must resolve to a
+        # path under bundle_dir.
         for field in ["plan_path", "host_path", "baseline_result_path",
                        "optid_result_path", "verdict_path", "events_path",
                        "privacy_report_path"]:
@@ -222,7 +225,21 @@ class BundleValidator:
             if not rel:
                 self.err(f"manifest missing field: {field}")
                 continue
-            p = self.bundle_dir / rel
+            # Reject absolute paths.
+            if Path(rel).is_absolute():
+                self.err(f"manifest.{field}: absolute path rejected: {rel!r}")
+                continue
+            # Reject paths containing "..".
+            if ".." in Path(rel).parts:
+                self.err(f"manifest.{field}: path traversal rejected (contains '..'): {rel!r}")
+                continue
+            # Resolve and verify it stays under bundle_dir.
+            p = (self.bundle_dir / rel).resolve()
+            try:
+                p.relative_to(self.bundle_dir.resolve())
+            except ValueError:
+                self.err(f"manifest.{field}: path escapes bundle_dir: {rel!r}")
+                continue
             if not p.exists():
                 self.err(f"missing required file (from manifest.{field}): {rel}")
 

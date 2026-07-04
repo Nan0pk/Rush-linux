@@ -512,14 +512,25 @@ def execute_submission(
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(p, dest)
 
-    # 5. Add + commit.
+    # 5. Add + commit. Stage ONLY the evidence directory (not -A).
     try:
-        subprocess.run(
-            ["git", "-C", str(repo_root), "add", "-A"],
-            check=True,
-            capture_output=True,
-            timeout=10,
-        )
+        # Stage only the evidence path, not the entire working tree.
+        if plan.kind in ("evidence", "failing-evidence") and plan.evidence_path:
+            subprocess.run(
+                ["git", "-C", str(repo_root), "add", plan.evidence_path],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+        else:
+            # For code PRs, stage only the files listed in the plan.
+            for f in plan.files_to_add:
+                subprocess.run(
+                    ["git", "-C", str(repo_root), "add", f],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                )
         subprocess.run(
             ["git", "-C", str(repo_root), "commit", "-m", plan.commit_message],
             check=True,

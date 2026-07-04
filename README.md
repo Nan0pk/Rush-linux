@@ -345,6 +345,12 @@ We are looking for kernel engineers, Rustaceans, and systems programmers who val
 
 ---
 
+## LiveDev
+
+For the current Rush LiveDev operator workflow, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
+
+---
+
 ## License
 
 [Apache-2.0](LICENSE). Copyright the Rush Linux authors.
