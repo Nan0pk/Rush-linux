@@ -103,6 +103,12 @@ find_repo_root() {
 ensure_repo() {
     if find_repo_root; then
         ok "Inside repo: $REPO_DIR"
+    elif [[ -d "$PWD/$WORK_DIR_NAME" ]] \
+         && [[ -f "$PWD/$WORK_DIR_NAME/tools/livedev-next" ]] \
+         && [[ -d "$PWD/$WORK_DIR_NAME/.git" ]]; then
+        # A Rush-linux checkout already exists in ./$WORK_DIR_NAME. Use it.
+        REPO_DIR="$PWD/$WORK_DIR_NAME"
+        ok "Found existing checkout: $REPO_DIR"
     else
         log "Not inside repo. Cloning into ./$WORK_DIR_NAME ..."
         if [[ "$DRY_RUN" == "true" ]]; then
