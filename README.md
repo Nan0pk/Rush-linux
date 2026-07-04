@@ -24,6 +24,20 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 ---
 
+## LiveDev quick start
+
+Run benchmarks, capture evidence, and prepare PRs — all from one command:
+
+```sh
+python3 tools/livedev-next          # check repo state + next commands
+python3 tools/livedev-next --mock   # run mock tests (no hardware, no network)
+python3 tools/livedev-next --plan   # generate a benchmark plan
+```
+
+For the full runbook, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
+
+---
+
 ## Try it on real hardware
 
 The fastest way to see Rush Linux in action: download the prebuilt **testOS** image, write it to a USB stick, boot any x86_64 machine from it, run the benchmark suite, and pull the results back into your repo. About 5 minutes of actual work, no toolchain install required.
@@ -342,18 +356,6 @@ We are looking for kernel engineers, Rustaceans, and systems programmers who val
 - [Agent and contributor protocol](docs/agent-protocol.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Open a discussion](https://github.com/Nan0pk/Rush-linux/discussions)
-
----
-
-## Current LiveDev operator path
-
-```sh
-python3 tools/livedev-next
-python3 tools/livedev-next --mock
-python3 tools/livedev-next --plan
-```
-
-For the full runbook, see [docs/livedev/OPERATOR_RUNBOOK.md](docs/livedev/OPERATOR_RUNBOOK.md).
 
 ---
 
