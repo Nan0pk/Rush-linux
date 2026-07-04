@@ -80,15 +80,21 @@ PGDATA=/tmp/pgdata
 PGHOST=/tmp
 rm -rf "$PGDATA"
 mkdir -p "$PGDATA"
-initdb -D "$PGDATA" --quiet 2>/dev/null
-pg_ctl -D "$PGDATA" -o "-k $PGHOST" -l /tmp/pg.log start -w -s
-createdb -h "$PGHOST" bench 2>/dev/null || true
-pgbench -h "$PGHOST" -i -s 10 bench >/dev/null 2>&1
-pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
+# Use postgres user for server; fall back to current user if postgres missing.
+if id postgres >/dev/null 2>&1; then
+  PGUSER=postgres
+else
+  PGUSER=$(id -un)
+fi
+sudo -u "$PGUSER" initdb -D "$PGDATA" --quiet 2>/dev/null
+sudo -u "$PGUSER" pg_ctl -D "$PGDATA" -o "-k $PGHOST" -l /tmp/pg.log start -w -s
+sudo -u "$PGUSER" createdb -h "$PGHOST" bench 2>/dev/null || true
+sudo -u "$PGUSER" pgbench -h "$PGHOST" -i -s 10 bench >/dev/null 2>&1
+sudo -u "$PGUSER" pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
   | awk '/tps =/ {print $3}' \
   | head -1 \
   | xargs -I{} jq -n --argjson v {} '{value: $v, unit: "tps"}' > "$TESTOS_RESULT_FILE"
-pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
+sudo -u "$PGUSER" pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
 """
 estimated_seconds = 60
 notes = "Measures local database transaction throughput; useful for server and scheduler regressions under mixed CPU/IO work."
@@ -136,9 +142,8 @@ name = "PSI — CPU pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
-# Read PSI cpu avg10 (the first number in /proc/pressure/cpu), then convert to milli-percent
-# so it's a clean number (e.g. 0.12 -> 120).
-awk '{gsub(/\\./,"",$2); print $2}' /proc/pressure/cpu | head -1
+# Read PSI cpu avg10 (first number in /proc/pressure/cpu), output bare number.
+awk '{split($2,a,"="); print a[2]}' /proc/pressure/cpu | head -1
 """
 estimated_seconds = 5
 notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
@@ -149,7 +154,7 @@ name = "PSI — IO pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
-awk '{gsub(/\\./,"",$2); print $2}' /proc/pressure/io | head -1
+awk '{split($2,a,"="); print a[2]}' /proc/pressure/io | head -1
 """
 estimated_seconds = 5
 notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
@@ -161,7 +166,7 @@ scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
 cyclictest -p 80 -t 1 -l 100000 -q 2>/dev/null \
-  | awk -F: '/Max Latency/ {print $2}' | tr -d ' ' | head -1
+  | awk '/Max:/ {print $NF}' | tr -d ' ' | head -1
 """
 estimated_seconds = 30
 notes = "Measures worst-case wakeup latency; useful for real-time audio, input, and jitter-sensitive workloads."
