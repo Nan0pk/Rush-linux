@@ -46,7 +46,17 @@ That's it. The script auto-detects what to do:
 2. **QEMU available?** → build image (if needed), run deterministic VM test, collect artifacts, submit.
 3. **Neither?** → prepare USB, print boot instructions. After you boot + reboot, re-run the same command (step 1).
 
-You only approve: USB erase, boot from USB, physical AC/battery prompts, and GitHub auth (token in env, never pasted into chat). The script never auto-merges, never marks milestones verified, never edits release truth.
+You only approve: USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, never edits release truth.
+
+### GitHub auth (for `--submit`)
+
+To open an evidence PR, the script needs GitHub auth. Three ways, best first:
+
+1. **`gh` CLI (recommended, no token pasted):** install `gh` and run `gh auth login` once. After that, every `--submit` just works.
+2. **Interactive prompt:** run `bash livedev-bootstrap.sh --resume --submit` and paste a token when prompted (not echoed, not stored).
+3. **Env var:** `export GH_TOKEN=...` (typed in your terminal, not pasted from chat).
+
+The script checks auth **before** doing any USB/copy/validate work, so you won't waste 30 seconds only to fail at the last step.
 
 ### What the one command does
 

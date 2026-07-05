@@ -390,6 +390,16 @@ do_resume() {
 
     ensure_repo
 
+    # PRE-FLIGHT: if --submit was requested, verify we can authenticate
+    # BEFORE doing any USB/copy/validate work. This avoids the frustrating
+    # flow where the script does 30 seconds of work and then fails at the
+    # very last step for a missing token.
+    if [[ "$SUBMIT" == "true" && "$DRY_RUN" != "true" ]]; then
+        if ! preflight_submit_auth; then
+            exit 2
+        fi
+    fi
+
     # Step 1: locate USB and copy results into a run dir.
     echo
     log "Step 1/3: Locate USB and copy results."
@@ -513,34 +523,134 @@ do_dry_run_submit() {
     fi
 }
 
+# --- Submit auth pre-flight --------------------------------------------------
+
+preflight_submit_auth() {
+    # Returns 0 if we can authenticate to GitHub, 1 otherwise.
+    # Tries, in order:
+    #   1. GH_TOKEN / GITHUB_TOKEN env var (already set).
+    #   2. `gh auth status` (user has gh CLI installed and logged in).
+    #   3. Interactive prompt (reads token from /dev/tty, never echoed).
+    #   4. Offer to run `gh auth login` (browser-based, no token pasted).
+    # If none work and no TTY, print the classic [TOKEN NEEDED] message.
+
+    # (1) Env var already set?
+    if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+        ok "GH_TOKEN env var is set (will use it for submit)."
+        return 0
+    fi
+
+    # (2) gh CLI installed and authenticated?
+    if command -v gh >/dev/null 2>&1; then
+        if gh auth status >/dev/null 2>&1; then
+            ok "gh CLI is authenticated (will use it for submit — no token needed)."
+            return 0
+        fi
+        # gh installed but not authed — offer to log in.
+        if [[ -t 0 ]]; then
+            echo
+            log "gh CLI is installed but not authenticated."
+            echo "  You can authenticate with a browser (no token pasted):"
+            echo "    gh auth login"
+            echo
+            echo "  Or paste a GitHub token now (it won't be echoed or stored)."
+            echo "  Or press Ctrl-C to cancel."
+            echo
+            printf "  Authenticate with gh now? [y/N] "
+            local reply
+            read -r reply < /dev/tty
+            if [[ "$reply" =~ ^[Yy]$ ]]; then
+                if gh auth login --git-protocol https --web </dev/tty; then
+                    ok "gh CLI authenticated."
+                    return 0
+                fi
+                warn "gh auth login failed."
+            fi
+            # Fall through to interactive token prompt.
+        fi
+    fi
+
+    # (3) Interactive token prompt (only if we have a TTY).
+    if [[ -t 0 ]]; then
+        echo
+        log "No GH_TOKEN env var and no authenticated gh CLI."
+        echo "  Paste a GitHub Personal Access Token now."
+        echo "  (It will NOT be echoed, NOT stored, NOT logged.)"
+        echo "  Scopes needed: repo, workflow (if .github/workflows changed)."
+        echo "  Press Ctrl-C to cancel."
+        echo
+        printf "  Token: "
+        local typed
+        read -rs typed < /dev/tty
+        echo
+        if [[ -n "$typed" ]]; then
+            export GH_TOKEN="$typed"
+            ok "Token accepted (set in this process's env, not stored on disk)."
+            return 0
+        fi
+        warn "Empty token."
+    fi
+
+    # (4) Non-interactive — print the classic message.
+    echo "[TOKEN NEEDED]"
+    echo "No GH_TOKEN env var, no authenticated gh CLI, no terminal for prompt."
+    echo "Options (best first):"
+    echo "  1. Install gh CLI and run: gh auth login"
+    echo "     (browser-based, no token pasted; works for all future runs)"
+    echo "  2. Export a token in your shell:"
+    echo "       export GH_TOKEN=github_pat_xxx"
+    echo "     (typed in your terminal, not pasted from chat)"
+    echo "  3. Submit locally instead of to GitHub:"
+    echo "       bash livedev-bootstrap.sh --resume"
+    echo "     (produces a bundle in /tmp; you can attach it to an issue manually)"
+    return 1
+}
+
 do_real_submit() {
     local run_dir="$1"
-    # Token check. Never print the token.
+    # Auth was already pre-flighted at the start of do_resume. Re-fetch the
+    # token (or use gh) here. Never print the token.
     local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-    if [[ -z "$token" ]]; then
-        echo "[TOKEN NEEDED]"
-        echo "Export GH_TOKEN or GITHUB_TOKEN, then rerun:"
-        echo "    export GH_TOKEN=github_pat_xxx"
-        echo "    bash livedev-bootstrap.sh --resume --submit"
-        exit 2
-    fi
 
     log "Real submit: open evidence PR for maintainer review (no auto-merge)."
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "    [dry-run] Would push branch and open PR via GitHub API."
-        echo "    [dry-run] Token present (not printed). No merge API call would be made."
+        echo "    [dry-run] Auth method: ${token:+env token}${token:-gh CLI}"
+        echo "    [dry-run] No merge API call would be made."
         return 0
     fi
 
     if [[ -f "$run_dir/run-record.json" ]]; then
         # LiveDev-shaped run: use livedev-next --submit (no --dry-run).
         # rush_pr_lib.py never calls the merge API.
-        GH_TOKEN="$token" python3 tools/livedev-next --submit "$run_dir" || \
-            die "livedev-next --submit failed."
+        if [[ -n "$token" ]]; then
+            GH_TOKEN="$token" python3 tools/livedev-next --submit "$run_dir" || \
+                die "livedev-next --submit failed."
+        elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+            # Use gh's authenticated session — it sets GH_TOKEN internally.
+            eval "$(gh auth token --secure-storage 2>/dev/null | sed 's/^/export /')"
+            python3 tools/livedev-next --submit "$run_dir" || \
+                die "livedev-next --submit failed."
+        else
+            die "No auth available (should have been caught by preflight)."
+        fi
     else
         # testOS-shaped run: do a self-contained push + PR open.
         # We never call the GitHub merge API.
-        submit_testos_results "$run_dir" "$token"
+        if [[ -n "$token" ]]; then
+            submit_testos_results "$run_dir" "$token"
+        elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+            # Get gh's token and use it.
+            local gh_token
+            gh_token="$(gh auth token 2>/dev/null || true)"
+            if [[ -n "$gh_token" ]]; then
+                submit_testos_results "$run_dir" "$gh_token"
+            else
+                die "gh auth token returned empty."
+            fi
+        else
+            die "No auth available (should have been caught by preflight)."
+        fi
     fi
     ok "Submit complete. PR opened for maintainer review."
     log "A maintainer reviews and merges the PR. This script never merges."
