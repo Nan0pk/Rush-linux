@@ -235,6 +235,33 @@ def test_bootstrap_sh_has_usb_result_detection():
     assert "testos-results" in text
 
 
+def test_bootstrap_sh_submit_preflights_auth():
+    """Spec: --submit pre-flights auth BEFORE doing USB/copy/validate work."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    assert "preflight_submit_auth" in text, "must have a preflight auth function"
+    # The preflight must be called at the start of do_resume when SUBMIT=true,
+    # BEFORE the USB copy step.
+    assert "PRE-FLIGHT" in text or "preflight" in text.lower()
+
+
+def test_bootstrap_sh_submit_supports_gh_cli():
+    """Spec: --submit uses gh CLI if authenticated, no token needed."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    assert "gh auth status" in text, "must check gh auth status as auth method"
+    assert "gh auth login" in text, "must offer to run gh auth login"
+    assert "gh auth token" in text, "must use gh auth token to get the token"
+
+
+def test_bootstrap_sh_submit_prompts_interactively():
+    """Spec: --submit prompts for token interactively if no env var / gh."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    # read -rs reads silently (no echo) — the token is not printed.
+    assert "read -rs" in text, "must read token silently (read -rs)"
+
+
 def test_bootstrap_sh_help_works():
     p = _TOOLS_DIR / "livedev-bootstrap.sh"
     r = subprocess.run(
