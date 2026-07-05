@@ -269,6 +269,143 @@ Rush Linux enforces a **Builder/Verifier separation**: no claim of correctness o
 
 ---
 
+<!-- RUSH_FRONTPAGE:START -->
+### Editions
+
+Rush Linux is built from a single mkosi base plus per-edition
+profiles. Available editions:
+
+| edition | image id | config |
+|---|---|---|
+| `desktop` | `rush-linux-desktop` | `mkosi/mkosi.profiles/desktop/mkosi.conf` |
+| `livedev` | `rush-linux-livedev` | `mkosi/mkosi.profiles/livedev/mkosi.conf` |
+| `server` | `rush-linux-server` | `mkosi/mkosi.profiles/server/mkosi.conf` |
+| `testos` | `rush-linux-testos` | `mkosi/mkosi.profiles/testos/mkosi.conf` |
+
+### Rush LiveDev
+
+Deterministic hardware-test and benchmark-campaign workflow with
+two operator paths: `--run-vm` (QEMU-driven, for CI/dev) and
+`--auto`/`--resume` (USB-based, for real hardware).
+
+```sh
+python3 tools/livedev-next --help    # livedev-next
+python3 tools/rush-autopilot --help    # rush-autopilot
+python3 tools/build-mkosi-image.sh --help    # build-mkosi-image.sh
+```
+
+Additional tools:
+
+| tool | path |
+|---|---|
+| `livedev-bootstrap.ps1` | `tools/livedev-bootstrap.ps1` |
+| `livedev-bootstrap.sh` | `tools/livedev-bootstrap.sh` |
+| `livedev-e2e-dry-run.py` | `tools/livedev-e2e-dry-run.py` |
+| `rush-agent` | `tools/rush-agent` |
+| `rush-builder.py` | `tools/rush-builder.py` |
+| `rush-capture` | `tools/rush-capture` |
+| `rush-exec` | `tools/rush-exec` |
+| `rush-install.sh` | `tools/rush-install.sh` |
+| `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+
+### CI workflows
+
+GitHub Actions workflows that run on PRs and on main:
+
+| workflow | name | path |
+|---|---|---|
+| `ci.yml` | CI | `.github/workflows/ci.yml` |
+| `docker-publish.yml` | Docker Image CI | `.github/workflows/docker-publish.yml` |
+| `dragnet.yml` | Dragnet Evidence Tripwire | `.github/workflows/dragnet.yml` |
+| `frontpage-sync.yml` | frontpage-sync | `.github/workflows/frontpage-sync.yml` |
+| `graphify.yml` | Graphify knowledge graph | `.github/workflows/graphify.yml` |
+| `labeler.yml` | Pull Request Labeler | `.github/workflows/labeler.yml` |
+| `livedev-validate.yml` | LiveDev validate | `.github/workflows/livedev-validate.yml` |
+| `pages.yml` | Deploy to GitHub Pages | `.github/workflows/pages.yml` |
+| `reassess.yml` | Strategic Reassessment | `.github/workflows/reassess.yml` |
+| `release-drafter.yml` | Release Drafter | `.github/workflows/release-drafter.yml` |
+| `release-testos.yml` | Release testOS image | `.github/workflows/release-testos.yml` |
+| `rust-clippy.yml` | rust-clippy analyze | `.github/workflows/rust-clippy.yml` |
+| `stale.yml` | Close stale issues and PRs | `.github/workflows/stale.yml` |
+| `validate-install-ps1.yml` | Validate install.ps1 | `.github/workflows/validate-install-ps1.yml` |
+
+### Systemd services
+
+Services shipped in the image (optid is the adaptive optimizer;
+rush-* are the LiveDev tools):
+
+| unit | description | path |
+|---|---|---|
+| `optid-apply.service` | Rush Linux optimization daemon (apply mode) | `packaging/systemd/optid-apply.service` |
+| `optid-boot-assess.service` | Rush Linux boot assessment marker | `packaging/systemd/optid-boot-assess.service` |
+| `optid.service` | Rush Linux optimization daemon (dry-run) | `packaging/systemd/optid.service` |
+| `rush-autopilot.service` | Rush LiveDev autopilot planner/runner | `packaging/systemd/rush-autopilot.service` |
+| `rush-capture.service` | Rush LiveDev capture session manager | `packaging/systemd/rush-capture.service` |
+| `rush-livedev-autostart.service` | Rush LiveDev autostart (safe countdown before autopilot) | `packaging/systemd/rush-livedev-autostart.service` |
+
+### Operator commands
+
+Single entrypoint for LiveDev operations:
+
+```sh
+python3 tools/livedev-next --help    # livedev-next
+python3 tools/rush-autopilot --help    # rush-autopilot
+python3 tools/build-mkosi-image.sh --help    # build-mkosi-image.sh
+```
+
+Additional tools:
+
+| tool | path |
+|---|---|
+| `livedev-bootstrap.ps1` | `tools/livedev-bootstrap.ps1` |
+| `livedev-bootstrap.sh` | `tools/livedev-bootstrap.sh` |
+| `livedev-e2e-dry-run.py` | `tools/livedev-e2e-dry-run.py` |
+| `rush-agent` | `tools/rush-agent` |
+| `rush-builder.py` | `tools/rush-builder.py` |
+| `rush-capture` | `tools/rush-capture` |
+| `rush-exec` | `tools/rush-exec` |
+| `rush-install.sh` | `tools/rush-install.sh` |
+| `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+
+### Documentation
+
+Key docs:
+
+| doc | description |
+|---|---|
+| [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md) | LiveDev operator runbook |
+| [`docs/livedev-developer-guide.md`](docs/livedev-developer-guide.md) | LiveDev developer guide |
+| [`docs/editions/livedev.md`](docs/editions/livedev.md) | LiveDev edition |
+| [`docs/architecture.md`](docs/architecture.md) | Architecture |
+| [`docs/build-system.md`](docs/build-system.md) | Build system |
+| [`docs/boot-and-updates.md`](docs/boot-and-updates.md) | Boot & updates |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing |
+| [`docs/SUMMARY.md`](docs/SUMMARY.md) | Docs index |
+
+### Tests & validation
+
+Run the test suite locally:
+
+```sh
+python3 -m pytest \
+  tools/test-builder.py \
+  tools/test-frontpage-sync.py \
+  tools/test-livedev-hardening.py \
+  tools/test-livedev-image.py \
+  tools/test-livedev-next.py \
+  tools/test-rush-agent.py \
+  tools/test-rush-autopilot.py \
+  tools/test-rush-builder-unit.py \
+  tools/test-rush-capture.py \
+  tools/test-rush-pr.py \
+  tools/test-rush-runner.py \
+  tools/test-validate-hwtest-evidence.py
+```
+
+<!-- RUSH_FRONTPAGE:END -->
+
+---
+
 ## Contributing
 
 We are looking for kernel engineers, Rustaceans, and systems programmers who value verifiable claims over marketing copy.
