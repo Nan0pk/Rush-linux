@@ -780,6 +780,7 @@ do_vm() {
         if [[ -f "$server_img" ]]; then
             img="$server_img"
             warn "livedev image not found; using server image: $img"
+            warn "(build with: sudo bash tools/build-mkosi-image.sh --edition livedev)"
         else
             if [[ "$DRY_RUN" == "true" ]]; then
                 echo "    [dry-run] Would build livedev image: sudo bash tools/build-mkosi-image.sh --edition livedev"
@@ -799,13 +800,51 @@ do_vm() {
         submit_mode="github"
     fi
 
-    # Hand off to livedev-next --run-vm.
+    # State injection needs either guestfish (libguestfs) or root (for
+    # loopback mount). If neither is available, auto-sudo the orchestrator
+    # so the loopback-mount path works. KVM access (/dev/kvm) also often
+    # needs root or the kvm group; auto-sudo covers that too.
+    local need_sudo=false
+    if [[ "$(id -u)" != "0" ]]; then
+        if ! command -v guestfish >/dev/null 2>&1; then
+            need_sudo=true
+        elif [[ ! -r /dev/kvm ]]; then
+            need_sudo=true
+        fi
+    fi
+
+    # Build the orchestrator command.
     local cmd=(python3 tools/livedev-next --run-vm --image "$img" --submit-mode "$submit_mode")
     if [[ "$DRY_RUN" == "true" ]]; then
         cmd+=(--verbose)
     fi
-    log "Running: ${cmd[*]}"
-    python3 tools/livedev-next --run-vm --image "$img" --submit-mode "$submit_mode"
+
+    if [[ "$need_sudo" == "true" ]]; then
+        log "State injection or KVM needs root — re-running orchestrator with sudo."
+        log "sudo may ask for your password."
+        # Preserve GH_TOKEN if set (for github submit mode).
+        local sudo_env=()
+        if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+            sudo_env+=(GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN}}")
+        fi
+        # Preserve PYTHONPATH if set (for the rush libs).
+        if [[ -n "${PYTHONPATH:-}" ]]; then
+            sudo_env+=(PYTHONPATH="$PYTHONPATH")
+        fi
+        # Run with sudo, preserving env vars explicitly.
+        if [[ ${#sudo_env[@]} -gt 0 ]]; then
+            local env_args=()
+            for e in "${sudo_env[@]}"; do
+                env_args+=(env "$e")
+            done
+            sudo "${env_args[@]}" "${cmd[@]}"
+        else
+            sudo "${cmd[@]}"
+        fi
+    else
+        log "Running: ${cmd[*]}"
+        "${cmd[@]}"
+    fi
 }
 
 # --- Smart dispatcher -------------------------------------------------------
@@ -820,26 +859,26 @@ do_smart() {
         return 0
     fi
 
-    # Step 1: Is a USB with results plugged in? → resume.
-    if usb_has_results; then
-        ok "Detected USB with testOS results — resuming."
-        if [[ "$SUBMIT" == "true" ]]; then
-            do_resume
-        else
-            do_resume
-        fi
-        return $?
-    fi
-
-    # Step 2: Is QEMU available? → --run-vm path.
+    # Step 1: Is QEMU available? → --run-vm path (preferred: no sudo for USB scan).
+    # We check QEMU FIRST because usb_has_results() needs sudo to mount the
+    # USB, and we don't want to prompt for sudo if we're going to use QEMU.
     if command -v qemu-system-x86_64 >/dev/null 2>&1; then
         ok "QEMU detected — using --run-vm path."
         do_vm
         return $?
     fi
 
-    # Step 3: Fall back to USB/testOS path.
-    warn "No USB results detected and no QEMU available — falling back to USB/testOS path."
+    # Step 2: No QEMU. Is a USB with results plugged in? → resume.
+    # This needs sudo (to mount the USB read-only), but only runs when QEMU
+    # is unavailable — i.e., the user is on real hardware.
+    if usb_has_results; then
+        ok "Detected USB with testOS results — resuming."
+        do_resume
+        return $?
+    fi
+
+    # Step 3: No QEMU, no USB results → prepare USB via testOS.
+    warn "No QEMU and no USB results detected — preparing USB via testOS path."
     do_auto
 }
 
