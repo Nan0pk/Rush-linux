@@ -76,22 +76,98 @@ expected to be mounted by a systemd mount unit or fstab entry.
 
 ## Autostart behavior
 
-On boot, `rush-livedev-autostart.service` runs on tty1:
+On boot, the LiveDev image follows one of two paths depending on whether
+a persistent test-intent state file exists at
+`/RUSH-DATA/state/livedev-state.json`:
+
+### Idle boot (no state file)
+
+`rush-livedev-autostart.service` runs on tty1:
 
 1. Prints a banner with host info + RUSH-DATA status.
 2. Starts a countdown (default 10 seconds, configurable via
    `livedev.countdown_sec=N` kernel cmdline).
 3. If ESC is pressed, drops to a bash shell (the escape/menu path).
 4. If the countdown completes, exits 0; systemd proceeds to start
-   `rush-capture.service` + `rush-autopilot.service`.
+   `rush-capture.service` + `rush-autopilot.service` (which generates a
+   plan but does NOT execute it — that requires the test runner below).
 
 To disable autostart: add `livedev.autostart=0` to the kernel cmdline.
+
+### Test boot (state file present)
+
+`rush-livedev-test.service` runs (the autostart countdown is skipped via
+`ConditionPathExists=!/RUSH-DATA/state/livedev-state.json` on the autostart
+unit and `Conflicts=rush-livedev-autostart.service` on the test unit):
+
+1. Reads `/RUSH-DATA/state/livedev-state.json` (the persistent test intent).
+2. Validates the state (mode, run_id, attempt_count).
+3. Emits `RUSH_LIVEDEV_BOOT_READY run_id=<run_id>` on the console.
+4. Sets state.status = "running".
+5. Emits `RUSH_LIVEDEV_TEST_START run_id=<run_id>`.
+6. Runs `state.test_command` via `/bin/sh -c`, capturing stdout/stderr to
+   `/RUSH-DATA/results/livedev/<run_id>/test.log`.
+7. Captures exit_code, writes `summary.json`, collects dmesg/journal/uname.
+8. Emits `RUSH_LIVEDEV_TEST_PASS` or `RUSH_LIVEDEV_TEST_FAIL exit_code=<N>`.
+9. Emits `RUSH_LIVEDEV_ARTIFACTS_READY path=<path>`.
+10. Emits `RUSH_LIVEDEV_SHUTDOWN`.
+11. Powers off the system.
+
+In `--debug` mode (state.debug=true), on failure the runner instead emits
+`RUSH_LIVEDEV_DEBUG_SHELL` and execs an interactive bash on the current
+tty. In `--ci` mode (state.ci=true), the runner NEVER goes interactive and
+ALWAYS terminates by pass/fail/timeout.
+
+If `rush-livedev-test.service` fails (e.g. the runner crashes),
+`rush-livedev-failure.service` is triggered via `OnFailure=`. It emits a
+`RUSH_LIVEDEV_TEST_FAIL` marker with `exit_code=70` and powers off — it
+never leaves the system at a bare root prompt.
+
+## Why no root prompt
+
+The LiveDev image masks `getty@tty1.service` (see
+`tools/build-mkosi-image.sh`). The tty1 console is owned by either:
+
+- `rush-livedev-autostart.service` (idle boot — countdown + ESC menu), or
+- `rush-livedev-test.service` (test boot — runs tests + powers off).
+
+A bare root login prompt on tty1 is the failure mode this design
+eliminates: it leaves the operator staring at a shell with no test status,
+no markers, and no way for the host orchestrator to detect what happened.
+The autostart service still drops to bash on ESC for debugging, but that
+is an explicit operator action, not a default.
+
+## Console marker protocol
+
+The guest emits single-line markers on the serial console (which the host
+captures via QEMU's `-nographic` mode). The host orchestrator drives its
+state machine off these markers — it does NOT use arbitrary sleeps.
+
+| Marker | Meaning |
+|---|---|
+| `RUSH_LIVEDEV_BOOT_READY run_id=<id>` | Guest booted, runner started |
+| `RUSH_LIVEDEV_TEST_START run_id=<id>` | Runner is about to execute the test command |
+| `RUSH_LIVEDEV_TEST_PASS run_id=<id>` | Test command exited 0 |
+| `RUSH_LIVEDEV_TEST_FAIL run_id=<id> exit_code=<N>` | Test command exited nonzero |
+| `RUSH_LIVEDEV_ARTIFACTS_READY run_id=<id> path=<path>` | Artifacts directory is populated |
+| `RUSH_LIVEDEV_SHUTDOWN run_id=<id>` | Guest is about to power off cleanly |
+| `RUSH_LIVEDEV_DEBUG_SHELL run_id=<id>` | Guest is intentionally dropping to a shell (--debug) |
+
+The host also detects UNINTENDED guest patterns as failures:
+- kernel panic / oops / call trace
+- emergency mode / rescue mode
+- "Give root password for maintenance"
+- `login:` prompt appearing BEFORE `BOOT_READY`
+- root shell prompt (`root@...:~#`, `bash-5.1#`, `~#`)
+- systemd failed unit (`Job for X.service failed`)
 
 ## Systemd units
 
 | Unit | Description |
 |---|---|
-| `rush-livedev-autostart.service` | Safe countdown on tty1 before autopilot |
+| `rush-livedev-test.service` | Post-reboot test runner (gated on state file) |
+| `rush-livedev-failure.service` | Fail-closed handler (emits TEST_FAIL, powers off) |
+| `rush-livedev-autostart.service` | Safe countdown on tty1 (idle boot only) |
 | `rush-capture.service` | Start/stop the capture session |
 | `rush-autopilot.service` | Generate a plan from repo + hardware state |
 | `optid.service` | Adaptive optimization daemon (dry-run default) |

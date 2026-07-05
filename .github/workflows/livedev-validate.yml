@@ -19,8 +19,21 @@ on:
       - 'release/evidence/livedev-*/**'
       - 'schemas/**'
       - 'tools/rush_capture_lib.py'
+      - 'tools/rush_livedev_state.py'
+      - 'tools/rush_livedev_markers.py'
+      - 'tools/rush_livedev_submit.py'
+      - 'tools/rush-livedev-runner'
+      - 'tools/rush-livedev-orchestrator'
+      - 'tools/livedev-next'
+      - 'tools/livedev-bootstrap.sh'
+      - 'tools/livedev-bootstrap.ps1'
+      - 'tools/test-livedev-*.py'
       - 'tools/validate-hwtest-evidence.py'
       - 'tools/rush_pr_lib.py'
+      - 'packaging/systemd/rush-livedev-*.service'
+      - 'packaging/systemd/rush-livedev-tmpfiles.conf'
+      - 'mkosi/mkosi.profiles/livedev/**'
+      - 'tools/build-mkosi-image.sh'
       - '.github/workflows/livedev-validate.yml'
 
 permissions:
@@ -71,6 +84,15 @@ jobs:
 
       - name: Run PR submission tests
         run: python3 -m pytest tools/test-rush-pr.py -q
+
+      - name: Run LiveDev state tests
+        run: python3 -m pytest tools/test-livedev-state.py -q
+
+      - name: Run LiveDev marker/orchestrator tests
+        run: python3 -m pytest tools/test-livedev-orchestrator.py -q
+
+      - name: Run LiveDev smoke tests (fake QEMU state machine)
+        run: python3 -m pytest tools/test-livedev-smoke.py -q
 
       - name: Run E2E dry run (all scenarios)
         run: python3 tools/livedev-e2e-dry-run.py --all

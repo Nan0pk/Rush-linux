@@ -1,0 +1,472 @@
+#!/usr/bin/env python3
+"""
+rush-livedev-runner — guest-side post-reboot test runner.
+
+This script is the SOLE owner of post-reboot test execution on the LiveDev
+image. It is launched by `rush-livedev-test.service`, which is conditioned
+on the existence of the persistent state file:
+
+    /RUSH-DATA/state/livedev-state.json
+
+If that file does not exist, the service does not start, and the system
+boots normally (to multi-user.target with a getty). If the file exists,
+the runner:
+
+  1. Reads and validates the state.
+  2. Increments attempt_count.
+  3. Emits RUSH_LIVEDEV_BOOT_READY.
+  4. Sets status=running.
+  5. Emits RUSH_LIVEDEV_TEST_START.
+  6. Runs the test_command non-interactively via /bin/sh -c.
+  7. Captures stdout/stderr to test.log.
+  8. Captures exit_code.
+  9. Generates summary.json.
+  10. Collects guest diagnostics (dmesg, journal).
+  11. Marks state passed/failed/timeout.
+  12. Emits RUSH_LIVEDEV_TEST_PASS / RUSH_LIVEDEV_TEST_FAIL.
+  13. Emits RUSH_LIVEDEV_ARTIFACTS_READY.
+  14. Emits RUSH_LIVEDEV_SHUTDOWN and powers off.
+
+In --debug mode (state.debug=true), on failure the runner instead emits
+RUSH_LIVEDEV_DEBUG_SHELL and execs an interactive bash, leaving the system
+up for inspection. In --ci mode (state.ci=true), the runner NEVER goes
+interactive and ALWAYS terminates via pass/fail/timeout.
+
+This script NEVER falls through to a root prompt silently. If it cannot
+run tests, it emits TEST_FAIL with a failure_reason and powers off.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Vendor our own modules from the same directory.
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+
+# When installed on the guest image, our libs are at /usr/lib/rush.
+# When run from the repo (tests), they're next to this script.
+for candidate in (_HERE, Path("/usr/lib/rush")):
+    if (candidate / "rush_livedev_state.py").exists():
+        sys.path.insert(0, str(candidate))
+        break
+
+import rush_livedev_state as st  # noqa: E402
+import rush_livedev_markers as mk  # noqa: E402
+
+STATE_PATH = os.environ.get(
+    "RUSH_LIVEDEV_STATE", st.DEFAULT_STATE_PATH
+)
+
+# Test execution timeout (seconds). 0 = no timeout (used only for dev mode).
+# The state may override this via state.extra["test_timeout_sec"].
+DEFAULT_TEST_TIMEOUT_SEC = 30 * 60  # 30 minutes
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _run_safe(cmd: list[str], timeout: int = 10,
+              capture: bool = True) -> tuple[int, str, str]:
+    """Run a command, never raising. Returns (rc, stdout, stderr)."""
+    try:
+        r = subprocess.run(
+            cmd,
+            capture_output=capture,
+            text=True,
+            timeout=timeout,
+        )
+        return r.returncode, r.stdout or "", r.stderr or ""
+    except FileNotFoundError:
+        return 127, "", f"command not found: {cmd[0]}"
+    except subprocess.TimeoutExpired as e:
+        return 124, e.stdout or "", f"timeout after {timeout}s: {e.stderr or ''}"
+    except Exception as e:  # pragma: no cover — defensive
+        return 1, "", f"unexpected error: {e}"
+
+
+def _emit(kind: str, run_id: str = "", exit_code: int | None = None,
+          path: str = "") -> None:
+    """Emit a marker to stdout (which systemd wires to journal+console)."""
+    mk.emit(kind, run_id=run_id, exit_code=exit_code, path=path, file=sys.stdout)
+
+
+def _collect_diagnostics(artifacts_dir: Path) -> dict[str, str]:
+    """Collect guest diagnostic logs into the artifacts directory.
+
+    Returns a dict of {logical_name: relative_path} for the summary.
+    All commands are best-effort; missing tools are silently skipped.
+    """
+    diagnostics: dict[str, str] = {}
+    logs_dir = artifacts_dir / "guest-diagnostics"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # dmesg
+    rc, out, _ = _run_safe(["dmesg", "--time-format=iso"], timeout=10)
+    if rc == 0 and out:
+        p = logs_dir / "dmesg.log"
+        p.write_text(out, encoding="utf-8")
+        diagnostics["dmesg"] = str(p.relative_to(artifacts_dir))
+
+    # journalctl — only if systemd is PID 1
+    if Path("/run/systemd/system").exists():
+        rc, out, _ = _run_safe(
+            ["journalctl", "--no-pager", "--boot", "--priority=warning"],
+            timeout=30,
+        )
+        if rc == 0:
+            p = logs_dir / "journal.log"
+            p.write_text(out, encoding="utf-8")
+            diagnostics["journal"] = str(p.relative_to(artifacts_dir))
+
+    # kernel cmdline
+    try:
+        cmdline = Path("/proc/cmdline").read_text()
+        p = logs_dir / "cmdline.txt"
+        p.write_text(cmdline, encoding="utf-8")
+        diagnostics["cmdline"] = str(p.relative_to(artifacts_dir))
+    except OSError:
+        pass
+
+    # uname
+    rc, out, _ = _run_safe(["uname", "-a"], timeout=5)
+    if rc == 0 and out:
+        p = logs_dir / "uname.txt"
+        p.write_text(out, encoding="utf-8")
+        diagnostics["uname"] = str(p.relative_to(artifacts_dir))
+
+    # os-release
+    try:
+        osr = Path("/etc/os-release").read_text()
+        p = logs_dir / "os-release.txt"
+        p.write_text(osr, encoding="utf-8")
+        diagnostics["os_release"] = str(p.relative_to(artifacts_dir))
+    except OSError:
+        pass
+
+    return diagnostics
+
+
+def _write_summary(
+    artifacts_dir: Path,
+    *,
+    state: st.LiveDevState,
+    exit_code: int | None,
+    status: str,
+    failure_reason: str,
+    duration_sec: float,
+    diagnostics: dict[str, str],
+) -> Path:
+    """Write summary.json into the artifacts directory."""
+    summary = {
+        "schema_version": 1,
+        "summary_kind": "rush-livedev-summary",
+        "run_id": state.run_id,
+        "suite": state.suite,
+        "test_command": state.test_command,
+        "status": status,
+        "exit_code": exit_code,
+        "failure_reason": failure_reason,
+        "started_at": state.created_at,
+        "finished_at": _now_iso(),
+        "duration_sec": round(duration_sec, 3),
+        "attempt_count": state.attempt_count,
+        "submit_mode": state.submit_mode,
+        "ci": state.ci,
+        "debug": state.debug,
+        "artifacts_guest_path": str(artifacts_dir),
+        "artifacts_host_path": state.artifacts_host_path,
+        "diagnostics": diagnostics,
+    }
+    summary_path = artifacts_dir / "summary.json"
+    # Atomic write.
+    tmp = summary_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n",
+                   encoding="utf-8")
+    os.replace(tmp, summary_path)
+    return summary_path
+
+
+def _bundle_artifacts(artifacts_dir: Path, run_id: str) -> Path | None:
+    """Create a compressed tarball of the artifacts directory.
+
+    Prefers zstd (tar --zstd); falls back to gzip. Returns the bundle path
+    or None if no compressor is available.
+    """
+    bundle_zst = artifacts_dir.parent / f"rush-livedev-results-{run_id}.tar.zst"
+    bundle_gz = artifacts_dir.parent / f"rush-livedev-results-{run_id}.tar.gz"
+    parent = artifacts_dir.parent
+    name = artifacts_dir.name
+
+    if shutil.which("zstd"):
+        rc, _, err = _run_safe(
+            ["tar", "--zstd", "-C", str(parent), "-cf", str(bundle_zst), name],
+            timeout=120,
+        )
+        if rc == 0 and bundle_zst.exists():
+            return bundle_zst
+    rc, _, err = _run_safe(
+        ["tar", "-C", str(parent), "-czf", str(bundle_gz), name],
+        timeout=120,
+    )
+    if rc == 0 and bundle_gz.exists():
+        return bundle_gz
+    return None
+
+
+def _poweroff() -> None:
+    """Power the system off cleanly. Best-effort; never raises."""
+    # Try systemd first, then direct syscalls.
+    for cmd in (["systemctl", "poweroff"], ["poweroff"], ["shutdown", "-h", "now"]):
+        try:
+            subprocess.run(cmd, timeout=5,
+                           capture_output=True, text=True, check=False)
+            return
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    # Last resort: syscall reboot(LINUX_REBOOT_CMD_POWER_OFF).
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        # reboot(0x4321FEDC, 0, 0, None) — LINUX_REBOOT_CMD_POWER_OFF
+        libc.reboot(0x4321FEDC)
+    except Exception:
+        pass
+
+
+def _read_kernel_cmdline() -> str:
+    try:
+        return Path("/proc/cmdline").read_text()
+    except OSError:
+        return ""
+
+
+def _cmdline_flag(name: str) -> str | None:
+    """Return the value of a `livedev.<name>=value` kernel cmdline flag."""
+    cmdline = _read_kernel_cmdline()
+    for tok in cmdline.split():
+        if tok == f"livedev.{name}":
+            return "1"
+        if tok.startswith(f"livedev.{name}="):
+            return tok.split("=", 1)[1]
+    return None
+
+
+# ─── Main --------------------------------------------------------------------
+
+
+def run(state_path: str = STATE_PATH, dry_run: bool = False) -> int:
+    """Main entry point. Returns an exit code suitable for systemd."""
+    store = st.StateStore(state_path)
+
+    # Step 1: read state. If missing, this is not a livedev-test boot —
+    # exit 0 so systemd does not mark us failed.
+    try:
+        state = store.read()
+    except st.StateError as e:
+        if "does not exist" in str(e):
+            print(f"rush-livedev-runner: no state file at {state_path}; "
+                  f"nothing to do (idle boot).", flush=True)
+            return 0
+        print(f"rush-livedev-runner: state file is invalid: {e}", flush=True)
+        # We cannot trust the state — emit a fail marker and power off.
+        _emit(mk.KIND_TEST_FAIL, run_id="", exit_code=2)
+        if not dry_run:
+            _poweroff()
+        return 2
+
+    # Step 2: validate state for run.
+    errors = state.validate_for_run()
+    if errors:
+        msg = "; ".join(errors)
+        print(f"rush-livedev-runner: state invalid: {msg}", flush=True)
+        state.status = "failed"
+        state.failure_reason = f"state invalid: {msg}"
+        state.exit_code = 2
+        if not dry_run:
+            try:
+                store.write(state)
+            except Exception:
+                pass
+        _emit(mk.KIND_TEST_FAIL, run_id=state.run_id, exit_code=2)
+        if not dry_run:
+            _poweroff()
+        return 2
+
+    # Optional kernel-cmdline marker gate. If state.kernel_cmdline_marker is
+    # set, refuse to run unless /proc/cmdline contains livedev.<marker>=1.
+    if state.kernel_cmdline_marker:
+        flag = _cmdline_flag(state.kernel_cmdline_marker)
+        if flag != "1":
+            print(f"rush-livedev-runner: kernel cmdline gate "
+                  f"livedev.{state.kernel_cmdline_marker}=1 not set; "
+                  f"refusing to run tests on this boot.", flush=True)
+            state.status = "skipped"
+            state.failure_reason = (
+                f"kernel cmdline gate livedev.{state.kernel_cmdline_marker}=1 not set"
+            )
+            if not dry_run:
+                try:
+                    store.write(state)
+                except Exception:
+                    pass
+            # Don't emit TEST_FAIL — this is a deliberate skip. Power off
+            # so the host sees the boot complete and can try again with the
+            # right cmdline.
+            _emit(mk.KIND_SHUTDOWN, run_id=state.run_id)
+            if not dry_run:
+                _poweroff()
+            return 0
+
+    # Step 3: increment attempt_count and mark running.
+    state.attempt_count += 1
+    state.status = "running"
+    state.failure_reason = ""
+    if not dry_run:
+        store.write(state)
+
+    # Step 4: prepare artifacts directory.
+    artifacts_dir = Path(state.artifacts_guest_path.replace(
+        "<run_id>", state.run_id
+    ))
+    if not artifacts_dir.is_absolute():
+        artifacts_dir = Path("/RUSH-DATA/results") / artifacts_dir
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    test_log_path = artifacts_dir / "test.log"
+
+    # Step 5: emit BOOT_READY.
+    _emit(mk.KIND_BOOT_READY, run_id=state.run_id)
+
+    # Step 6: emit TEST_START and run.
+    _emit(mk.KIND_TEST_START, run_id=state.run_id)
+    started = time.monotonic()
+
+    timeout_sec = int(state.extra.get("test_timeout_sec", DEFAULT_TEST_TIMEOUT_SEC))
+    exit_code: int | None = None
+    failure_reason = ""
+    status = "failed"
+
+    if dry_run:
+        # Don't actually run the command — just pretend success for testing.
+        exit_code = 0
+        status = "passed"
+        test_log_path.write_text("[dry-run] no command executed\n", encoding="utf-8")
+    else:
+        try:
+            with open(test_log_path, "w", encoding="utf-8") as logf:
+                # Run via /bin/sh -c so test_command can use shell features.
+                # This is the *only* place we shell out — the test_command
+                # is authoritatively set by the host orchestrator, not user input.
+                proc = subprocess.run(
+                    ["/bin/sh", "-c", state.test_command],
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                    timeout=timeout_sec if timeout_sec > 0 else None,
+                    text=True,
+                )
+                exit_code = proc.returncode
+                status = "passed" if exit_code == 0 else "failed"
+        except subprocess.TimeoutExpired:
+            exit_code = 124
+            status = "timeout"
+            failure_reason = f"test command timed out after {timeout_sec}s"
+        except Exception as e:
+            exit_code = 1
+            status = "failed"
+            failure_reason = f"runner exception: {e}"
+
+    duration = time.monotonic() - started
+
+    # Step 7: collect diagnostics.
+    diagnostics = _collect_diagnostics(artifacts_dir)
+
+    # Step 8: write summary.json.
+    summary_path = _write_summary(
+        artifacts_dir,
+        state=state,
+        exit_code=exit_code,
+        status=status,
+        failure_reason=failure_reason,
+        duration_sec=duration,
+        diagnostics=diagnostics,
+    )
+
+    # Step 9: bundle artifacts.
+    bundle_path = _bundle_artifacts(artifacts_dir, state.run_id)
+
+    # Step 10: update state to terminal.
+    state.status = status
+    state.exit_code = exit_code
+    state.failure_reason = failure_reason
+    if not dry_run:
+        try:
+            store.write(state)
+        except Exception as e:
+            print(f"rush-livedev-runner: WARNING could not update state: {e}",
+                  flush=True)
+
+    # Step 11: emit terminal marker.
+    if status == "passed":
+        _emit(mk.KIND_TEST_PASS, run_id=state.run_id)
+    else:
+        _emit(mk.KIND_TEST_FAIL, run_id=state.run_id,
+              exit_code=exit_code if exit_code is not None else 1)
+
+    # Step 12: emit ARTIFACTS_READY.
+    _emit(mk.KIND_ARTIFACTS_READY, run_id=state.run_id,
+          path=str(artifacts_dir))
+
+    # Step 13: decide what to do next.
+    if status == "failed" and state.debug and not state.ci:
+        # --debug mode: drop to an interactive shell instead of powering off.
+        _emit(mk.KIND_DEBUG_SHELL, run_id=state.run_id)
+        print(f"\nrush-livedev-runner: --debug mode; dropping to shell.\n"
+              f"  run_id:    {state.run_id}\n"
+              f"  exit_code: {exit_code}\n"
+              f"  artifacts: {artifacts_dir}\n"
+              f"  summary:   {summary_path}\n",
+              flush=True)
+        if not dry_run:
+            # Exec bash -l on the current tty (replaces this process).
+            os.execvp("bash", ["bash", "-l"])
+        return exit_code or 1
+
+    # Step 14: emit SHUTDOWN and power off.
+    _emit(mk.KIND_SHUTDOWN, run_id=state.run_id)
+    if not dry_run:
+        # Give the host a moment to read the marker before we power off.
+        time.sleep(1.0)
+        _poweroff()
+
+    return 0 if status == "passed" else (exit_code or 1)
+
+
+def _main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="rush-livedev-runner",
+        description="Guest-side post-reboot test runner for Rush LiveDev.",
+    )
+    parser.add_argument(
+        "--state", default=STATE_PATH,
+        help=f"state file path (default: {STATE_PATH})",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="don't actually run the test command or power off (for tests)",
+    )
+    ns = parser.parse_args()
+    return run(state_path=ns.state, dry_run=ns.dry_run)
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
