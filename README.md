@@ -24,96 +24,46 @@ It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot pat
 
 ---
 
-## Rush LiveDev — one-command hardware test
+## Rush LiveDev — one command
 
-Run real hardware benchmarks and open an evidence PR for maintainer review with a single command. The script clones or fetches the repo, runs mock verification, generates a plan, prepares a USB using the current testOS backend, and tells you when to boot. After the test environment reboots back, the same script resumes: it copies results, validates them, and submits a PR for maintainer review (no auto-merge).
+One command does everything. Paste this into a terminal:
 
 **Linux/macOS:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh --auto
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh
 ```
 
 **Windows PowerShell:**
 
 ```powershell
-curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
+curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
-### Deterministic QEMU testing (no USB, no manual reboot)
+That's it. The script auto-detects what to do:
 
-For CI and dev, `--run-vm` runs a fully deterministic QEMU-driven test
-cycle: the host injects test intent, waits for explicit guest markers,
-collects artifacts, and submits results. No manual reboot, no interactive
-shell, no fragile reboot-to-test transition.
+1. **USB with results plugged in?** → copy results, validate, submit PR.
+2. **QEMU available?** → build image (if needed), run deterministic VM test, collect artifacts, submit.
+3. **Neither?** → prepare USB, print boot instructions. After you boot + reboot, re-run the same command (step 1).
 
-```sh
-# Build the livedev image (one-time):
-sudo bash tools/build-mkosi-image.sh --edition livedev
+You only approve: USB erase, boot from USB, physical AC/battery prompts, and GitHub auth (token in env, never pasted into chat). The script never auto-merges, never marks milestones verified, never edits release truth.
 
-# Smoke test (no network needed):
-python3 tools/livedev-next --run-vm \
-  --image build/rush-linux-livedev.raw \
-  --test-cmd 'echo hello && true' \
-  --submit-mode local
+### What the one command does
 
-# CI run (never interactive, auto-submit):
-python3 tools/livedev-next --run-vm \
-  --image build/rush-linux-livedev.raw \
-  --test-cmd 'python3 /usr/lib/rush/selftest.py' \
-  --ci --submit-mode auto
+| situation | action |
+|---|---|
+| USB with `testos-results/` plugged in | resume: mount USB read-only, copy results, validate manifest, submit evidence PR (needs `GH_TOKEN` in env) |
+| `qemu-system-x86_64` installed, no USB results | build livedev image (if missing, needs sudo), run `--run-vm` with deterministic marker-driven state machine, collect artifacts, submit |
+| No QEMU, no USB results | prepare USB via testOS, print boot instructions; after reboot, re-run same command |
 
-# Debug a failing test (drops to shell on the guest after failure):
-python3 tools/livedev-next --run-vm \
-  --image build/rush-linux-livedev.raw \
-  --test-cmd 'false' \
-  --debug --keep-vm --verbose
-```
-
-The guest-side runner (`rush-livedev-test.service`) is gated on a
-persistent state file, runs tests non-interactively after reboot, and
-**never falls through to a root prompt**. If the runner crashes, an
-`OnFailure=` handler emits a `TEST_FAIL exit_code=70` marker and powers
-off (fail-closed). Submission modes: `none` / `local` / `github` / `http`
-/ `auto`. Local needs no network.
-
-### USB workflow (real hardware)
-
-What happens, end to end:
-
-1. Prepares a USB test environment (using testOS as the USB boot backend).
-2. Tells the user to boot it.
-3. Runs hardware tests on the test machine.
-4. Reboots back to the host OS.
-5. Resumes collection (`bash livedev-bootstrap.sh --resume`) — copies results from the USB, validates them.
-6. Validates results (manifest parses, pass/fail counts present, LiveDev validator run if applicable).
-7. Opens an evidence PR for maintainer review.
-
-You only approve USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, and never edits release truth.
-
-To resume after the test machine reboots back:
+### Forcing a specific path (optional)
 
 ```sh
-bash livedev-bootstrap.sh --resume              # copy + validate + submit dry-run
-bash livedev-bootstrap.sh --resume --submit     # open a real evidence PR (no auto-merge)
-```
-
-If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo. If it is not a git repo, the bootstrap clones into a timestamped `Rush-linux-livedev-*` directory instead of failing.
-
-### Operator commands inside the repo (after clone)
-
-```sh
-python3 tools/livedev-next                       # show the one-command path + repo state
-python3 tools/livedev-next --mock                # mock tests (no hardware, ~10s)
-python3 tools/livedev-next --run-vm              # deterministic QEMU-driven test cycle
-python3 tools/livedev-next --auto                # full USB pipeline: plan -> run -> validate -> submit dry-run
-python3 tools/livedev-next --auto --dry-run      # show the full pipeline without writing USB
-python3 tools/livedev-next --prepare-usb         # prepare USB using the testOS backend
-python3 tools/livedev-next --resume              # resume after reboot
-python3 tools/livedev-next --plan                # generate a benchmark plan
-python3 tools/livedev-next --run /tmp/rush-livedev-plan.json
-python3 tools/livedev-next --submit <RUN_DIR> --dry-run
-python3 tools/livedev-next --help
+bash livedev-bootstrap.sh --vm        # force QEMU/--run-vm path
+bash livedev-bootstrap.sh --auto      # force USB/testOS prepare path
+bash livedev-bootstrap.sh --resume    # force resume path
+bash livedev-bootstrap.sh --resume --submit  # resume + open real PR (needs GH_TOKEN)
+bash livedev-bootstrap.sh --dry-run   # show what would run
 ```
 
 Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
@@ -348,6 +298,8 @@ Additional tools:
 | `rush-exec` | `tools/rush-exec` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+| `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
+| `rush-livedev-runner` | `tools/rush-livedev-runner` |
 
 ### CI workflows
 
@@ -383,6 +335,8 @@ rush-* are the LiveDev tools):
 | `rush-autopilot.service` | Rush LiveDev autopilot planner/runner | `packaging/systemd/rush-autopilot.service` |
 | `rush-capture.service` | Rush LiveDev capture session manager | `packaging/systemd/rush-capture.service` |
 | `rush-livedev-autostart.service` | Rush LiveDev autostart (safe countdown before autopilot) | `packaging/systemd/rush-livedev-autostart.service` |
+| `rush-livedev-failure.service` | Rush LiveDev failure handler (fail-closed, no root prompt) | `packaging/systemd/rush-livedev-failure.service` |
+| `rush-livedev-test.service` | Rush LiveDev post-reboot test runner | `packaging/systemd/rush-livedev-test.service` |
 
 ### Operator commands
 
@@ -407,6 +361,8 @@ Additional tools:
 | `rush-exec` | `tools/rush-exec` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+| `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
+| `rush-livedev-runner` | `tools/rush-livedev-runner` |
 
 ### Documentation
 
@@ -434,6 +390,9 @@ python3 -m pytest \
   tools/test-livedev-hardening.py \
   tools/test-livedev-image.py \
   tools/test-livedev-next.py \
+  tools/test-livedev-orchestrator.py \
+  tools/test-livedev-smoke.py \
+  tools/test-livedev-state.py \
   tools/test-rush-agent.py \
   tools/test-rush-autopilot.py \
   tools/test-rush-builder-unit.py \

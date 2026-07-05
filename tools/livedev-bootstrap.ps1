@@ -1,21 +1,28 @@
-# tools/livedev-bootstrap.ps1 - one-command Rush LiveDev USB workflow for Windows.
+# tools/livedev-bootstrap.ps1 - ONE-command Rush LiveDev workflow for Windows.
 #
 # Usage:
-#   .\livedev-bootstrap.ps1 -Auto                # full path: mock -> plan -> USB -> boot prompt
-#   .\livedev-bootstrap.ps1 -Auto -DryRun        # print every command, do not write USB
-#   .\livedev-bootstrap.ps1 -Resume              # after reboot: copy results -> validate -> submit dry-run
-#   .\livedev-bootstrap.ps1 -Resume -Submit      # after validation: open PR for maintainer review
-#   .\livedev-bootstrap.ps1 -Auto -SkipMock      # skip the mock verification step
+#   .\livedev-bootstrap.ps1                       # SMART: auto-detect and do everything
+#   .\livedev-bootstrap.ps1 -Smart                # same as above (explicit)
+#   .\livedev-bootstrap.ps1 -Auto                 # force USB/testOS prepare path
+#   .\livedev-bootstrap.ps1 -Resume               # force resume path
+#   .\livedev-bootstrap.ps1 -Resume -Submit       # resume + open real PR
+#   .\livedev-bootstrap.ps1 -DryRun               # show what would run
+#
+# SMART mode (default) auto-detects:
+#   1. If a USB with testOS results is plugged in → resume + validate + submit.
+#   2. Else → prepare USB (testOS path), print boot instructions.
+#      After reboot, re-running the same command resumes (step 1).
 #
 # What this script does NOT do:
 #   - Never auto-merge. PRs are opened for maintainer review only.
 #   - Never mark milestones verified.
-#   - Never edit release truth (VERSION, RELEASES.md, milestones.toml, ADRs, CI workflow).
-#   - Never fabricate hardware evidence. Results only come from the USB.
-#   - Never print or store tokens. If a token is needed, prints exactly: [TOKEN NEEDED]
+#   - Never edit release truth.
+#   - Never fabricate hardware evidence.
+#   - Never print or store tokens.
 
 [CmdletBinding()]
 param(
+    [switch]$Smart,
     [switch]$Auto,
     [switch]$Resume,
     [switch]$DryRun,
@@ -80,11 +87,9 @@ Safety:
     exit 0
 }
 
-if (-not $Auto -and -not $Resume) {
-    Write-Host ">> No mode selected. Use -Auto or -Resume." -ForegroundColor Red
-    Write-Host ">>   .\livedev-bootstrap.ps1 -Auto" -ForegroundColor Red
-    Write-Host ">>   .\livedev-bootstrap.ps1 -Resume" -ForegroundColor Red
-    exit 2
+if (-not $Auto -and -not $Resume -and -not $Smart) {
+    # Default to Smart mode when no mode flag given.
+    $Smart = $true
 }
 
 # --- Locate or clone the repo ------------------------------------
@@ -652,8 +657,44 @@ opened for maintainer review per Rush LiveDev policy.
     Write-Info "No merge API call made. A maintainer reviews and merges."
 }
 
+# --- USB result detection (Windows) -------------------------------
+function Test-UsbHasResults {
+    # Returns $true if a removable drive with testos-results\ is plugged in.
+    $drives = Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
+    foreach ($d in $drives) {
+        $resultsRoot = Join-Path $d.DeviceID "testos-results"
+        if (Test-Path $resultsRoot) { return $true }
+    }
+    return $false
+}
+
+# --- Smart dispatcher ---------------------------------------------
+function Do-Smart {
+    Write-Info "=== Rush LiveDev - SMART mode (auto-detect) ==="
+
+    Ensure-Repo
+
+    if ($TestStub -eq "1") {
+        Write-OK "[TEST_STUB] Skipping smart dispatch."
+        return
+    }
+
+    # Step 1: USB with results? -> resume.
+    if (Test-UsbHasResults) {
+        Write-OK "Detected USB with testOS results - resuming."
+        Do-Resume
+        return
+    }
+
+    # Step 2: No QEMU on Windows by default; fall back to USB/testOS path.
+    Write-Warn "No USB results detected - falling back to USB/testOS path."
+    Do-Auto
+}
+
 # --- Dispatch ----------------------------------------------------
-if ($Resume) {
+if ($Smart) {
+    Do-Smart
+} elseif ($Resume) {
     Do-Resume
 } else {
     Do-Auto
