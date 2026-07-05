@@ -262,6 +262,37 @@ def test_bootstrap_sh_submit_prompts_interactively():
     assert "read -rs" in text, "must read token silently (read -rs)"
 
 
+def test_bootstrap_sh_smart_checks_qemu_before_usb():
+    """Spec: smart mode checks QEMU first to avoid unnecessary sudo for USB scan."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    # Find do_smart function body.
+    idx = text.find("do_smart()")
+    assert idx != -1
+    body = text[idx:idx + 2000]
+    # Find the actual code lines (not comments) that check QEMU and USB.
+    # The QEMU check is `command -v qemu-system-x86_64`.
+    # The USB check is `if usb_has_results; then`.
+    qemu_check = body.find("command -v qemu-system-x86_64")
+    usb_call = body.find("if usb_has_results")
+    assert qemu_check != -1, "do_smart must check QEMU availability"
+    assert usb_call != -1, "do_smart must call usb_has_results"
+    assert qemu_check < usb_call, \
+        "do_smart must check QEMU BEFORE calling usb_has_results (avoids sudo prompt)"
+
+
+def test_bootstrap_sh_vm_auto_sudos_for_injection():
+    """Spec: --vm path auto-sudos when state injection needs root."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    assert "need_sudo" in text, "must have need_sudo logic in do_vm"
+    assert "guestfish" in text, "must check for guestfish"
+    assert "id -u" in text, "must check if running as root"
+    # The sudo re-exec must preserve GH_TOKEN for github submit.
+    assert "GH_TOKEN" in text
+    assert "sudo" in text
+
+
 def test_bootstrap_sh_help_works():
     p = _TOOLS_DIR / "livedev-bootstrap.sh"
     r = subprocess.run(
