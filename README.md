@@ -40,11 +40,19 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livede
 curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
-That's it. The script auto-detects what to do:
+That's it. The script asks you what to do (or auto-picks if non-interactive):
 
-1. **USB with results plugged in?** → copy results, validate, submit PR.
-2. **QEMU available?** → build image (if needed), run deterministic VM test, collect artifacts, submit.
-3. **Neither?** → prepare USB, print boot instructions. After you boot + reboot, re-run the same command (step 1).
+```
+  What would you like to do?
+
+  [1] resume — Copy results from USB, validate, submit evidence PR
+  [2] vm     — Run deterministic QEMU test cycle (no USB, no reboot)
+  [3] usb    — Prepare a USB via testOS (for real-hardware testing)
+
+  Pick [1-3] (or press Enter for default 1):
+```
+
+Options appear based on what's available: USB with results shows `resume`, QEMU installed shows `vm`, `usb` is always available. Non-interactive runs (CI, piped stdin) auto-pick.
 
 You only approve: USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, never edits release truth.
 

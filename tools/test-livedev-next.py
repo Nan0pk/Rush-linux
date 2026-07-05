@@ -263,22 +263,40 @@ def test_bootstrap_sh_submit_prompts_interactively():
 
 
 def test_bootstrap_sh_smart_checks_qemu_before_usb():
-    """Spec: smart mode checks QEMU first to avoid unnecessary sudo for USB scan."""
+    """Spec: smart mode detects QEMU before scanning USB (avoids sudo)."""
     p = _TOOLS_DIR / "livedev-bootstrap.sh"
     text = p.read_text()
-    # Find do_smart function body.
     idx = text.find("do_smart()")
     assert idx != -1
-    body = text[idx:idx + 2000]
-    # Find the actual code lines (not comments) that check QEMU and USB.
-    # The QEMU check is `command -v qemu-system-x86_64`.
-    # The USB check is `if usb_has_results; then`.
+    body = text[idx:idx + 3000]
     qemu_check = body.find("command -v qemu-system-x86_64")
-    usb_call = body.find("if usb_has_results")
+    usb_call = body.find("usb_has_results")
     assert qemu_check != -1, "do_smart must check QEMU availability"
     assert usb_call != -1, "do_smart must call usb_has_results"
     assert qemu_check < usb_call, \
         "do_smart must check QEMU BEFORE calling usb_has_results (avoids sudo prompt)"
+
+
+def test_bootstrap_sh_smart_has_interactive_menu():
+    """Spec: smart mode shows a short interactive menu when a TTY is available."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    idx = text.find("do_smart()")
+    body = text[idx:idx + 3000]
+    assert "What would you like to do?" in body, "must show interactive menu"
+    assert "read -r reply" in body, "must read user choice"
+    # Menu must include all three paths as options.
+    assert "resume" in body
+    assert "vm" in body
+    assert "usb" in body
+
+
+def test_bootstrap_sh_smart_noninteractive_autopicks():
+    """Spec: smart mode auto-picks when non-interactive (no TTY)."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    assert "Non-interactive" in text or "non-interactive" in text.lower(), \
+        "must handle non-interactive mode (no TTY) by auto-picking"
 
 
 def test_bootstrap_sh_vm_auto_sudos_for_injection():
