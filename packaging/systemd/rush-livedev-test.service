@@ -1,0 +1,41 @@
+[Unit]
+Description=Rush LiveDev post-reboot test runner
+Documentation=docs/editions/livedev.md docs/livedev/OPERATOR_RUNBOOK.md
+# Boot ordering: this runs after local-fs.target so /RUSH-DATA is mounted,
+# and after network-online.target so submission paths can use the network
+# when needed. Local test execution does NOT require network — the runner
+# works fine even if network-online.target never reaches active.
+After=local-fs.target
+Wants=network-online.target
+After=network-online.target
+# Gating: only start when the persistent state file exists. If the file
+# does not exist (idle boot), systemd skips this unit entirely.
+ConditionPathExists=/RUSH-DATA/state/livedev-state.json
+# Failure handling: if this unit fails, run the failure handler that
+# emits a marker and powers off (no silent fall-through to getty).
+OnFailure=rush-livedev-failure.service
+# Suppress the autostart countdown when we are running tests — we don't
+# want a 10-second interactive window on a CI run.
+Conflicts=rush-livedev-autostart.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rush-livedev-runner
+WorkingDirectory=/RUSH-DATA
+Environment=RUSH_DATA=/RUSH-DATA
+Environment=RUSH_LIVEDEV_STATE=/RUSH-DATA/state/livedev-state.json
+# Wire stdout/stderr to both the journal AND the serial console so the
+# host orchestrator can read markers from `console.log`.
+StandardOutput=journal+console
+StandardError=journal+console
+# This service must NOT be killed before it powers off cleanly.
+TimeoutStartSec=2h
+KillMode=control-group
+KillSignal=SIGTERM
+# Don't restart — the runner powers off the system on completion.
+Restart=no
+# Run as root so it can read dmesg, journalctl, and power off.
+User=root
+
+[Install]
+WantedBy=multi-user.target

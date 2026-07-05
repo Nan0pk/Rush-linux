@@ -153,13 +153,13 @@ if [[ "${EDITION}" == "livedev" ]]; then
     echo "   Staging LiveDev tools..."
 
     # Rush LiveDev Python tools (installed to /usr/bin)
-    for tool in rush-exec rush-capture rush-autopilot rush-agent rush-livedev-autostart; do
+    for tool in rush-exec rush-capture rush-autopilot rush-agent rush-livedev-autostart rush-livedev-runner rush-livedev-orchestrator; do
         install -m0755 "${REPO_ROOT}/tools/${tool}" "${EXTRA_DIR}/usr/bin/${tool}"
     done
 
     # Rush LiveDev Python support libraries (installed to /usr/lib/rush)
     mkdir -p "${EXTRA_DIR}/usr/lib/rush"
-    for lib in rush_capture_lib.py rush_runner_lib.py rush_agent_lib.py; do
+    for lib in rush_capture_lib.py rush_runner_lib.py rush_agent_lib.py rush_livedev_state.py rush_livedev_markers.py rush_livedev_submit.py; do
         install -m0644 "${REPO_ROOT}/tools/${lib}" "${EXTRA_DIR}/usr/lib/rush/${lib}"
     done
 
@@ -174,21 +174,44 @@ if [[ "${EDITION}" == "livedev" ]]; then
     install -m0644 "${REPO_ROOT}/packaging/systemd/rush-capture.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-capture.service"
     install -m0644 "${REPO_ROOT}/packaging/systemd/rush-autopilot.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-autopilot.service"
     install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-autostart.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-livedev-autostart.service"
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-test.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-livedev-test.service"
+    install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-failure.service" "${EXTRA_DIR}/usr/lib/systemd/system/rush-livedev-failure.service"
 
     # RUSH-DATA tmpfiles
     install -m0644 "${REPO_ROOT}/packaging/systemd/rush-livedev-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/rush-livedev.conf"
 
-    # Enable LiveDev services in the preset
+    # Enable LiveDev services in the preset.
+    # rush-livedev-test.service is the post-reboot test runner — it only
+    # runs when /RUSH-DATA/state/livedev-state.json exists (ConditionPathExists).
+    # rush-livedev-autostart.service is skipped when the state file exists
+    # (its own ConditionPathExists=!...).
+    # rush-livedev-failure.service is the fail-closed handler — it is
+    # triggered by OnFailure= on the test service, never started directly.
     cat >> "${EXTRA_DIR}/usr/lib/systemd/system-preset/00-rush.preset" << 'EOF'
+enable rush-livedev-test.service
+enable rush-livedev-failure.service
 enable rush-livedev-autostart.service
 enable rush-capture.service
 enable rush-autopilot.service
 EOF
 
     # Symlink LiveDev service enablement
+    ln -sf /usr/lib/systemd/system/rush-livedev-test.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-livedev-test.service"
+    ln -sf /usr/lib/systemd/system/rush-livedev-failure.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-livedev-failure.service"
     ln -sf /usr/lib/systemd/system/rush-livedev-autostart.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-livedev-autostart.service"
     ln -sf /usr/lib/systemd/system/rush-capture.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-capture.service"
     ln -sf /usr/lib/systemd/system/rush-autopilot.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/rush-autopilot.service"
+
+    # Mask the tty1 getty on the livedev image. When the test runner is
+    # active, it owns tty1 via the systemd unit's StandardOutput=journal+console.
+    # When the test runner is NOT active (idle boot), rush-livedev-autostart
+    # owns tty1 and offers the countdown. A bare root getty on tty1 is the
+    # failure mode we are eliminating: it leaves the user at a root prompt
+    # with no test status. The autostart service still drops to bash on ESC.
+    # (You can still get a root shell by pressing ESC during the countdown,
+    # or by logging in via ssh/getty on tty2-tty6 if those are enabled.)
+    rm -f "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/getty@tty1.service"
+    ln -sf /dev/null "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/getty@tty1.service"
 
     # PYTHONPATH for rush-* tools to find their support libraries
     mkdir -p "${EXTRA_DIR}/etc/profile.d"

@@ -40,9 +40,48 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livede
 curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
 ```
 
+### Deterministic QEMU testing (no USB, no manual reboot)
+
+For CI and dev, `--run-vm` runs a fully deterministic QEMU-driven test
+cycle: the host injects test intent, waits for explicit guest markers,
+collects artifacts, and submits results. No manual reboot, no interactive
+shell, no fragile reboot-to-test transition.
+
+```sh
+# Build the livedev image (one-time):
+sudo bash tools/build-mkosi-image.sh --edition livedev
+
+# Smoke test (no network needed):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'echo hello && true' \
+  --submit-mode local
+
+# CI run (never interactive, auto-submit):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'python3 /usr/lib/rush/selftest.py' \
+  --ci --submit-mode auto
+
+# Debug a failing test (drops to shell on the guest after failure):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'false' \
+  --debug --keep-vm --verbose
+```
+
+The guest-side runner (`rush-livedev-test.service`) is gated on a
+persistent state file, runs tests non-interactively after reboot, and
+**never falls through to a root prompt**. If the runner crashes, an
+`OnFailure=` handler emits a `TEST_FAIL exit_code=70` marker and powers
+off (fail-closed). Submission modes: `none` / `local` / `github` / `http`
+/ `auto`. Local needs no network.
+
+### USB workflow (real hardware)
+
 What happens, end to end:
 
-1. Prepares a USB test environment (using testOS as the current boot backend).
+1. Prepares a USB test environment (using testOS as the USB boot backend).
 2. Tells the user to boot it.
 3. Runs hardware tests on the test machine.
 4. Reboots back to the host OS.
@@ -61,27 +100,29 @@ bash livedev-bootstrap.sh --resume --submit     # open a real evidence PR (no au
 
 If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo. If it is not a git repo, the bootstrap clones into a timestamped `Rush-linux-livedev-*` directory instead of failing.
 
-Operator commands inside the repo (after clone):
+### Operator commands inside the repo (after clone)
 
 ```sh
 python3 tools/livedev-next                       # show the one-command path + repo state
 python3 tools/livedev-next --mock                # mock tests (no hardware, ~10s)
-python3 tools/livedev-next --auto                # full pipeline: plan -> run -> validate -> submit dry-run
+python3 tools/livedev-next --run-vm              # deterministic QEMU-driven test cycle
+python3 tools/livedev-next --auto                # full USB pipeline: plan -> run -> validate -> submit dry-run
 python3 tools/livedev-next --auto --dry-run      # show the full pipeline without writing USB
 python3 tools/livedev-next --prepare-usb         # prepare USB using the testOS backend
 python3 tools/livedev-next --resume              # resume after reboot
 python3 tools/livedev-next --plan                # generate a benchmark plan
 python3 tools/livedev-next --run /tmp/rush-livedev-plan.json
 python3 tools/livedev-next --submit <RUN_DIR> --dry-run
+python3 tools/livedev-next --help
 ```
 
 Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
 
 ---
 
-## testOS — current boot backend / manual fallback
+## testOS — USB boot backend / manual fallback
 
-testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB. It is preserved as a manual fallback path for users who want to drive each step themselves. The LiveDev image is not yet wired as a separate boot backend, so testOS is the current boot backend.
+testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB for real-hardware testing. It is preserved as a manual fallback path for users who want to drive each step themselves. For QEMU-driven dev/CI testing, use `python3 tools/livedev-next --run-vm` with the LiveDev mkosi image instead.
 
 > **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)**
 

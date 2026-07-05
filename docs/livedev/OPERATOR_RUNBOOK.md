@@ -1,16 +1,94 @@
 # Rush LiveDev Operator Runbook
 
-## Start here — one-command path
+## Start here — pick a path
+
+LiveDev has two operator paths:
+
+1. **`--run-vm`** (deterministic, QEMU-driven, recommended for CI and dev).
+   The host orchestrator launches QEMU, injects test intent, waits for
+   explicit guest markers, collects artifacts, and submits results. No
+   manual reboot, no USB, no interactive shell. This is the path that
+   fixes the unreliable reboot-to-test transition.
+
+2. **`--auto` / `--resume`** (USB-based, for real-hardware benchmark
+   campaigns). The host prepares a USB, the operator boots the test
+   machine from it, tests run, the machine reboots back, and the host
+   resumes by copying results off the USB. This path is preserved for
+   real-hardware testing where QEMU cannot run.
+
+### Path 1: `--run-vm` (deterministic QEMU cycle)
+
+```sh
+# Build the livedev image (one-time):
+sudo bash tools/build-mkosi-image.sh --edition livedev
+
+# Run a smoke test (deterministic, no network needed):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'echo hello && true' \
+  --submit-mode local
+
+# Run a CI test (never interactive, always terminates):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'python3 /usr/lib/rush/selftest.py' \
+  --ci --submit-mode auto
+
+# Debug a failing test (drops to shell on the guest after failure):
+python3 tools/livedev-next --run-vm \
+  --image build/rush-linux-livedev.raw \
+  --test-cmd 'false' \
+  --debug --keep-vm --verbose
+```
+
+What `--run-vm` does, step by step:
+
+1. Generates a `run_id` (or uses the one you provide).
+2. Creates `artifacts/livedev/<run_id>/` on the host.
+3. Writes `metadata.json` (git commit, host kernel, QEMU version).
+4. Creates the persistent test-intent state file
+   (`/RUSH-DATA/state/livedev-state.json` inside the guest image).
+5. Launches QEMU with stable options (`-nographic`, `-no-reboot`,
+   `-drive ... if=virtio`, virtio-net user-mode).
+6. Captures the serial console to `artifacts/livedev/<run_id>/console.log`.
+7. Waits for explicit guest markers — NOT arbitrary sleeps:
+   - `RUSH_LIVEDEV_BOOT_READY` (boot phase)
+   - `RUSH_LIVEDEV_TEST_START` (test-start phase)
+   - `RUSH_LIVEDEV_TEST_PASS` / `RUSH_LIVEDEV_TEST_FAIL` (terminal)
+   - `RUSH_LIVEDEV_SHUTDOWN` (clean shutdown)
+8. Detects failure patterns (kernel panic, emergency mode, login prompt,
+   root shell) and fails the run immediately.
+9. Enforces timeouts: boot (180s), test-start (60s), test execution
+   (1800s), shutdown (60s). On timeout: marks run failed, saves partial
+   logs, force-kills QEMU.
+10. Collects artifacts from the guest image after shutdown
+    (`/RUSH-DATA/results/livedev/<run_id>/` → host artifacts dir).
+11. Writes `summary.json` with status, exit_code, duration, markers,
+    git/host metadata.
+12. Bundles artifacts into `rush-livedev-results-<run_id>.tar.zst`
+    (or `.tar.gz` if zstd is unavailable).
+13. Submits results according to `--submit-mode`:
+    - `none`: no submission
+    - `local`: print artifact path + pass/fail summary
+    - `github`: write Markdown to `$GITHUB_STEP_SUMMARY` (CI), post one
+      bot PR comment (no spam)
+    - `http`: POST summary.json + bundle to `$RUSH_RESULTS_ENDPOINT`
+    - `auto`: pick best available
+14. Exits with the test exit code (0=pass, 1=fail, 3=boot timeout,
+    4=test-start timeout, 5=test timeout, 6=shutdown timeout,
+    7=guest failure, 8=state error, 70=infra error).
+
+### Path 2: `--auto` / `--resume` (USB-based, real hardware)
 
 The intended operator path is a single command on a clean workstation. The script clones or fetches the repo, runs mock verification, generates a plan, prepares a USB using the current testOS backend, and tells you when to boot. After the test machine reboots back to its host OS, the same script resumes: it copies results from the USB, validates them, and submits an evidence PR for maintainer review (no auto-merge).
 
-### Linux/macOS
+#### Linux/macOS
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh --auto
 ```
 
-### Windows PowerShell
+#### Windows PowerShell
 
 ```powershell
 curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
@@ -20,7 +98,7 @@ You only approve USB erase, boot from USB, physical AC/battery prompts, and GitH
 
 If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo. If it is not a git repo, the bootstrap clones into a timestamped `Rush-linux-livedev-*` directory instead of failing.
 
-## What the one-command path does
+## What the USB one-command path does
 
 1. **Clone/fetch repo.** If invoked inside a Rush-linux checkout, uses the current checkout and pulls latest `main`. If `./Rush-linux` already exists and is a git repo, reuses it. If `./Rush-linux` exists but is not a git repo, clones into a timestamped `Rush-linux-livedev-*` alternate directory. Otherwise clones into `./Rush-linux`.
 2. **Mock verification.** Runs `python3 tools/livedev-next --mock` (skip with `--skip-mock`). This executes the three end-to-end dry-run scenarios plus the evidence fixture validator. No hardware, no network, ~10 seconds.
@@ -203,6 +281,19 @@ python3 tools/livedev-next --help
 - **PR submission** (`rush-autopilot submit-evidence`) — dry-run and real.
 - **E2E dry run** (`livedev-e2e-dry-run.py`) — three scenarios.
 - **Bootstrap scripts** (`livedev-bootstrap.sh`, `livedev-bootstrap.ps1`) — one-command USB workflow for Linux/macOS/Windows.
+- **`--run-vm` orchestrator** (`rush-livedev-orchestrator`) — deterministic
+  QEMU-driven livedev cycle with marker-based state machine, timeout
+  enforcement, failure-pattern detection, artifact collection, and
+  submission automation.
+- **Guest-side test runner** (`rush-livedev-runner` +
+  `rush-livedev-test.service`) — post-reboot test execution owned by the
+  guest init system, gated on persistent state file, never falls through
+  to a root prompt.
+- **Persistent test-intent state** (`rush_livedev_state.py`) — atomic
+  JSON state at `/RUSH-DATA/state/livedev-state.json` that survives reboot.
+- **Console marker protocol** (`rush_livedev_markers.py`) — single-line
+  markers the host parses to drive its state machine.
+- **Submission automation** (`rush_livedev_submit.py`) — none/local/github/http/auto.
 
 ## What is NOT wired yet
 
@@ -218,3 +309,146 @@ python3 tools/livedev-next --help
 - **No release cut** — `VERSION`, `RELEASES.md`, tags are never modified by LiveDev tools.
 - **No release-truth edit** — `VERSION`, `Cargo.toml`, `RELEASES.md`, `release/milestones.toml`, `release/test-tiers.toml`, `.github/workflows/ci.yml`, ADR `Status:` lines are all forbidden paths.
 - **No fabricated hardware evidence** — all evidence must come from a real run directory.
+
+## Troubleshooting (`--run-vm` path)
+
+### The system ends at a root prompt instead of running tests
+
+This was the original failure mode that the `--run-vm` path eliminates.
+If you still see it, check:
+
+1. **Is the state file present in the image?**
+   ```sh
+   guestfish -a build/rush-linux-livedev.raw -i ls /RUSH-DATA/state/
+   ```
+   Should list `livedev-state.json`. If not, the orchestrator's
+   `--inject-state copy-on-image` step failed — check the orchestrator
+   output for "state injection failed".
+
+2. **Is `rush-livedev-test.service` enabled in the image?**
+   ```sh
+   guestfish -a build/rush-linux-livedev.raw -i \
+     ls /etc/systemd/system/multi-user.target.wants/ | grep rush-livedev-test
+   ```
+   If not, rebuild the image with the latest `tools/build-mkosi-image.sh`.
+
+3. **Is `getty@tty1.service` masked?**
+   ```sh
+   guestfish -a build/rush-linux-livedev.raw -i \
+     ls -l /etc/systemd/system/getty.target.wants/getty@tty1.service
+   ```
+   Should be a symlink to `/dev/null` (masked). If it's a real symlink to
+   `getty@.service`, the build script didn't mask it — rebuild.
+
+4. **Did the runner crash?** Check `console.log` for
+   `RUSH_LIVEDEV_TEST_FAIL exit_code=70` — that's the failure handler
+   emitting a marker. If you see it, the runner crashed and the failure
+   handler caught it.
+
+### Missing state file
+
+If the orchestrator reports "state file does not exist" or the guest
+boots to the autostart countdown instead of running tests:
+
+- The state injection failed silently. Re-run with `--verbose` and look
+  for "state injection failed".
+- If using `--inject-state none`, the state file must be pre-seeded in
+  the image manually. Use `--inject-state copy-on-image` instead.
+
+### Test service did not start
+
+If `BOOT_READY` never appears in `console.log`:
+
+- Check `journal.log` in the artifacts for `rush-livedev-test.service`
+  errors.
+- Verify the state file is valid: `python3 tools/rush_livedev_state.py
+  --path /tmp/state.json validate`.
+- Check the `ConditionPathExists` in the service file matches the state
+  path you're using.
+
+### Boot timeout
+
+If the run fails with `exit_code=3` (boot timeout):
+
+- Increase `--boot-timeout` (default 180s). Slow CI machines may need 300s.
+- Check `console.log` — if it stops early, the image may not boot at all.
+  Try booting it manually:
+  ```sh
+  qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd \
+    -drive file=build/rush-linux-livedev.raw,format=raw,if=virtio \
+    -m 2G -nographic
+  ```
+
+### Test timeout
+
+If the run fails with `exit_code=5` (test execution timeout):
+
+- The test command took longer than `--test-timeout` (default 1800s).
+- Increase `--test-timeout` or fix the test command.
+
+### Network unavailable
+
+If submission fails with a network error:
+
+- `--submit-mode local` does NOT require network. Use it for local dev.
+- `--submit-mode github` requires the `GITHUB_TOKEN` env var and network
+  access to `api.github.com`.
+- `--submit-mode http` requires `RUSH_RESULTS_ENDPOINT` to be set.
+
+### Submission failed
+
+If `submit_status` in `summary.json` is `error`:
+
+- Check `submit_error` for the specific failure.
+- The run itself still completed — artifacts are in `artifacts/livedev/<run_id>/`.
+- You can re-submit manually: `python3 tools/rush_livedev_submit.py
+  <artifacts_dir> --run-id <run_id> --submit <mode>`.
+
+### Artifact collection failed
+
+If the artifacts directory is missing guest-side files (`test.log`,
+`summary.json`, `guest-diagnostics/`):
+
+- The guest didn't reach `ARTIFACTS_READY`. Check `console.log` for where
+  it stopped.
+- If using `--inject-state copy-on-image`, the orchestrator copies
+  artifacts out by re-mounting the image after shutdown. This requires
+  either `guestfish` (libguestfs) or root privileges for loopback mount.
+- If neither is available, install `libguestfs` or run the orchestrator
+  as root.
+
+## Exit codes (`--run-vm` path)
+
+| Code | Meaning |
+|------|---------|
+| 0 | Test passed |
+| 1 | Test failed (nonzero exit from test command) |
+| 2 | Infrastructure failure (QEMU missing, image missing, etc.) |
+| 3 | Boot timeout |
+| 4 | Test-start timeout (BOOT_READY seen but no TEST_START) |
+| 5 | Test-execution timeout (TEST_START seen but no terminal marker) |
+| 6 | Shutdown timeout (terminal marker seen but QEMU did not exit) |
+| 7 | Unexpected guest failure (root prompt, panic, emergency mode) |
+| 8 | State error / invalid intent |
+| 70 | Generic infrastructure error |
+
+## Artifact directory structure (`--run-vm` path)
+
+```
+artifacts/livedev/<run_id>/
+├── summary.json              # host-side summary (status, exit_code, markers, git/host metadata)
+├── metadata.json             # written early — exists even on crash
+├── console.log               # full serial console capture
+├── livedev-state.json        # the state file the host wrote (debug copy)
+├── test.log                  # guest-side test command stdout/stderr (copied from guest)
+├── summary.json              # guest-side summary (if collection succeeded)
+├── guest-diagnostics/
+│   ├── dmesg.log
+│   ├── journal.log
+│   ├── cmdline.txt
+│   ├── uname.txt
+│   └── os-release.txt
+└── (test framework output if produced)
+
+artifacts/livedev/rush-livedev-results-<run_id>.tar.zst   # compressed bundle
+```

@@ -579,6 +579,98 @@ def cmd_resume(dry_run: bool = False, submit: bool = False) -> int:
     return rc
 
 
+# --- Run-VM (deterministic QEMU-driven livedev cycle) -----------------------
+
+
+def cmd_run_vm(ns) -> int:
+    """Run a deterministic QEMU-driven livedev cycle.
+
+    This is the new primary path for livedev testing. It:
+      1. Builds or locates the disk image.
+      2. Creates persistent test-intent state.
+      3. Launches QEMU with stable options.
+      4. Waits for explicit guest markers (BOOT_READY, TEST_START,
+         TEST_PASS/FAIL, SHUTDOWN) — NOT arbitrary sleeps.
+      5. Detects failure patterns (panic, emergency mode, root prompt).
+      6. Collects artifacts (console.log, summary.json, dmesg.log, etc.).
+      7. Submits results according to --submit.
+      8. Exits with the test exit code or an infrastructure-failure code.
+
+    Replaces the old manual flow:
+      bash tools/livedev-bootstrap.sh --auto   # prepare USB, print reboot instrs
+      <user reboots host machine to boot USB>
+      <user runs tests>
+      <user reboots back>
+      bash tools/livedev-bootstrap.sh --resume
+
+    The old --auto/--resume flow is preserved for real-hardware USB testing;
+    --run-vm is for QEMU-based testing where the host can drive the guest
+    directly through the serial console.
+    """
+    print("=" * 60)
+    print("  Rush LiveDev - Run-VM (deterministic QEMU cycle)")
+    print("=" * 60)
+    print()
+
+    image_path = ns.image
+    if not Path(image_path).is_absolute():
+        image_path = str(_REPO_ROOT / image_path)
+    if not Path(image_path).exists():
+        print(f"  [FAIL] disk image not found: {image_path}")
+        print()
+        print("  Build it first:")
+        print("    sudo bash tools/build-mkosi-image.sh --edition livedev")
+        return 1
+
+    # Hand off to the orchestrator. We exec it directly so its stdio is ours.
+    orch = _TOOLS_DIR / "rush-livedev-orchestrator"
+    cmd = [
+        "python3", str(orch),
+        "--image", image_path,
+        "--suite", ns.suite,
+        "--test-cmd", ns.test_cmd,
+        "--submit", ns.submit_mode,
+    ]
+    if ns.run_id:
+        cmd += ["--run-id", ns.run_id]
+    if ns.debug:
+        cmd += ["--debug"]
+    if ns.ci:
+        cmd += ["--ci"]
+    cmd += [
+        "--boot-timeout", str(ns.boot_timeout),
+        "--test-start-timeout", str(ns.test_start_timeout),
+        "--test-timeout", str(ns.test_timeout),
+        "--shutdown-timeout", str(ns.shutdown_timeout),
+    ]
+    if ns.artifacts_dir:
+        cmd += ["--artifacts-dir", ns.artifacts_dir]
+    if ns.console_log:
+        cmd += ["--console-log", ns.console_log]
+    if ns.keep_vm:
+        cmd += ["--keep-vm"]
+    if ns.verbose:
+        cmd += ["--verbose"]
+    cmd += [
+        "--qemu-memory", ns.qemu_memory,
+        "--qemu-cpus", str(ns.qemu_cpus),
+        "--qemu-accel", ns.qemu_accel,
+    ]
+    if ns.qemu_firmware:
+        cmd += ["--qemu-firmware", ns.qemu_firmware]
+    cmd += ["--inject-state", ns.inject_state]
+    if ns.virtiofs_share:
+        cmd += ["--virtiofs-share", ns.virtiofs_share]
+
+    print(f"  Launching: {' '.join(cmd)}")
+    print()
+    try:
+        return subprocess.call(cmd, cwd=str(_REPO_ROOT))
+    except FileNotFoundError:
+        print(f"  [FAIL] orchestrator not found: {orch}")
+        return 1
+
+
 # --- CLI --------------------------------------------------------------------
 
 
@@ -608,6 +700,12 @@ def main(argv: list[str] | None = None) -> int:
         "--resume", action="store_true",
         help="Resume after reboot: copy results, validate, submit dry-run.",
     )
+    group.add_argument(
+        "--run-vm", action="store_true",
+        help="Run a deterministic QEMU-driven livedev cycle: build state, "
+             "launch VM, wait for markers, collect artifacts, submit. "
+             "Replaces the manual reboot-to-test-resume flow.",
+    )
     parser.add_argument(
         "--dry-run", action="store_true", default=False,
         help="Dry-run mode for --auto (show pipeline, do not write USB) or --submit.",
@@ -616,6 +714,38 @@ def main(argv: list[str] | None = None) -> int:
         "--submit-real", action="store_true", default=False,
         help="Used with --resume: open a real evidence PR (no auto-merge).",
     )
+    # ── --run-vm flags ───────────────────────────────────────────────────
+    parser.add_argument("--image", default="build/rush-linux-livedev.raw",
+                        help="disk image to boot (default: build/rush-linux-livedev.raw)")
+    parser.add_argument("--suite", default="default")
+    parser.add_argument("--test-cmd", default="true",
+                        help="shell command to run on the guest after reboot")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--timeout", type=int, default=1800,
+                        help="overall test execution timeout (seconds)")
+    parser.add_argument("--boot-timeout", type=int, default=180)
+    parser.add_argument("--test-start-timeout", type=int, default=60)
+    parser.add_argument("--test-timeout", type=int, default=1800)
+    parser.add_argument("--shutdown-timeout", type=int, default=60)
+    parser.add_argument("--debug", action="store_true",
+                        help="on failure, drop to an interactive shell on the guest")
+    parser.add_argument("--ci", action="store_true",
+                        help="CI mode: never interactive, always terminate by pass/fail/timeout")
+    parser.add_argument("--submit-mode", default="local",
+                        choices=["none", "local", "github", "http", "auto"],
+                        help="submission mode for --run-vm (default: local)")
+    parser.add_argument("--artifacts-dir", default="")
+    parser.add_argument("--keep-vm", action="store_true",
+                        help="do not terminate QEMU after the run (debugging)")
+    parser.add_argument("--console-log", default="")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--qemu-memory", default="2G")
+    parser.add_argument("--qemu-cpus", type=int, default=2)
+    parser.add_argument("--qemu-accel", default="auto")
+    parser.add_argument("--qemu-firmware", default="")
+    parser.add_argument("--inject-state", default="copy-on-image",
+                        choices=["copy-on-image", "virtiofs", "9p", "none"])
+    parser.add_argument("--virtiofs-share", default="")
     ns = parser.parse_args(argv)
 
     if ns.auto:
@@ -632,6 +762,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_prepare_usb(dry_run=ns.dry_run)
     if ns.resume:
         return cmd_resume(dry_run=ns.dry_run, submit=ns.submit_real)
+    if ns.run_vm:
+        return cmd_run_vm(ns)
     return cmd_default()
 
 
