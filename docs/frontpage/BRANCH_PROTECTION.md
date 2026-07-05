@@ -14,7 +14,10 @@ Add these as **required** status checks on `main`:
 
 ## How to add
 
-1. Go to https://github.com/Nan0pk/Rush-linux/settings/branches
+1. Go to the repo settings → Branches (repo admin only:
+   `https://github.com/Nan0pk/Rush-linux/settings/branches` — paste into
+   the browser address bar; do not click as a link, the URL is
+   admin-gated and returns 404 for non-admins)
 2. Click `main` (or add the rule if missing)
 3. Under "Require status checks to pass before merging", search for and add:
    - `frontpage-sync`
