@@ -1,0 +1,60 @@
+# Front-page sync and docs-impact enforcement.
+#
+# Runs on every PR. Fails if:
+#   1. README.md generated front-page section is stale (run --check).
+#   2. User-facing changes lack a docs/frontpage/README/CHANGELOG update
+#      AND the PR does not have the `docs-not-needed` label.
+#
+# Branch protection note (for the maintainer):
+#   Add this workflow's `frontpage-sync` job to the required status checks
+#   for the main branch. Required checks:
+#     - frontpage-sync / README sync (the render-frontpage --check step)
+#     - frontpage-sync / docs-impact (the check-docs-impact step)
+#   Without branch protection, this workflow is advisory only.
+
+name: frontpage-sync
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  frontpage-sync:
+    name: README sync + docs impact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need full history to diff base/head
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch base ref
+        run: |
+          git fetch origin "$GITHUB_BASE_REF" --depth=1 || true
+          echo "BASE=origin/$GITHUB_BASE_REF" >> "$GITHUB_ENV"
+
+      - name: Check README front-page is in sync
+        run: python3 tools/render-frontpage.py --check
+
+      - name: Check docs impact (with label bypass)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if the PR has the docs-not-needed label.
+          LABELS_JSON=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' 2>/dev/null || true)
+          ALLOW_FLAG=""
+          if echo "$LABELS_JSON" | grep -qx "docs-not-needed"; then
+            echo "PR has docs-not-needed label; bypassing docs-impact check."
+            ALLOW_FLAG="--allow-docs-not-needed"
+          fi
+          python3 tools/check-docs-impact.py --base "$BASE" --head HEAD $ALLOW_FLAG
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
