@@ -850,7 +850,7 @@ do_vm() {
 # --- Smart dispatcher -------------------------------------------------------
 
 do_smart() {
-    log "=== Rush LiveDev — SMART mode (auto-detect) ==="
+    log "=== Rush LiveDev — SMART mode ==="
 
     ensure_repo
 
@@ -859,27 +859,81 @@ do_smart() {
         return 0
     fi
 
-    # Step 1: Is QEMU available? → --run-vm path (preferred: no sudo for USB scan).
-    # We check QEMU FIRST because usb_has_results() needs sudo to mount the
-    # USB, and we don't want to prompt for sudo if we're going to use QEMU.
+    # Detect what's available, WITHOUT prompting for sudo yet.
+    local have_qemu=false have_usb=false
     if command -v qemu-system-x86_64 >/dev/null 2>&1; then
-        ok "QEMU detected — using --run-vm path."
-        do_vm
+        have_qemu=true
+    fi
+    # Only scan USB if we have a TTY (interactive) — non-interactive runs
+    # skip USB detection and go straight to QEMU or testOS.
+    if [[ -t 0 ]] && usb_has_results; then
+        have_usb=true
+    fi
+
+    # Build the menu of available options.
+    local choices=()
+    local descriptions=()
+    if [[ "$have_usb" == "true" ]]; then
+        choices+=("resume")
+        descriptions+=("Copy results from USB, validate, submit evidence PR")
+    fi
+    if [[ "$have_qemu" == "true" ]]; then
+        choices+=("vm")
+        descriptions+=("Run deterministic QEMU test cycle (no USB, no reboot)")
+    fi
+    choices+=("usb")
+    descriptions+=("Prepare a USB via testOS (for real-hardware testing)")
+
+    # Non-interactive (no TTY, or piped stdin): pick automatically.
+    if [[ ! -t 0 ]]; then
+        if [[ "$have_usb" == "true" ]]; then
+            ok "Non-interactive + USB detected — resuming."
+            do_resume
+            return $?
+        fi
+        if [[ "$have_qemu" == "true" ]]; then
+            ok "Non-interactive + QEMU detected — using --run-vm."
+            do_vm
+            return $?
+        fi
+        do_auto
         return $?
     fi
 
-    # Step 2: No QEMU. Is a USB with results plugged in? → resume.
-    # This needs sudo (to mount the USB read-only), but only runs when QEMU
-    # is unavailable — i.e., the user is on real hardware.
-    if usb_has_results; then
-        ok "Detected USB with testOS results — resuming."
-        do_resume
-        return $?
+    # Interactive: show a short menu and ask.
+    echo
+    echo "  What would you like to do?"
+    echo
+    local i=1
+    for idx in "${!choices[@]}"; do
+        printf "  [%d] %s — %s\n" "$i" "${choices[$idx]}" "${descriptions[$idx]}"
+        i=$((i + 1))
+    done
+    echo
+    printf "  Pick [1-%d] (or press Enter for default 1): " "${#choices[@]}"
+    local reply
+    read -r reply < /dev/tty
+    [[ -z "$reply" ]] && reply=1
+    # Validate.
+    if ! [[ "$reply" =~ ^[0-9]+$ ]] || (( reply < 1 || reply > ${#choices[@]} )); then
+        die "Invalid choice: $reply"
     fi
-
-    # Step 3: No QEMU, no USB results → prepare USB via testOS.
-    warn "No QEMU and no USB results detected — preparing USB via testOS path."
-    do_auto
+    local pick="${choices[$((reply - 1))]}"
+    echo
+    case "$pick" in
+        resume)
+            ok "Resuming — copy results from USB, validate, submit."
+            do_resume
+            ;;
+        vm)
+            ok "Running QEMU/--run-vm cycle."
+            do_vm
+            ;;
+        usb)
+            ok "Preparing USB via testOS."
+            do_auto
+            ;;
+    esac
 }
 
 # --- Dispatch ---------------------------------------------------------------
