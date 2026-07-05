@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
-# tools/livedev-bootstrap.sh — one-command Rush LiveDev USB workflow for Linux/macOS.
+# tools/livedev-bootstrap.sh — ONE-command Rush LiveDev workflow for Linux/macOS.
 #
 # Usage:
-#   bash livedev-bootstrap.sh --auto                # full path: mock -> plan -> USB -> boot prompt
-#   bash livedev-bootstrap.sh --auto --dry-run      # print every command, do not write USB
-#   bash livedev-bootstrap.sh --resume              # after reboot: copy results -> validate -> submit dry-run
-#   bash livedev-bootstrap.sh --resume --submit     # after validation: open PR for maintainer review
-#   bash livedev-bootstrap.sh --skip-mock --auto    # skip the mock verification step
+#   bash livedev-bootstrap.sh                # SMART: auto-detect and do everything
+#   bash livedev-bootstrap.sh --smart        # same as above (explicit)
+#   bash livedev-bootstrap.sh --auto         # force USB/testOS path (prepare USB, print boot instructions)
+#   bash livedev-bootstrap.sh --resume       # force resume path (copy results from USB)
+#   bash livedev-bootstrap.sh --resume --submit  # resume + open real evidence PR
+#   bash livedev-bootstrap.sh --vm           # force QEMU/--run-vm path
+#   bash livedev-bootstrap.sh --dry-run      # show commands, do not write/build/submit
+#
+# SMART mode (default) auto-detects:
+#   1. If a USB with testOS results is plugged in → resume + validate + submit.
+#   2. Else if qemu-system-x86_64 is available:
+#      a. If livedev image is missing → build it (needs sudo).
+#      b. Run --run-vm with --submit-mode auto.
+#   3. Else → prepare USB (testOS path), print boot instructions.
+#      After reboot, re-running the same command resumes (step 1).
 #
 # What this script does NOT do:
 #   - Never auto-merge. PRs are opened for maintainer review only.
 #   - Never mark milestones verified.
-#   - Never edit release truth (VERSION, RELEASES.md, milestones.toml, ADRs, CI workflow).
-#   - Never fabricate hardware evidence. Results only come from the USB.
-#   - Never print or store tokens. If a token is needed, prints exactly: [TOKEN NEEDED]
+#   - Never edit release truth.
+#   - Never fabricate hardware evidence.
+#   - Never print or store tokens.
 
 set -euo pipefail
 
@@ -36,6 +46,8 @@ REPO_DIR_OVERRIDE="${RUSH_LIVEDEV_REPO_DIR:-}"
 # --- Args -------------------------------------------------------------------
 AUTO=false
 RESUME=false
+VM=false
+SMART=false
 DRY_RUN=false
 SKIP_MOCK=false
 SUBMIT=false
@@ -43,25 +55,23 @@ DEVICE=""
 
 usage() {
     cat <<'EOF'
-livedev-bootstrap.sh — one-command Rush LiveDev USB workflow (Linux/macOS).
+livedev-bootstrap.sh — ONE-command Rush LiveDev workflow (Linux/macOS).
+
+Default (no args): SMART mode. Auto-detects what to do:
+  - USB with results plugged in  → resume + validate + submit
+  - QEMU available               → build image (if needed) + run --run-vm
+  - Neither                       → prepare USB, print boot instructions
 
 Flags:
-  --auto           Full path: clone/fetch repo, mock verify, generate plan,
-                   prepare USB using the current testOS backend, print boot instructions.
-  --resume         After rebooting back from testOS: locate USB, copy results,
-                   validate, run submit dry-run.
-  --dry-run        Print every command that would run. Do not write USB.
-  --skip-mock      Skip the mock verification step (used with --auto).
-  --submit         Used with --resume: open a real evidence PR for maintainer review.
-                   No auto-merge. Requires GH_TOKEN or GITHUB_TOKEN.
-  --device /dev/sdX  Optional USB device path (otherwise testOS auto-detects).
-  --help           Show this message.
-
-Workflow:
-  1. bash livedev-bootstrap.sh --auto
-  2. (script tells you to boot the USB, run tests, reboot back)
-  3. bash livedev-bootstrap.sh --resume
-  4. (optional) bash livedev-bootstrap.sh --resume --submit
+  --smart         Smart mode (default when no mode flag given).
+  --vm            Force QEMU/--run-vm path (build image if missing).
+  --auto          Force USB/testOS path (prepare USB, print boot instructions).
+  --resume        Force resume path (copy results from USB).
+  --submit        With --resume: open a real evidence PR (needs GH_TOKEN).
+  --dry-run       Show commands, do not write/build/submit.
+  --skip-mock     Skip mock verification (used with --auto/--smart).
+  --device /dev/sdX  Optional USB device path.
+  --help          Show this message.
 
 Safety:
   - Never auto-merges. PRs are opened for maintainer review.
@@ -73,6 +83,8 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --smart)     SMART=true; shift ;;
+        --vm)        VM=true; shift ;;
         --auto)      AUTO=true; shift ;;
         --resume)    RESUME=true; shift ;;
         --dry-run)   DRY_RUN=true; shift ;;
@@ -85,11 +97,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$AUTO" != "true" && "$RESUME" != "true" ]]; then
-    echo ">> No mode selected. Use --auto or --resume." >&2
-    echo ">>   bash livedev-bootstrap.sh --auto" >&2
-    echo ">>   bash livedev-bootstrap.sh --resume" >&2
-    exit 2
+# If no mode flag given, default to SMART.
+if [[ "$AUTO" != "true" && "$RESUME" != "true" && "$VM" != "true" && "$SMART" != "true" ]]; then
+    SMART=true
 fi
 
 # --- Helpers ----------------------------------------------------------------
@@ -620,8 +630,115 @@ print(json.dumps({
     rm -rf "$work_dir"
 }
 
+# --- USB result detection ---------------------------------------------------
+
+usb_has_results() {
+    # Returns 0 if a removable USB with testos-results/ is plugged in.
+    local disk part mnt
+    disk="$(lsblk -b -d -P -o NAME,RM,TRAN 2>/dev/null \
+            | awk 'BEGIN{FS="\""} /RM="1"/ && /TRAN="usb"/ {print $2; exit}' || true)"
+    [[ -n "$disk" ]] || return 1
+    local dev="/dev/$disk"
+    part="$(lsblk -ln -o NAME,TYPE,FSTYPE "$dev" 2>/dev/null \
+            | awk '$2=="part" && $3 ~ /^(vfat|fat|msdos|exfat)$/ {print "/dev/"$1; exit}' || true)"
+    [[ -n "$part" ]] || return 1
+    mnt="$(mktemp -d -t rush-livedev-usb-scan.XXXXXX)"
+    sudo mount -o ro "$part" "$mnt" 2>/dev/null || { rmdir "$mnt" 2>/dev/null || true; return 1; }
+    local found=0
+    [[ -d "$mnt/testos-results" ]] && found=1
+    sudo umount "$mnt" 2>/dev/null || true
+    rmdir "$mnt" 2>/dev/null || true
+    [[ "$found" == "1" ]]
+}
+
+# --- QEMU/--run-vm path -----------------------------------------------------
+
+do_vm() {
+    log "=== Rush LiveDev — QEMU/--run-vm path ==="
+    ensure_repo
+
+    if [[ "$TEST_STUB" == "1" ]]; then
+        ok "[TEST_STUB] Skipping VM run."
+        return 0
+    fi
+
+    # Locate or build the livedev image.
+    local img="${REPO_DIR}/build/rush-linux-livedev.raw"
+    if [[ ! -f "$img" ]]; then
+        # Fall back to the server image if livedev wasn't built.
+        local server_img="${REPO_DIR}/build/rush-linux-server.raw"
+        if [[ -f "$server_img" ]]; then
+            img="$server_img"
+            warn "livedev image not found; using server image: $img"
+        else
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "    [dry-run] Would build livedev image: sudo bash tools/build-mkosi-image.sh --edition livedev"
+                return 0
+            fi
+            if ! command -v mkosi >/dev/null 2>&1; then
+                die "mkosi not installed and livedev image not found at $img. Install mkosi or build the image manually."
+            fi
+            log "Building livedev image (needs sudo)..."
+            sudo bash tools/build-mkosi-image.sh --edition livedev
+        fi
+    fi
+
+    # Determine submit mode.
+    local submit_mode="auto"
+    if [[ "$SUBMIT" == "true" ]]; then
+        submit_mode="github"
+    fi
+
+    # Hand off to livedev-next --run-vm.
+    local cmd=(python3 tools/livedev-next --run-vm --image "$img" --submit-mode "$submit_mode")
+    if [[ "$DRY_RUN" == "true" ]]; then
+        cmd+=(--verbose)
+    fi
+    log "Running: ${cmd[*]}"
+    python3 tools/livedev-next --run-vm --image "$img" --submit-mode "$submit_mode"
+}
+
+# --- Smart dispatcher -------------------------------------------------------
+
+do_smart() {
+    log "=== Rush LiveDev — SMART mode (auto-detect) ==="
+
+    ensure_repo
+
+    if [[ "$TEST_STUB" == "1" ]]; then
+        ok "[TEST_STUB] Skipping smart dispatch."
+        return 0
+    fi
+
+    # Step 1: Is a USB with results plugged in? → resume.
+    if usb_has_results; then
+        ok "Detected USB with testOS results — resuming."
+        if [[ "$SUBMIT" == "true" ]]; then
+            do_resume
+        else
+            do_resume
+        fi
+        return $?
+    fi
+
+    # Step 2: Is QEMU available? → --run-vm path.
+    if command -v qemu-system-x86_64 >/dev/null 2>&1; then
+        ok "QEMU detected — using --run-vm path."
+        do_vm
+        return $?
+    fi
+
+    # Step 3: Fall back to USB/testOS path.
+    warn "No USB results detected and no QEMU available — falling back to USB/testOS path."
+    do_auto
+}
+
 # --- Dispatch ---------------------------------------------------------------
-if [[ "$RESUME" == "true" ]]; then
+if [[ "$SMART" == "true" ]]; then
+    do_smart
+elif [[ "$VM" == "true" ]]; then
+    do_vm
+elif [[ "$RESUME" == "true" ]]; then
     do_resume
 else
     do_auto

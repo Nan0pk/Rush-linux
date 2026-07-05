@@ -48,7 +48,8 @@ def test_help_shows_all_modes():
     rc, stdout, _ = _run(["--help"])
     assert rc == 0
     for mode in ["--auto", "--mock", "--plan", "--run", "--submit",
-                 "--prepare-usb", "--resume", "--dry-run"]:
+                 "--prepare-usb", "--resume", "--run-vm", "--dry-run",
+                 "--submit-mode", "--ci", "--debug"]:
         assert mode in stdout, f"--help should mention {mode}"
 
 
@@ -200,7 +201,7 @@ def test_bootstrap_sh_exists_and_is_executable():
 
 
 def test_bootstrap_sh_supports_required_flags():
-    """Spec: livedev-bootstrap.sh supports --auto, --resume, --dry-run."""
+    """Spec: livedev-bootstrap.sh supports --auto, --resume, --dry-run, --smart, --vm."""
     p = _TOOLS_DIR / "livedev-bootstrap.sh"
     text = p.read_text()
     assert "--auto" in text
@@ -208,11 +209,30 @@ def test_bootstrap_sh_supports_required_flags():
     assert "--dry-run" in text
     assert "--skip-mock" in text
     assert "--submit" in text
+    assert "--smart" in text, "must support --smart (default mode)"
+    assert "--vm" in text, "must support --vm (force QEMU path)"
     # Must NOT auto-merge (no merge API call)
     assert "pulls/${PR_NUM}/merge" not in text
     assert "pulls/$PR_NUM/merge" not in text
     # Must print [TOKEN NEEDED] when token is missing
     assert "[TOKEN NEEDED]" in text
+
+
+def test_bootstrap_sh_smart_is_default_when_no_args():
+    """Spec: running with no args defaults to SMART mode (auto-detect)."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    # The dispatch logic must default to SMART when no mode flag is given.
+    assert 'SMART=true' in text
+    assert 'do_smart' in text
+
+
+def test_bootstrap_sh_has_usb_result_detection():
+    """Spec: smart mode can detect a USB with testos-results/ plugged in."""
+    p = _TOOLS_DIR / "livedev-bootstrap.sh"
+    text = p.read_text()
+    assert "usb_has_results" in text
+    assert "testos-results" in text
 
 
 def test_bootstrap_sh_help_works():
@@ -509,7 +529,7 @@ def test_bootstrap_ps1_exists():
 
 
 def test_bootstrap_ps1_supports_required_flags():
-    """Spec: livedev-bootstrap.ps1 supports -Auto, -Resume, -DryRun."""
+    """Spec: livedev-bootstrap.ps1 supports -Auto, -Resume, -DryRun, -Smart."""
     p = _TOOLS_DIR / "livedev-bootstrap.ps1"
     text = p.read_text()
     # PowerShell param block
@@ -518,6 +538,7 @@ def test_bootstrap_ps1_supports_required_flags():
     assert "[switch]$DryRun" in text
     assert "[switch]$SkipMock" in text
     assert "[switch]$Submit" in text
+    assert "[switch]$Smart" in text, "must support -Smart (default mode)"
     # Must NOT auto-merge (no merge API call)
     assert "pulls/" not in text.replace("pulls'", "").replace("pulls`", "")  # rough check
     # Specifically: no /merge endpoint
@@ -671,7 +692,9 @@ def test_readme_has_linux_and_windows_commands():
     readme = (_ROOT / "README.md").read_text()
     assert "curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh" in readme
     assert "curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1" in readme
-    assert "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1 -Auto" in readme
+    # Smart mode is the default now; -Auto is still accepted but no longer
+    # the documented default in the README one-command line.
+    assert "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1" in readme
 
 
 def test_readme_labels_testos_as_backend_or_fallback():
