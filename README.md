@@ -66,6 +66,22 @@ To open an evidence PR, the script needs GitHub auth. Three ways, best first:
 
 The script checks auth **before** doing any USB/copy/validate work, so you won't waste 30 seconds only to fail at the last step.
 
+### What the PR looks like
+
+The submission generates a rich PR body automatically:
+
+- **Pass/fail badge** (green/red/yellow shield)
+- **Summary table** (passed / failed / skipped counts)
+- **Host table** (fingerprint, kernel, CPU, board, battery)
+- **Per-benchmark results table** (bench id, status, value, unit, error)
+- **Artifact bundle** (tar.gz with all JSON + system logs)
+- **Validation checklist** (manifest parses, fingerprint present, results present)
+- **Auto-labels**: `evidence`, `livedev`, `result-pass` / `result-fail` / `result-mixed`
+- **Dedup**: if you re-run with the same host + date, it updates the existing PR instead of creating a duplicate
+- **Deterministic branch**: `evidence/<date>/<host-fingerprint>`
+
+Failed benchmarks are preserved as evidence (never deleted). No auto-merge — a maintainer reviews and merges.
+
 ### What the one command does
 
 | situation | action |
@@ -318,6 +334,7 @@ Additional tools:
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
+| `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
 ### CI workflows
 
@@ -381,6 +398,7 @@ Additional tools:
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
+| `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
 ### Documentation
 
@@ -417,6 +435,7 @@ python3 -m pytest \
   tools/test-rush-capture.py \
   tools/test-rush-pr.py \
   tools/test-rush-runner.py \
+  tools/test-submit-evidence.py \
   tools/test-validate-hwtest-evidence.py
 ```
 

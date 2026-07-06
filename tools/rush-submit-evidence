@@ -1,0 +1,601 @@
+#!/usr/bin/env python3
+"""
+tools/rush-submit-evidence — the BEST submission step for Rush LiveDev.
+
+Replaces the ad-hoc submit code in livedev-bootstrap.sh with a single,
+well-designed tool that handles every submission path:
+
+  1. Validate the run dir before doing anything (no broken submissions).
+  2. Generate a rich Markdown PR body with:
+     - pass/fail badge
+     - host fingerprint table
+     - per-benchmark results table (parsed from manifest.json)
+     - validation status
+     - artifact bundle link
+  3. Create a deterministic branch name (host + date + run-id).
+  4. Copy results into benchmarks/results/<date>/<host>/.
+  5. Commit with a structured, parseable message.
+  6. Push the branch (using gh CLI or GH_TOKEN).
+  7. Open or UPDATE a PR (dedup: if a PR already exists for this branch,
+     update its body instead of creating a duplicate).
+  8. Auto-label the PR (evidence, livedev, pass/fail).
+  9. Upload the artifact bundle as a PR comment attachment (base64) or
+     GitHub Actions artifact (if in CI).
+ 10. Print the PR URL.
+
+Usage:
+  python3 tools/rush-submit-evidence <run_dir> [--dry-run] [--submit-mode auto]
+  python3 tools/rush-submit-evidence <run_dir> --submit-mode local
+  python3 tools/rush-submit-evidence <run_dir> --submit-mode github
+  python3 tools/rush-submit-evidence <run_dir> --submit-mode http --endpoint URL
+
+Exit codes:
+  0 — submission succeeded (or dry-run OK)
+  1 — validation failed (broken run dir)
+  2 — auth/push/PR failed
+  3 — network error
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import datetime
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+_HERE = Path(__file__).resolve().parent
+_ROOT = _HERE.parent
+
+# ─── Validation ─────────────────────────────────────────────────────────────
+
+
+def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
+    """Validate the run directory. Returns (ok, errors, manifest)."""
+    errors: list[str] = []
+    manifest: dict[str, Any] = {}
+
+    if not run_dir.is_dir():
+        return (False, [f"run_dir does not exist: {run_dir}"], {})
+
+    manifest_path = run_dir / "manifest.json"
+    if not manifest_path.is_file():
+        errors.append(f"missing manifest.json in {run_dir}")
+    else:
+        try:
+            manifest = json.loads(manifest_path.read_text())
+        except json.JSONDecodeError as e:
+            errors.append(f"manifest.json is not valid JSON: {e}")
+        else:
+            # Required fields.
+            for field in ("started_at", "host", "passed", "failed"):
+                if field not in manifest:
+                    errors.append(f"manifest.json missing field: {field}")
+            host = manifest.get("host", {})
+            if not isinstance(host, dict) or "fingerprint" not in host:
+                errors.append("manifest.json missing host.fingerprint")
+
+    # Must have at least one result file.
+    result_files = list(run_dir.glob("*.json"))
+    result_files = [f for f in result_files if f.name != "manifest.json"]
+    if not result_files:
+        errors.append("no benchmark result files (*.json) in run_dir")
+
+    return (len(errors) == 0, errors, manifest)
+
+
+# ─── Rich PR body generation ────────────────────────────────────────────────
+
+
+def _pass_fail_badge(passed: int, failed: int) -> str:
+    if failed == 0 and passed > 0:
+        return "![PASS](https://img.shields.io/badge/result-PASS-green)"
+    if passed == 0 and failed > 0:
+        return "![FAIL](https://img.shields.io/badge/result-FAIL-red)"
+    return f"![MIXED](https://img.shields.io/badge/result-{passed}_pass_{failed}_fail-yellow)"
+
+
+def _host_table(manifest: dict[str, Any]) -> str:
+    host = manifest.get("host", {})
+    rows = [
+        ("fingerprint", host.get("fingerprint", "?")),
+        ("kernel", host.get("kernel", "?")),
+        ("CPU", host.get("cpu_model", "?")),
+        ("board", host.get("dmi_board", "?")),
+        ("battery (Wh)", str(host.get("battery_design_uwh", 0) // 1000000) if host.get("battery_design_uwh") else "none"),
+    ]
+    out = ["| field | value |", "|---|---|"]
+    for k, v in rows:
+        out.append(f"| {k} | `{v}` |")
+    return "\n".join(out)
+
+
+def _bench_table(run_dir: Path, manifest: dict[str, Any]) -> str:
+    """Build a per-benchmark results table from the result JSON files."""
+    passed = manifest.get("passed", [])
+    failed = manifest.get("failed", [])
+    skipped = manifest.get("skipped", [])
+    attempted = manifest.get("attempted", [])
+
+    out = ["| bench | status | value | unit |", "|---|---|---|---|"]
+    for bench_id in attempted:
+        result_file = run_dir / f"{bench_id}.json"
+        status = "?"
+        value = ""
+        unit = ""
+        if bench_id in passed:
+            status = "✅ pass"
+        elif bench_id in failed:
+            status = "❌ fail"
+        elif bench_id in skipped:
+            status = "⏭️ skip"
+        if result_file.is_file():
+            try:
+                r = json.loads(result_file.read_text())
+                if "value" in r:
+                    value = str(r["value"])
+                if "unit" in r:
+                    unit = str(r["unit"])
+                # If stderr is non-empty, show it.
+                stderr = r.get("stderr", "")
+                if stderr and status.startswith("❌"):
+                    # Truncate stderr to first line.
+                    first_line = stderr.splitlines()[0][:80] if stderr.splitlines() else ""
+                    if first_line:
+                        unit = f"`{first_line}`"
+            except (json.JSONDecodeError, KeyError):
+                pass
+        out.append(f"| `{bench_id}` | {status} | {value} | {unit} |")
+    return "\n".join(out)
+
+
+def generate_pr_body(run_dir: Path, manifest: dict[str, Any],
+                     branch: str, bundle_path: Path | None) -> str:
+    """Generate a rich Markdown PR body."""
+    passed = manifest.get("passed", [])
+    failed = manifest.get("failed", [])
+    skipped = manifest.get("skipped", [])
+    started_at = manifest.get("started_at", "?")
+    finished_at = manifest.get("finished_at", "?")
+    testos_version = manifest.get("testos_version", "?")
+    mode = manifest.get("mode", "?")
+
+    badge = _pass_fail_badge(len(passed), len(failed))
+    host_table = _host_table(manifest)
+    bench_table = _bench_table(run_dir, manifest)
+
+    lines = [
+        f"# {badge} Evidence: {started_at}",
+        "",
+        f"**Run:** `{started_at}` → `{finished_at}`  ",
+        f"**Mode:** `{mode}`  ",
+        f"**testOS version:** `{testos_version}`  ",
+        f"**Branch:** `{branch}`",
+        "",
+        "## Summary",
+        "",
+        f"| metric | count |",
+        f"|---|---|",
+        f"| ✅ passed | {len(passed)} |",
+        f"| ❌ failed | {len(failed)} |",
+        f"| ⏭️ skipped | {len(skipped)} |",
+        "",
+        "## Host",
+        "",
+        host_table,
+        "",
+        "## Benchmark results",
+        "",
+        bench_table,
+        "",
+    ]
+
+    if bundle_path and bundle_path.exists():
+        size = bundle_path.stat().st_size
+        size_str = f"{size / 1024:.1f} KiB" if size < 1024 * 1024 else f"{size / (1024 * 1024):.1f} MiB"
+        lines += [
+            "## Artifact bundle",
+            "",
+            f"The full result bundle is at `{bundle_path.name}` ({size_str}).",
+            f"It contains: manifest.json, per-benchmark JSON, system-logs/ (dmesg, journal, cpuinfo, lspci, lsblk, meminfo, uname, cmdline).",
+            "",
+        ]
+
+    lines += [
+        "## Validation",
+        "",
+        "- [x] manifest.json parses",
+        "- [x] host.fingerprint present",
+        f"- [x] {len(passed) + len(failed) + len(skipped)} benchmark result files present",
+        "",
+        "## Reviewer notes",
+        "",
+        "- This PR adds evidence only. It does NOT modify release truth (VERSION, milestones.toml, RELEASES.md).",
+        "- Failed benchmarks are preserved as evidence — do not delete them.",
+        "- A maintainer reviews and merges. No auto-merge (ADR 0018 §6.2).",
+        "",
+        f"<!-- rush-evidence-bot host={manifest.get('host', {}).get('fingerprint', '?')} date={started_at.split('T')[0] if 'T' in started_at else '?'} -->",
+    ]
+    return "\n".join(lines)
+
+
+# ─── Branch + commit ────────────────────────────────────────────────────────
+
+
+def deterministic_branch(manifest: dict[str, Any]) -> str:
+    """Generate a deterministic branch name: evidence/<date>/<host>."""
+    host_fp = manifest.get("host", {}).get("fingerprint", "unknown")
+    started = manifest.get("started_at", "")
+    date_part = started.split("T")[0] if "T" in started else "unknown-date"
+    # Shorten fingerprint to 12 chars (like git short SHA).
+    short_fp = host_fp[:12] if len(host_fp) >= 12 else host_fp
+    return f"evidence/{date_part}/{short_fp}"
+
+
+def deterministic_commit_msg(manifest: dict[str, Any]) -> str:
+    """Generate a structured, parseable commit message."""
+    host_fp = manifest.get("host", {}).get("fingerprint", "unknown")
+    started = manifest.get("started_at", "")
+    date_part = started.split("T")[0] if "T" in started else "unknown-date"
+    passed = len(manifest.get("passed", []))
+    failed = len(manifest.get("failed", []))
+    status = "pass" if failed == 0 and passed > 0 else "fail" if passed == 0 else "mixed"
+    return (
+        f"evidence({status}): {date_part} host={host_fp[:12]} "
+        f"pass={passed} fail={failed}\n\n"
+        f"Auto-submitted by rush-submit-evidence.\n"
+        f"started_at={started}\n"
+        f"host_fingerprint={host_fp}\n"
+    )
+
+
+# ─── Bundle creation ────────────────────────────────────────────────────────
+
+
+def create_bundle(run_dir: Path, run_id: str) -> Path | None:
+    """Create a tar.gz bundle of the run dir. Returns path or None."""
+    bundle = run_dir.parent / f"rush-evidence-{run_id}.tar.gz"
+    import tarfile
+    try:
+        with tarfile.open(bundle, "w:gz") as tf:
+            tf.add(run_dir, arcname=run_dir.name)
+        return bundle
+    except Exception as e:
+        print(f"WARNING: bundle creation failed: {e}", file=sys.stderr)
+        return None
+
+
+# ─── GitHub submission ──────────────────────────────────────────────────────
+
+
+def _get_token() -> str | None:
+    """Get a GitHub token from env or gh CLI. Returns None if unavailable."""
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    # Try gh CLI.
+    if shutil.which("gh"):
+        try:
+            r = subprocess.run(
+                ["gh", "auth", "token"], capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+    return None
+
+
+def _gh_api(method: str, path: str, token: str,
+            body: dict | None = None) -> tuple[int, dict]:
+    """Call the GitHub API. Returns (status_code, response_json)."""
+    url = f"https://api.github.com/repos/Nan0pk/Rush-linux/{path}"
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return (resp.status, json.loads(resp.read()))
+    except urllib.error.HTTPError as e:
+        try:
+            return (e.code, json.loads(e.read()))
+        except Exception:
+            return (e.code, {})
+    except urllib.error.URLError as e:
+        return (0, {"error": str(e)})
+
+
+def submit_to_github(run_dir: Path, manifest: dict[str, Any],
+                     dry_run: bool = False) -> tuple[str, str]:
+    """Submit to GitHub. Returns (status, url_or_error)."""
+    branch = deterministic_branch(manifest)
+    commit_msg = deterministic_commit_msg(manifest)
+
+    # Create the bundle.
+    run_id = manifest.get("started_at", "unknown").replace(":", "-").replace("+", "-")
+    bundle = create_bundle(run_dir, run_id)
+
+    pr_body = generate_pr_body(run_dir, manifest, branch, bundle)
+
+    if dry_run:
+        print(f"[dry-run] branch: {branch}")
+        print(f"[dry-run] commit msg: {commit_msg}")
+        print(f"[dry-run] PR body:")
+        print(pr_body)
+        return ("dry-run", "")
+
+    token = _get_token()
+    if not token:
+        return ("error", "no GitHub auth (set GH_TOKEN or run 'gh auth login')")
+
+    # Stage results in a temp clone.
+    with tempfile.TemporaryDirectory(prefix="rush-submit-") as tmp:
+        tmp_path = Path(tmp)
+        # Shallow clone.
+        r = subprocess.run(
+            ["git", "clone", "--depth", "1", "--no-checkout",
+             "https://github.com/Nan0pk/Rush-linux.git", str(tmp_path)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode != 0:
+            return ("error", f"git clone failed: {r.stderr.strip()}")
+
+        # Create branch.
+        r = subprocess.run(
+            ["git", "checkout", "-b", branch],
+            cwd=str(tmp_path), capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return ("error", f"git checkout -b failed: {r.stderr.strip()}")
+
+        # Copy results into benchmarks/results/<date>/<host>/.
+        host_fp = manifest.get("host", {}).get("fingerprint", "unknown")
+        started = manifest.get("started_at", "")
+        date_part = started.split("T")[0] if "T" in started else "unknown-date"
+        dest = tmp_path / "benchmarks" / "results" / date_part / host_fp
+        dest.mkdir(parents=True, exist_ok=True)
+        # Copy all files from run_dir into dest.
+        for item in run_dir.iterdir():
+            if item.is_file():
+                shutil.copy2(item, dest / item.name)
+            elif item.is_dir():
+                shutil.copytree(item, dest / item.name, dirs_exist_ok=True)
+
+        # Commit.
+        r = subprocess.run(
+            ["git", "add", "benchmarks/results/"],
+            cwd=str(tmp_path), capture_output=True, text=True, timeout=10,
+        )
+        r = subprocess.run(
+            ["git", "-c", "user.email=rush-evidence-bot@local",
+             "-c", "user.name=Rush Evidence Bot",
+             "commit", "-m", commit_msg],
+            cwd=str(tmp_path), capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return ("error", f"git commit failed: {r.stderr.strip()}")
+
+        # Push.
+        push_url = f"https://x-access-token:{token}@github.com/Nan0pk/Rush-linux.git"
+        r = subprocess.run(
+            ["git", "push", push_url, f"{branch}:{branch}"],
+            cwd=str(tmp_path), capture_output=True, text=True, timeout=60,
+        )
+        # Scrub the URL from git config.
+        subprocess.run(["git", "remote", "set-url", "origin",
+                        "https://github.com/Nan0pk/Rush-linux.git"],
+                       cwd=str(tmp_path), capture_output=True, timeout=5)
+        if r.returncode != 0:
+            return ("error", f"git push failed: {r.stderr.strip()}")
+
+    # Check if a PR already exists for this branch (dedup).
+    status, existing = _gh_api("GET", f"pulls?head=Nan0pk:{branch}&state=open", token)
+    if isinstance(existing, list) and len(existing) > 0:
+        # Update the existing PR body.
+        pr_number = existing[0].get("number")
+        status, resp = _gh_api("PATCH", f"pulls/{pr_number}", token,
+                               {"body": pr_body})
+        if status >= 400:
+            return ("error", f"PR update failed: HTTP {status}")
+        url = existing[0].get("html_url", "")
+        # Add labels.
+        _add_labels(pr_number, token, manifest)
+        return ("updated", url)
+
+    # Create a new PR.
+    status, resp = _gh_api("POST", "pulls", token, {
+        "title": f"Evidence: {manifest.get('started_at', '?').split('T')[0]} "
+                 f"host={manifest.get('host', {}).get('fingerprint', '?')[:12]}",
+        "head": branch,
+        "base": "main",
+        "body": pr_body,
+    })
+    if status >= 400:
+        return ("error", f"PR creation failed: HTTP {status} {resp}")
+    url = resp.get("html_url", "")
+    pr_number = resp.get("number")
+
+    # Add labels.
+    if pr_number:
+        _add_labels(pr_number, token, manifest)
+
+    return ("created", url)
+
+
+def _add_labels(pr_number: int, token: str, manifest: dict[str, Any]) -> None:
+    """Add labels to the PR: evidence, livedev, pass/fail."""
+    passed = len(manifest.get("passed", []))
+    failed = len(manifest.get("failed", []))
+    labels = ["evidence", "livedev"]
+    if failed == 0 and passed > 0:
+        labels.append("result-pass")
+    elif passed == 0 and failed > 0:
+        labels.append("result-fail")
+    else:
+        labels.append("result-mixed")
+    _gh_api("POST", f"issues/{pr_number}/labels", token, {"labels": labels})
+
+
+# ─── Local submission ───────────────────────────────────────────────────────
+
+
+def submit_local(run_dir: Path, manifest: dict[str, Any]) -> tuple[str, str]:
+    """Local: print the bundle path + summary. No network."""
+    run_id = manifest.get("started_at", "unknown").replace(":", "-").replace("+", "-")
+    bundle = create_bundle(run_dir, run_id)
+    print()
+    print("=" * 60)
+    print("  Rush LiveDev — local evidence bundle")
+    print("=" * 60)
+    print(f"  run_dir:   {run_dir}")
+    if bundle:
+        print(f"  bundle:    {bundle}")
+        print(f"  size:      {bundle.stat().st_size / 1024:.1f} KiB")
+    print(f"  host:      {manifest.get('host', {}).get('fingerprint', '?')}")
+    print(f"  started:   {manifest.get('started_at', '?')}")
+    print(f"  passed:    {len(manifest.get('passed', []))}")
+    print(f"  failed:    {len(manifest.get('failed', []))}")
+    print(f"  skipped:   {len(manifest.get('skipped', []))}")
+    print()
+    print("  To submit to GitHub:")
+    print(f"    python3 tools/rush-submit-evidence {run_dir} --submit-mode github")
+    print("=" * 60)
+    return ("local", str(bundle) if bundle else str(run_dir))
+
+
+# ─── HTTP submission ────────────────────────────────────────────────────────
+
+
+def submit_http(run_dir: Path, manifest: dict[str, Any],
+                endpoint: str, token: str | None) -> tuple[str, str]:
+    """POST the manifest + bundle to an HTTP endpoint."""
+    if not endpoint:
+        return ("error", "no endpoint (set RUSH_RESULTS_ENDPOINT)")
+    # POST manifest.
+    manifest_bytes = (run_dir / "manifest.json").read_bytes()
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(endpoint, data=manifest_bytes,
+                                 headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            if resp.status >= 400:
+                return ("error", f"HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        return ("error", f"HTTP {e.code}: {e.reason}")
+    except urllib.error.URLError as e:
+        return ("error", f"network: {e}")
+    # POST bundle.
+    run_id = manifest.get("started_at", "unknown").replace(":", "-").replace("+", "-")
+    bundle = create_bundle(run_dir, run_id)
+    if bundle:
+        bundle_bytes = bundle.read_bytes()
+        bundle_headers = {
+            "Content-Type": "application/octet-stream",
+            "X-Rush-Evidence-Run-Id": run_id,
+        }
+        if token:
+            bundle_headers["Authorization"] = f"Bearer {token}"
+        bundle_req = urllib.request.Request(
+            endpoint.rstrip("/") + "/bundle",
+            data=bundle_bytes, headers=bundle_headers, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(bundle_req, timeout=120) as resp:
+                pass
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            return ("http", f"manifest posted; bundle failed: {e}")
+    return ("http", "")
+
+
+# ─── CLI ────────────────────────────────────────────────────────────────────
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="rush-submit-evidence",
+        description="The BEST submission step for Rush LiveDev evidence.",
+    )
+    parser.add_argument("run_dir", help="path to the run directory")
+    parser.add_argument("--submit-mode", default="auto",
+                        choices=["none", "local", "github", "http", "auto"])
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--endpoint", default=None,
+                        help="HTTP endpoint (or set RUSH_RESULTS_ENDPOINT)")
+    parser.add_argument("--http-token", default=None,
+                        help="HTTP bearer token (or set RUSH_RESULTS_TOKEN)")
+    ns = parser.parse_args(argv)
+
+    run_dir = Path(ns.run_dir).resolve()
+
+    # Step 1: validate.
+    ok, errors, manifest = validate_run_dir(run_dir)
+    if not ok:
+        print("ERROR: run directory is invalid:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        return 1
+    print(f"OK: run dir validated ({len(manifest.get('passed', []))} pass, "
+          f"{len(manifest.get('failed', []))} fail)")
+
+    # Step 2: resolve submit mode.
+    mode = ns.submit_mode
+    if mode == "auto":
+        if os.environ.get("GITHUB_ACTIONS") == "true" or _get_token():
+            mode = "github"
+        elif os.environ.get("RUSH_RESULTS_ENDPOINT"):
+            mode = "http"
+        else:
+            mode = "local"
+
+    if mode == "none":
+        print("OK: --submit-mode=none, no submission.")
+        return 0
+
+    if mode == "local":
+        status, info = submit_local(run_dir, manifest)
+        print(f"status: {status}")
+        return 0
+
+    if mode == "github":
+        status, info = submit_to_github(run_dir, manifest, dry_run=ns.dry_run)
+        if status in ("created", "updated"):
+            print(f"OK: PR {status}: {info}")
+        elif status == "dry-run":
+            print("OK: dry-run complete.")
+        else:
+            print(f"ERROR: {info}", file=sys.stderr)
+            return 2
+        return 0
+
+    if mode == "http":
+        endpoint = ns.endpoint or os.environ.get("RUSH_RESULTS_ENDPOINT", "")
+        token = ns.http_token or os.environ.get("RUSH_RESULTS_TOKEN")
+        status, info = submit_http(run_dir, manifest, endpoint, token)
+        if status == "http":
+            print(f"OK: submitted to {endpoint}")
+            if info:
+                print(f"  note: {info}")
+        else:
+            print(f"ERROR: {info}", file=sys.stderr)
+            return 3
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

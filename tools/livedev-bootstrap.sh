@@ -608,52 +608,29 @@ preflight_submit_auth() {
 
 do_real_submit() {
     local run_dir="$1"
-    # Auth was already pre-flighted at the start of do_resume. Re-fetch the
-    # token (or use gh) here. Never print the token.
-    local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    # Auth was already pre-flighted at the start of do_resume.
+    log "Submit: validate, generate rich PR body, push, open/update PR."
 
-    log "Real submit: open evidence PR for maintainer review (no auto-merge)."
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] Would push branch and open PR via GitHub API."
-        echo "    [dry-run] Auth method: ${token:+env token}${token:-gh CLI}"
-        echo "    [dry-run] No merge API call would be made."
+        echo "    [dry-run] Would run: python3 tools/rush-submit-evidence $run_dir --submit-mode auto --dry-run"
+        python3 tools/rush-submit-evidence "$run_dir" --submit-mode auto --dry-run || true
         return 0
     fi
 
-    if [[ -f "$run_dir/run-record.json" ]]; then
-        # LiveDev-shaped run: use livedev-next --submit (no --dry-run).
-        # rush_pr_lib.py never calls the merge API.
-        if [[ -n "$token" ]]; then
-            GH_TOKEN="$token" python3 tools/livedev-next --submit "$run_dir" || \
-                die "livedev-next --submit failed."
-        elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-            # Use gh's authenticated session — it sets GH_TOKEN internally.
-            eval "$(gh auth token --secure-storage 2>/dev/null | sed 's/^/export /')"
-            python3 tools/livedev-next --submit "$run_dir" || \
-                die "livedev-next --submit failed."
-        else
-            die "No auth available (should have been caught by preflight)."
-        fi
-    else
-        # testOS-shaped run: do a self-contained push + PR open.
-        # We never call the GitHub merge API.
-        if [[ -n "$token" ]]; then
-            submit_testos_results "$run_dir" "$token"
-        elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-            # Get gh's token and use it.
-            local gh_token
-            gh_token="$(gh auth token 2>/dev/null || true)"
-            if [[ -n "$gh_token" ]]; then
-                submit_testos_results "$run_dir" "$gh_token"
-            else
-                die "gh auth token returned empty."
-            fi
-        else
-            die "No auth available (should have been caught by preflight)."
-        fi
+    # Use the new unified submission tool. It handles:
+    #   - validation (rejects broken run dirs)
+    #   - rich PR body (badge, host table, bench table, validation)
+    #   - deterministic branch naming (evidence/<date>/<host>)
+    #   - dedup (updates existing PR instead of creating duplicate)
+    #   - auto-labeling (evidence, livedev, pass/fail)
+    #   - bundle creation
+    #   - GitHub auth via gh CLI or GH_TOKEN env
+    python3 tools/rush-submit-evidence "$run_dir" --submit-mode auto
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        die "rush-submit-evidence failed (exit $rc). Run with --dry-run to see what it would do."
     fi
-    ok "Submit complete. PR opened for maintainer review."
-    log "A maintainer reviews and merges the PR. This script never merges."
+    ok "Submit complete. A maintainer reviews and merges. This script never merges."
 }
 
 submit_testos_results() {

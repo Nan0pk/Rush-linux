@@ -245,13 +245,15 @@ def test_bootstrap_sh_submit_preflights_auth():
     assert "PRE-FLIGHT" in text or "preflight" in text.lower()
 
 
-def test_bootstrap_sh_submit_supports_gh_cli():
-    """Spec: --submit uses gh CLI if authenticated, no token needed."""
+def test_bootstrap_sh_submit_uses_unified_tool():
+    """Spec: --submit delegates to rush-submit-evidence (the unified tool)."""
     p = _TOOLS_DIR / "livedev-bootstrap.sh"
     text = p.read_text()
-    assert "gh auth status" in text, "must check gh auth status as auth method"
-    assert "gh auth login" in text, "must offer to run gh auth login"
-    assert "gh auth token" in text, "must use gh auth token to get the token"
+    assert "rush-submit-evidence" in text, "must call rush-submit-evidence"
+    # The preflight auth check must still exist.
+    assert "preflight_submit_auth" in text
+    assert "gh auth status" in text, "preflight must check gh auth status"
+    assert "gh auth login" in text, "preflight must offer gh auth login"
 
 
 def test_bootstrap_sh_submit_prompts_interactively():
