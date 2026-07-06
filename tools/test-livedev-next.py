@@ -625,6 +625,39 @@ def test_bootstrap_ps1_supports_required_flags():
     assert "Invoke-RestMethod" in text or "Invoke-WebRequest" in text
 
 
+def test_bootstrap_ps1_has_python_detection():
+    """Spec: PS1 detects Python on Windows (avoids Store stub 'python3')."""
+    p = _TOOLS_DIR / "livedev-bootstrap.ps1"
+    text = p.read_text()
+    assert "Get-Python" in text, "must have Get-Python function"
+    assert "Invoke-Python" in text, "must have Invoke-Python helper"
+    # Must try python, py -3, python3 in that order.
+    assert "python" in text
+    assert "py" in text
+    # Must NOT call raw `& python3` (would hit Store stub on Windows).
+    # Allow it in dry-run display strings, but not in actual invocations.
+    real_invocations = [
+        line for line in text.splitlines()
+        if "& python3" in line and "dry-run" not in line.lower()
+        and "Would run" not in line
+    ]
+    assert real_invocations == [], \
+        f"must use Invoke-Python, not raw & python3 (Store stub): {real_invocations}"
+
+
+def test_bootstrap_ps1_smart_has_interactive_menu():
+    """Spec: PS1 smart mode shows an interactive menu when run interactively."""
+    p = _TOOLS_DIR / "livedev-bootstrap.ps1"
+    text = p.read_text()
+    idx = text.find("function Do-Smart")
+    assert idx != -1
+    body = text[idx:idx + 4000]
+    assert "What would you like to do?" in body, "must show interactive menu"
+    assert "Read-Host" in body, "must read user choice"
+    assert "resume" in body.lower()
+    assert "usb" in body.lower()
+
+
 def test_bootstrap_ps1_has_matching_existing_dir_handling():
     """Spec: PowerShell script contains matching existing-dir handling.
 
