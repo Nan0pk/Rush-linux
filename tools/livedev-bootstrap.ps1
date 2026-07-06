@@ -56,6 +56,46 @@ function Write-OK    { param([string]$msg) Write-Host "[OK] $msg" -ForegroundCol
 function Write-Warn  { param([string]$msg) Write-Host "[!]  $msg" -ForegroundColor Yellow }
 function Write-Err   { param([string]$msg) Write-Host "[X]  $msg" -ForegroundColor Red; exit 1 }
 
+# --- Python detection (Windows) -------------------------------------------
+# On Windows, `python3` often hits the Microsoft Store stub which prints
+# "Python was not found" and exits non-zero. We try `python`, `py -3`,
+# `python3`, in that order, and verify each actually works by running
+# `--version`. The first one that works is cached in $script:PythonBin.
+$script:PythonBin = ""
+
+function Get-Python {
+    if ($script:PythonBin -ne "") { return $script:PythonBin }
+    $candidates = @("python", "py", "python3")
+    foreach ($c in $candidates) {
+        $cmd = $c
+        $args = @("--version")
+        if ($c -eq "py") { $args = @("-3", "--version") }
+        try {
+            $out = & $cmd @args 2>&1
+            if ($LASTEXITCODE -eq 0 -and "$out" -match "^Python [0-9]") {
+                $script:PythonBin = if ($c -eq "py") { "py -3" } else { $c }
+                return $script:PythonBin
+            }
+        } catch {
+            # Try next candidate.
+        }
+    }
+    Write-Err "Python not found. Install Python 3 from https://python.org (or 'winget install Python.Python.3') and re-run."
+}
+
+function Invoke-Python {
+    # Run python with the given args. Handles `py -3` which needs the -3
+    # flag before the script path.
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
+    $py = Get-Python
+    if ($py -eq "py -3") {
+        & py -3 @Args
+    } else {
+        & $py @Args
+    }
+    return $LASTEXITCODE
+}
+
 if ($Help) {
     @'
 livedev-bootstrap.ps1 - one-command Rush LiveDev USB workflow (Windows PowerShell).
@@ -278,7 +318,7 @@ function Do-Auto {
         } else {
             $ok = $false
             try {
-                & python3 tools/livedev-next --mock
+                Invoke-Python tools/livedev-next --mock
                 if ($LASTEXITCODE -eq 0) { $ok = $true }
             } catch {}
             if (-not $ok) {
@@ -298,7 +338,7 @@ function Do-Auto {
     } else {
         $ok = $false
         try {
-            & python3 tools/livedev-next --plan
+            Invoke-Python tools/livedev-next --plan
             if ($LASTEXITCODE -eq 0) { $ok = $true }
         } catch {}
         if (-not $ok) { Write-Err "Plan generation failed." }
@@ -512,7 +552,7 @@ function Validate-Results {
     $runRecord = Join-Path $RunDir "run-record.json"
     if (Test-Path $runRecord) {
         Write-Info "LiveDev run-record.json detected - running full evidence validator ..."
-        & python3 tools/validate-hwtest-evidence.py --bundle $RunDir
+        Invoke-Python tools/validate-hwtest-evidence.py --bundle $RunDir
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "LiveDev validator reported issues. Submit will still proceed in dry-run."
         }
@@ -529,7 +569,7 @@ function Do-DryRunSubmit {
     }
     $runRecord = Join-Path $RunDir "run-record.json"
     if (Test-Path $runRecord) {
-        & python3 tools/livedev-next --submit $RunDir --dry-run
+        Invoke-Python tools/livedev-next --submit $RunDir --dry-run
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "livedev-next --submit --dry-run reported issues."
         }
@@ -569,7 +609,7 @@ function Do-RealSubmit {
         # LiveDev-shaped run: use livedev-next --submit (no --dry-run).
         # rush_pr_lib.py never calls the merge API.
         $env:GH_TOKEN = $token
-        & python3 tools/livedev-next --submit $RunDir
+        Invoke-Python tools/livedev-next --submit $RunDir
         if ($LASTEXITCODE -ne 0) { Write-Err "livedev-next --submit failed." }
     } else {
         # testOS-shaped run: self-contained push + PR open. No merge API call.
@@ -670,7 +710,7 @@ function Test-UsbHasResults {
 
 # --- Smart dispatcher ---------------------------------------------
 function Do-Smart {
-    Write-Info "=== Rush LiveDev - SMART mode (auto-detect) ==="
+    Write-Info "=== Rush LiveDev - SMART mode ==="
 
     Ensure-Repo
 
@@ -679,16 +719,59 @@ function Do-Smart {
         return
     }
 
-    # Step 1: USB with results? -> resume.
-    if (Test-UsbHasResults) {
-        Write-OK "Detected USB with testOS results - resuming."
-        Do-Resume
+    # Detect what's available.
+    $haveUsb = $false
+    if (Test-UsbHasResults) { $haveUsb = $true }
+
+    # Build menu options.
+    $choices = @()
+    $descriptions = @()
+    if ($haveUsb) {
+        $choices += "resume"
+        $descriptions += "Copy results from USB, validate, submit evidence PR"
+    }
+    $choices += "usb"
+    $descriptions += "Prepare a USB via testOS (for real-hardware testing)"
+
+    # Non-interactive: auto-pick.
+    if (-not [Environment]::UserInteractive -or $env:CI) {
+        if ($haveUsb) {
+            Write-OK "Non-interactive + USB detected - resuming."
+            Do-Resume
+            return
+        }
+        Do-Auto
         return
     }
 
-    # Step 2: No QEMU on Windows by default; fall back to USB/testOS path.
-    Write-Warn "No USB results detected - falling back to USB/testOS path."
-    Do-Auto
+    # Interactive: show menu.
+    Write-Host ""
+    Write-Host "  What would you like to do?"
+    Write-Host ""
+    for ($i = 0; $i -lt $choices.Count; $i++) {
+        $n = $i + 1
+        Write-Host ("  [{0}] {1} - {2}" -f $n, $choices[$i], $descriptions[$i])
+    }
+    Write-Host ""
+    $default = 1
+    $reply = Read-Host ("  Pick [1-{0}] (default {1})" -f $choices.Count, $default)
+    if ([string]::IsNullOrWhiteSpace($reply)) { $reply = $default }
+    $n = 0
+    if (-not [int]::TryParse($reply, [ref]$n) -or $n -lt 1 -or $n -gt $choices.Count) {
+        Write-Err "Invalid choice: $reply"
+    }
+    $pick = $choices[$n - 1]
+    Write-Host ""
+    switch ($pick) {
+        "resume" {
+            Write-OK "Resuming - copy results from USB, validate, submit."
+            Do-Resume
+        }
+        "usb" {
+            Write-OK "Preparing USB via testOS."
+            Do-Auto
+        }
+    }
 }
 
 # --- Dispatch ----------------------------------------------------
