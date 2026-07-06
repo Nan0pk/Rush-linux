@@ -386,49 +386,113 @@ EOF
 
 # --- RESUME MODE ------------------------------------------------------------
 do_resume() {
-    log "=== Rush LiveDev — resume after reboot (--resume) ==="
+    log "=== Rush LiveDev — resume/submit ==="
 
     ensure_repo
 
     # PRE-FLIGHT: if --submit was requested, verify we can authenticate
-    # BEFORE doing any USB/copy/validate work. This avoids the frustrating
-    # flow where the script does 30 seconds of work and then fails at the
-    # very last step for a missing token.
+    # BEFORE doing any work.
     if [[ "$SUBMIT" == "true" && "$DRY_RUN" != "true" ]]; then
         if ! preflight_submit_auth; then
             exit 2
         fi
     fi
 
-    # Step 1: locate USB and copy results into a run dir.
+    # Step 1: locate results. TWO sources:
+    #   A. USB with testos-results/ (real-hardware path)
+    #   B. artifacts/livedev/<run_id>/ (VM --run-vm path)
+    # If neither has results, abort — do NOT fall through to submit on empty.
     echo
-    log "Step 1/3: Locate USB and copy results."
+    log "Step 1/3: Locate results."
     RUN_DIR="$(mktemp -d -t rush-livedev-resume.XXXXXX)"
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] Would scan for removable USB, mount its ESP read-only,"
-        echo "    [dry-run]   and copy testos-results/<latest>/ into: $RUN_DIR"
-    else
-        log "sudo may ask for your password to mount the USB read-only."
+
+    # Try USB first.
+    local usb_found=false
+    if [[ "$DRY_RUN" != "true" ]]; then
+        log "Checking for USB with testOS results..."
         copy_results_into_run_dir "$RUN_DIR"
-        if [[ -z "$(ls -A "$RUN_DIR" 2>/dev/null)" ]]; then
-            warn "No results copied (USB may not be plugged in, or no testos-results/ on it)."
-            warn "Run dir kept for inspection: $RUN_DIR"
-        else
-            ok "Results copied to: $RUN_DIR"
+        if [[ -n "$(ls -A "$RUN_DIR" 2>/dev/null)" ]]; then
+            usb_found=true
+            ok "Copied USB results to: $RUN_DIR"
         fi
     fi
 
-    # Step 2: validate copied results where possible.
+    # If USB had nothing, try the latest VM run dir.
+    if [[ "$usb_found" != "true" ]]; then
+        local vm_dir=""
+        if [[ -d "${REPO_DIR}/artifacts/livedev" ]]; then
+            vm_dir="$(find "${REPO_DIR}/artifacts/livedev" -mindepth 1 -maxdepth 1 -type d \
+                       -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)"
+        fi
+        if [[ -n "$vm_dir" && -f "$vm_dir/summary.json" ]]; then
+            ok "Found VM run: $vm_dir"
+            if [[ "$DRY_RUN" != "true" ]]; then
+                # Copy the VM run dir into RUN_DIR so the submit tool can
+                # find it. We also synthesize a manifest.json from the
+                # summary.json so rush-submit-evidence's validator passes.
+                cp -a "$vm_dir/." "$RUN_DIR/" 2>/dev/null || true
+                python3 - "$RUN_DIR" <<'PYEOF'
+import json, sys, os
+from pathlib import Path
+run_dir = Path(sys.argv[1])
+summary_path = run_dir / "summary.json"
+manifest_path = run_dir / "manifest.json"
+if summary_path.is_file() and not manifest_path.is_file():
+    try:
+        s = json.loads(summary_path.read_text())
+        m = {
+            "schema_version": 1,
+            "started_at": s.get("started_at", ""),
+            "finished_at": s.get("finished_at", ""),
+            "mode": "livedev-vm",
+            "attempted": ["vm-test"],
+            "passed": ["vm-test"] if s.get("status") == "passed" else [],
+            "failed": ["vm-test"] if s.get("status") in ("failed", "timeout", "guest_failure") else [],
+            "skipped": [],
+            "host": {
+                "fingerprint": "vm-" + s.get("run_id", "unknown")[:12],
+                "kernel": s.get("host", {}).get("kernel", "unknown"),
+                "cpu_model": "QEMU VM",
+            },
+            "testos_version": "livedev-vm",
+            "_source": "vm-run",
+            "_original_summary": s,
+        }
+        manifest_path.write_text(json.dumps(m, indent=2))
+    except Exception as e:
+        sys.stderr.write(f"WARNING: could not synthesize manifest.json: {e}\n")
+PYEOF
+            fi
+        fi
+    fi
+
+    # If STILL no results, abort — do NOT fall through to submit.
+    # Exception: in --dry-run mode, exit 0 (it's just an inspection).
+    if [[ -z "$(ls -A "$RUN_DIR" 2>/dev/null)" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo "    [dry-run] No results found (would look for USB or VM artifacts)."
+            rmdir "$RUN_DIR" 2>/dev/null || true
+            return 0
+        fi
+        warn "No results found."
+        warn "  Looked for:"
+        warn "    - USB with testos-results/ (none found)"
+        warn "    - artifacts/livedev/*/ (none found)"
+        warn ""
+        warn "  To produce results, run:"
+        warn "    bash livedev-bootstrap.sh        # then pick 'vm' or 'usb'"
+        rmdir "$RUN_DIR" 2>/dev/null || true
+        return 1
+    fi
+
+    # Step 2: validate.
     echo
     log "Step 2/3: Validate results."
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] Would validate testOS manifest.json (parses, has passed/failed counts)."
-        echo "    [dry-run] Would run: python3 tools/validate-hwtest-evidence.py --bundle <run_dir> (if applicable)"
-    else
+    if [[ "$DRY_RUN" != "true" ]]; then
         validate_results "$RUN_DIR"
     fi
 
-    # Step 3: submit dry-run by default; real submit only if --submit.
+    # Step 3: submit.
     echo
     log "Step 3/3: Submit evidence."
     if [[ "$SUBMIT" == "true" ]]; then
@@ -505,22 +569,16 @@ if failed:
 do_dry_run_submit() {
     local run_dir="$1"
     log "Submit dry-run (no push, no PR, no merge)."
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] Would run: python3 tools/livedev-next --submit $run_dir --dry-run"
-        return 0
-    fi
-    if [[ -f "$run_dir/run-record.json" ]]; then
-        python3 tools/livedev-next --submit "$run_dir" --dry-run || \
-            warn "livedev-next --submit --dry-run reported issues."
-    else
-        ok "testOS results staged in: $run_dir"
-        echo
-        log "To open a real evidence PR for maintainer review (no auto-merge):"
-        echo
-        echo "    bash livedev-bootstrap.sh --resume --submit"
-        echo
-        log "The PR will be opened on a branch. A maintainer reviews and merges."
-    fi
+    # Use the unified submit tool in dry-run mode.
+    python3 tools/rush-submit-evidence "$run_dir" --submit-mode auto --dry-run || \
+        warn "dry-run submit reported issues."
+    echo
+    log "To open a real evidence PR for maintainer review (no auto-merge):"
+    echo
+    echo "    bash livedev-bootstrap.sh --resume --submit"
+    echo
+    log "The PR will have a rich body (badge, host table, bench table, bundle)."
+    log "A maintainer reviews and merges. This script never merges."
 }
 
 # --- Submit auth pre-flight --------------------------------------------------
@@ -740,6 +798,67 @@ usb_has_results() {
 
 # --- QEMU/--run-vm path -----------------------------------------------------
 
+# --- Image validation -------------------------------------------------------
+# The #1 silent-failure cause: --run-vm uses the wrong image edition.
+# The server image has no rush-livedev-test.service, so the VM boots to
+# multi-user.target, starts getty, and the orchestrator times out 180s
+# later with no markers. This function validates the image BEFORE booting.
+
+image_has_livedev_service() {
+    # Returns 0 if the image contains rush-livedev-test.service.
+    # Tries guestfish first (no root), then root loopback mount.
+    local img="$1"
+    [[ -f "$img" ]] || return 1
+    if command -v guestfish >/dev/null 2>&1; then
+        guestfish -a "$img" -i exists /usr/lib/systemd/system/rush-livedev-test.service 2>/dev/null
+        return $?
+    fi
+    if [[ "$(id -u)" == "0" ]]; then
+        local mnt
+        mnt="$(mktemp -d -t rush-img-scan.XXXXXX)"
+        mount -o loop,offset=1048576,ro "$img" "$mnt" 2>/dev/null || {
+            rmdir "$mnt" 2>/dev/null || true
+            return 1
+        }
+        local found=1
+        [[ -f "$mnt/usr/lib/systemd/system/rush-livedev-test.service" ]] && found=0
+        umount "$mnt" 2>/dev/null || true
+        rmdir "$mnt" 2>/dev/null || true
+        return $found
+    fi
+    # Can't validate without guestfish or root — assume not present (safe).
+    return 1
+}
+
+find_livedev_image() {
+    # Find a usable livedev image. Returns path, or empty string if none.
+    # Checks (in order):
+    #   1. build/rush-linux-livedev.raw
+    #   2. build/rush-linux.raw (symlink target)
+    #   3. Any build/*.raw that has the livedev service installed.
+    local candidates=(
+        "${REPO_DIR}/build/rush-linux-livedev.raw"
+        "${REPO_DIR}/build/rush-linux.raw"
+    )
+    for c in "${candidates[@]}"; do
+        if [[ -f "$c" ]] && image_has_livedev_service "$c"; then
+            echo "$c"
+            return 0
+        fi
+    done
+    # Scan all .raw files in build/.
+    if [[ -d "${REPO_DIR}/build" ]]; then
+        for c in "${REPO_DIR}"/build/*.raw; do
+            [[ -f "$c" ]] || continue
+            if image_has_livedev_service "$c"; then
+                echo "$c"
+                return 0
+            fi
+        done
+    fi
+    return 1
+}
+
 do_vm() {
     log "=== Rush LiveDev — QEMU/--run-vm path ==="
     ensure_repo
@@ -749,27 +868,29 @@ do_vm() {
         return 0
     fi
 
-    # Locate or build the livedev image.
-    local img="${REPO_DIR}/build/rush-linux-livedev.raw"
-    if [[ ! -f "$img" ]]; then
-        # Fall back to the server image if livedev wasn't built.
-        local server_img="${REPO_DIR}/build/rush-linux-server.raw"
-        if [[ -f "$server_img" ]]; then
-            img="$server_img"
-            warn "livedev image not found; using server image: $img"
-            warn "(build with: sudo bash tools/build-mkosi-image.sh --edition livedev)"
-        else
-            if [[ "$DRY_RUN" == "true" ]]; then
-                echo "    [dry-run] Would build livedev image: sudo bash tools/build-mkosi-image.sh --edition livedev"
-                return 0
-            fi
-            if ! command -v mkosi >/dev/null 2>&1; then
-                die "mkosi not installed and livedev image not found at $img. Install mkosi or build the image manually."
-            fi
-            log "Building livedev image (needs sudo)..."
-            sudo bash tools/build-mkosi-image.sh --edition livedev
+    # Step 1: Find a USABLE livedev image (has rush-livedev-test.service).
+    # This is the fix for the silent-timeout bug: we validate the image
+    # edition BEFORE booting, instead of timing out 180s later.
+    local img=""
+    img="$(find_livedev_image)" || true
+    if [[ -z "$img" ]]; then
+        # No usable image. Try to build one.
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo "    [dry-run] No livedev image found. Would build:"
+            echo "    [dry-run]   sudo bash tools/build-mkosi-image.sh --edition livedev"
+            return 0
         fi
+        if ! command -v mkosi >/dev/null 2>&1; then
+            die "No livedev image found (one with rush-livedev-test.service installed).
+>> The server image won't work — it has no test runner.
+>> Install mkosi and build the livedev image:
+>>   sudo bash tools/build-mkosi-image.sh --edition livedev"
+        fi
+        log "No livedev image found. Building one (needs sudo)..."
+        sudo bash tools/build-mkosi-image.sh --edition livedev
+        img="$(find_livedev_image)" || die "build succeeded but image still not found"
     fi
+    ok "Using livedev image: $img"
 
     # Determine submit mode.
     local submit_mode="auto"
@@ -837,14 +958,21 @@ do_smart() {
     fi
 
     # Detect what's available, WITHOUT prompting for sudo yet.
-    local have_qemu=false have_usb=false
+    local have_qemu=false have_usb=false have_vm_image=false
     if command -v qemu-system-x86_64 >/dev/null 2>&1; then
         have_qemu=true
     fi
-    # Only scan USB if we have a TTY (interactive) — non-interactive runs
-    # skip USB detection and go straight to QEMU or testOS.
+    # Only scan USB if we have a TTY (interactive).
     if [[ -t 0 ]] && usb_has_results; then
         have_usb=true
+    fi
+    # Check if a livedev image exists OR can be built (mkosi installed).
+    if [[ "$have_qemu" == "true" ]]; then
+        if find_livedev_image >/dev/null 2>&1; then
+            have_vm_image=true
+        elif command -v mkosi >/dev/null 2>&1; then
+            have_vm_image=true  # can build it
+        fi
     fi
 
     # Build the menu of available options.
@@ -854,12 +982,14 @@ do_smart() {
         choices+=("resume")
         descriptions+=("Copy results from USB, validate, submit evidence PR")
     fi
-    if [[ "$have_qemu" == "true" ]]; then
+    if [[ "$have_vm_image" == "true" ]]; then
         choices+=("vm")
         descriptions+=("Run deterministic QEMU test cycle (no USB, no reboot)")
     fi
     choices+=("usb")
     descriptions+=("Prepare a USB via testOS (for real-hardware testing)")
+    choices+=("submit-vm")
+    descriptions+=("Submit the most recent VM run (from artifacts/livedev/)")
 
     # Non-interactive (no TTY, or piped stdin): pick automatically.
     if [[ ! -t 0 ]]; then
@@ -868,7 +998,7 @@ do_smart() {
             do_resume
             return $?
         fi
-        if [[ "$have_qemu" == "true" ]]; then
+        if [[ "$have_vm_image" == "true" ]]; then
             ok "Non-interactive + QEMU detected — using --run-vm."
             do_vm
             return $?
@@ -891,7 +1021,6 @@ do_smart() {
     local reply
     read -r reply < /dev/tty
     [[ -z "$reply" ]] && reply=1
-    # Validate.
     if ! [[ "$reply" =~ ^[0-9]+$ ]] || (( reply < 1 || reply > ${#choices[@]} )); then
         die "Invalid choice: $reply"
     fi
@@ -909,6 +1038,10 @@ do_smart() {
         usb)
             ok "Preparing USB via testOS."
             do_auto
+            ;;
+        submit-vm)
+            ok "Submitting the most recent VM run."
+            do_resume  # do_resume now checks artifacts/livedev/ too
             ;;
     esac
 }
