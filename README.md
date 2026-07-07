@@ -164,37 +164,30 @@ sudo bash install.sh /dev/diskN
 `optid` polls sensors every 2 seconds, maps the current system state to one of five workload classes, looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel. `optctl pin <app> <class>` lets applications claim a class directly. Default mode is always **dry-run**; kernel writes require explicit `--apply` on a supported host.
 
 <details>
-<summary><strong>Architecture diagram</strong> (mermaid)</summary>
+<summary><strong>Architecture diagram</strong> (how optid flows)</summary>
 
-```mermaid
-flowchart LR
-    subgraph Sensors["Sensors (every 2s)"]
-        PSI["/proc/pressure"]
-        Power["/sys/power_supply"]
-        Thermal["/sys/thermal"]
-        Load["/proc/loadavg"]
-    end
-
-    subgraph Classify["Classify into 5 classes"]
-        Idle["idle"]
-        Light["light"]
-        Interactive["interactive"]
-        LatCrit["latency-critical"]
-        Throughput["throughput"]
-    end
-
-    Contracts["contracts.toml<br/>PM QoS floors per class"]
-
-    subgraph Actuate["Actuate (--apply)"]
-        EPP["energy_perf_preference"]
-        Profile["platform_profile"]
-        PMQoS["PM QoS latency floors"]
-        Cgroup["cgroup slice weights"]
-    end
-
-    Sensors --> Classify
-    Classify --> Contracts
-    Contracts --> Actuate
+```
+  +----------------- Sensors (every 2s) -----------------+
+  |  /proc/pressure  /sys/power_supply  /sys/thermal     |
+  +---------------------------+--------------------------+
+                              |
+                              v
+  +------------- Classify into 5 classes ----------------+
+  |  idle  light  interactive  latency-critical          |
+  |  throughput                                           |
+  +---------------------------+--------------------------+
+                              |
+                              v
+  +----------- contracts.toml (PM QoS floors) -----------+
+  |  per-class: governor, EPP, platform_profile,         |
+  |  PM QoS CPU latency, cgroup slice weights            |
+  +---------------------------+--------------------------+
+                              |
+                              v   (--apply to write)
+  +----------------- Actuate (kernel knobs) -------------+
+  |  energy_perf_preference  platform_profile            |
+  |  /dev/cpu_dma_latency  cgroup slice weights         |
+  +------------------------------------------------------+
 ```
 
 </details>
