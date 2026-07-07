@@ -412,7 +412,11 @@ _RENDERERS = {
 
 
 def render_section(manifest: dict[str, Any] | None = None) -> str:
-    """Render the full generated front-page section (without markers)."""
+    """Render the full generated front-page section (without markers).
+
+    Each subsection is wrapped in a <details><summary> collapsible block
+    so the README stays compact. GitHub renders these natively (no JS).
+    """
     if manifest is None:
         manifest = _load_manifest()
     sections = manifest.get("sections", []) if isinstance(manifest, dict) else []
@@ -429,13 +433,16 @@ def render_section(manifest: dict[str, Any] | None = None) -> str:
         body = renderer().rstrip()
         if not body:
             continue
-        if title:
-            out.append(f"### {title}")
-            out.append("")
+        # Wrap in collapsible <details>.
+        out.append(f"<details>")
+        out.append(f"<summary><strong>{title}</strong></summary>")
+        out.append("")
         if intro:
             out.append(intro)
             out.append("")
         out.append(body)
+        out.append("")
+        out.append("</details>")
         out.append("")
     # Trim trailing blank.
     while out and out[-1] == "":
@@ -472,10 +479,23 @@ def _write_readme(content: str) -> None:
 
 
 def render_full_readme() -> str:
-    """Return the README with the generated section in sync."""
+    """Return the README with the generated section in sync.
+
+    The entire generated region is wrapped in an outer <details> so the
+    README stays compact — users expand it only when they want the
+    reference tables (editions, workflows, services, docs, tests).
+    """
     before, _generated, after = _split_readme(_read_readme())
     new_section = render_section()
-    return f"{before}{START_MARKER}\n{new_section}\n{END_MARKER}{after}"
+    # Wrap in an outer collapsible.
+    wrapped = (
+        f"<details>\n"
+        f"<summary><strong>Repository reference</strong> "
+        f"(editions, workflows, services, docs, tests — click to expand)</summary>\n\n"
+        f"{new_section}\n"
+        f"</details>\n"
+    )
+    return f"{before}{START_MARKER}\n{wrapped}\n{END_MARKER}{after}"
 
 
 # ─── CLI ────────────────────────────────────────────────────────────────────
@@ -492,17 +512,25 @@ def cmd_check() -> int:
         print(f"  {END_MARKER}", file=sys.stderr)
         print("Run `python3 tools/render-frontpage.py --write` to add them.", file=sys.stderr)
         return 1
-    expected = render_section()
-    if generated.strip() == expected.strip():
+    # The README contains the wrapped version (outer <details> + render_section()).
+    # Reconstruct the expected wrapped form and compare.
+    expected_section = render_section()
+    expected_wrapped = (
+        f"<details>\n"
+        f"<summary><strong>Repository reference</strong> "
+        f"(editions, workflows, services, docs, tests — click to expand)</summary>\n\n"
+        f"{expected_section}\n"
+        f"</details>\n"
+    )
+    if generated.strip() == expected_wrapped.strip():
         print("OK: README.md frontpage section is in sync.")
+        return 0
+    # Also accept the unwrapped form (for backward compat during migration).
+    if generated.strip() == expected_section.strip():
+        print("OK: README.md frontpage section is in sync (unwrapped form).")
         return 0
     print("ERROR: README.md frontpage section is stale.", file=sys.stderr)
     print("Run `python3 tools/render-frontpage.py --write` to regenerate.", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("--- expected (generated) ---", file=sys.stderr)
-    print(expected, file=sys.stderr)
-    print("--- actual (in README) ---", file=sys.stderr)
-    print(generated, file=sys.stderr)
     return 1
 
 

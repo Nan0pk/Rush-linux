@@ -66,7 +66,8 @@ To open an evidence PR, the script needs GitHub auth. Three ways, best first:
 
 The script checks auth **before** doing any USB/copy/validate work, so you won't waste 30 seconds only to fail at the last step.
 
-### What the PR looks like
+<details>
+<summary><strong>What the PR looks like</strong> (click to expand)</summary>
 
 The submission generates a rich PR body automatically:
 
@@ -82,7 +83,10 @@ The submission generates a rich PR body automatically:
 
 Failed benchmarks are preserved as evidence (never deleted). No auto-merge — a maintainer reviews and merges.
 
-### What the one command does
+</details>
+
+<details>
+<summary><strong>What the one command does</strong> (situation → action)</summary>
 
 | situation | action |
 |---|---|
@@ -90,7 +94,10 @@ Failed benchmarks are preserved as evidence (never deleted). No auto-merge — a
 | `qemu-system-x86_64` installed, no USB results | build livedev image (if missing, needs sudo), run `--run-vm` with deterministic marker-driven state machine, collect artifacts, submit |
 | No QEMU, no USB results | prepare USB via testOS, print boot instructions; after reboot, re-run same command |
 
-### Forcing a specific path (optional)
+</details>
+
+<details>
+<summary><strong>Forcing a specific path</strong> (optional flags)</summary>
 
 ```sh
 bash livedev-bootstrap.sh --vm        # force QEMU/--run-vm path
@@ -99,6 +106,8 @@ bash livedev-bootstrap.sh --resume    # force resume path
 bash livedev-bootstrap.sh --resume --submit  # resume + open real PR (needs GH_TOKEN)
 bash livedev-bootstrap.sh --dry-run   # show what would run
 ```
+
+</details>
 
 Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
 
@@ -152,42 +161,39 @@ sudo bash install.sh /dev/diskN
 
 ## How it works
 
-```mermaid
-flowchart LR
-    subgraph Sensors["Sensors (every 2s)"]
-        PSI["/proc/pressure"]
-        Power["/sys/power_supply"]
-        Thermal["/sys/thermal"]
-        Load["/proc/loadavg"]
-    end
+`optid` polls sensors every 2 seconds, maps the current system state to one of five workload classes, looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel. `optctl pin <app> <class>` lets applications claim a class directly. Default mode is always **dry-run**; kernel writes require explicit `--apply` on a supported host.
 
-    subgraph Classify["Classify into 5 classes"]
-        Idle["idle"]
-        Light["light"]
-        Interactive["interactive"]
-        LatCrit["latency-critical"]
-        Throughput["throughput"]
-    end
+<details>
+<summary><strong>Architecture diagram</strong> (how optid flows)</summary>
 
-    Contracts["contracts.toml<br/>PM QoS floors per class"]
-
-    subgraph Actuate["Actuate (--apply)"]
-        EPP["energy_perf_preference"]
-        Profile["platform_profile"]
-        PMQoS["PM QoS latency floors"]
-        Cgroup["cgroup slice weights"]
-    end
-
-    Sensors --> Classify
-    Classify --> Contracts
-    Contracts --> Actuate
+```
+  +----------------- Sensors (every 2s) -----------------+
+  |  /proc/pressure  /sys/power_supply  /sys/thermal     |
+  +---------------------------+--------------------------+
+                              |
+                              v
+  +------------- Classify into 5 classes ----------------+
+  |  idle  light  interactive  latency-critical          |
+  |  throughput                                           |
+  +---------------------------+--------------------------+
+                              |
+                              v
+  +----------- contracts.toml (PM QoS floors) -----------+
+  |  per-class: governor, EPP, platform_profile,         |
+  |  PM QoS CPU latency, cgroup slice weights            |
+  +---------------------------+--------------------------+
+                              |
+                              v   (--apply to write)
+  +----------------- Actuate (kernel knobs) -------------+
+  |  energy_perf_preference  platform_profile            |
+  |  /dev/cpu_dma_latency  cgroup slice weights         |
+  +------------------------------------------------------+
 ```
 
-`optid` polls sensors every 2 seconds, maps the current system state to one of five workload classes, looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel.
+</details>
 
-`optctl pin <app> <class>` lets applications claim a class directly — a game can hold `latency-critical`, a build job can hold `throughput`.
-
-Default mode is always **dry-run**. Kernel writes require explicit `--apply` on a supported host.
+<details>
+<summary><strong>Workload class contracts</strong> (governor, EPP, latency floors)</summary>
 
 | Workload class | CPU governor | EPP | Platform profile | PM QoS CPU latency | Use case |
 |:---------------|:-------------|:----|:------------------|:-------------------|:---------|
@@ -198,6 +204,8 @@ Default mode is always **dry-run**. Kernel writes require explicit `--apply` on 
 | `throughput` | performance | performance | performance | 10 ms | Compile, render, batch job |
 
 PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a C-state deeper than that floor allows. EPP is the hint the CPU scheduler uses to trade frequency vs. efficiency. Platform profile is the ACPI-level hint that drives fan curves, dGPU power, USB autosuspend, etc.
+
+</details>
 
 ---
 
@@ -212,9 +220,8 @@ PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a
 - **Installable system** — `tools/rush-install.sh` stamps the mkosi-built image onto a blank disk via `systemd-repart`; installed system boots twice cleanly with `optid.service` active.
 - **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing. Bad-kernel rollback verified.
 
----
-
-## Technology choices
+<details>
+<summary><strong>Technology choices</strong> (why each layer)</summary>
 
 | Layer | Choice | Why |
 |:------|:-------|:----|
@@ -228,9 +235,14 @@ PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a
 | Firewall | nftables | Current kernel default; replaces iptables |
 | Desktop | Wayland + PipeWire | Native compositor and audio stack *(planned, not yet built)* |
 
+</details>
+
 ---
 
 ## Build from source
+
+<details>
+<summary><strong>Build commands</strong> (cargo + mkosi)</summary>
 
 ```bash
 git clone https://github.com/Nan0pk/Rush-linux.git
@@ -252,6 +264,8 @@ cargo test --workspace
 ```
 
 Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev container](.devcontainer/devcontainer.json) provisions Rust stable, Python 3.11+, and PowerShell Core, then builds the workspace automatically.
+
+</details>
 
 ---
 
@@ -295,7 +309,11 @@ Rush Linux enforces a **Builder/Verifier separation**: no claim of correctness o
 ---
 
 <!-- RUSH_FRONTPAGE:START -->
-### Editions
+<details>
+<summary><strong>Repository reference</strong> (editions, workflows, services, docs, tests — click to expand)</summary>
+
+<details>
+<summary><strong>Editions</strong></summary>
 
 Rush Linux is built from a single mkosi base plus per-edition
 profiles. Available editions:
@@ -307,7 +325,10 @@ profiles. Available editions:
 | `server` | `rush-linux-server` | `mkosi/mkosi.profiles/server/mkosi.conf` |
 | `testos` | `rush-linux-testos` | `mkosi/mkosi.profiles/testos/mkosi.conf` |
 
-### Rush LiveDev
+</details>
+
+<details>
+<summary><strong>Rush LiveDev</strong></summary>
 
 Deterministic hardware-test and benchmark-campaign workflow with
 two operator paths: `--run-vm` (QEMU-driven, for CI/dev) and
@@ -336,7 +357,10 @@ Additional tools:
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
-### CI workflows
+</details>
+
+<details>
+<summary><strong>CI workflows</strong></summary>
 
 GitHub Actions workflows that run on PRs and on main:
 
@@ -357,7 +381,10 @@ GitHub Actions workflows that run on PRs and on main:
 | `stale.yml` | Close stale issues and PRs | `.github/workflows/stale.yml` |
 | `validate-install-ps1.yml` | Validate install.ps1 | `.github/workflows/validate-install-ps1.yml` |
 
-### Systemd services
+</details>
+
+<details>
+<summary><strong>Systemd services</strong></summary>
 
 Services shipped in the image (optid is the adaptive optimizer;
 rush-* are the LiveDev tools):
@@ -373,7 +400,10 @@ rush-* are the LiveDev tools):
 | `rush-livedev-failure.service` | Rush LiveDev failure handler (fail-closed, no root prompt) | `packaging/systemd/rush-livedev-failure.service` |
 | `rush-livedev-test.service` | Rush LiveDev post-reboot test runner | `packaging/systemd/rush-livedev-test.service` |
 
-### Operator commands
+</details>
+
+<details>
+<summary><strong>Operator commands</strong></summary>
 
 Single entrypoint for LiveDev operations:
 
@@ -400,7 +430,10 @@ Additional tools:
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
-### Documentation
+</details>
+
+<details>
+<summary><strong>Documentation</strong></summary>
 
 Key docs:
 
@@ -415,7 +448,10 @@ Key docs:
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing |
 | [`docs/SUMMARY.md`](docs/SUMMARY.md) | Docs index |
 
-### Tests & validation
+</details>
+
+<details>
+<summary><strong>Tests & validation</strong></summary>
 
 Run the test suite locally:
 
@@ -438,6 +474,10 @@ python3 -m pytest \
   tools/test-submit-evidence.py \
   tools/test-validate-hwtest-evidence.py
 ```
+
+</details>
+
+</details>
 
 <!-- RUSH_FRONTPAGE:END -->
 
