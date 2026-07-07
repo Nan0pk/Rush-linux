@@ -54,13 +54,16 @@ def test_generator_deterministic():
 
 
 def test_generator_has_expected_sections():
-    """The generated section includes the expected subsections."""
+    """The generated section includes the expected subsections (now collapsible)."""
     out = rfp.render_section()
-    assert "### Editions" in out
-    assert "### CI workflows" in out
-    assert "### Systemd services" in out
-    assert "### Documentation" in out
-    assert "### Tests & validation" in out
+    # Sections are now wrapped in <details><summary><strong>Title</strong></summary>.
+    assert "<strong>Editions</strong>" in out
+    assert "<strong>CI workflows</strong>" in out
+    assert "<strong>Systemd services</strong>" in out
+    assert "<strong>Documentation</strong>" in out
+    assert "<strong>Tests & validation</strong>" in out
+    # Each section is collapsible.
+    assert out.count("<details>") >= 5
 
 
 def test_generator_lists_all_editions():
