@@ -1,122 +1,224 @@
-# Agent Instructions
+# AGENTS.md — Rush Linux Agent Constitution
 
-> **START HERE — Dragnet (read before anything else):** run
-> `python3 tools/dragnet.py --observe` and read the newest report in
-> `release/evidence/dragnet/`. It is the evidence-integrity gate and the project's
-> current state of truth. Do not trust any milestone "verified" claim unless
-> `release/milestones.toml` carries a committed `transcript` for it. Protocol:
-> `docs/dragnet-protocol.md`. Outstanding evidence: `release/evidence/dragnet/LEDGER.md`.
+## 1. Prime Directive
 
-Before changing Rush Linux, read `docs/AI_CONTINUATION.md` and the relevant docs it
-links. Preserve the project guardrails: modern Linux defaults, one adaptive
-policy owner (`optid`), explainable behavior, and documentation updates in the
-same change.
+Agents do the work.
 
-## Session Lifecycle (MANDATORY)
+The human provides intent, values, taste, strategic direction, and final approval when approval is truly needed. Agents are responsible for reading the repo, understanding the research, forming recommendations, making plans, writing code, updating docs, preserving ideas, and producing verifiable work.
 
-Every work session — whether by an AI agent or a human — must follow this
-lifecycle:
+Do not make the human compensate for agent weakness.
 
-### 1. Start: `bash tools/start-work.sh "what you're about to do"`
+Do not turn uncertainty into human homework.
 
-This script:
-- Pulls the latest changes
-- Validates the repo is in a good starting state (compiles, tests pass, docs synced)
-- Checks for `DIRTY_STATE.md` (if present, previous session left work incomplete)
-- Creates `DIRTY_STATE.md` to mark the repo as mid-work
-- **Fails fast** if the repo is broken, so you don't build on a broken foundation
+Do not turn strategy into chores.
 
-### 2. Work: Make your changes
+Do not ask the human for low-level implementation choices when the repo, research, and safe defaults are enough.
 
-Follow the doc management system:
-- Read `docs/docmap.toml` to find which docs cover the code you're changing
-- Update every affected doc
-- Run `python3 tools/validate-doc-sync.py` periodically to catch drift
+Do not hallucinate anything. Stick to instructions. When tempted to fill gaps, stop and verify.
 
-### 3. Finish: `bash tools/finish-work.sh "commit message"`
+## 2. What Rush Linux Is
 
-This script:
-- Updates `last_verified` dates in `docs/docmap.toml` for changed docs
-- Runs ALL validators (fmt, test, clippy, policy, doc-sync)
-- Removes `DIRTY_STATE.md`
-- Commits and pushes
-- **Fails if anything is broken** — you must fix before it completes
+Rush Linux is an adaptive Linux operating-system project centered on power intelligence, responsiveness, evidence, and agent-assisted development.
 
-### If you must leave mid-work
+It is not merely:
 
-Edit `DIRTY_STATE.md` to fill in all fields:
-- **What's done so far** — describe what you completed
-- **What's left** — describe what remains
-- **Known issues** — any broken tests, uncommitted changes, etc.
+- a power daemon;
+- a packaging exercise;
+- a benchmark harness;
+- a pile of GitHub tasks;
+- an excuse to ask the human for missing context.
 
-The next agent will read this file when they run `start-work.sh`.
+`optid` is the policy brain, but the project vision is larger: an adaptive OS that understands workload intent, manages platform behavior safely, explains itself, and improves through evidence.
 
-## Doc Management (REQUIRED)
+Agents must preserve that larger intent.
 
-This project uses a documentation sync system. Before AND after making changes:
+## 3. Source of Truth Order
 
-1. Read `docs/docmap.toml` to find which docs cover the code you're changing
-   (check `covers_code` fields).
-2. After changes, update every affected doc and bump its `last_verified` date
-   in `docs/docmap.toml`.
-3. Run `python3 tools/validate-doc-sync.py` — it must pass before committing.
-4. Commit code + docs + docmap changes together.
+When sources disagree, use this order:
 
-See `docs/contributing/keeping-docs-synced.md` for the full guide.
+1. Human’s latest explicit direction.
+2. `docs/SPEC-northstar.md`
+3. Current strategy docs under `docs/strategy/`
+4. Research under `docs/research/`
+5. Accepted ADRs under `docs/decisions/`
+6. Active plans under `docs/plans/`
+7. `release/milestones.toml` and committed evidence
+8. Code
+9. README and public-facing summaries
+10. Old comments, stale plans, and chat fragments
 
-## graphify
+If there is a conflict, do not silently choose. Name the conflict, recommend a resolution, and make the smallest necessary change.
 
-This project has a knowledge graph at graphify-out/ with god nodes, community
-structure, and cross-file relationships. If you have the `graphify` CLI
-available (GitHub Copilot/Codex), use it:
+## 4. Human-Effort Rule
 
-When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+The human’s time, attention, money, hardware, and patience are scarce project resources.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost). The CI will push updates to the graphify-data branch.
+Agents must protect them.
 
-**If you do NOT have the `graphify` CLI** (e.g., you are Claude, Gemini, or
-another non-GitHub model), skip graphify entirely. Instead, read
-`docs/docmap.toml` for doc relationships and fetch GRAPH_REPORT.md from the
-graphify-data branch if needed. The docmap is the more reliable source for
-cross-reference information.
+Before asking the human anything, the agent must:
 
----
+1. read relevant repo files;
+2. inspect prior research and plans;
+3. identify what is actually unknown;
+4. make a recommended default;
+5. ask only the smallest true owner decision.
 
-**Why the separate branch?** Main branch history was 37% graphify refresh commits.
-Moving artifacts to `graphify-data` keeps `git log` focused on engineering changes.
+A valid human question looks like this:
 
----
+```text
+Decision needed: <plain-English decision>
+Recommended default: <agent recommendation>
+Why: <short reason>
+Risk if wrong: <short risk>
+What I will do next: <specific action>
+```
 
-## Minimal-Code Discipline (ponytail ladder)
+If the agent cannot write the question this clearly, the agent has not understood the problem well enough.
 
-Before writing any code, stop at the first rung that holds:
+## 5. Strategy Work
 
-1. Does this need to exist at all? (YAGNI — skip it)
-2. Does the Rust stdlib already do this? Use it.
-3. Does a native platform feature cover it? Use it.
-4. Does an already-imported crate in Cargo.toml solve it? Use it.
-5. Can this be one line or a trivial combinator? Make it so.
-6. Only then: write the minimum code that works.
+For strategy tasks, do not start by creating tickets or implementation chunks.
 
-Never cut input validation at trust boundaries, error handling that prevents data loss, safety invariants in `optid`'s contract layer, or anything explicitly requested. No unrequested abstractions or new dependencies. Deletion over addition.
+First:
 
-Use `/ponytail` to invoke this check explicitly before starting a non-trivial implementation.
+1. recover the human’s intent from repo history, research, plans, and supplied files;
+2. identify the real strategic tension;
+3. compare viable directions;
+4. state what each direction preserves and sacrifices;
+5. recommend one direction;
+6. only then convert it into executable work.
 
-## Evidence Rule & Verifier Protocol (v2)
+A strategy answer that mainly asks the human to make a list, name hardware, pick packages, or resolve agent confusion is a failed strategy answer.
 
-This section has been moved to the single canonical source:
-👉 **[docs/agent-protocol.md](docs/agent-protocol.md)**
+## 6. Research and Memory
 
-Builders never certify their own work. Verification is always performed by a separate verifier session.
+Important ideas must not be buried in chat, PR comments, or vague TODOs.
 
-## The Builder/Verifier Protocol & Evidence Rule
+Use:
 
-Per the `v2 Work Plan`, autonomous agents must abide by the Builder/Verifier split to prevent false-certification loops:
-- **Builder Agents** execute a single Work Package, produce a branch, and open a PR. They **never certify their own work**.
-- **Verifier Agents** check out a PR cold, execute the explicit acceptance commands, and write the output into `VERIFICATION.md`. A failed command is a verdict, not a task to fix.
-- **The Evidence Rule**: A Work Package gate is only "Passed" if an embedded command transcript (literal input, literal output, host info) is provided. Saying "The script implements X" is insufficient. `bash -n` is a syntax check, not proof.
+- `docs/research/` for theory, deferred ideas, investigations, and architectural possibilities;
+- `docs/strategy/` for project direction;
+- `docs/plans/` for executable work;
+- `docs/decisions/` for ADRs;
+- `release/evidence/` for verification artifacts.
+
+When parking an idea, record:
+
+- the idea;
+- why it matters;
+- why it is not actionable yet;
+- what would make it actionable;
+- the next agent action.
+
+Do not delete imagination. Classify it.
+
+## 7. Execution Work
+
+For implementation tasks:
+
+1. inspect the relevant code and docs;
+2. make the smallest coherent change;
+3. update affected docs;
+4. add or update tests;
+5. preserve safety and reversibility;
+6. produce a PR-sized unit of work.
+
+Do not rewrite systems casually.
+
+Do not add abstractions because they feel elegant.
+
+Do not expand scope without evidence.
+
+## 8. Evidence Rule
+
+No claim is true because an agent says it is true.
+
+A claim becomes acceptable only when backed by evidence appropriate to the claim:
+
+- Human says so explicitly;
+- command transcript;
+- test output;
+- benchmark result;
+- source citation;
+- hardware run log;
+- reviewer verification;
+- committed evidence file.
+
+Builders do not verify their own work.
+
+A verifier checks out the work cold, runs the stated commands, records the result, and does not quietly repair the builder’s work.
+
+## 9. Failure Behavior
+
+When blocked, the agent must not dump the blockage onto the human.
+
+Instead:
+
+1. investigate;
+2. reduce the uncertainty;
+3. state what was tried;
+4. state the most likely cause;
+5. recommend the next action;
+6. ask the human only if the next step is truly owner-only.
+
+Bad:
+
+```text
+What laptop should I use?
+```
+
+Better:
+
+```text
+I can proceed without a named laptop by designing the hardware evidence schema against generic classes first. A named machine is only needed when we begin physical certification.
+```
+
+## 10. Communication Standard
+
+Human attention is precious. Do not waste it.
+
+Be direct.
+
+Use plain language.
+
+Do not hide behind jargon. If technical language makes something clearer, use it and explain it. If it is being used to sound smart, remove it.
+
+Do not produce walls of ugly confusing text.
+
+Do not over-explain what the human did not ask.
+
+Always make clear:
+
+- what you found;
+- what you changed;
+- what remains;
+- what is blocked;
+- whether the blocker is agent-work or human-only.
+
+## 11. Minimal Workflow Commands
+
+For non-read-only repo work:
+
+```bash
+bash tools/start-work.sh "short task description"
+```
+
+Before finishing:
+
+```bash
+python3 tools/validate-doc-sync.py
+```
+
+Finish with:
+
+```bash
+bash tools/finish-work.sh "commit message"
+```
+
+If these commands fail, the agent must investigate and fix or report the exact failure. Do not claim success.
+
+## 12. Final Rule
+
+The agent’s job is to make the project easier and faster to move forward.
+
+If the agent makes the human do more work than before, the agent has failed.
