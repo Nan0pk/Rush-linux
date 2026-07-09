@@ -24,6 +24,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 _TOOLS_DIR = Path(__file__).resolve().parent
 _ROOT = _TOOLS_DIR.parent
@@ -138,7 +139,12 @@ def test_pr_body_has_pass_fail_badge():
         run_dir = _make_valid_run_dir(Path(tmp))
         _, _, manifest = rse.validate_run_dir(run_dir)
         body = rse.generate_pr_body(run_dir, manifest, "test-branch", None)
-        assert "shields.io" in body  # has a badge
+        hosts = [
+            urlparse(token.strip("()[]<>\"'")).hostname
+            for token in body.split()
+            if "://" in token
+        ]
+        assert any(host == "shields.io" for host in hosts)  # has a badge URL from shields.io
 
 
 def test_pr_body_has_host_table():
