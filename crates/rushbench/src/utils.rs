@@ -111,7 +111,7 @@ pub fn get_contracts_sha256() -> io::Result<String> {
     let contracts_path = find_repo_file("config/optid/contracts.toml")
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "contracts.toml not found"))?;
     let output = std::process::Command::new("sha256sum")
-        .arg(&contracts_path)
+        .arg(contracts_path)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     if let Some(sha) = stdout.split_whitespace().next() {
