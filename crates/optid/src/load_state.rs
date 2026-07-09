@@ -197,10 +197,10 @@ mod tests {
 
     #[test]
     fn display_matches_as_str() {
-        assert_eq!(format!("{}", LoadState::Ok), "ok");
-        assert_eq!(format!("{}", LoadState::Defaulted), "defaulted");
-        assert_eq!(format!("{}", LoadState::Partial), "partial");
-        assert_eq!(format!("{}", LoadState::Invalid), "invalid");
+        assert_eq!(LoadState::Ok.to_string(), "ok");
+        assert_eq!(LoadState::Defaulted.to_string(), "defaulted");
+        assert_eq!(LoadState::Partial.to_string(), "partial");
+        assert_eq!(LoadState::Invalid.to_string(), "invalid");
     }
 
     #[test]
