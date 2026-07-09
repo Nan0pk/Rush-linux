@@ -58,7 +58,7 @@ fn main() {
                 return;
             }
             other => {
-                eprintln!("Unknown argument: {}", other);
+                eprintln!("Unknown argument: {other}");
                 print_usage();
                 std::process::exit(1);
             }
@@ -77,6 +77,6 @@ fn main() {
             });
             eprintln!("rush-collect: written to {path}");
         }
-        None => println!("{}", json),
+        None => println!("{json}"),
     }
 }
