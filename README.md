@@ -212,7 +212,7 @@ PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a
 ## What's built
 
 - **`optid` daemon** — PSI + thermal + power-supply sensor polling, workload classification, PM QoS contract enforcement. Applies EPP, platform profile, and cgroup slices when run with `--apply`. Every decision is logged and explainable.
-- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`. Machine-readable output via `--json`.
+- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`, plus the read-only `doctor` command for wakeup-source and runtime-PM diagnosis. Machine-readable output via `--json`.
 - **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class.
 - **Rush LiveDev** — automation foundation: planner, runner, capture, evidence validator, AI harness, PR submission. See [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md).
 - **testOS** — bootable USB image for real-hardware benchmarking. See [testOS README](testos/README.md).
@@ -254,6 +254,10 @@ cargo build --workspace --release
 
 # Check current status from the state directory
 ./target/release/optctl status
+
+# Explain visible energy and sleep blockers without changing settings
+./target/release/optctl doctor
+./target/release/optctl doctor --json
 
 # Build the testOS USB image from source (requires mkosi + archlinux-keyring;
 # ~10 minutes the first time)

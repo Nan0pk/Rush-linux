@@ -565,6 +565,25 @@ freshens = [
 last_verified = "2026-06-19"
 validator = "status_match:WIP"
 
+[docs."docs/research/0018-telemetry-runtime-state-observability.md"]
+purpose = "Specifies wakeup-source, runtime-PM, C-state, and PM-QoS observability for WP-N3"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optctl/src/doctor.rs",
+    "crates/optctl/src/main.rs",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+]
+freshens = [
+    "README.md",
+    "docs/IMPLEMENTATION_STATUS.md",
+    "docs/adaptive-engine.md",
+]
+last_verified = "2026-07-10"
+validator = "status_match:WIP"
+
 [docs."docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md"]
 purpose = "Specifies NVMe APST, PCIe ASPM, and SATA ALPM policy; documents known-broken HWIDs and firmware version gates (WP-N6)"
 owner_area = "area:optid"

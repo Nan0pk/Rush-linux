@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-06-29
+Last updated: 2026-07-10
 
 > **Evidence state:** Implementation status (what code exists) is distinct from
 > evidence state (what is certified by a committed transcript). For the
@@ -47,7 +47,11 @@ engineering milestones.
 - `optctl` Rust MVP:
   - reads status and decision logs;
   - sets mode through the state directory;
-  - exposes benchmark and pin placeholders.
+  - exposes pin and allowlist controls;
+  - includes a WP-N3 focused-core `doctor` command that reads wakeup-source and
+    per-device runtime-PM state once, reports visible blockers and safe review
+    opportunities, supports `--json`, and never changes settings. Long-running
+    observability and hardware validation remain pending.
 - systemd service and tmpfiles config for `optid`.
 - Default `optid.service` runs dry-run; `optid-apply.service` is the explicit
   mutating service.

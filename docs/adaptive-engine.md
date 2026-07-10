@@ -94,6 +94,21 @@ The current Rust implementation:
 
 `optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.rushlinux.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
 
+### Read-only diagnosis (`optctl doctor`)
+
+`optctl doctor` is the focused-core front door for WP-N3 observability. It takes
+one read-only snapshot of the stable `/sys/class/wakeup/` interface and every
+bus device exposing `power/runtime_status`. The report highlights wakeup sources
+that are active now, kernel-reported runtime-PM errors, and devices that are
+forced on while their runtime-use count is zero. `--json` returns the complete
+source and device inventory for automation.
+
+The command never writes sysfs, changes wake policy, or enables runtime PM. Its
+recommendations deliberately stop at diagnosis because any later actuation must
+pass the normal contract, allowlist, mutation, and revert gates. This one-shot
+view does not yet implement research 0018's long-running JSONL telemetry,
+C-state deltas, or PM-QoS requestor tracking.
+
 The packaged default `optid.service` runs in dry-run mode. Mutating policy is
 split into `optid-apply.service` so early releases cannot silently change CPU,
 platform, or cgroup settings without an explicit service choice.

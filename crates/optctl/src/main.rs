@@ -6,6 +6,7 @@ use zbus::blocking::Connection;
 use zbus::proxy;
 
 mod allow;
+mod doctor;
 
 #[proxy(
     interface = "io.rushlinux.Optid1",
@@ -204,6 +205,7 @@ fn run(args: Vec<String>) -> io::Result<()> {
             }
         }
         "allow" | "deny" | "list-allow" => allow::run(&positional),
+        "doctor" => doctor::run(Path::new("/sys"), json),
         "benchmark" => {
             eprintln!("optctl benchmark is removed: use rushbench binary instead.");
             Err(io::Error::other(
@@ -250,11 +252,13 @@ fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
 
 fn print_usage() {
     println!(
-        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace|allow|deny|list-allow>\n\
+        "Usage: optctl [--state-dir PATH] [--json] <status|explain|doctor|mode|pin|trace|allow|deny|list-allow>\n\
          \n\
          Examples:\n\
            optctl status\n\
            optctl status --json\n\
+           optctl doctor\n\
+           optctl doctor --json\n\
            optctl mode performance\n\
            optctl explain\n\
            optctl allow nvme_apst pci:v0000144Dp00009A36 --max-state 3 --reason \"tested on T14\"\n\

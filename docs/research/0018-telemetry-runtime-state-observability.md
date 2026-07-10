@@ -422,7 +422,14 @@ for 30+ min are candidates for `power/wakeup=disabled` recommendation.
 
 ## 7. Next Steps
 
+**Focused core (2026-07-10):** `optctl doctor` now provides a one-shot,
+read-only view of `/sys/class/wakeup/` and per-device `power/runtime_status`,
+including machine-readable JSON and conservative findings. This is an early
+public diagnostic surface for WP-N3; it does not claim the long-running sensor,
+delta, overhead, or hardware-accuracy gates below.
+
 ### Immediate (no hardware needed)
+- [x] Add a combined, read-only `optctl doctor` snapshot as the focused WP-N3 front door
 - [ ] Confirm `/sys/class/wakeup/` attribute names on a running kernel (may vary by driver)
 - [ ] Implement `crates/optid/src/sensors/wakeup.rs` — `WakeupSensor` struct, reads `/sys/class/wakeup/`
 - [ ] Implement `crates/optid/src/sensors/runtime_pm.rs` — `RuntimePmSensor`, scans bus devices
