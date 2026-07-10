@@ -190,7 +190,7 @@ fn main() {
 
         let progress = format!("[{}/{}] ", idx + 1, total);
         let eta = BenchList::format_duration(bench.estimated_seconds);
-        println!("{}", &progress);
+        println!("{}", progress);
         println!("{}- {} ({})", "  ".to_string() + &progress, bench.name, eta);
 
         if bench.requires_battery && host.battery_design_uwh == 0 {
