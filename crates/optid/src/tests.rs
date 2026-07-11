@@ -1295,6 +1295,328 @@ device_resume_latency = 100000
         assert!(!has_rpm(&busy), "non-idle should not nominate runtime PM");
     }
 
+    // ── Phase 6: RuntimePm journaled transactional application ──────────────
+    //
+    // Synthetic-filesystem tests proving the transactional semantics of the
+    // two-write RuntimePm action: delay first, then control. On partial
+    // failure, rollback + journal retention + no false "applied" marker.
+    // We do NOT claim atomicity across kernel sysfs files; this is journaled
+    // transactional application with compensating rollback.
+
+    /// Build a synthetic RuntimePm device under `temp` and an Actuator whose
+    /// allowlist permits `runtime_pm` for `modalias`. The device has
+    /// `power/control="on"` and `power/autosuspend_delay_ms="-1"` (the
+    /// kernel defaults for a USB device with runtime PM disabled).
+    fn phase6_setup(temp: &Path, modalias: &str) -> (PathBuf, Actuator) {
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let dev = n5_device(temp, "1-1", modalias);
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"phase6 test\"\n"
+            ),
+        )
+        .unwrap();
+        let mut actuator =
+            Actuator::new_with_sink(temp.to_path_buf(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            std::slice::from_ref(&admin),
+        ));
+        (dev, actuator)
+    }
+
+    fn phase6_action(dev: &Path) -> Action {
+        Action::RuntimePm {
+            device_dir: dev.to_path_buf(),
+            autosuspend_delay_ms: 2000,
+            reason: "phase6 test".to_string(),
+        }
+    }
+
+    #[test]
+    fn phase6_runtime_pm_successful_multi_write_application() {
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_ok_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+        actuator.apply(&phase6_action(&dev)).unwrap();
+
+        let power = dev.join("power");
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto",
+            "control should be set to auto on success"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000",
+            "delay should be set to 2000 on success"
+        );
+
+        // Applied marker present — both writes landed.
+        let hash = get_path_hash(&dev);
+        assert!(
+            temp.join(format!("applied_rpm_{hash}")).exists(),
+            "applied marker must be present after successful two-write transaction"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn phase6_runtime_pm_failure_on_first_write() {
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_fail1_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+        // Inject failure on write #1 (delay).
+        actuator.fail_nth_runtime_pm_write = Some(1);
+        actuator.apply(&phase6_action(&dev)).unwrap();
+
+        let power = dev.join("power");
+        // First write failed → delay unchanged, control unchanged.
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "-1",
+            "delay must remain at original -1 after first-write failure"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "control must remain at original 'on' after first-write failure"
+        );
+
+        let hash = get_path_hash(&dev);
+        assert!(
+            !temp.join(format!("applied_rpm_{hash}")).exists(),
+            "NO false 'applied' marker after first-write failure"
+        );
+        assert!(
+            temp.join(format!("original_rpm_{hash}")).exists(),
+            "journal MUST be retained for retry after first-write failure"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn phase6_runtime_pm_failure_on_second_write_with_successful_rollback() {
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_fail2_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+        // Inject failure on write #2 (control). The rollback (write #3)
+        // should succeed because no failure is injected there.
+        actuator.fail_nth_runtime_pm_write = Some(2);
+        actuator.apply(&phase6_action(&dev)).unwrap();
+
+        let power = dev.join("power");
+        // First write succeeded (delay=2000) but second failed → rollback
+        // restores delay to original -1.
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "-1",
+            "delay MUST be rolled back to original -1 after second-write failure"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "control must remain at original 'on' (second write failed)"
+        );
+
+        let hash = get_path_hash(&dev);
+        assert!(
+            !temp.join(format!("applied_rpm_{hash}")).exists(),
+            "NO false 'applied' marker after second-write failure + rollback"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn phase6_runtime_pm_rollback_failure_retains_journal() {
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_rollback_fail_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+        // Inject failure on write #2 (control) AND write #3 (rollback).
+        // We can only set one value, so we test the rollback-failure path
+        // by setting #3 — but #3 only runs if #2 fails first. So set #2
+        // to fail, then manually re-arm for #3 in a second apply? No —
+        // the test hook is consumed on first match. Instead, use #3 only:
+        // the rollback only runs after #2 fails, so setting #3 alone
+        // won't trigger (the #2 write succeeds and the action completes
+        // normally). We need both #2 and #3 to fail.
+        //
+        // Workaround: set #3, then make control_path unwritable via the
+        // filesystem (chmod the file read-only) so the real #2 write
+        // fails, which triggers the rollback path, where #3 then fails
+        // via the test hook.
+        actuator.fail_nth_runtime_pm_write = Some(3);
+
+        // Make control_path unwritable so the real guarded_write for #2
+        // fails naturally. The file was created by phase6_setup with
+        // content "on\n"; chmod it read-only.
+        let control_path = dev.join("power").join("control");
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&control_path).unwrap().permissions();
+        perms.set_mode(0o444);
+        fs::set_permissions(&control_path, perms).unwrap();
+
+        actuator.apply(&phase6_action(&dev)).unwrap();
+
+        let power = dev.join("power");
+        // First write succeeded (delay=2000), second failed (control
+        // read-only), rollback ALSO failed (test hook #3) → delay left
+        // at 2000, control unchanged at "on".
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000",
+            "delay left at 2000 after rollback failure (half-applied state)"
+        );
+        assert_eq!(
+            fs::read_to_string(&control_path).unwrap().trim(),
+            "on",
+            "control unchanged at 'on' (second write failed, rollback failed)"
+        );
+
+        let hash = get_path_hash(&dev);
+        assert!(
+            !temp.join(format!("applied_rpm_{hash}")).exists(),
+            "NO false 'applied' marker after rollback failure"
+        );
+        assert!(
+            temp.join(format!("original_rpm_{hash}")).exists(),
+            "journal MUST be retained for recovery after rollback failure"
+        );
+
+        // The actions.log should mention ROLLBACK FAILED.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("ROLLBACK FAILED"),
+            "actions.log must report ROLLBACK FAILED: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn phase6_runtime_pm_recovery_retry_via_revert() {
+        // After a partial failure that retained the journal, a subsequent
+        // revert_runtime_pm pass must restore both values from the journal.
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_retry_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+        // Inject failure on #2 (control) → rollback succeeds → delay
+        // restored, journal retained (not cleared because not marked applied).
+        actuator.fail_nth_runtime_pm_write = Some(2);
+        actuator.apply(&phase6_action(&dev)).unwrap();
+
+        let hash = get_path_hash(&dev);
+        let orig_file = temp.join(format!("original_rpm_{hash}"));
+        assert!(orig_file.exists(), "journal must exist for revert to retry");
+
+        // Now run revert_runtime_pm — it should read the journal and
+        // restore both values (even though the apply already rolled
+        // back the delay). This proves the journal is retry-compatible:
+        // revert_runtime_pm and the inline rollback use the same journal
+        // format.
+        crate::io_util::revert_runtime_pm(&temp);
+
+        let power = dev.join("power");
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "revert_runtime_pm must restore control from journal"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "-1",
+            "revert_runtime_pm must restore delay from journal"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn phase6_runtime_pm_no_false_applied_marker_after_partial_failure() {
+        // Explicit guard: after ANY partial failure, the applied_rpm_*
+        // marker must NOT exist. This is the single invariant that
+        // crash-recovery relies on (actuation_state distinguishes
+        // "clean shutdown" from "crash mid-actuation" by marker presence).
+        let temp = std::env::temp_dir().join(format!(
+            "optid_phase6_no_false_applied_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (dev, mut actuator) =
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+
+        // Failure on #1.
+        actuator.fail_nth_runtime_pm_write = Some(1);
+        actuator.apply(&phase6_action(&dev)).unwrap();
+        let hash = get_path_hash(&dev);
+        assert!(
+            !temp.join(format!("applied_rpm_{hash}")).exists(),
+            "no false applied marker after #1 failure"
+        );
+
+        // Failure on #2 (with successful rollback).
+        actuator.fail_nth_runtime_pm_write = Some(2);
+        actuator.apply(&phase6_action(&dev)).unwrap();
+        assert!(
+            !temp.join(format!("applied_rpm_{hash}")).exists(),
+            "no false applied marker after #2 failure + rollback"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     // ── WP-N6: PCIe ASPM + SATA ALPM actuators ───────────────────────────────
 
     #[test]

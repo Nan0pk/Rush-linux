@@ -201,17 +201,24 @@ const WRITE_SITES: &[WriteSite] = &[
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 639,
+        line: 762,
         function: "Action::RuntimePm::apply (autosuspend_delay_ms)",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:587; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) earlier in the RuntimePm arm; default-deny + audit on Deny. Phase 6 transactional: this is the first write of a two-write transaction.",
     },
     WriteSite {
         file: "src/actuator.rs",
-        line: 646,
+        line: 787,
         function: "Action::RuntimePm::apply (control=auto)",
         classification: "allowlist",
-        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) at actuator.rs:587; default-deny + audit on Deny.",
+        reason: "Gated by allowlist_permits(\"runtime_pm\", hwid_from_device_dir(device_dir), …) earlier in the RuntimePm arm; default-deny + audit on Deny. Phase 6 transactional: this is the second write of a two-write transaction; on failure the first write is rolled back.",
+    },
+    WriteSite {
+        file: "src/actuator.rs",
+        line: 807,
+        function: "Action::RuntimePm::apply (rollback autosuspend_delay_ms on control-write failure)",
+        classification: "allowlist",
+        reason: "Phase 6 compensating rollback: writes the journaled original delay value back to power/autosuspend_delay_ms when the control=auto write fails after the delay write succeeded. Part of the same allowlist-gated transaction — the forward write was already approved by allowlist_permits(\"runtime_pm\", …), so the rollback to the same path is safe by induction. If rollback itself fails, the journal is retained for the next revert_runtime_pm pass.",
     },
     WriteSite {
         file: "src/actuator.rs",
@@ -394,9 +401,22 @@ fn criterion_4_drift_detection_actuator_rs() {
     //     to /proc/sys/vm/swappiness)
     // The use-statement at L22 and the doc comment at L2 do not match because
     // they don't have `(` immediately after `guarded_write`.
-    let guarded_calls = count(ACTUATOR_RS, "guarded_write(").saturating_sub(1);
+    // `guarded_write(` matches:
+    //   - the RealPmqosSink::write_device_latency impl at line 75 (1 occurrence;
+    //     subtracted below — covered by the DeviceResumeLatency call's classification)
+    //   - one call per Action variant in apply() that writes directly via guarded_write
+    //   - optid-safety: one call in apply_baseline() (curated baseline)
+    //   - Phase 6: one call inside the `runtime_pm_write` helper method (subtracted
+    //     below — the 3 actual RuntimePm write sites call `self.runtime_pm_write(`
+    //     instead, and are counted separately)
+    // The use-statement and doc comments do not match (no `(` after `guarded_write`).
+    let guarded_calls = count(ACTUATOR_RS, "guarded_write(").saturating_sub(2); // PmqosSink impl + runtime_pm_write helper
     let pmqos_cpu_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_cpu_latency(");
     let pmqos_dev_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_device_latency(");
+    // Phase 6: the 3 RuntimePm write sites (delay, control, rollback) go through
+    // the `runtime_pm_write` helper rather than calling `guarded_write` directly.
+    // Count them separately so the inventory matches.
+    let runtime_pm_write_calls = count(ACTUATOR_RS, "self.runtime_pm_write(");
     // `atomic_write_state_file(` matches only the real call sites in
     // apply() + apply_baseline() (the use-statement at L22 has a comma after,
     // not `(`). 14 sites as of optid-safety: 12 in apply() + 2 in apply_baseline().
@@ -407,7 +427,8 @@ fn criterion_4_drift_detection_actuator_rs() {
     // or /dev/cpu_dma_latency). The inventory's "allowlist" +
     // "adr0009-baseline" + "curated-baseline" classifications cover ALL
     // kernel-write call sites, including pmqos_sink.
-    let kernel_write_calls = guarded_calls + pmqos_cpu_calls + pmqos_dev_calls;
+    let kernel_write_calls =
+        guarded_calls + pmqos_cpu_calls + pmqos_dev_calls + runtime_pm_write_calls;
     let inv_actuator_kernel = WRITE_SITES
         .iter()
         .filter(|s| {
