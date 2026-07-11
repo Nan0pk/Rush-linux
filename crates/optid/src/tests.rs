@@ -59,7 +59,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_t2_apply_allowlisted_and_t4_revert() {
+    fn test_t2_failed_real_sysctl_revert_keeps_journal() {
         let temp_dir = std::env::temp_dir().join(format!("optid_tests_t2_{}", std::process::id()));
         let _ = fs::create_dir_all(&temp_dir);
         let config_path = temp_dir.join("policy.toml");
@@ -79,7 +79,10 @@ mod integration_tests {
         assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
 
         revert_sysctls(&temp_dir);
-        assert!(!temp_dir.join("intended_vm_swappiness").exists());
+        assert!(
+            temp_dir.join("intended_vm_swappiness").exists(),
+            "a denied restore must keep the journal retryable"
+        );
     }
 
     #[test]
@@ -2158,9 +2161,10 @@ verified = true
         );
 
         let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
-        assert!(
-            allowlist.check("nvme_apst", hwid, 0).is_allow(),
-            "seeded baseline must still allow the Samsung PM9A1"
+        assert_eq!(
+            allowlist.check("nvme_apst", hwid, 0).deny_reason(),
+            Some("entry_unverified: candidate hardware may be observed but not actuated"),
+            "the seeded Samsung PM9A1 is a visible candidate, not trusted hardware"
         );
 
         let apply_armed_with_gate =
@@ -2287,17 +2291,17 @@ verified = true
             "applied marker present ⇒ actuation_state = Some(true)"
         );
 
-        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness
-        // (soft-fails without root) but must still clear the journal.
+        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness.
+        // CI cannot write that path, so the journal must remain retryable.
         revert_sysctls(&dir);
 
         assert!(
-            !orig_file.exists(),
-            "original_vm_swappiness must be removed after revert"
+            orig_file.exists(),
+            "original_vm_swappiness must remain after a failed revert"
         );
         assert!(
-            !applied_file.exists(),
-            "applied_vm_swappiness must be removed after revert"
+            applied_file.exists(),
+            "applied_vm_swappiness must remain after a failed revert"
         );
 
         let _ = fs::remove_dir_all(&dir);
@@ -2323,16 +2327,15 @@ verified = true
         revert_sysctls(&dir);
 
         assert!(
-            !orig_file.exists(),
-            "original_vm_swappiness must be removed after crash-recovery revert"
+            orig_file.exists(),
+            "original_vm_swappiness must remain when crash recovery cannot restore"
         );
         assert!(
             !applied_file.exists(),
             "applied_vm_swappiness must not exist (it was never created in the crash scenario)"
         );
 
-        // Repeat to verify determinism.
-        fs::write(&orig_file, "100\n").unwrap();
+        // Repeat to verify the retained journal is retried deterministically.
         assert_eq!(
             actuation_state(&dir, "vm_swappiness"),
             Some(false),
@@ -2340,8 +2343,8 @@ verified = true
         );
         revert_sysctls(&dir);
         assert!(
-            !orig_file.exists(),
-            "second run: journal cleared again (deterministic)"
+            orig_file.exists(),
+            "second run: failed recovery remains retryable"
         );
 
         let _ = fs::remove_dir_all(&dir);
