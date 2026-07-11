@@ -18,7 +18,15 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=no
-ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile /proc/sys/vm
+# ReadWritePaths grants only the four statically-known system-wide knob
+# subtrees. Per-device depth-enablers (runtime PM, PCIe ASPM, SATA ALPM,
+# backlight, per-device PM QoS resume latency) write to dynamic paths under
+# /sys/devices that CANNOT be statically enumerated at packaging time. Those
+# actuators soft-fail (log + skip) under this service rather than weakening
+# the sandbox with a broad /sys/devices grant. A finer privilege boundary
+# (per-device bind paths at startup, or a minimal privileged helper) is
+# tracked as follow-up work.
+ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile /proc/sys/vm /dev/cpu_dma_latency
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 SystemCallArchitectures=native
 

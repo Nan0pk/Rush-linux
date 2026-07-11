@@ -19,6 +19,7 @@ use crate::actuators::{display, runtime_pm, storage};
 use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
+use crate::capability::Capability;
 use crate::io_util::{
     append_log, atomic_write_state_file, get_path_hash, guarded_write, mark_applied,
 };
@@ -355,6 +356,16 @@ impl Actuator {
                     return Ok(());
                 }
                 for path in paths {
+                    // Phase 5 hardening: typed capability check before
+                    // guarded_write. Defence-in-depth against path discovery
+                    // changes.
+                    if let Err(e) = Capability::CpuEpp.validate_target(&path) {
+                        self.log(&format!(
+                            "skip cpu.epp {}: capability validation failed: {e}",
+                            path.display()
+                        ))?;
+                        continue;
+                    }
                     let old_value = fs::read_to_string(&path)
                         .ok()
                         .unwrap_or_default()
@@ -386,6 +397,13 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
+                    // Phase 5 hardening: typed capability check.
+                    if let Err(e) = Capability::PlatformProfile.validate_target(path) {
+                        self.log(&format!(
+                            "skip platform.profile: capability validation failed: {e}"
+                        ))?;
+                        return Ok(());
+                    }
                     // Soft-fail: a write rejection here should not crash the
                     // daemon. Log and move on; next cycle will retry.
                     match guarded_write(path, value) {
@@ -441,6 +459,15 @@ impl Actuator {
             Action::VmSysctl { path, value, .. } => {
                 let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
                 let key = format!("vm_{filename}");
+
+                // Phase 5 hardening: typed capability check BEFORE journaling
+                // or writing. Rejects paths not matching the VmSysctl shape.
+                if let Err(e) = Capability::VmSysctl.validate_target(path) {
+                    self.log(&format!(
+                        "skip vm.sysctl {filename}: capability validation failed: {e}"
+                    ))?;
+                    return Ok(());
+                }
 
                 // Back up original value if not already backed up
                 let orig_file = self.state_dir.join(format!("original_{key}"));
@@ -514,6 +541,15 @@ impl Actuator {
                 value,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check BEFORE the
+                // allowlist gate or any journaling.
+                if let Err(e) = Capability::DeviceResumeLatency.validate_target(path) {
+                    self.log(&format!(
+                        "skip device_resume_latency {}: capability validation failed: {e}",
+                        path.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N4 safety gate: per-device runtime-PM resume latency is a
                 // depth-enabler knob, so it must clear the hardware allowlist
                 // before any write. Default-deny when the gate is enabled and
@@ -577,6 +613,27 @@ impl Actuator {
                 autosuspend_delay_ms,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check BEFORE the
+                // allowlist gate or any journaling. Validate both target
+                // paths (power/control and power/autosuspend_delay_ms).
+                let control_path = device_dir.join("power").join("control");
+                let delay_path = device_dir.join("power").join("autosuspend_delay_ms");
+                if let Err(e) = Capability::RuntimePm.validate_target(&control_path) {
+                    self.log(&format!(
+                        "skip runtime_pm {}: capability validation failed for control path: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
+                if delay_path.exists() {
+                    if let Err(e) = Capability::RuntimePm.validate_target(&delay_path) {
+                        self.log(&format!(
+                            "skip runtime_pm {}: capability validation failed for delay path: {e}",
+                            device_dir.display()
+                        ))?;
+                        return Ok(());
+                    }
+                }
                 // WP-N5 safety gate: enabling autosuspend is a depth-enabler, so
                 // it must clear the N4 allowlist (domain runtime_pm). Default-deny
                 // + skip when the HWID is unknown. No-op when the gate is off.
@@ -667,6 +724,15 @@ impl Actuator {
                 enable,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let aspm_path = device_dir.join("link").join("l1_aspm");
+                if let Err(e) = Capability::PcieAspm.validate_target(&aspm_path) {
+                    self.log(&format!(
+                        "skip pcie_aspm {}: capability validation failed: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N6 PCIe ASPM, gated on the N4 allowlist (domain pci_aspm).
                 if !self.allowlist_permits(
                     "pci_aspm",
@@ -729,6 +795,15 @@ impl Actuator {
                 policy,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let policy_path = host_dir.join("link_power_management_policy");
+                if let Err(e) = Capability::SataAlpm.validate_target(&policy_path) {
+                    self.log(&format!(
+                        "skip sata_alpm {}: capability validation failed: {e}",
+                        host_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N6 SATA ALPM, gated on the N4 allowlist (domain sata_alpm).
                 // The scsi_host has no modalias of its own — resolve the backing
                 // PCI controller's HWID by walking ancestors.
@@ -783,6 +858,15 @@ impl Actuator {
                 target_pct,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let bright_path = device_dir.join("brightness");
+                if let Err(e) = Capability::Backlight.validate_target(&bright_path) {
+                    self.log(&format!(
+                        "skip backlight {}: capability validation failed: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N7 backlight, gated on the N4 allowlist (domain backlight,
                 // HWID from the backing GPU via ancestor-walk).
                 if !self.allowlist_permits(
