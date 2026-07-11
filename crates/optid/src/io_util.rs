@@ -129,6 +129,7 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
             }
         }
         let orig_path = state_dir.join(format!("original_{key}"));
+        let mut restored = false;
         if let Ok(orig_val) = fs::read_to_string(&orig_path) {
             let sysctl_name = key.replace('_', ".");
             let sysctl_path = PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
@@ -136,9 +137,14 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
                 eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
             } else {
                 println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
+                restored = true;
             }
         }
-        clear_journal(state_dir, key);
+        if restored {
+            clear_journal(state_dir, key);
+        } else {
+            eprintln!("optid: retaining journal for {key}; restore did not complete");
+        }
     }
 }
 
@@ -165,6 +171,7 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
             }
         }
         let orig_path = entry.path();
+        let mut restored = false;
         if let Ok(content) = fs::read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_path_str), Some(orig_val)) = (lines.next(), lines.next()) {
@@ -180,10 +187,15 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
                         dev_path.display(),
                         orig_val.trim()
                     );
+                    restored = true;
                 }
             }
         }
-        clear_journal(state_dir, &key);
+        if restored {
+            clear_journal(state_dir, &key);
+        } else {
+            eprintln!("optid: retaining journal for {key}; restore did not complete");
+        }
     }
 }
 
@@ -216,33 +228,51 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
             }
         }
         let orig_path = entry.path();
+        let mut restored = false;
         if let Ok(content) = fs::read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) {
                 let dev_dir = Path::new(dev_dir);
                 let control_path = dev_dir.join("power").join("control");
-                if let Err(e) = guarded_write(&control_path, orig_control.trim()) {
-                    eprintln!(
-                        "optid: failed to revert runtime PM control for {}: {e}",
-                        dev_dir.display()
-                    );
-                } else {
-                    println!(
-                        "optid: reverted runtime PM control for {} to {}",
-                        dev_dir.display(),
-                        orig_control.trim()
-                    );
-                }
-                if let Some(orig_delay) = lines.next() {
-                    let orig_delay = orig_delay.trim();
-                    if orig_delay != "n/a" {
-                        let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
-                        let _ = guarded_write(&delay_path, orig_delay);
+                let control_restored =
+                    if let Err(e) = guarded_write(&control_path, orig_control.trim()) {
+                        eprintln!(
+                            "optid: failed to revert runtime PM control for {}: {e}",
+                            dev_dir.display()
+                        );
+                        false
+                    } else {
+                        println!(
+                            "optid: reverted runtime PM control for {} to {}",
+                            dev_dir.display(),
+                            orig_control.trim()
+                        );
+                        true
+                    };
+                if control_restored {
+                    if let Some(orig_delay) = lines.next() {
+                        let orig_delay = orig_delay.trim();
+                        if orig_delay != "n/a" {
+                            let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
+                            match guarded_write(&delay_path, orig_delay) {
+                                Ok(()) => restored = true,
+                                Err(e) => eprintln!(
+                                    "optid: failed to revert runtime PM delay for {}: {e}",
+                                    dev_dir.display()
+                                ),
+                            }
+                        } else {
+                            restored = true;
+                        }
                     }
                 }
             }
         }
-        clear_journal(state_dir, &key);
+        if restored {
+            clear_journal(state_dir, &key);
+        } else {
+            eprintln!("optid: retaining journal for {key}; restore did not complete");
+        }
     }
 }
 
@@ -281,6 +311,7 @@ pub(crate) fn revert_storage(state_dir: &Path) {
             }
         }
         let orig_path = entry.path();
+        let mut restored = false;
         if let Ok(content) = fs::read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) {
@@ -299,10 +330,15 @@ pub(crate) fn revert_storage(state_dir: &Path) {
                         target.display(),
                         orig_val.trim()
                     );
+                    restored = true;
                 }
             }
         }
-        clear_journal(state_dir, &key);
+        if restored {
+            clear_journal(state_dir, &key);
+        } else {
+            eprintln!("optid: retaining journal for {key}; restore did not complete");
+        }
     }
 }
 
@@ -332,6 +368,7 @@ pub(crate) fn revert_display(state_dir: &Path) {
             }
         }
         let orig_path = entry.path();
+        let mut restored = false;
         if let Ok(content) = fs::read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_dir), Some(orig_val)) = (lines.next(), lines.next()) {
@@ -347,10 +384,15 @@ pub(crate) fn revert_display(state_dir: &Path) {
                         target.display(),
                         orig_val.trim()
                     );
+                    restored = true;
                 }
             }
         }
-        clear_journal(state_dir, &key);
+        if restored {
+            clear_journal(state_dir, &key);
+        } else {
+            eprintln!("optid: retaining journal for {key}; restore did not complete");
+        }
     }
 }
 
@@ -505,5 +547,22 @@ mod tests {
         let a = Path::new("/sys/bus/pci/devices/0000:00:00.0/power/pm_qos_resume_latency_us");
         let b = Path::new("/sys/bus/pci/devices/0000:00:01.0/power/pm_qos_resume_latency_us");
         assert_ne!(get_path_hash(a), get_path_hash(b));
+    }
+
+    #[test]
+    fn failed_revert_keeps_journal_for_retry() {
+        let state = std::env::temp_dir().join(format!("optid_revert_{}", std::process::id()));
+        fs::create_dir_all(&state).unwrap();
+        let key = "dev_failed";
+        let original = state.join(format!("original_{key}"));
+        let applied = state.join(format!("applied_{key}"));
+        fs::write(&original, "/tmp/not-an-allowed-optid-path\n42\n").unwrap();
+        fs::write(&applied, "test marker").unwrap();
+
+        revert_pm_qos(&state);
+
+        assert!(original.exists(), "original value must remain retryable");
+        assert!(applied.exists(), "applied marker must remain retryable");
+        let _ = fs::remove_dir_all(&state);
     }
 }

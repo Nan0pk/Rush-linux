@@ -31,6 +31,14 @@ fills in everything between that line and an implementation.
 The allowlist is on the critical path of every depth-enabler WP. Until N4 lands, none of
 N5/N6/N7(dGPU)/N8 can ship — they're all `contract + allowlist` per §4.3.
 
+**Safety correction (2026-07-10):** an entry with `verified = false` is now a
+candidate record only. It can support detection, explanation, and experiments,
+but `Allowlist::check` denies automatic actuation with `entry_unverified`.
+Earlier code displayed the flag without enforcing it. A controlled experiment
+may use `--apply --once --no-allowlist` on a recoverable test host; the parser
+rejects an allowlist-disabled long-running daemon. Evidence and maintainer
+approval are still required before changing the entry to `verified = true`.
+
 ADR-0009 defines optid's *write allowlist* (which sysfs paths optid may write). This research
 specifies the *hardware allowlist* (which HWIDs are safe to actuate on). The two are distinct:
 the write allowlist is a security boundary (threat: malicious admin); the hardware allowlist

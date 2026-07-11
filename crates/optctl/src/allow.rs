@@ -103,6 +103,11 @@ pub(crate) fn format_entry(
     block.push_str(&format!("domain = {}\n", toml_string(domain)));
     block.push_str(&format!("hwid = {}\n", toml_string(hwid)));
     block.push_str(&format!("action = \"{}\"\n", action.as_str()));
+    if action == EntryAction::Allow {
+        // `optctl allow` records a candidate. It must not silently convert an
+        // operator request into a claim of completed hardware verification.
+        block.push_str("verified = false\n");
+    }
     if let Some(n) = max_state {
         block.push_str(&format!("max_state = {n}\n"));
     }
@@ -247,7 +252,16 @@ pub(crate) fn run(positional: &[String]) -> io::Result<()> {
                 action.as_str(),
                 file.display()
             );
-            println!("optid applies it on next load/reload (SIGHUP or restart).");
+            if action == EntryAction::Allow {
+                println!(
+                    "candidate recorded as verified=false; optid can explain it but will not write to it"
+                );
+                println!(
+                    "collect hardware evidence, then ask the maintainer to promote it to verified=true"
+                );
+            } else {
+                println!("optid applies the deny on next load/reload (SIGHUP or restart).");
+            }
             Ok(())
         }
         other => Err(io::Error::new(
@@ -294,6 +308,7 @@ mod tests {
         assert!(block.contains("domain = \"nvme_apst\""));
         assert!(block.contains("hwid = \"pci:vAAAA\""));
         assert!(block.contains("action = \"allow\""));
+        assert!(block.contains("verified = false"));
         assert!(block.contains("max_state = 3"));
         assert!(block.contains("reason = \"tested on bench\""));
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# testos/collect-results.sh — one-command Linux results collection + PR + merge.
+# testos/collect-results.sh — collect Linux results and open a reviewable PR.
 
 set -euo pipefail
 
@@ -16,7 +16,6 @@ MOUNT_DIR=""
 MOUNTED_BY_US=false
 KEEP_WORK=false
 
-REQUIRED_CHECKS=("Rust" "Documentation sync" "Repository policy" "Evidence integrity (Dragnet)")
 
 log()  { echo ">> $*"; }
 ok()   { echo "[OK] $*"; }
@@ -47,20 +46,20 @@ usage() {
 testOS results collector — ONE command, end to end.
 
 Usage:
-  sudo bash collect-results.sh                         Auto: find USB, copy, commit, push, PR, merge
+  sudo bash collect-results.sh                         Auto: find USB, copy, commit, push, open PR
   sudo bash collect-results.sh --disk /dev/sdX         Specify which USB
-  sudo bash collect-results.sh --dry-run               Do everything except push/PR/merge
+  sudo bash collect-results.sh --dry-run               Do everything except push/open PR
   sudo bash collect-results.sh --diagnose              Print disk diagnostics only
   sudo bash collect-results.sh --list                  List results on USB only
   sudo bash collect-results.sh --repo Nan0pk/Rush-linux
-  sudo bash collect-results.sh --token github_pat_xxx
-
 Testing helper:
   sudo bash collect-results.sh --source /tmp/mock-usb --dry-run
 
 Environment:
-  GITHUB_TOKEN must be set unless --token is passed. The token is used only for
-  git push and GitHub API calls; it is not written to git config.
+  GITHUB_TOKEN must be set explicitly. With sudo, use
+  `sudo --preserve-env=GITHUB_TOKEN`. The token is used only for git push and
+  PR creation; it is not written to git config. This script never merges or
+  enables auto-merge.
 EOF
 }
 
@@ -68,7 +67,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --disk)      [[ $# -ge 2 ]] || die "--disk requires /dev/sdX"; DISK="$2"; shift 2 ;;
         --repo)      [[ $# -ge 2 ]] || die "--repo requires owner/repo"; REPO="$2"; shift 2 ;;
-        --token)     [[ $# -ge 2 ]] || die "--token requires a token"; TOKEN="$2"; shift 2 ;;
         --source)    [[ $# -ge 2 ]] || die "--source requires a mounted testOS root"; SOURCE_DIR="$2"; shift 2 ;;
         --dry-run)   DRY_RUN=true; shift ;;
         --diagnose)  DIAGNOSE=true; shift ;;
@@ -82,13 +80,6 @@ need_cmd() { command -v "$1" >/dev/null || die "$1 is required."; }
 for c in curl jq git; do need_cmd "$c"; done
 if [[ -z "$SOURCE_DIR" ]]; then
     for c in lsblk blkid findmnt mount umount; do need_cmd "$c"; done
-fi
-
-# sudo may strip GITHUB_TOKEN from the child environment. When invoked as
-# `export GITHUB_TOKEN=...; curl ... | sudo bash`, root can often recover it
-# from the parent sudo process without writing it anywhere.
-if [[ -z "$TOKEN" && -r "/proc/${PPID}/environ" ]]; then
-    TOKEN="$(tr '\0' '\n' < "/proc/${PPID}/environ" | sed -n 's/^GITHUB_TOKEN=//p' | head -1 || true)"
 fi
 
 if $DIAGNOSE; then
@@ -105,9 +96,9 @@ fi
 
 if [[ -z "$TOKEN" && "$DRY_RUN" != "true" && "$LIST_ONLY" != "true" ]]; then
     if [[ -t 0 ]]; then
-        read_secret_tty "GitHub token: " TOKEN
+        read_secret_tty "GitHub token (used for this process only): " TOKEN
     fi
-    [[ -n "$TOKEN" ]] || die "No GitHub token. Export GITHUB_TOKEN or pass --token."
+    [[ -n "$TOKEN" ]] || die "No GitHub token. Export GITHUB_TOKEN; with sudo, use --preserve-env=GITHUB_TOKEN."
 fi
 
 cleanup() {
@@ -282,7 +273,6 @@ if git diff --cached --quiet; then
 fi
 COMMIT_MSG="evidence(bench): testOS run ${DATE_PART} pass=${PASSED} fail=${FAILED} skip=${SKIPPED}"
 git -c user.email="testos-bot@local" -c user.name="testOS collector" commit -m "$COMMIT_MSG"
-HEAD_SHA="$(git rev-parse HEAD)"
 ok "Committed: $COMMIT_MSG"
 
 if $DRY_RUN; then
@@ -310,37 +300,4 @@ PR_NUM="$(printf '%s' "$PR_RESP" | jq -r '.number')"
 PR_URL="$(printf '%s' "$PR_RESP" | jq -r '.html_url')"
 [[ "$PR_NUM" != "null" && -n "$PR_NUM" ]] || die "Failed to open PR: $PR_RESP"
 ok "Opened PR #$PR_NUM — $PR_URL"
-
-checks_filter='[.check_runs[] | select(.name == "Rust" or .name == "Documentation sync" or .name == "Repository policy" or .name == "Evidence integrity (Dragnet)") | {name, status, conclusion}]'
-log "Waiting for required checks (30s poll, 10 min max) ..."
-for _ in $(seq 1 20); do
-    sleep 30
-    CHECKS="$(curl -fsSL \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/${REPO}/commits/${HEAD_SHA}/check-runs")"
-    RELEVANT="$(printf '%s' "$CHECKS" | jq "$checks_filter")"
-    printf '%s\n' "$RELEVANT"
-    COUNT="$(printf '%s' "$RELEVANT" | jq 'length')"
-    FAILS="$(printf '%s' "$RELEVANT" | jq '[.[] | select(.status == "completed" and .conclusion != "success")] | length')"
-    PENDING="$(printf '%s' "$RELEVANT" | jq '[.[] | select(.status != "completed")] | length')"
-    PASSES="$(printf '%s' "$RELEVANT" | jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length')"
-    if [[ "$FAILS" -gt 0 ]]; then
-        die "CI failed for PR #$PR_NUM: $PR_URL"
-    fi
-    if [[ "$COUNT" -ge 4 && "$PENDING" -eq 0 && "$PASSES" -ge 4 ]]; then
-        log "All required checks passed. Merging PR #$PR_NUM ..."
-        MERGE_RESP="$(curl -fsSL -X PUT \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/pulls/${PR_NUM}/merge" \
-            -d '{"merge_method":"merge"}')"
-        MERGED="$(printf '%s' "$MERGE_RESP" | jq -r '.merged')"
-        [[ "$MERGED" == "true" ]] || die "Merge API did not merge: $MERGE_RESP"
-        ok "Merged PR #$PR_NUM."
-        exit 0
-    fi
-done
-
-warn "Timed out waiting for CI. PR left open: $PR_URL"
-exit 1
+ok "Collection complete. CI and the maintainer now review the PR; this script will not merge it."

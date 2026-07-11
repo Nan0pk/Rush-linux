@@ -116,7 +116,7 @@
            │
 ┌──────────▼──────────────────────────────────────────────────────────┐
 │                    CI VALIDATION                                     │
-│  .github/workflows/livedev-validate.yml                             │
+│  .github/workflows/ci.yml (change-aware LiveDev/evidence checks)    │
 │  - schema validation                                                │
 │  - semantic evidence validator                                      │
 │  - privacy/secret scan                                              │
@@ -151,7 +151,7 @@
 | rush-agent | AI harness | No (mock only) | No | No |
 | validate-hwtest-evidence | Validator | No | No | No |
 | rush_pr_lib | PR submission | No | **NEVER** | **NEVER** |
-| CI (livedev-validate) | Server-side validation | No | No | No |
+| CI (Change checks) | Server-side validation | No | No | No |
 | Human | Maintainer | Yes | **YES** (only role) | **YES** (only role) |
 
 ## Data flow summary

@@ -52,7 +52,6 @@ FORBIDDEN_PR_PATHS = [
     "release/milestones.toml",
     "release/test-tiers.toml",
     ".github/workflows/ci.yml",
-    ".github/workflows/livedev-validate.yml",
     "docs/decisions/",
     "mkosi/mkosi.extra/etc/os-release",
 ]

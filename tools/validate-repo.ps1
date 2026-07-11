@@ -47,6 +47,7 @@ $required = @(
     'CONTRIBUTING.md',
     'SECURITY.md',
     'README.md',
+    'AGENTS.md',
     'Cargo.toml',
     'crates/optid/src/main.rs',
     'crates/optctl/src/main.rs',
@@ -84,6 +85,7 @@ $required = @(
     'docs/testing-and-benchmarks.md',
     'docs/non-goals.md',
     'docs/validation.md',
+    'docs/project-workflow.md',
     'docs/versioning.md',
     'docs/release-policy.md',
     'docs/release-checklist.md',
@@ -96,6 +98,8 @@ $required = @(
     'docs/decisions/0004-adaptive-optid.md',
     'docs/decisions/0005-avoid-obsolete-defaults.md',
     'tools/build-rootfs.sh',
+    'tools/checks.sh',
+    'tools/check-workflow-safety.py',
     'tools/publish-github.ps1',
     'release/milestones.toml',
     'release/test-tiers.toml'
@@ -130,13 +134,13 @@ Assert-Contains 'docs/AI_CONTINUATION.md' 'Next Task'
 Assert-Contains 'docs/IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
 Assert-Contains 'ROADMAP.md' 'v0\.1\.0-alpha\.1: Compile-Clean Core'
 Assert-Contains 'CONTRIBUTING.md' 'Documentation Is Required'
-Assert-Contains 'docs/testing-and-benchmarks.md' 'Docs are part of acceptance criteria'
-Assert-Contains 'docs/validation.md' 'Docs are part of acceptance criteria'
+Assert-Contains 'docs/testing-and-benchmarks.md' 'bash tools/checks.sh'
+Assert-Contains 'docs/validation.md' 'Change checks'
 Assert-Contains 'docs/versioning.md' 'MAJOR'
 Assert-Contains 'docs/release-policy.md' 'Release Blockers'
 Assert-Contains 'docs/release-checklist.md' 'Stable Release'
 Assert-Contains 'docs/release-plan-v1.md' 'v1\.0\.0: Final Stable Release'
-Assert-Contains 'docs/documentation-policy.md' 'Every non-trivial change must document'
+Assert-Contains 'docs/documentation-policy.md' 'documented truth changes'
 Assert-Contains 'release/milestones.toml' 'version = "1\.0\.0"'
 Assert-Contains 'release/test-tiers.toml' '\[tier\.T5\]'
 Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'

@@ -46,10 +46,11 @@ A maintainer ratifies by editing the ADR to:
 
 3. remove the "needs human ratification" callout near the top.
 
-## Current proposed ADRs awaiting ratification
+## Current status
 
-ADRs 0008–0013 are **proposed** and are not yet binding. ADR 0008 (software
-delivery and packaging) is the most consequential and should be ratified first.
+Read each ADR's `Status:` line; the set changes as the project develops. ADR
+0025 is the accepted project-workflow and check model. Proposed ADRs remain
+non-binding until the maintainer adds an explicit `Ratified-by:` line.
 
 ## Adding a new ADR
 

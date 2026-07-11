@@ -59,7 +59,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_t2_apply_allowlisted_and_t4_revert() {
+    fn test_t2_failed_real_sysctl_revert_keeps_journal() {
         let temp_dir = std::env::temp_dir().join(format!("optid_tests_t2_{}", std::process::id()));
         let _ = fs::create_dir_all(&temp_dir);
         let config_path = temp_dir.join("policy.toml");
@@ -79,7 +79,10 @@ mod integration_tests {
         assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
 
         revert_sysctls(&temp_dir);
-        assert!(!temp_dir.join("intended_vm_swappiness").exists());
+        assert!(
+            temp_dir.join("intended_vm_swappiness").exists(),
+            "a denied restore must keep the journal retryable"
+        );
     }
 
     #[test]
@@ -1011,7 +1014,7 @@ device_resume_latency = 100000
         fs::write(
             admin.join("90-admin.toml"),
             format!(
-                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"tested in N4 unit test\"\n"
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"tested in N4 unit test\"\n"
             ),
         )
         .unwrap();
@@ -1094,7 +1097,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 test\"\n"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n5 test\"\n"),
         )
         .unwrap();
 
@@ -1198,7 +1201,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 carrier test\"\n"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n5 carrier test\"\n"),
         )
         .unwrap();
 
@@ -1309,7 +1312,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 test\"\n"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n6 test\"\n"),
         )
         .unwrap();
 
@@ -1390,7 +1393,7 @@ device_resume_latency = 100000
         fs::write(link.join("l1_aspm"), "0\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"cnvi\"\n"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"cnvi\"\n"),
         )
         .unwrap();
 
@@ -1437,7 +1440,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"sata_alpm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 sata\"\n"),
+            format!("[[entry]]\ndomain=\"sata_alpm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n6 sata\"\n"),
         )
         .unwrap();
 
@@ -1544,7 +1547,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n7 test\"\n"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n7 test\"\n"),
         )
         .unwrap();
 
@@ -1592,7 +1595,7 @@ device_resume_latency = 100000
         fs::write(bl.join("brightness"), "800\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"floor\"\n"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"floor\"\n"),
         )
         .unwrap();
 
@@ -2003,7 +2006,7 @@ action = "allow"
 max_state = 3
 reason = "test override"
 tested_on = "test-fixture"
-verified = false
+verified = true
 "#
         )
     }
@@ -2158,9 +2161,10 @@ verified = false
         );
 
         let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
-        assert!(
-            allowlist.check("nvme_apst", hwid, 0).is_allow(),
-            "seeded baseline must still allow the Samsung PM9A1"
+        assert_eq!(
+            allowlist.check("nvme_apst", hwid, 0).deny_reason(),
+            Some("entry_unverified: candidate hardware may be observed but not actuated"),
+            "the seeded Samsung PM9A1 is a visible candidate, not trusted hardware"
         );
 
         let apply_armed_with_gate =
@@ -2287,17 +2291,17 @@ verified = false
             "applied marker present ⇒ actuation_state = Some(true)"
         );
 
-        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness
-        // (soft-fails without root) but must still clear the journal.
+        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness.
+        // CI cannot write that path, so the journal must remain retryable.
         revert_sysctls(&dir);
 
         assert!(
-            !orig_file.exists(),
-            "original_vm_swappiness must be removed after revert"
+            orig_file.exists(),
+            "original_vm_swappiness must remain after a failed revert"
         );
         assert!(
-            !applied_file.exists(),
-            "applied_vm_swappiness must be removed after revert"
+            applied_file.exists(),
+            "applied_vm_swappiness must remain after a failed revert"
         );
 
         let _ = fs::remove_dir_all(&dir);
@@ -2323,16 +2327,15 @@ verified = false
         revert_sysctls(&dir);
 
         assert!(
-            !orig_file.exists(),
-            "original_vm_swappiness must be removed after crash-recovery revert"
+            orig_file.exists(),
+            "original_vm_swappiness must remain when crash recovery cannot restore"
         );
         assert!(
             !applied_file.exists(),
             "applied_vm_swappiness must not exist (it was never created in the crash scenario)"
         );
 
-        // Repeat to verify determinism.
-        fs::write(&orig_file, "100\n").unwrap();
+        // Repeat to verify the retained journal is retried deterministically.
         assert_eq!(
             actuation_state(&dir, "vm_swappiness"),
             Some(false),
@@ -2340,8 +2343,8 @@ verified = false
         );
         revert_sysctls(&dir);
         assert!(
-            !orig_file.exists(),
-            "second run: journal cleared again (deterministic)"
+            orig_file.exists(),
+            "second run: failed recovery remains retryable"
         );
 
         let _ = fs::remove_dir_all(&dir);

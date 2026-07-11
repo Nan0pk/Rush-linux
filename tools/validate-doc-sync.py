@@ -95,6 +95,21 @@ def check_all_docs_exist(entries):
             err(f"Registered doc does not exist: {path}")
 
 
+def check_research_is_discoverable(entries):
+    """Every research paper must be registered even when it is unfinished."""
+    print("\n── Check: Research discoverability ──")
+    registered = set(entries)
+    research_dir = ROOT / "docs" / "research"
+    missing = []
+    for paper in sorted(research_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
+        path = paper.relative_to(ROOT).as_posix()
+        if path not in registered:
+            missing.append(path)
+            err(f"Research paper is missing from docs/docmap.toml: {path}")
+    if not missing:
+        ok("Every research paper is registered in docmap.toml")
+
+
 def check_deps_exist(entries):
     """Every dep must reference a registered doc."""
     print("\n── Check: All deps reference registered docs ──")
@@ -287,6 +302,7 @@ def main():
         sys.exit(1)
 
     check_all_docs_exist(entries)
+    check_research_is_discoverable(entries)
     check_deps_exist(entries)
     check_version_consistency(entries)
     check_adr_status(entries)

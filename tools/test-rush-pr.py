@@ -287,44 +287,40 @@ def test_livedev_evidence_subdir_allowed():
 
 
 def test_ci_workflow_exists():
-    """The livedev-validate.yml CI workflow exists and is valid YAML."""
-    workflow = _ROOT / ".github" / "workflows" / "livedev-validate.yml"
+    """The consolidated change-aware CI workflow exists and is valid YAML."""
+    workflow = _ROOT / ".github" / "workflows" / "ci.yml"
     assert workflow.exists()
     # Validate YAML syntax.
     try:
         import yaml
         data = yaml.safe_load(workflow.read_text())
         assert "jobs" in data
-        assert "livedev-validate" in data["jobs"]
+        assert "checks" in data["jobs"]
     except ImportError:
         # PyYAML not available — just check the file exists and has basic structure.
         text = workflow.read_text()
         assert "name:" in text
         assert "jobs:" in text
-        assert "livedev-validate" in text
+        assert "Relevant tests and safety rules" in text
 
 
 def test_ci_invokes_validator():
-    """The CI workflow invokes the evidence validator."""
-    workflow = _ROOT / ".github" / "workflows" / "livedev-validate.yml"
-    text = workflow.read_text()
+    """The central check runner invokes the hardware evidence validator."""
+    text = (_ROOT / "tools" / "checks.sh").read_text()
     assert "validate-hwtest-evidence" in text
     assert "--fixtures" in text
 
 
 def test_ci_checks_release_truth():
-    """The CI workflow checks that release-truth files are not modified."""
-    workflow = _ROOT / ".github" / "workflows" / "livedev-validate.yml"
-    text = workflow.read_text()
-    assert "release truth" in text.lower() or "release-truth" in text.lower()
-    assert "milestones.toml" in text
+    """Release truth changes trigger evidence-integrity validation."""
+    text = (_ROOT / "tools" / "checks.sh").read_text()
+    assert "validate-evidence.py" in text
 
 
 def test_ci_checks_no_merge():
-    """The CI workflow checks that no self-merge commands exist."""
-    workflow = _ROOT / ".github" / "workflows" / "livedev-validate.yml"
-    text = workflow.read_text()
-    assert "self-merge" in text.lower() or "merge" in text.lower()
+    """The central check runner rejects self-merge automation."""
+    text = (_ROOT / "tools" / "checks.sh").read_text()
+    assert "check-workflow-safety.py" in text
 
 
 # ─── Bonus: CLI tests ────────────────────────────────────────────────────────
@@ -380,11 +376,21 @@ def test_pr_template_exists():
 
 
 def test_adr_0024_exists():
-    """ADR 0024 (livedev PR submission) exists and is proposed."""
+    """ADR 0024 is retained as history and points to its replacement."""
     adr = _ROOT / "docs" / "decisions" / "0024-livedev-pr-submission.md"
     assert adr.exists()
     text = adr.read_text()
-    assert "Status: proposed" in text
+    assert "Status: superseded" in text
+    assert "ADR 0025" in text
+
+
+def test_adr_0025_records_human_ratification():
+    """The consolidated workflow has an accepted, human-ratified decision."""
+    adr = _ROOT / "docs" / "decisions" / "0025-risk-based-project-workflow.md"
+    assert adr.exists()
+    text = adr.read_text()
+    assert "Status: accepted" in text
+    assert "Ratified-by: Nan0pk, 2026-07-10" in text
     assert "ADR 0024" in text
     assert "no self-merge" in text.lower()
 

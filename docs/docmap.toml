@@ -158,18 +158,18 @@ last_verified = "2026-06-10"
 [docs."docs/hardware-support.md"]
 purpose = "Hardware enablement strategy, allowlist database, device policy"
 owner_area = "area:docs"
-covers_code = []
-deps = []
+covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/src/args.rs", "crates/optid/data/allowlist.toml"]
+deps = ["docs/research/0006-hw-allowlist-db-design.md", "docs/decisions/0009-optid-security-boundary.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-07-10"
 
 [docs."docs/testing-and-benchmarks.md"]
-purpose = "Test tiers, benchmark methodology, acceptance gates"
+purpose = "Test tiers, benchmark methodology, and risk-scoped validation"
 owner_area = "area:docs"
 covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml", "crates/rushbench/src/main.rs"]
-deps = ["docs/decisions/0011-benchmark-methodology.md"]
+deps = ["docs/decisions/0011-benchmark-methodology.md", "docs/project-workflow.md"]
 freshens = []
-last_verified = "2026-06-14"
+last_verified = "2026-07-10"
 
 [docs."docs/non-goals.md"]
 purpose = "Explicit list of what Rush Linux does NOT aim to do"
@@ -180,12 +180,12 @@ freshens = []
 last_verified = "2026-06-10"
 
 [docs."docs/validation.md"]
-purpose = "How to validate the repository, role of validate-repo.ps1"
+purpose = "Change-aware repository validation and the limits of a green CI result"
 owner_area = "area:docs"
-covers_code = ["tools/validate-repo.ps1"]
-deps = []
+covers_code = ["tools/checks.sh", "tools/validate-repo.ps1", ".github/workflows/ci.yml"]
+deps = ["docs/project-workflow.md", "docs/agent-protocol.md"]
 freshens = []
-last_verified = "2026-06-10"
+last_verified = "2026-07-10"
 
 [docs."docs/versioning.md"]
 purpose = "Semantic versioning rules, channel naming, bump policy"
@@ -220,20 +220,20 @@ freshens = []
 last_verified = "2026-06-10"
 
 [docs."docs/documentation-policy.md"]
-purpose = "Required documentation surface per change type, minimum commit standard"
+purpose = "Update documentation when documented truth changes without forcing unrelated churn"
 owner_area = "area:docs"
 covers_code = []
-deps = []
+deps = ["docs/project-workflow.md"]
 freshens = ["CONTRIBUTING.md"]
-last_verified = "2026-06-10"
+last_verified = "2026-07-10"
 
 [docs."docs/how-rush-is-built.md"]
 purpose = "Outlines governed development model, evidence rule, C1 incident, and honest-claims policy"
 owner_area = "area:docs"
 covers_code = []
-deps = ["docs/agent-protocol.md"]
+deps = ["docs/agent-protocol.md", "docs/project-workflow.md"]
 freshens = ["README.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-07-10"
 
 [docs."docs/graphify-knowledge-graph.md"]
 purpose = "How the Graphify knowledge graph works, refresh procedures, graphify-data branch fetch instructions"
@@ -464,12 +464,12 @@ freshens = []
 last_verified = "2026-06-10"
 
 [docs."docs/agent-protocol.md"]
-purpose = "Canonical source for agent roles, authority matrix, and evidence rule"
+purpose = "Agent claim levels, scoped independent verification, maintainer authority, and evidence without gridlock"
 owner_area = "area:docs"
 covers_code = []
-deps = []
+deps = ["AGENTS.md", "docs/project-workflow.md"]
 freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/plans/work-plan-v2.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-07-10"
 
 [docs."docs/SPEC-northstar.md"]
 purpose = "Canon specifications: objective function, lever ledger, and WP mapping"
@@ -769,3 +769,153 @@ deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture
 freshens = ["README.md", "release/evidence/README.md"]
 last_verified = "2026-07-04"
 validator = "optional_file"
+
+[docs."AGENTS.md"]
+purpose = "Agent constitution: authority, source order, human-effort rule, evidence scope, blocker traceability, and repository safety"
+owner_area = "area:project"
+covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/"]
+deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/agent-protocol.md"]
+freshens = ["CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/SUMMARY.md"]
+purpose = "Complete reader-facing documentation index, including every research paper"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/project-workflow.md", "docs/decisions/README.md"]
+freshens = []
+last_verified = "2026-07-10"
+
+[docs."docs/decisions/0024-livedev-pr-submission.md"]
+purpose = "Superseded LiveDev PR-submission design; safe submission behavior retained under ADR 0025"
+owner_area = "area:project"
+covers_code = ["tools/rush_pr_lib.py", "tools/rush-autopilot"]
+deps = ["docs/decisions/0025-risk-based-project-workflow.md"]
+freshens = []
+last_verified = "2026-07-10"
+validator = "status_match:superseded"
+
+[docs."docs/decisions/0025-risk-based-project-workflow.md"]
+purpose = "Accepted decision for the idea-to-release workflow, risk-based checks, scoped proof, and no-auto-merge rule"
+owner_area = "area:project"
+covers_code = ["tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/ci.yml", ".github/workflows/maintenance.yml"]
+deps = ["docs/project-workflow.md", "AGENTS.md", "docs/agent-protocol.md"]
+freshens = ["docs/decisions/0024-livedev-pr-submission.md", "CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+validator = "status_match:accepted"
+
+[docs."docs/project-workflow.md"]
+purpose = "Single idea-to-release workflow, research states, scoped evidence rules, risk roots, and logical pull-request checks"
+owner_area = "area:project"
+covers_code = ["tools/checks.sh", ".github/workflows/ci.yml", ".github/workflows/maintenance.yml"]
+deps = ["docs/SPEC-northstar.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/research/0004-telemetry-fidelity-rca-and-architecture.md"]
+purpose = "WIP research into benchmark telemetry failure and a replacement measurement architecture"
+owner_area = "area:benchmarks"
+covers_code = ["crates/rushbench/", "crates/rush_telemetry/"]
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-17"
+validator = "status_match:WIP"
+
+[docs."docs/research/0005-focus-vs-resource-pull.md"]
+purpose = "WIP research into workload importance signals and focus as an override"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0002-rush-linux-architecture-review.md"]
+freshens = []
+last_verified = "2026-06-18"
+validator = "status_match:WIP"
+
+[docs."docs/research/0010-ppd-gamemode-dbus-shim.md"]
+purpose = "WIP design for PowerProfilesDaemon and GameMode compatibility surfaces"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/shim/"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0011-dgpu-runtime-pm-and-mux.md"]
+purpose = "WIP research into discrete-GPU runtime power and MUX safety"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0012-dtpm-powercap-outer-loop.md"]
+purpose = "WIP research into a powercap budget-control loop"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0013-thermal-fan-budget-coupling.md"]
+purpose = "WIP research into thermal sensing, fan behavior, and power budgets"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0012-dtpm-powercap-outer-loop.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0014-sched-ext-selector-per-workload-class.md"]
+purpose = "WIP research into sched_ext selection by workload class"
+owner_area = "area:kernel"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0015-sched-ext-default-on.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0015-zram-mglru-tuning-per-ram-tier.md"]
+purpose = "WIP research into zram and MGLRU policy by memory size"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0016-mkosi-ala-snapshot-pinning.md"]
+purpose = "WIP research into reproducible mkosi builds with Arch snapshot pinning"
+owner_area = "area:packaging"
+covers_code = ["mkosi/"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0014-image-composition-mkosi-arch.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0017-uki-signing-secure-boot-enrollment.md"]
+purpose = "WIP research into UKI signing, Secure Boot enrollment, and key handling"
+owner_area = "area:boot"
+covers_code = ["tools/sign_updates.py", "tools/sign-updates.sh"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0003-uki-rollback.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0018-telemetry-runtime-state-observability.md"]
+purpose = "WIP research into wakeup, runtime-PM, C-state, and PM-QoS observation"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0004-telemetry-fidelity-rca-and-architecture.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0019-gpu-upscaling-resolution-scaling-als.md"]
+purpose = "WIP research into display upscaling, resolution scaling, and ambient-light control"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0007-display-panel-backlight-psr-vrr-dpms.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

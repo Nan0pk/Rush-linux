@@ -5,19 +5,15 @@ are not optional marketing material; they are release gates.
 
 ## Current Validation
 
-Local repository validation:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1
-```
-
-Rust validation once a toolchain is available:
+Run the checks relevant to the current change:
 
 ```sh
-cargo fmt --all -- --check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+bash tools/checks.sh
 ```
+
+The runner invokes Rust format, tests, and Clippy when Rust changed. Pull-request
+CI supplies missing local tools. See `docs/project-workflow.md` for why each
+check exists and what it is allowed to block.
 
 ## Host Benchmark Harness
 
@@ -150,7 +146,9 @@ Channel requirements:
 - RC requires T0-T5 passing plus benchmark publication.
 - Stable requires no release-blocker regressions for at least one RC cycle.
 
-## Documentation Gate
+## Documentation Check
 
-Docs are part of acceptance criteria. CI must require the core docs and ADRs to
-exist. Any behavior change must update the relevant docs in the same commit.
+Docs are part of a change when the change alters a documented promise, command,
+workflow, safety rule, or public behavior. The doc registry and generated
+front-page checks catch missing and stale references without demanding unrelated
+roadmap or handoff edits.

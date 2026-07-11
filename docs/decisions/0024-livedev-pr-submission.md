@@ -1,9 +1,9 @@
 # ADR 0024: Rush LiveDev PR Submission
 
-Status: proposed
+Status: superseded
 
-> Marked **proposed**; needs human ratification. Scopes the PR submission
-> surface, its safety constraints, and its relationship to CI.
+> Superseded by ADR 0025. The safe PR-submission behavior remains, but its
+> separate LiveDev-only CI workflow was replaced by one change-aware workflow.
 
 Date: 2026-07-04
 Authors: Z.ai (pr-ci phase)
@@ -17,10 +17,9 @@ capture evidence, and attempt AI-assisted repair. Phase 8 adds the PR
 submission surface: the ability to open PRs with evidence or code
 attached, so the Verifier and Human can review and merge.
 
-The existing testOS `collect-results.sh` already creates PRs via the
-GitHub API and merges them automatically when CI passes. Phase 8
-forbids this for LiveDev — LiveDev opens a PR for maintainer review
-and never merges it. LiveDev is a Builder, not a Human.
+The old testOS collectors created PRs and merged them automatically. That unsafe
+behavior has now been removed from testOS as well as LiveDev. Both open PRs for
+maintainer review and never merge them.
 
 ## Decision
 
@@ -50,8 +49,8 @@ validation status — without pushing or creating a PR.
 
 ### 4. CI integration
 
-A new `.github/workflows/livedev-validate.yml` workflow runs on PRs that
-touch evidence, schemas, or LiveDev tools. It validates:
+The change-aware workflow established by ADR 0025 runs the relevant evidence
+checks when a PR touches evidence, schemas, or LiveDev tools. It validates:
 - Schema validation
 - Semantic evidence validator
 - Privacy/secret scan
@@ -72,7 +71,7 @@ explicit maintainer approval.
 The PR submission blocks modifications to:
 - `VERSION`, `Cargo.toml`, `RELEASES.md`
 - `release/milestones.toml`, `release/test-tiers.toml`
-- `.github/workflows/ci.yml`, `.github/workflows/livedev-validate.yml`
+- `.github/workflows/ci.yml`
 - `docs/decisions/` (ADR Status/Ratified-by lines)
 - `mkosi/mkosi.extra/etc/os-release`
 - Existing evidence subdirs (`v0.3.0-alpha.1/`, `v0.4.0-alpha.1/`,
@@ -90,7 +89,7 @@ fails if found.
 - CI owns validation — the PR submission does not self-verify.
 - The Human reviews and merges.
 - Release truth is never modified by evidence PRs.
-- testOS is unaffected (its `collect-results.sh` still works as before).
+- testOS follows the same no-merge rule.
 
 ## Acceptance criteria
 
@@ -98,7 +97,7 @@ fails if found.
 - [ ] `rush-autopilot submit-evidence --dry-run` works.
 - [ ] `rush-autopilot submit-failing-evidence --dry-run` works.
 - [ ] `rush-autopilot submit-code-pr --dry-run` works.
-- [ ] `.github/workflows/livedev-validate.yml` exists and is valid YAML.
+- [ ] `.github/workflows/ci.yml` invokes the central relevant-check runner.
 - [ ] `docs/templates/livedev-pr.md` exists.
 - [ ] No merge command exists in the rush tools.
 - [ ] Release truth files are blocked.

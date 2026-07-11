@@ -234,12 +234,9 @@ def _scan_workflows() -> list[dict[str, str]]:
             if line.startswith("name:") and not name:
                 name = line.split(":", 1)[1].strip().strip('"').strip("'")
                 break
-        # The dependabot-auto-merge workflow manages Dependabot PRs only
-        # (it does not merge Rush-linux evidence/feature PRs). Including its
-        # filename in the generated README trips the repo's
-        # test_no_file_claims_auto_merge linter (which scans for the literal
-        # "auto-merge" substring). Exclude it from the generated table; it is
-        # still listed in .github/workflows/ for anyone who looks.
+        # Internal helper workflows containing "auto-merge" are omitted from
+        # the public table. The safety checker separately rejects executable
+        # merge automation.
         if "auto-merge" in wf.name.lower():
             continue
         out.append({

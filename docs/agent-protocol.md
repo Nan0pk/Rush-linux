@@ -1,58 +1,86 @@
-# Agent Work Protocol (v2)
+# Agent Work and Evidence Protocol
 
-This document is the single canonical source for the evidence rule, builder/verifier/human roles, and the authority matrix.
+`AGENTS.md` is the constitution. `docs/project-workflow.md` describes the full
+idea-to-release flow. This document defines who may make which claim.
 
-## Evidence Rule (non-negotiable)
+## Three different statements
 
-An exit-criterion checkmark may **only** appear next to an **embedded command transcript**: the literal command, literal output (or attached log file), date, and host description.  
-"The script implements X" is a description, not evidence.  
-`bash -n` is a syntax check, not a test run.  
-Any evidence README violating this rule is rejected at review without further reading.
+Do not mix these up:
 
-## Roles
+1. **Builder result:** "I ran these checks on this change and they passed."
+2. **Independent result:** "I checked the builder's work cold and reproduced
+   the result."
+3. **Project approval:** "Rush accepts this direction, hardware entry,
+   milestone, or release."
 
-**Builder agent**  
-- Executes exactly one WP per session under `tools/start-work.sh` / `finish-work.sh`.  
-- Produces a branch and opens a PR.  
-- May *claim* completion but **must never** *certify* it.
+Builders are required to make statement 1 honestly. A separate verifier is
+required for statement 2 only when the claim is high-risk. Only the human
+maintainer makes statement 3.
 
-**Verifier agent**  
-- A separate session (ideally a different model/tool than the builder).  
-- Checks out the branch cold.  
-- Runs the WP's acceptance block verbatim.  
-- Writes a `VERIFICATION.md` report (see `docs/templates/VERIFICATION.md`) into the PR or as a comment.  
-- Records each command, its exit code, and a one-line verdict per criterion.  
-- Never fixes code — a failed check is a verdict, not a task.  
-- Builder ≠ verifier for the same WP.
+## Evidence rule
 
-**Human (maintainer)**  
-- The only role that can merge to `main`.  
-- Runs hardware-dependent gates (KVM rollback test, physical benchmarks).  
-- Holds production signing keys.  
-- Changes milestone status.  
-- Resolves disagreements between builder and verifier.
+A release, milestone, hardware-safety, or performance checkmark must point to
+evidence appropriate to that claim. Examples include:
 
-## Authority Matrix
+- literal command and output;
+- an attached automated-test log;
+- a benchmark result with its method and host details;
+- a physical-hardware run log;
+- a source citation for an upstream fact;
+- an independent review result.
 
-| Action | Builder | Verifier | Human |
-|--------|---------|----------|-------|
-| Create branch / push commits | ✅ | ❌ | ✅ |
-| Open PR | ✅ | ❌ | ✅ |
-| Run acceptance commands | ✅ (self-check) | ✅ (authoritative) | ✅ |
-| Mark WP criteria ✅ in evidence/docs | ❌ | ✅ (in VERIFICATION.md only) | ✅ |
-| Merge to `main` | ❌ | ❌ | ✅ only |
-| Edit `release/milestones.toml` status | ❌ | ❌ | ✅ only |
-| Touch signing keys beyond test keys | ❌ | ❌ | ✅ only |
-| Declare a gate "passed" without command transcript | ❌ | ❌ | ❌ — nobody |
+"The script implements X" is a description, not proof that X worked. `bash -n`
+proves syntax only. A unit test proves the behavior covered by that unit test,
+not physical-hardware safety or release readiness.
 
-## PR-only Merges
+## Builder
 
-All merges to `main` happen via reviewed PRs. Direct pushes to `main` are not permitted except for emergency hotfixes by the human maintainer.
+The builder:
 
-## Agent Contract Addendum
+- reads the relevant research and accepted decisions;
+- implements the change;
+- runs the relevant checks;
+- reports failures instead of hiding them;
+- updates affected documents;
+- commits to a branch and opens a draft pull request;
+- never marks its own hardware, security, performance, milestone, or release
+  claim independently certified;
+- never merges or enables auto-merge.
 
-- Agents **may not** propose project direction, redefine the objective in `SPEC-northstar.md` §0, or offer "strategic pivots." Such output is auto-rejected on sight.
-- A task = implement **one ledger row** from `SPEC-northstar.md` §4 as **one WP** from §6, behind the §3 actuation rule.
-- Deliverable = code + verifier verdict (PASS/FAIL with evidence paths). Not a memo, not a roadmap.
-- Humans own the objective and the tree. Agents implement leaves.
-- Any agent claim of a created PR/branch/file must be verifiable (`gh pr view`, `git log`) or it is treated as fabricated.
+The builder does not wait for a second agent to run ordinary unit tests.
+
+## Independent verifier
+
+A cold verifier is required for:
+
+- physical-hardware safety or performance;
+- release and milestone claims;
+- security-boundary changes;
+- boot, firmware, signing, storage-power, display-power, or other
+  difficult-to-recover actuation;
+- a result that cannot be reproduced in ordinary pull-request CI.
+
+The verifier checks out the proposed commit without relying on the builder's
+workspace, runs the stated acceptance commands, records the environment and
+result, and does not quietly fix a failure. A failed verification returns to
+the builder with the exact failure.
+
+## Human maintainer
+
+Only the human maintainer may:
+
+- merge to `main`;
+- accept a project-direction decision;
+- promote a hardware candidate to trusted;
+- declare a milestone or release complete;
+- use production signing keys;
+- approve a destructive or difficult-to-recover physical action.
+
+## Missing proof is not a dead end
+
+Missing proof blocks the matching claim or automatic rollout. It does not block
+read-only diagnosis, dry runs, simulation, research, a draft pull request, or a
+clearly disabled experiment.
+
+Report a block using the root-tracing format in `AGENTS.md` section 10 and give
+the safe ways forward.
