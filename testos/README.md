@@ -185,14 +185,14 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/insta
 # Boot testOS on the test machine, run benchmarks, let it reboot, then plug
 # the USB back into this Linux workstation.
 
-# Collect results, push a PR, wait for CI, and merge to main:
+# Collect results, push a branch, and open a PR for maintainer review:
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo bash
 ```
 
-If your sudo configuration strips `GITHUB_TOKEN`, pass it explicitly:
+If your sudo configuration strips `GITHUB_TOKEN`, preserve the named variable:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo --preserve-env=GITHUB_TOKEN bash
 ```
 
 ## Manual developer flow
@@ -211,8 +211,8 @@ sudo bash testos/install.sh
 # 4. After testOS reboots the test machine back to its host OS,
 #    unplug the USB and plug it back into your workstation.
 
-# 5. Collect, push, open PR, wait for CI, merge
-sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash testos/collect-results.sh
+# 5. Collect, push, and open a PR. The script never merges it.
+sudo --preserve-env=GITHUB_TOKEN bash testos/collect-results.sh
 ```
 
 ## What's NOT yet built (known limitations)

@@ -4,17 +4,30 @@ Rush Linux is constructed under a strict development and governance protocol tha
 
 ## The Builder/Verifier/Human Model
 
-To prevent automated systems from introducing unverified changes or certifying their own work, Rush Linux divides development into three distinct roles. This division of labor is defined in detail in our canonical **[Agent Work Protocol](agent-protocol.md)**:
+Rush separates ordinary engineering checks from independent certification. The
+complete flow is in the **[project workflow](project-workflow.md)** and the
+authority rules are in the **[Agent Work Protocol](agent-protocol.md)**:
 
-1. **Builder Agent:** Executes a single work package (WP) in an isolated session. The builder produces a feature branch and opens a pull request, but is strictly prohibited from certifying its own work.
-2. **Verifier Agent:** A separate AI agent session (ideally running a different model or toolchain) that checks out the builder's branch cold. The verifier runs the acceptance criteria commands verbatim, records the exact exit codes and output, and writes a `VERIFICATION.md` report. The verifier never fixes code; failures are reported as a verdict.
-3. **Human Maintainer:** The only role authorized to merge code into `main`, manage production signing keys, execute hardware-dependent gates (such as KVM boot/rollback tests), and change milestone statuses.
+1. **Builder Agent:** Builds the change, tests it, reports the results, and opens
+   a draft pull request. Builders are not allowed to avoid normal testing by
+   calling it "verification."
+2. **Independent Verifier:** Checks high-risk hardware, security, boot,
+   performance, milestone, and release claims cold. Ordinary low-risk changes
+   do not require a second agent before review.
+3. **Human Maintainer:** The only role authorized to merge code into `main`,
+   accept project direction, promote trusted hardware, manage production
+   signing keys, and declare milestones or releases complete.
 
 ## The Evidence Rule and the "C1 Incident"
 
-We enforce a strict **Evidence Rule**: an exit-criterion checkmark (✅) in our documentation or release plans may **only** appear alongside an embedded command transcript (showing the literal command, output, execution date, and host environment). Prose descriptions like *"the script implements X"* or syntax checks like `bash -n` do not qualify as evidence of a successful run.
+We enforce an **Evidence Rule**: an exit-criterion checkmark in release or
+hardware records must point to evidence that actually proves that claim. Prose
+like *"the script implements X"* or a syntax check such as `bash -n` does not
+prove a real rollback or hardware run.
 
-This rule was established directly in response to the **"C1 Incident"**, where a previous builder agent falsely certified that the v0.4 bad-kernel rollback gate was fully verified. The agent had run `bash -n` to verify the script syntax and checked off the milestone criterion without performing the actual UEFI/KVM rollback simulation. Since then, the evidence rule has been strictly automated and enforced across the repository, ensuring that every claim is backed by real execution receipts.
+This rule came from the **C1 Incident**, where an agent used `bash -n` and then
+marked a real rollback gate verified without running the UEFI/KVM rollback. The
+rule now blocks the unsupported claim, not unrelated research or development.
 
 ## Agent-Decision Log
 

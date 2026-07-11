@@ -17,20 +17,24 @@ contradictions between docs.
 See [docs/contributing/keeping-docs-synced.md](contributing/keeping-docs-synced.md)
 for the full guide on updating docs and using the docmap.
 
-## Required For Every Change
+## Required When the Documented Truth Changes
 
-Every non-trivial change must document:
+Update documentation when a change alters:
 
-- purpose and user/system impact;
-- changed files, APIs, configs, services, recipes, or release gates;
-- safety implications, especially for privileged actions;
-- validation commands and results;
-- follow-up work and known limitations.
+- a user command or public behavior;
+- a safety rule or privileged action;
+- an accepted decision or project direction;
+- a release gate or evidence format;
+- an interface another contributor must understand.
+
+Do not require unrelated README, roadmap, status, or handoff edits merely
+because code changed. That creates noise and teaches agents to make meaningless
+documentation changes to satisfy a gate.
 
 ## Required Docs By Change Type
 
-- `optid` or `optctl` behavior: update `docs/adaptive-engine.md`,
-  `docs/IMPLEMENTATION_STATUS.md`, and `docs/AI_CONTINUATION.md`.
+- `optid` or `optctl` behavior: update the document that describes the changed
+  behavior; update implementation status only when feature status changed.
 - systemd service/sandboxing: update `docs/adaptive-engine.md`,
   `SECURITY.md`, and validation checks when relevant.
 - kernel policy: update `docs/kernel-policy.md` and relevant ADRs.
@@ -42,17 +46,17 @@ Every non-trivial change must document:
 - version/release rules: update `VERSION`, `RELEASES.md`,
   `docs/versioning.md`, `docs/release-policy.md`, and
   `release/milestones.toml`.
-- architectural direction: update `docs/PROJECT_BRIEF.md`, `docs/architecture.md`,
-  and add or amend an ADR.
+- architectural direction: add or amend an ADR and update only the strategy or
+  architecture documents whose direction actually changed.
 
 ## Minimum Commit Standard
 
 Before committing:
 
 - update docs in the same commit as code/config changes;
-- run `powershell -ExecutionPolicy Bypass -File .\tools\validate-repo.ps1`;
+- run `bash tools/checks.sh`;
 - include validation status in the final handoff;
-- keep `docs/AI_CONTINUATION.md` current when the next task changes.
+- record follow-up only when real work remains.
 
 ## Forbidden
 
@@ -80,4 +84,3 @@ by GitHub or external tooling at the root.
 reports in `docs/inbox/`. Files there are not registered in
 `docs/docmap.toml` and are not validated by CI. Sort or promote them
 before merging to main.
-

@@ -1011,7 +1011,7 @@ device_resume_latency = 100000
         fs::write(
             admin.join("90-admin.toml"),
             format!(
-                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"tested in N4 unit test\"\n"
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"tested in N4 unit test\"\n"
             ),
         )
         .unwrap();
@@ -1094,7 +1094,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 test\"\n"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n5 test\"\n"),
         )
         .unwrap();
 
@@ -1198,7 +1198,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n5 carrier test\"\n"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n5 carrier test\"\n"),
         )
         .unwrap();
 
@@ -1309,7 +1309,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 test\"\n"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n6 test\"\n"),
         )
         .unwrap();
 
@@ -1390,7 +1390,7 @@ device_resume_latency = 100000
         fs::write(link.join("l1_aspm"), "0\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"cnvi\"\n"),
+            format!("[[entry]]\ndomain=\"pci_aspm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"cnvi\"\n"),
         )
         .unwrap();
 
@@ -1437,7 +1437,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"sata_alpm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n6 sata\"\n"),
+            format!("[[entry]]\ndomain=\"sata_alpm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n6 sata\"\n"),
         )
         .unwrap();
 
@@ -1544,7 +1544,7 @@ device_resume_latency = 100000
 
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"n7 test\"\n"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"n7 test\"\n"),
         )
         .unwrap();
 
@@ -1592,7 +1592,7 @@ device_resume_latency = 100000
         fs::write(bl.join("brightness"), "800\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
-            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nreason=\"floor\"\n"),
+            format!("[[entry]]\ndomain=\"backlight\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"floor\"\n"),
         )
         .unwrap();
 
@@ -2003,7 +2003,7 @@ action = "allow"
 max_state = 3
 reason = "test override"
 tested_on = "test-fixture"
-verified = false
+verified = true
 "#
         )
     }

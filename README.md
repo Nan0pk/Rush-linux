@@ -366,20 +366,16 @@ GitHub Actions workflows that run on PRs and on main:
 
 | workflow | name | path |
 |---|---|---|
-| `ci.yml` | CI | `.github/workflows/ci.yml` |
+| `ci.yml` | Change checks | `.github/workflows/ci.yml` |
 | `docker-publish.yml` | Docker Image CI | `.github/workflows/docker-publish.yml` |
-| `dragnet.yml` | Dragnet Evidence Tripwire | `.github/workflows/dragnet.yml` |
-| `frontpage-sync.yml` | frontpage-sync | `.github/workflows/frontpage-sync.yml` |
 | `graphify.yml` | Graphify knowledge graph | `.github/workflows/graphify.yml` |
 | `labeler.yml` | Pull Request Labeler | `.github/workflows/labeler.yml` |
-| `livedev-validate.yml` | LiveDev validate | `.github/workflows/livedev-validate.yml` |
+| `maintenance.yml` | Scheduled maintenance | `.github/workflows/maintenance.yml` |
 | `pages.yml` | Deploy to GitHub Pages | `.github/workflows/pages.yml` |
 | `reassess.yml` | Strategic Reassessment | `.github/workflows/reassess.yml` |
 | `release-drafter.yml` | Release Drafter | `.github/workflows/release-drafter.yml` |
 | `release-testos.yml` | Release testOS image | `.github/workflows/release-testos.yml` |
-| `rust-clippy.yml` | rust-clippy analyze | `.github/workflows/rust-clippy.yml` |
 | `stale.yml` | Close stale issues and PRs | `.github/workflows/stale.yml` |
-| `validate-install-ps1.yml` | Validate install.ps1 | `.github/workflows/validate-install-ps1.yml` |
 
 </details>
 

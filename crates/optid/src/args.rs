@@ -113,6 +113,14 @@ impl Args {
             }
         }
 
+        if !args.allowlist && !args.once {
+            return Err(
+                "disabling the hardware allowlist is limited to a single experimental run; \
+                 combine --no-allowlist with --once"
+                    .to_string(),
+            );
+        }
+
         Ok(args)
     }
 }
@@ -129,8 +137,8 @@ pub(crate) fn print_usage() {
          \n\
          Default mode is dry-run. Use --apply only on Rush Linux or a test host.\n\
          The WP-N4 hardware allowlist gate is ENABLED by default (v0.6 Phase A3).\n\
-         --no-allowlist disables it (emergency escape hatch for bring-up on\n\
-         hardware the seeded baseline does not yet cover).\n\
+         --no-allowlist is an experimental escape hatch accepted only with\n\
+         --once, so the gate cannot remain disabled indefinitely.\n\
          --foreground=auto enables foreground-app detection (v0.6 stub — real\n\
          compositor integration lands in v0.7). Default is off."
     );
@@ -157,13 +165,9 @@ mod tests {
     }
 
     #[test]
-    fn no_allowlist_flag_disables_the_gate() {
-        let args = Args::parse(["--no-allowlist".to_string()]).unwrap();
-        assert!(
-            !args.allowlist,
-            "--no-allowlist must disable the gate (was {})",
-            args.allowlist
-        );
+    fn no_allowlist_requires_single_run() {
+        let err = Args::parse(["--no-allowlist".to_string()]).unwrap_err();
+        assert!(err.contains("--once"));
     }
 
     #[test]
@@ -177,10 +181,9 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_disabled_form_disables_the_gate() {
-        // `--allowlist=disabled` is the explicit opt-out (same as --no-allowlist).
-        let args = Args::parse(["--allowlist=disabled".to_string()]).unwrap();
-        assert!(!args.allowlist);
+    fn allowlist_disabled_form_also_requires_single_run() {
+        let err = Args::parse(["--allowlist=disabled".to_string()]).unwrap_err();
+        assert!(err.contains("--once"));
     }
 
     #[test]

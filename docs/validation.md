@@ -1,57 +1,42 @@
 # Validation
 
-Validation is split into three layers:
+The pull-request mechanism is defined in `docs/project-workflow.md` and run by
+`tools/checks.sh`. There is one normal GitHub status: **Change checks**.
 
-- Repository policy checks: ensure future-facing defaults are present and
-  legacy defaults are not introduced.
-- Documentation checks: ensure the first-class docs and ADRs exist and contain
-  the required continuation/status/acceptance sections.
-- Rust unit tests: ensure `optid` parsing and policy decisions remain stable.
-- Hardware lab benchmarks: compare against Fedora, Ubuntu, Arch, and a minimal
-  tuned baseline.
+The runner selects checks from the files that changed:
 
-The first layer is implemented in `tools/validate-repo.ps1`, a cross-platform
-policy check that runs under PowerShell Core (`pwsh`) on Linux in CI as well as
-on Windows. Linux is the canonical development and build environment (see the
-README and `docs/project-sustainability.md`); the script is a convenience layer,
-not a Windows-only substitute for building and testing on Linux.
+- repository structure, accepted-decision ratification, versions, docs, and
+  no-auto-merge safety;
+- Rust format, tests, and Clippy for Rust changes;
+- Python/tooling tests and hardware-evidence fixtures for tooling changes;
+- shell and PowerShell parsing for changed scripts;
+- evidence integrity when evidence or release truth changes;
+- generated front-page consistency when its inputs change;
+- dependency policy when Cargo dependencies change.
 
-The validation script must fail when the core documentation layer is missing:
+Run locally with:
 
-- `docs/PROJECT_BRIEF.md`
-- `docs/AI_CONTINUATION.md`
-- `docs/IMPLEMENTATION_STATUS.md`
-- `ROADMAP.md`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `VERSION`
-- `RELEASES.md`
-- `docs/versioning.md`
-- `docs/release-policy.md`
-- `docs/release-checklist.md`
-- `docs/release-plan-v1.md`
-- `docs/documentation-policy.md`
-- architecture docs under `docs/`
-- ADRs under `docs/decisions/`
-- release gates under `release/`
+```sh
+bash tools/checks.sh
+```
 
-Docs are part of acceptance criteria, not cleanup. A change that alters code,
-policy, packaging, boot, kernel fragments, benchmark expectations, or defaults
-must update the relevant documentation in the same change.
+If an optional local tool is missing, the runner names the skipped area. It
+does not hide the cause or block unrelated work. Pull-request CI installs the
+required tools and runs that area authoritatively.
 
-The documentation policy requires each substantive change to describe purpose,
-impact, safety implications, validation, and follow-up work.
+## What a green check means
 
-Release governance is part of validation. Changes to version numbers, release
-channels, milestone exit criteria, or test tiers must update `VERSION`,
-`RELEASES.md`, `docs/versioning.md`, `docs/release-policy.md`, and
-`release/milestones.toml` together.
+A green pull-request check means the changed repository behavior passed the
+automated tests relevant to it. It does not prove a hardware claim, benchmark
+win, complete milestone, or release.
 
-Hardware lab scenarios:
+Hardware and release proof is kept in `release/evidence/` and follows the
+independent-verification rules in `docs/agent-protocol.md`.
 
-- Foreground latency under compile, I/O, package update, swap, and browser load.
-- Battery drain during idle, video playback, browser, video call, and suspend.
-- Gaming p95/p99 frame times and shader/background interference.
-- Realtime audio cyclictest/oslat and PipeWire underruns.
-- Server PostgreSQL, nginx, containers, fio, iperf3, and kernel builds.
-- Unsupported sensor and bad firmware knob regression tests.
+## Hardware validation
+
+Hardware validation covers foreground latency, battery use, suspend/resume,
+thermals, storage and device power state, gaming frame time, realtime audio,
+and server workloads. A missing hardware result blocks promotion of that exact
+claim or allowlist entry. It does not block dry-run work, read-only diagnosis,
+simulation, or an off-by-default prototype.

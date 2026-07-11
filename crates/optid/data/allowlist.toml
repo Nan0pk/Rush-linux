@@ -20,10 +20,10 @@
 #   tested_on  — the hardware/evidence this entry is attributable to.
 #   reason     — why this entry exists (surfaced by `optctl explain`).
 #   added_in   — optid version the entry was added in.
-#   verified   — true once validated on real hardware per §4; false entries are
-#                seeded from community reports and the kernel bug tracker and
-#                still need a §4 experiment to close. Default-deny means an
-#                unverified-but-present entry is still safer than default-allow.
+#   verified   — true once validated on real hardware per §4. False entries are
+#                candidates: Rush may identify and explain them, but automatic
+#                writes are denied with `entry_unverified`. An administrator can
+#                run an explicit one-time experiment and promote a result later.
 #
 # IMPORTANT: every entry MUST carry `tested_on` and `reason` (0006 §5 Non-Goals).
 # Exact-match keying means real hardware only matches when its full modalias

@@ -339,8 +339,10 @@ impl Allowlist {
     /// The core gate: may domain `D` be actuated on `hwid` at `requested_state`?
     ///
     /// Default-deny — an unknown `(domain, hwid)` is denied with
-    /// `hwid_not_in_allowlist`. An explicit `deny` entry wins. An `allow` entry
-    /// with `max_state = N` denies `requested_state > N` with `state_exceeds_max`
+    /// `hwid_not_in_allowlist`. An explicit `deny` entry wins. An unverified
+    /// `allow` entry is a candidate and is denied with `entry_unverified`. A
+    /// verified `allow` entry with `max_state = N` denies
+    /// `requested_state > N` with `state_exceeds_max`
     /// (the §1.3 two-gate interaction; the contract floor check is a separate,
     /// independent gate enforced by the caller).
     pub(crate) fn check(&self, domain: &str, hwid: &str, requested_state: u32) -> Verdict {
@@ -355,6 +357,10 @@ impl Allowlist {
                     } else {
                         format!("denied_by_allowlist: {}", entry.reason)
                     },
+                },
+                EntryAction::Allow if !entry.verified => Verdict::Deny {
+                    reason: "entry_unverified: candidate hardware may be observed but not actuated"
+                        .to_string(),
                 },
                 EntryAction::Allow => match entry.max_state {
                     Some(max) if requested_state > max => Verdict::Deny {
@@ -449,18 +455,30 @@ mod tests {
     }
 
     #[test]
-    fn allow_on_seeded_baseline() {
+    fn unverified_seeded_candidate_is_denied() {
         let al = Allowlist::seeded();
-        // Samsung PM9A1 is seeded allow with max_state=3.
+        // Samsung PM9A1 is a community candidate, not trusted hardware.
         let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
-        assert!(al.check("nvme_apst", hwid, 0).is_allow());
-        assert!(al.check("nvme_apst", hwid, 3).is_allow());
+        let verdict = al.check("nvme_apst", hwid, 0);
+        assert_eq!(
+            verdict.deny_reason().unwrap(),
+            "entry_unverified: candidate hardware may be observed but not actuated"
+        );
     }
 
     #[test]
     fn max_state_denies_with_reason() {
-        let al = Allowlist::seeded();
-        let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
+        let base =
+            std::env::temp_dir().join(format!("optid_al_max_{}", std::process::id()));
+        let _ = fs::create_dir_all(&base);
+        let hwid = "pci:v00001234p00005678sv00001234sd00005678bc01sc08i02";
+        fs::write(
+            base.join("verified.toml"),
+            format!("[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nmax_state=3\nverified=true\n"),
+        )
+        .unwrap();
+        let al = Allowlist::load_from(std::slice::from_ref(&base));
+        assert!(al.check("nvme_apst", hwid, 3).is_allow());
         let v = al.check("nvme_apst", hwid, 4);
         match v {
             Verdict::Deny { reason } => assert!(
@@ -469,6 +487,7 @@ mod tests {
             ),
             Verdict::Allow => panic!("state 4 should exceed max_state=3"),
         }
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
@@ -505,7 +524,7 @@ mod tests {
         fs::write(
             distro.join("80-community.toml"),
             format!(
-                "[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nmax_state=1\nreason=\"distro test\"\n"
+                "[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nmax_state=1\nverified=true\nreason=\"distro test\"\n"
             ),
         )
         .unwrap();
@@ -549,7 +568,7 @@ mod tests {
         .unwrap();
         fs::write(
             base.join("20-second.toml"),
-            format!("[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nreason=\"second\"\n"),
+            format!("[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nverified=true\nreason=\"second\"\n"),
         )
         .unwrap();
 
@@ -584,10 +603,14 @@ mod tests {
         let base = std::env::temp_dir().join(format!("optid_al_bad_{}", std::process::id()));
         let _ = fs::create_dir_all(&base);
         fs::write(base.join("00-broken.toml"), "this is not valid toml = = =").unwrap();
-        // Should not panic; seeded baseline still intact.
+        // Should not panic; seeded baseline still loads, but its candidate is
+        // intentionally not trusted for writes.
         let al = Allowlist::load_from(std::slice::from_ref(&base));
         let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
-        assert!(al.check("nvme_apst", hwid, 0).is_allow());
+        assert_eq!(
+            al.check("nvme_apst", hwid, 0).deny_reason().unwrap(),
+            "entry_unverified: candidate hardware may be observed but not actuated"
+        );
         let _ = fs::remove_dir_all(&base);
     }
 }

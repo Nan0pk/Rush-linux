@@ -33,6 +33,22 @@ settings require allowlists, for example:
 - Wi-Fi power save.
 - platform-specific thermal or fan behavior.
 
+An allowlist entry marked `verified = false` is a candidate, not permission to
+write. Rush may detect it, explain it, and collect observations, but automatic
+actuation remains denied. Promotion to `verified = true` requires matching
+hardware evidence and maintainer approval.
+
+Testing does not need to stop while a device is unverified. Safe paths are:
+
+- normal dry-run and explanation output;
+- read-only Rush Doctor or telemetry collection;
+- simulation and unit tests;
+- an isolated, owner-approved `--apply --once --no-allowlist` experiment on a
+  recoverable test machine.
+
+The last path disables the hardware gate for one run only. It must never be a
+normal service setting or be treated as proof that the hardware is safe.
+
 ## Degraded Operation
 
 Missing or broken firmware interfaces are expected. The correct behavior is to
@@ -46,4 +62,3 @@ Hardware support changes must include:
 - explainable skipped actions;
 - benchmark or test plan updates;
 - docs updates when a new hardware class or risky knob is introduced.
-

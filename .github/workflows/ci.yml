@@ -1,101 +1,82 @@
-name: CI
+name: Change checks
 
 on:
-  push:
-    branches: [main, 'wp/**', 'docs/**', 'fix/**']
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: change-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  rust:
-    name: Rust
+  checks:
+    name: Relevant tests and safety rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
+        with:
+          fetch-depth: 0
+
+      - name: Classify the change
+        id: change
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE="$PR_BASE"
+          elif [[ -n "$PUSH_BASE" && ! "$PUSH_BASE" =~ ^0+$ ]]; then
+            BASE="$PUSH_BASE"
+          else
+            BASE="HEAD^"
+          fi
+          git diff --name-only "$BASE"...HEAD > /tmp/rush-changed-files
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          if grep -Eq '^(Cargo\.(toml|lock)|crates/|rust-toolchain)' /tmp/rush-changed-files; then echo 'rust=true' >> "$GITHUB_OUTPUT"; else echo 'rust=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -Eq '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev-)' /tmp/rush-changed-files; then echo 'python=true' >> "$GITHUB_OUTPUT"; else echo 'python=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -Eq '\.ps1$' /tmp/rush-changed-files; then echo 'powershell=true' >> "$GITHUB_OUTPUT"; else echo 'powershell=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -Eq '^Cargo\.(toml|lock)$' /tmp/rush-changed-files; then echo 'deps=true' >> "$GITHUB_OUTPUT"; else echo 'deps=false' >> "$GITHUB_OUTPUT"; fi
+          echo 'Changed files:'
+          cat /tmp/rush-changed-files
+
+      - name: Install Rust system dependencies
+        if: steps.change.outputs.rust == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Rust
+        if: steps.change.outputs.rust == 'true'
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - name: Format check
-        run: cargo fmt --all -- --check
-      - name: Install nextest
-        uses: taiki-e/install-action@nextest
-      - name: Tests
-        run: cargo nextest run --workspace
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
 
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      issues: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: rustsec/audit-check@v2.0.0
+      - name: Cache Rust
+        if: steps.change.outputs.rust == 'true'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Python
+        if: steps.change.outputs.python == 'true'
+        uses: actions/setup-python@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          python-version: '3.12'
 
-  deny:
-    name: Cargo Deny
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: embarkstudios/cargo-deny-action@v2
+      - name: Install Python test dependency
+        if: steps.change.outputs.python == 'true'
+        run: python -m pip install pytest
+
+      - name: Run relevant checks
+        run: bash tools/checks.sh --ci --changed-base "${{ steps.change.outputs.base }}"
+
+      - name: Check dependency policy
+        if: steps.change.outputs.deps == 'true'
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-
-  policy:
-    name: Repository policy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate version consistency
-        run: python3 tools/validate-versions.py
-      - name: Validate future-facing defaults
-        shell: pwsh
-        run: ./tools/validate-repo.ps1
-
-  evidence:
-    name: Evidence integrity (Dragnet)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate evidence integrity
-        run: python3 tools/validate-evidence.py
-
-  doc-sync:
-    name: Documentation sync
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check documentation consistency
-        run: python3 tools/validate-doc-sync.py --max-age 90
-
-  links:
-    name: Markdown links
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check Markdown links
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: >-
-            --root-dir .
-            --no-progress
-            --accept 200,206,429
-            --max-concurrency 4
-            --max-retries 2
-            --retry-wait-time 2
-            --exclude '(^|/)localhost(:|/|$)'
-            --exclude '127\.0\.0\.1'
-            './**/*.md'

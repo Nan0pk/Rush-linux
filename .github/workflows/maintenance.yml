@@ -1,0 +1,37 @@
+name: Scheduled maintenance
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-policy:
+    name: New dependency advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
+
+  external-links:
+    name: External documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --root-dir .
+            --no-progress
+            --accept 200,206,429
+            --max-concurrency 4
+            --max-retries 2
+            --retry-wait-time 2
+            --exclude '(^|/)localhost(:|/|$)'
+            --exclude '127\.0\.0\.1'
+            './**/*.md'

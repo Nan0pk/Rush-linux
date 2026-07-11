@@ -11,7 +11,7 @@
 #   5. Clones or pulls the repo (so the commit is on top of latest main).
 #   6. Commits the results with a conventional commit message.
 #   7. Pushes to main via a PR (since main is branch-protected).
-#   8. Auto-merges the PR once CI passes (polls until green, then merges).
+#   8. Leaves the PR open for checks and maintainer review.
 #   9. Cleans up the temporary clone.
 #
 # The user just runs this one script. Everything else is automatic.
@@ -20,8 +20,8 @@
 #   - Windows 10/11 with PowerShell 5.1+
 #   - Administrator privileges (to mount partitions)
 #   - The GITHUB_TOKEN env var set (or pass -GitHubToken). The token is
-#     scoped to the Rush-linux repo and used for: git push, PR creation,
-#     PR merge. It is never written to disk.
+#     scoped to the Rush-linux repo and used for git push and PR creation.
+#     It is never written to disk. The script never merges or enables auto-merge.
 
 [CmdletBinding()]
 param(
@@ -31,7 +31,7 @@ param(
     # Repo to commit to. Defaults to the project repo.
     [string]$Repo = "Nan0pk/Rush-linux",
 
-    # GitHub token for git push + PR merge. If not passed, reads from
+    # GitHub token for git push + PR creation. If not passed, reads from
     # $env:GITHUB_TOKEN. Must have repo + contents:write scope.
     [string]$GitHubToken = $env:GITHUB_TOKEN,
 
@@ -72,7 +72,7 @@ What it does:
   2. Validates results (reads manifest.json for pass/fail counts)
   3. Clones/pulls the repo to a temp dir
   4. Commits the results with a conventional message
-  5. Pushes to a branch, opens a PR, waits for CI, auto-merges
+  5. Pushes to a branch and opens a PR for maintainer review
   6. Cleans up the temp clone
 
 No manual git commands needed. No manual mount commands. No manual PR.
@@ -97,7 +97,7 @@ if ($Diagnose) {
 
 # --- Token check --------------------------------------------------
 if (-not $GitHubToken) {
-    Write-Err "No GitHub token. Set `$env:GITHUB_TOKEN or pass -GitHubToken. The token needs repo scope for push + PR merge."
+    Write-Err "No GitHub token. Set `$env:GITHUB_TOKEN or pass -GitHubToken. The token needs contents and pull-request write access, not merge access."
 }
 
 # --- Admin check --------------------------------------------------
@@ -320,53 +320,6 @@ $PrResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/pulls" 
 $PrNumber = $PrResponse.number
 Write-OK "Opened PR #$PrNumber - $($PrResponse.html_url)"
 
-# --- Wait for CI checks, then merge -------------------------------
-Write-Info "Waiting for CI checks to pass (polling every 30s, up to 10 min)..."
-$RequiredChecks = @("Rust", "Documentation sync", "Repository policy", "Evidence integrity (Dragnet)")
-$MaxWait = 600  # 10 minutes
-$Waited = 0
-$Merged = $false
-
-while ($Waited -lt $MaxWait) {
-    Start-Sleep -Seconds 30
-    $Waited += 30
-
-    $Checks = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/commits/$BranchName/check-runs" -Headers @{ "Authorization" = "Bearer $GitHubToken" }
-    $Relevant = $Checks.check_runs | Where-Object { $_.name -in $RequiredChecks }
-
-    $AllDone = $true
-    $AllPass = $true
-    foreach ($c in $Relevant) {
-        if ($c.status -ne "completed") { $AllDone = $false; break }
-        if ($c.conclusion -ne "success") { $AllPass = $false }
-    }
-
-    if ($AllDone -and $AllPass) {
-        Write-OK "All CI checks passed. Merging PR #$PrNumber..."
-        $MergePayload = @{ merge_method = "merge" } | ConvertTo-Json
-        try {
-            $MergeResp = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/pulls/$PrNumber/merge" -Method Put -Headers @{ "Authorization" = "Bearer $GitHubToken"; "Accept" = "application/vnd.github+json" } -Body $MergePayload -ErrorAction Stop
-            if ($MergeResp.merged) {
-                Write-OK "PR #$PrNumber merged to main: $($MergeResp.sha)"
-                $Merged = $true
-                break
-            }
-        } catch {
-            Write-Warn "Merge attempt failed (will retry): $($_.Exception.Message)"
-        }
-    } elseif ($AllDone -and -not $AllPass) {
-        $Failed = $Relevant | Where-Object { $_.conclusion -ne "success" } | ForEach-Object { $_.name }
-        Write-Err "CI checks failed: $($Failed -join ', '). PR #$PrNumber left open for manual review: $($PrResponse.html_url)"
-    } else {
-        Write-Info "  Still waiting for CI... ($Waited s elapsed)"
-    }
-}
-
-if (-not $Merged -and $Waited -ge $MaxWait) {
-    Write-Warn "Timed out waiting for CI (10 min). PR #$PrNumber left open: $($PrResponse.html_url)"
-    Write-Warn "Merge it manually once CI passes."
-}
-
 # --- Cleanup ------------------------------------------------------
 Write-Info "Cleaning up temp clone..."
 Remove-Item $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -377,7 +330,7 @@ if ($MountedByUs) {
 }
 
 Write-Host ""
-Write-OK "Done. Results are on main."
+Write-OK "Done. The evidence PR is open for CI and maintainer review."
 if ($PrResponse) {
     Write-Host "PR: $($PrResponse.html_url)" -ForegroundColor Cyan
 }
