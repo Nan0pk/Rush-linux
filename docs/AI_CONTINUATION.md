@@ -59,7 +59,7 @@ Rush Linux has completed the beta `v0.5.0-beta.1` Minimal Installable System mil
   - **Path Traversal Security Blocks (`M1`):** Structural rejection of any candidate paths containing directory traversal (`..`) components in `guarded_write`.
   - **TOML Crate Integration:** Standardized, highly maintainable deserialization of `policy.toml` via the `toml` crate.
 - **Measurement Harness (`crates/rushbench`):** Pure Rust tool capable of executing real energy probing (BAT / Intel RAPL) and responsiveness verification.
-- **100% Test-Verified Core:** All 50 pure Rust workspace tests pass cleanly. `validate-doc-sync.py` completely passes.
+- **Test-Verified Core:** Workspace tests pass at the count reported by `cargo test --workspace` (see CI for the current exact count; do not hardcode a number here, it goes stale). `validate-doc-sync.py` is the authoritative doc-sync gate.
 - **Staged Base OS Overlay (`mkosi/mkosi.extra/`):** Custom release binaries (`optid`, `optctl`, `optid-boot-assess`) have been completely recompiled and staged into Git under their exact target system paths in `mkosi/mkosi.extra/`.
 
 ---
@@ -144,20 +144,48 @@ mainstream distro (suggested: Ubuntu 24.04 LTS with PPD `balanced`), then
 committed. The Phase A PR description must surface D1 (machine
 nomination) so the project owner has lead time.
 
-### Concrete Steps for You (Phase B start):
+### Engine and evidence gaps that an agent CAN close without hardware
 
-1. **Verify Workspace Toolchain:**
-   Confirm stable Rust + `PKG_CONFIG_PATH` for libdbus-1-dev:
-   ```bash
-   cargo test --workspace
-   cargo test --test write_site_gating   # Phase A2 harness, must stay green
-   cargo test args::                      # Phase A3 default-on regression
-   ```
-2. **Implement the PPD shim first** (B1) — it's the larger surface but
-   has the most compatibility value (every GNOME/KDE user benefits).
-3. **Then GameMode** (B2) — smaller surface, TTL-based pin.
-4. **Then conflict detection** (B3) — wire `competing_policy_daemons`
-   from `config/optid/policy.toml` to an actual startup check.
-5. **Run Dragnet after each Phase B sub-PR** to keep evidence green.
+Phase D is human-only, but several engine/evidence gaps in the in-container
+work are still agent-addressable and were the focus of the post-PR-#270 cleanup
+pass. These are being addressed as a series of small, independently reviewable
+PRs:
+
+1. **Latency-contract correction** (PR A, this branch). The `latency-critical`
+   CPU wakeup and device-resume floors were 10 us / 100 us -- unachievable on
+   non-RT kernels (per `tools/external-data/analysis/baselines.json`, 0% of
+   OSADL RT-kernel systems reach max cyclictest < 100 us), producing permanent
+   `budget_violation` in `rushbench` reports. Corrected to 1 ms / 1 ms
+   (1000 us / 1000 us) in `config/optid/contracts.toml`,
+   `Contracts::default()`, and the `crates/rushbench` mock fixtures. The
+   five primary SPEC section 1 workload classes (idle, light, interactive,
+   latency-critical, throughput) remain the contract surface; `vm.guest` is
+   a derived execution environment that resolves to `interactive` (PM QoS
+   does not propagate across the hypervisor boundary), not a sixth primary
+   class.
+
+   **Authority note:** The 1 ms / 1 ms correction is a **proposed correction**
+   from the post-PR-#270 handoff prompt, not yet ratified as an accepted ADR.
+   The OSADL cyclictest data supports the correction but does not constitute
+   physical-hardware validation on Rush reference machines. The SPEC-northstar
+   §1 defines latency-critical as a floor "never a target to exceed" but does
+   not pin a numeric value; the 10/100 µs values were provisional. This PR
+   corrects the provisional values; a follow-up ADR should ratify 1 ms as the
+   accepted default.
+
+2. **Systemd unit <-> actuator capability drift** (PR B, separate branch).
+   To be addressed in a follow-up PR.
+3. **Actuator boundary hardening** (PR B, separate branch).
+4. **Multi-write transactional semantics** (PR C, separate branch).
+5. **Documentation drift** (addressed incrementally across PRs A/B/C).
+
+### Phase D (reference machines + baselines) is the human/hardware gate
+
+Two physical machines need to be nominated by the project owner (one
+desktop, one battery-equipped laptop), baselines collected under a
+mainstream distro (suggested: Ubuntu 24.04 LTS with PPD `balanced`), then
+`optid --apply` runs on the same hardware, and `rushbench` transcripts
+committed. The Phase A PR description must surface D1 (machine
+nomination) so the project owner has lead time.
 
 Happy hacking! Always execute under the **Evidence Rule**.

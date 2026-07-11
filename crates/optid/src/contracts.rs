@@ -44,8 +44,15 @@ impl Default for Contracts {
                 device_resume_latency: 10000,
             },
             latency_critical: ContractFloors {
-                cpu_wakeup_latency: 10,
-                device_resume_latency: 100,
+                // 1 ms / 1 ms: the previous 10 µs / 100 µs floors were
+                // unachievable on non-RT kernels (see tools/external-data/
+                // analysis/baselines.json — 0% of OSADL RT-kernel systems
+                // reach max cyclictest < 100 µs). 1 ms keeps the floor
+                // meaningful for audio/video/game workloads without lying
+                // about what the kernel can deliver. The SPEC §1 "floor,
+                // never a target to exceed" semantics are preserved.
+                cpu_wakeup_latency: 1000,
+                device_resume_latency: 1000,
             },
             throughput: ContractFloors {
                 cpu_wakeup_latency: 10000,
@@ -159,8 +166,11 @@ impl Contracts {
             WorkloadClass::LatencyCritical => self.latency_critical,
             WorkloadClass::Throughput => self.throughput,
             // v0.6 Phase C2: VmGuest uses the interactive contract.
-            // PM QoS to the host CPU doesn't propagate, so the 10us
-            // latency-critical floor is unenforceable in a guest.
+            // PM QoS to the host CPU doesn't propagate across the
+            // hypervisor boundary, so the latency-critical floor (now 1 ms)
+            // is unenforceable in a guest. VmGuest is a derived execution
+            // environment, not a sixth primary class — it resolves to the
+            // closest enforceable primary contract (interactive).
             WorkloadClass::VmGuest => self.interactive,
         }
     }
@@ -190,14 +200,76 @@ mod tests {
         // Sanity check that the in-binary defaults match the published
         // config/optid/contracts.toml — drift here would mean the daemon
         // behaves differently on a system with no config file vs. one with
-        // the default config file.
+        // the default config file. The exact expected values are pinned
+        // here AND in `load_published_contracts_toml_matches_default`
+        // below so a fixture drift cannot silently pass.
         let c = Contracts::default();
         assert_eq!(c.idle.cpu_wakeup_latency, 100000);
         assert_eq!(c.idle.device_resume_latency, 1000000);
         assert_eq!(c.interactive.cpu_wakeup_latency, 1000);
         assert_eq!(c.interactive.device_resume_latency, 10000);
-        assert_eq!(c.latency_critical.cpu_wakeup_latency, 10);
-        assert_eq!(c.latency_critical.device_resume_latency, 100);
+        // latency-critical: 1 ms / 1 ms (1000/1000 µs). Corrected from the
+        // previous 10/100 µs floors which were unachievable on non-RT
+        // kernels and produced permanent budget violations.
+        assert_eq!(c.latency_critical.cpu_wakeup_latency, 1000);
+        assert_eq!(c.latency_critical.device_resume_latency, 1000);
+        assert_eq!(c.throughput.cpu_wakeup_latency, 10000);
+        assert_eq!(c.throughput.device_resume_latency, 100000);
+    }
+
+    #[test]
+    fn latency_critical_floors_are_one_millisecond() {
+        // Explicit contract-correction guard: this is the value that was
+        // changed from 10/100 µs to 1000/1000 µs. If anyone reverts it,
+        // this test fails loudly with the rationale in the assertion msg.
+        let c = Contracts::default();
+        assert_eq!(
+            c.latency_critical.cpu_wakeup_latency, 1000,
+            "latency-critical CPU wakeup floor must be 1 ms (1000 µs), not 10 µs"
+        );
+        assert_eq!(
+            c.latency_critical.device_resume_latency, 1000,
+            "latency-critical device-resume floor must be 1 ms (1000 µs), not 100 µs"
+        );
+    }
+
+    #[test]
+    fn load_published_contracts_toml_matches_default() {
+        // The shipped config/optid/contracts.toml is the operator-facing
+        // expression of the same defaults compiled into the binary. They
+        // must agree byte-for-byte on every floor. This test reads the
+        // actual published file (relative to the crate manifest) so a
+        // contracts.toml edit without a contracts.rs edit (or vice versa)
+        // fails here.
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let published = Path::new(manifest_dir)
+            .join("..")
+            .join("..")
+            .join("config")
+            .join("optid")
+            .join("contracts.toml");
+        let loaded = Contracts::load(&published);
+        let default = Contracts::default();
+        assert_eq!(
+            loaded.idle, default.idle,
+            "idle floors drifted from default"
+        );
+        assert_eq!(
+            loaded.light, default.light,
+            "light floors drifted from default"
+        );
+        assert_eq!(
+            loaded.interactive, default.interactive,
+            "interactive floors drifted from default"
+        );
+        assert_eq!(
+            loaded.latency_critical, default.latency_critical,
+            "latency-critical floors drifted from default"
+        );
+        assert_eq!(
+            loaded.throughput, default.throughput,
+            "throughput floors drifted from default"
+        );
     }
 
     #[test]

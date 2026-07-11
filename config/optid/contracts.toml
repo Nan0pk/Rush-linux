@@ -16,8 +16,8 @@ cpu_wakeup_latency = 1000          # 1ms
 device_resume_latency = 10000      # 10ms
 
 [contracts.latency-critical]
-cpu_wakeup_latency = 10            # 10us
-device_resume_latency = 100        # 100us
+cpu_wakeup_latency = 1000          # 1ms (in microseconds)
+device_resume_latency = 1000       # 1ms (in microseconds)
 
 [contracts.throughput]
 cpu_wakeup_latency = 10000         # 10ms

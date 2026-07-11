@@ -1,4 +1,5 @@
 {
+  "_note": "Generated against the pre-correction latency-critical contract (10 us / 100 us). The contract has since been corrected to 1 ms / 1 ms (1000 us / 1000 us); the OSADL cyclictest data remains factually accurate, but the contract-relative commentary in osadl_cyclictest.insight is obsolete. Re-running tools/external-data/analyze_baselines.py produces updated commentary.",
   "spec_power": {
     "ssj_ops_per_watt": {
       "label": "ssj_ops/watt (overall)",

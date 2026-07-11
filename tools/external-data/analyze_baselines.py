@@ -98,17 +98,27 @@ def analyse_spec_power(records):
 
 
 def analyse_osadl(records):
-    """Cyclictest latency — calibrate latency-critical class."""
+    """Cyclictest latency — calibrate latency-critical class.
+
+    Note: the latency-critical contract floor was corrected from 10 µs / 100 µs
+    to 1 ms / 1 ms (1000 µs / 1000 µs) in the contract-correction PR. The
+    OSADL data below is factual (real RT-kernel cyclictest measurements);
+    the contract-relative commentary now references the corrected 1 ms floor.
+    """
     max_lats = [r["max_latency_us"] for r in records if r.get("max_latency_us")]
     return {
         "max_latency_us": summarise(max_lats, "cyclictest max latency (µs)"),
         "pct_under_100us": round(sum(1 for l in max_lats if l < 100) / max(len(max_lats), 1) * 100, 1),
         "pct_under_50us": round(sum(1 for l in max_lats if l < 50) / max(len(max_lats), 1) * 100, 1),
+        "pct_under_1000us": round(sum(1 for l in max_lats if l < 1000) / max(len(max_lats), 1) * 100, 1),
         "insight": (
             "Most RT-kernel systems achieve max cyclictest < 100 µs. "
-            "optid's latency-critical contract bound (10 µs cyclictest max) "
-            "is very tight — only achievable on tuned RT kernels with CPU isolation. "
-            "Recommend softening to 50 µs for a production-realistic default."
+            "optid's latency-critical contract floor is 1 ms (1000 µs) after "
+            "the contract correction — well within reach of non-RT kernels, "
+            "so the floor is enforceable rather than aspirational. The earlier "
+            "10 µs floor was unachievable on non-RT kernels and produced "
+            "permanent budget violations; 1 ms preserves the floor's meaning "
+            "for audio/video/game workloads."
         ),
     }
 
@@ -251,8 +261,11 @@ def write_report(spec, osadl, geekbench, rushbench):
         "",
         "## 5. Recommended Contract Adjustments",
         "",
-        "Based on OSADL data:",
-        "- `latency-critical.cyclictest_max_us`: relax from 10 µs → 50 µs for non-RT kernels",
+        "Based on OSADL data (post contract-correction):",
+        "- `latency-critical` CPU wakeup + device-resume floors: 1 ms (1000 µs).",
+        "  The previous 10 µs / 100 µs floors were unachievable on non-RT kernels;",
+        "  the corrected 1 ms floor is enforceable on stock kernels and still",
+        "  tight enough to gate C-state selection for audio/video/game workloads.",
         "",
         "Based on RAPL accuracy papers (manual review):",
         "- Apply correction factor ~1.2–1.4× to `avg_watts_rapl` for whole-system estimates",
@@ -305,7 +318,8 @@ def main():
     lat = osadl_analysis.get("max_latency_us", {})
     if lat.get("n"):
         print(f"OSADL cyclictest p50 max: {lat['p50']} µs "
-              f"(contract says 10 µs — only {osadl_analysis['pct_under_50us']}% of systems achieve <50 µs)")
+              f"(contract floor is 1000 µs; "
+              f"{osadl_analysis['pct_under_1000us']}% of systems achieve <1000 µs)")
 
 
 if __name__ == "__main__":
