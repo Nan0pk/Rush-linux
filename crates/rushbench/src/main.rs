@@ -520,11 +520,15 @@ mod tests {
     #[test]
     fn test_t8_latency_critical_honesty_path() {
         let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        // High reading forced
-        env::set_var("RUSHBENCH_MOCK_METRIC_cyclictest_max_us", "50");
+        // High reading forced: 1500 µs exceeds the corrected 1 ms (1000 µs)
+        // latency-critical CPU wakeup floor, so the report must surface a
+        // budget_violation. The previous 10 µs floor made any non-RT kernel
+        // permanently violate the contract; the 1 ms correction restores the
+        // honesty path's intent (a real outlier above the floor).
+        env::set_var("RUSHBENCH_MOCK_METRIC_cyclictest_max_us", "1500");
         env::set_var(
             "RUSHBENCH_OPTCTL_STATUS_JSON",
-            r#"{"workload_class": "latency-critical", "cpu_wakeup_latency": 10, "device_resume_latency": 100}"#,
+            r#"{"workload_class": "latency-critical", "cpu_wakeup_latency": 1000, "device_resume_latency": 1000}"#,
         );
         env::set_var("RUSHBENCH_OPTCTL_APPLY_OVERRIDE", "true");
         env::set_var("RUSHBENCH_MOCK_ENERGY_SOURCE", "battery");
@@ -555,7 +559,7 @@ mod tests {
 
         // Verify that target_file itself contains the high reading
         let content = fs::read_to_string(&target_file).unwrap();
-        assert!(content.contains(r#""median": 50.0"#));
+        assert!(content.contains(r#""median": 1500.0"#));
 
         let report_res = run_report(temp_dir.to_str().unwrap());
         assert!(report_res.is_ok(), "run_report failed: {:?}", report_res);

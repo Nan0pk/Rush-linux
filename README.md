@@ -200,7 +200,7 @@ sudo bash install.sh /dev/diskN
 | `idle` | powersave | power | low-power | 100 ms | Screen off, no foreground app |
 | `light` | powersave | balance_performance | balanced | 50 ms | Reading, browsing, light editor |
 | `interactive` | performance | performance | balanced | 1 ms | Typing, scrolling, UI interaction |
-| `latency-critical` | performance | performance | performance | 10 µs | Video call, game, audio session |
+| `latency-critical` | performance | performance | performance | 1 ms | Video call, game, audio session |
 | `throughput` | performance | performance | performance | 10 ms | Compile, render, batch job |
 
 PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a C-state deeper than that floor allows. EPP is the hint the CPU scheduler uses to trade frequency vs. efficiency. Platform profile is the ACPI-level hint that drives fan curves, dGPU power, USB autosuspend, etc.

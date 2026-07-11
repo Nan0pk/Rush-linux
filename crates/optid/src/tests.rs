@@ -782,8 +782,8 @@ cpu_wakeup_latency = 1000
 device_resume_latency = 10000
 
 [contracts.latency-critical]
-cpu_wakeup_latency = 10
-device_resume_latency = 100
+cpu_wakeup_latency = 1000
+device_resume_latency = 1000
 
 [contracts.throughput]
 cpu_wakeup_latency = 10000
@@ -831,13 +831,13 @@ device_resume_latency = 100000
             contracts
                 .resolve(WorkloadClass::LatencyCritical)
                 .cpu_wakeup_latency,
-            10
+            1000
         );
         assert_eq!(
             contracts
                 .resolve(WorkloadClass::LatencyCritical)
                 .device_resume_latency,
-            100
+            1000
         );
 
         assert_eq!(
