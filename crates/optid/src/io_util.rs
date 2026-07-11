@@ -253,8 +253,7 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
                     if let Some(orig_delay) = lines.next() {
                         let orig_delay = orig_delay.trim();
                         if orig_delay != "n/a" {
-                            let delay_path =
-                                dev_dir.join("power").join("autosuspend_delay_ms");
+                            let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
                             match guarded_write(&delay_path, orig_delay) {
                                 Ok(()) => restored = true,
                                 Err(e) => eprintln!(
@@ -552,8 +551,7 @@ mod tests {
 
     #[test]
     fn failed_revert_keeps_journal_for_retry() {
-        let state =
-            std::env::temp_dir().join(format!("optid_revert_{}", std::process::id()));
+        let state = std::env::temp_dir().join(format!("optid_revert_{}", std::process::id()));
         fs::create_dir_all(&state).unwrap();
         let key = "dev_failed";
         let original = state.join(format!("original_{key}"));

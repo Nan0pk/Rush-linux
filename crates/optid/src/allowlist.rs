@@ -468,8 +468,7 @@ mod tests {
 
     #[test]
     fn max_state_denies_with_reason() {
-        let base =
-            std::env::temp_dir().join(format!("optid_al_max_{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("optid_al_max_{}", std::process::id()));
         let _ = fs::create_dir_all(&base);
         let hwid = "pci:v00001234p00005678sv00001234sd00005678bc01sc08i02";
         fs::write(

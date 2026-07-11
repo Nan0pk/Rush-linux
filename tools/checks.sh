@@ -91,8 +91,9 @@ if matches '\.ps1$'; then
     if need pwsh "PowerShell parser"; then
         while IFS= read -r file; do
             [[ -f "$file" ]] || continue
-            attempt run "R5 — a changed Windows entry point cannot parse" pwsh -NoProfile -Command \
-                '$errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$errors); if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }' "$file"
+            attempt run "R5 — a changed Windows entry point cannot parse" \
+                env RUSH_PS_FILE="$file" pwsh -NoProfile -Command \
+                '$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:RUSH_PS_FILE,[ref]$tokens,[ref]$errors); if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
         done < <(printf '%s\n' "$CHANGED" | grep -E '\.ps1$' || true)
     elif $STRICT; then
         FAILURES=$((FAILURES + 1))
