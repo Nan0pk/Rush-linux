@@ -7,7 +7,7 @@ solely on [HYPOTHESIS] findings without running the acceptance experiments in §
 **Status:** WIP
 **Author:** Claude (research synthesis)
 **Date:** 2026-06-19
-**Depends:** docs/SPEC-northstar.md, docs/decisions/0015-sched-ext-default.md (ADR-0015)
+**Depends:** docs/SPEC-northstar.md, docs/decisions/0015-sched-ext-default-on.md (ADR-0015)
 **Code:** crates/optid/src/actuators/sched.rs, crates/optid/src/sensors/workload.rs
 
 * * *

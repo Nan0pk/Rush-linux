@@ -1,5 +1,11 @@
 # Rush Linux — Session Handoff Prompt
 
+> **SUPERSEDED** — this handoff describes the state as of 2026-06-20. The current
+> version is `0.7.0-beta.1` (see `VERSION` / `release/milestones.toml`). Use
+> `HANDOFF-2026-06-26.md` for the v0.5 → v0.6 transition, and `docs/AI_CONTINUATION.md`
+> + the latest `release/evidence/dragnet/DRAGNET-*.md` report for the current state.
+> This file is kept for historical context only.
+>
 > **START HERE — Dragnet:** run `python3 tools/dragnet.py --observe` and read the
 > newest `release/evidence/dragnet/` report first. The Dragnet-001 audit reset
 > v0.3/v0.4/v0.5 to `evidence-pending` (verified flags lacked committed

@@ -570,16 +570,17 @@ made.
 - `docs/plans/livedev-progress.json` `current_phase = "e2e-dry-run"` and
   `next_phase = "graduation"` (or `"complete"`, at the maintainer's
   discretion).
-- `docs/decisions/0025-livedev-graduated.md` (new ADR, `proposed`):
+- `docs/decisions/0026-livedev-graduated.md` (new ADR, `proposed`):
   declares LiveDev graduated from the transition plan, lists the
   remaining steps (if any) to deprecate testOS, and records the
-  maintainer's signoff.
+  maintainer's signoff. (Number 0026 because 0025 is taken by
+  `0025-risk-based-project-workflow.md`.)
 
 **Deliverables:**
 
 - The dry-run PR (merged).
 - `release/evidence/livedev-dry-run/` (transcripts + meta).
-- `docs/decisions/0025-livedev-graduated.md` (new ADR, `proposed`).
+- `docs/decisions/0026-livedev-graduated.md` (new ADR, `proposed`).
 - Final update to `docs/plans/livedev-progress.json`.
 - Update to `docs/IMPLEMENTATION_STATUS.md` (note LiveDev graduation).
 - Update to `README.md` (optional, at maintainer discretion: add a

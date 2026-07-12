@@ -37,7 +37,7 @@ engineering milestones.
   - reads thermal state from `/sys/class/thermal`;
   - reads load average from `/proc/loadavg`;
   - decides battery, balanced, performance, or realtime mode;
-  - workload classifier pure function mapping PSI/load/AC/pin to the five classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`) with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
+  - workload classifier pure function mapping PSI/load/AC/pin to the six classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`, and the derived `vm.guest` added in v0.6 Phase C2) with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
   - writes explainable status and decision logs;
   - applies guarded EPP, platform profile, and systemd cgroup actions only with
     `--apply`.

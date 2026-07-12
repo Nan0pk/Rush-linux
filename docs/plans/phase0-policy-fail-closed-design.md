@@ -105,10 +105,10 @@ if boot.apply_armed {
 
 The new behavior is a breaking change for any deployment that relies on `--apply` continuing through a corrupt policy file. That set is probably empty in practice (operators do not usually intend to ship a corrupt policy to production), but the breaking-change semantics still need a migration path so existing CI and packaging tests do not break unexpectedly.
 
-- **v0.7.0-beta.2**: ship the `BootState` surface and the new status fields, but keep the existing fail-open behavior. This is purely observational — operators can see the load state, but actuation is unchanged.
-- **v0.7.0-beta.3**: ship the fail-closed behavior behind a feature flag (`--strict-load` or env var). Operators who opt in get the new behavior; the default remains fail-open for one release.
-- **v0.7.0-rc.1**: flip the default to fail-closed. Document the change in the release notes as a behavior change, with the migration command (`--allowlist-ignore-bad-overrides`) for operators who need the old behavior in a pinch.
-- **v0.7.0**: remove the feature flag. Fail-closed is now the only behavior.
+- **v0.7.0-beta.1** (current): ship the `BootState` surface and the new status fields, but keep the existing fail-open behavior. This is purely observational — operators can see the load state, but actuation is unchanged.
+- **v0.8.0-beta.1**: ship the fail-closed behavior behind a feature flag (`--strict-load` or env var). Operators who opt in get the new behavior; the default remains fail-open for one release.
+- **v0.9.0-rc.1**: flip the default to fail-closed. Document the change in the release notes as a behavior change, with the migration command (`--allowlist-ignore-bad-overrides`) for operators who need the old behavior in a pinch.
+- **v1.0.0**: remove the feature flag. Fail-closed is now the only behavior.
 
 ## 5. Open product decisions (need maintainer input)
 

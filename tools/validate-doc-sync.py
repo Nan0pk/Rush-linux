@@ -282,6 +282,71 @@ def check_last_verified(entries, max_age_days):
         ok(f"All docs verified within {threshold_days} days")
 
 
+def check_adr_citations_resolve(entries) -> None:
+    """Any `docs/decisions/NNNN-*.md` citation in any tracked doc or plan
+    must resolve to a file on disk. Catches the ADR 0019-0022 gap class
+    (plan doc references an ADR that was never written).
+    """
+    print("\n── Check: ADR citations resolve ──")
+    import re as _re
+    # Build the set of ADR files that actually exist.
+    decisions_dir = ROOT / "docs" / "decisions"
+    existing_adrs: set[str] = set()
+    if decisions_dir.exists():
+        for p in decisions_dir.glob("*.md"):
+            if p.name == "README.md":
+                continue
+            existing_adrs.add(p.name)
+
+    # Regex: matches `docs/decisions/NNNN-slug.md` in free text / lists / code.
+    citation_re = _re.compile(r"docs/decisions/(\d{4}-[A-Za-z0-9_\-]+\.md)")
+
+    # Scan every markdown / toml / json file under docs/ + release/. Skip the
+    # decisions/ directory itself (an ADR citing another ADR is fine and is
+    # resolved by check_deps_exist).
+    scan_dirs = [ROOT / "docs", ROOT / "release"]
+    scan_files: list[Path] = []
+    for d in scan_dirs:
+        if d.exists():
+            scan_files.extend(p for p in d.rglob("*") if p.is_file() and p.suffix in (".md", ".toml", ".json"))
+    # Also scan root-level plan / handoff docs.
+    for p in [ROOT / "HANDOFF.md", ROOT / "HANDOFF-2026-06-26.md"]:
+        if p.exists():
+            scan_files.append(p)
+
+    bad = 0
+    # Phrases that indicate a *forward* reference (ADR not yet written, on
+    # purpose). Skip citations on lines containing these phrases.
+    forward_phrases = (
+        "new adr", "to be written", "optional: write", "optional: docs/decisions",
+        "planned adr", "future adr", "(proposed)", "`proposed`",
+    )
+    for f in sorted(scan_files):
+        if "docs/decisions" in str(f):
+            continue  # don't recurse into the decisions dir
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for m in citation_re.finditer(text):
+            cited = m.group(1)
+            if cited in existing_adrs:
+                continue
+            # Is this a forward reference? Look at the line containing the match.
+            line_start = text.rfind("\n", 0, m.start()) + 1
+            line_end = text.find("\n", m.end())
+            if line_end < 0:
+                line_end = len(text)
+            line = text[line_start:line_end].lower()
+            if any(p in line for p in forward_phrases):
+                continue
+            rel = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+            err(f"{rel}: cites docs/decisions/{cited} which does not exist")
+            bad += 1
+    if bad == 0:
+        ok("All ADR citations in docs/ resolve")
+
+
 # ── Main ─────────────────────────────────────────────────────
 
 def main():
@@ -310,6 +375,7 @@ def main():
     check_markdown_links(entries)
     check_optid_doc_sync(entries)
     check_last_verified(entries, args.max_age)
+    check_adr_citations_resolve(entries)
 
     print("\n" + "=" * 60)
     if errors:
