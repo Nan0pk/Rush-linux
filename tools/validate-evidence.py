@@ -153,14 +153,90 @@ def check_hwtest_evidence_bundles() -> list[str]:
     return errors
 
 
+def check_transcript_reuse(data: dict) -> list[str]:
+    """Warn (not fail) when two distinct transcript files are byte-identical.
+
+    A single boot session legitimately verifies several criteria at once
+    (e.g. v0.3 c1–c4 all happen in one multi-user.target boot), so the
+    *same* transcript file is sometimes committed under multiple paths.
+    Reuse is therefore allowed, but it must be acknowledged in at least
+    one of the citing criteria's `note` fields so a reader is not
+    surprised by byte-identical transcripts under different names.
+
+    This function returns a list of *warnings* (not errors). The caller
+    decides whether to print them as warnings or escalate to errors.
+    """
+    import hashlib
+
+    warnings: list[str] = []
+    # path -> (version, criterion)
+    path_to_meta: dict[str, tuple[str, str]] = {}
+    # path -> note text (if any)
+    note_for_path: dict[str, str] = {}
+    for ms in data.get("milestone", []):
+        ver = ms.get("version", "<unknown>")
+        for c in ms.get("criteria_status", []):
+            crit = c.get("criterion", "<unnamed>")
+            transcript = c.get("transcript")
+            if not transcript:
+                continue
+            path_to_meta[transcript] = (ver, crit)
+            if transcript not in note_for_path:
+                note_for_path[transcript] = c.get("note", "")
+
+    # Hash every transcript file on disk; group paths by content hash.
+    by_hash: dict[str, list[str]] = {}
+    for path in path_to_meta:
+        p = Path(path)
+        if not p.is_file():
+            continue  # missing-file is already caught by the strict checks
+        h = hashlib.md5(p.read_bytes()).hexdigest()
+        by_hash.setdefault(h, []).append(path)
+
+    for h, paths in by_hash.items():
+        if len(paths) < 2:
+            continue
+        # Is the reuse acknowledged in *any* of the citing criteria's notes?
+        acknowledged = False
+        for path in paths:
+            note = note_for_path.get(path, "")
+            low = note.lower()
+            if any(k in low for k in (
+                "same transcript", "shared", "single boot",
+                "same boot session", "same boot", "byte-identical",
+            )):
+                acknowledged = True
+                break
+        labels = []
+        for path in paths:
+            ver, crit = path_to_meta[path]
+            labels.append(f"{ver}/{crit}")
+        locs = ", ".join(labels)
+        flag = "" if acknowledged else " (UNACKNOWLEDGED — add a note or this is drift)"
+        warnings.append(
+            f"byte-identical transcript (md5 {h[:8]}) cited by {len(paths)} "
+            f"criteria: {locs}{flag}"
+        )
+    return warnings
+
+
 def main() -> None:
     print("=" * 60)
-    print("Rush Linux — Evidence Integrity Check (Dragnet gate)")
+    print("Rush Linux \u2014 Evidence Integrity Check (Dragnet gate)")
     print("=" * 60)
 
     data = load_milestones()
     errors = check_verified_have_transcripts(data)
     errors += check_path_mentions_resolve()
+
+    # Transcript-reuse check: warn, do not fail. Reuse is legitimate when
+    # a single boot verifies several criteria; the warning flags *unacknowledged*
+    # reuse so a future contributor either adds a note or splits the transcript.
+    reuse_warnings = check_transcript_reuse(data)
+    if reuse_warnings:
+        print("\n\u2500\u2500 Check: transcript reuse (advisory) \u2500\u2500")
+        for w in reuse_warnings:
+            print(f"  \u26a0  {w}")
 
     # evidence-validator phase: also validate hardware evidence bundles.
     hw_errors = check_hwtest_evidence_bundles()

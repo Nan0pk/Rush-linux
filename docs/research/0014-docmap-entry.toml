@@ -13,12 +13,12 @@ covers_code = [
 deps = [
     "docs/SPEC-northstar.md",
     "docs/agent-protocol.md",
-    "docs/decisions/0015-sched-ext-default.md",
+    "docs/decisions/0015-sched-ext-default-on.md",
     "docs/research/0018-telemetry-runtime-state-observability.md",
 ]
 freshens = [
     "docs/research/0002-rush-linux-architecture-review.md",
-    "docs/decisions/0015-sched-ext-default.md",
+    "docs/decisions/0015-sched-ext-default-on.md",
 ]
 last_verified = "2026-06-19"
 validator = "status_match:WIP"

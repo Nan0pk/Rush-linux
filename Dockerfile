@@ -12,7 +12,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/rush-linux
 COPY . .
 
-# Build only core binaries to avoid issues with GPL-licensed telemetry in slim images if not needed
+# Build the core binaries that the slim runtime image needs. rushbench and
+# the testos-* binaries are excluded because they pull in benchmark-only
+# dependencies and are not part of the daemon/CLI runtime surface.
+# Note: crates/rush_telemetry is excluded from the workspace in Cargo.toml
+# (it does not yet compile cleanly), so it is not built here either.
+# See Cargo.toml `exclude` for the rationale.
 RUN cargo build --release --bin optid --bin optctl --bin rush-collect
 
 FROM debian:bookworm-slim

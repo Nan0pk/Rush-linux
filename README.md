@@ -117,7 +117,7 @@ Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK
 
 testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB for real-hardware testing. It is preserved as a manual fallback path for users who want to drive each step themselves. For QEMU-driven dev/CI testing, use `python3 tools/livedev-next --run-vm` with the LiveDev mkosi image instead.
 
-> **Latest release: [v0.7.0-beta.2](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.2)**
+> **Latest release: [v0.7.0-beta.1](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.1)**
 
 <details>
 <summary><strong>Linux</strong> — write the USB manually</summary>
@@ -161,7 +161,7 @@ sudo bash install.sh /dev/diskN
 
 ## How it works
 
-`optid` polls sensors every 2 seconds, maps the current system state to one of five workload classes, looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel. `optctl pin <app> <class>` lets applications claim a class directly. Default mode is always **dry-run**; kernel writes require explicit `--apply` on a supported host.
+`optid` polls sensors every 2 seconds, maps the current system state to one of six workload classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`, and the derived `vm.guest`), looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel. `optctl pin <app> <class>` lets applications claim a class directly. Default mode is always **dry-run**; kernel writes require explicit `--apply` on a supported host.
 
 <details>
 <summary><strong>Architecture diagram</strong> (how optid flows)</summary>
@@ -172,15 +172,15 @@ sudo bash install.sh /dev/diskN
   +---------------------------+--------------------------+
                               |
                               v
-  +------------- Classify into 5 classes ----------------+
+  +------------- Classify into 6 classes ----------------+
   |  idle  light  interactive  latency-critical          |
-  |  throughput                                           |
+  |  throughput  vm.guest (derived)                       |
   +---------------------------+--------------------------+
                               |
                               v
   +----------- contracts.toml (PM QoS floors) -----------+
-  |  per-class: governor, EPP, platform_profile,         |
-  |  PM QoS CPU latency, cgroup slice weights            |
+  |  per-class: cpu_wakeup_latency,                      |
+  |            device_resume_latency (microseconds)      |
   +---------------------------+--------------------------+
                               |
                               v   (--apply to write)
@@ -193,17 +193,20 @@ sudo bash install.sh /dev/diskN
 </details>
 
 <details>
-<summary><strong>Workload class contracts</strong> (governor, EPP, latency floors)</summary>
+<summary><strong>Workload class contracts</strong> (latency floors in <code>config/optid/contracts.toml</code>)</summary>
 
-| Workload class | CPU governor | EPP | Platform profile | PM QoS CPU latency | Use case |
-|:---------------|:-------------|:----|:------------------|:-------------------|:---------|
-| `idle` | powersave | power | low-power | 100 ms | Screen off, no foreground app |
-| `light` | powersave | balance_performance | balanced | 50 ms | Reading, browsing, light editor |
-| `interactive` | performance | performance | balanced | 1 ms | Typing, scrolling, UI interaction |
-| `latency-critical` | performance | performance | performance | 1 ms | Video call, game, audio session |
-| `throughput` | performance | performance | performance | 10 ms | Compile, render, batch job |
+The contracts file pins two latency floors per workload class. The governor / EPP / platform-profile / cgroup-slice values live in `config/optid/policy.toml`, keyed by **mode** (`battery`, `balanced`, `performance`, `realtime`) rather than by workload class — mode is what the actuator writes; class is what the classifier decides.
 
-PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a C-state deeper than that floor allows. EPP is the hint the CPU scheduler uses to trade frequency vs. efficiency. Platform profile is the ACPI-level hint that drives fan curves, dGPU power, USB autosuspend, etc.
+| Workload class | CPU wakeup latency | Device resume latency | Use case |
+|:---------------|:------------------|:---------------------|:---------|
+| `idle` | 100 ms | 1 s | Screen off, no foreground app |
+| `light` | 50 ms | 500 ms | Reading, browsing, light editor |
+| `interactive` | 1 ms | 10 ms | Typing, scrolling, UI interaction |
+| `latency-critical` | 1 ms | 1 ms | Video call, game, audio session |
+| `throughput` | 10 ms | 100 ms | Compile, render, batch job |
+| `vm.guest` | (resolves to `interactive`) | (resolves to `interactive`) | Guest VM under Rush — host-side PM QoS does not propagate across the hypervisor boundary, so the latency-critical floor is unenforceable. |
+
+CPU wakeup latency is the hard floor — written to `/dev/cpu_dma_latency`, the kernel will not let any CPU enter a C-state deeper than that floor allows.
 
 </details>
 
@@ -212,7 +215,7 @@ PM QoS CPU latency is the hard floor — the kernel will not let any CPU enter a
 ## What's built
 
 - **`optid` daemon** — PSI + thermal + power-supply sensor polling, workload classification, PM QoS contract enforcement. Applies EPP, platform profile, and cgroup slices when run with `--apply`. Every decision is logged and explainable.
-- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`. Machine-readable output via `--json`.
+- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`, `trace`, `allow`, `deny`, `list-allow`. Machine-readable output via `--json`.
 - **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class.
 - **Rush LiveDev** — automation foundation: planner, runner, capture, evidence validator, AI harness, PR submission. See [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md).
 - **testOS** — bootable USB image for real-hardware benchmarking. See [testOS README](testos/README.md).
@@ -294,8 +297,8 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 | v0.3 — rootfs builder, VM boots | ✅ complete |
 | v0.4 — UKI boot, rollback, update signing | ✅ complete |
 | v0.5 — minimal installable system (mkosi/Arch) | ✅ complete |
-| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress |
-| v0.7 — desktop / laptop / realtime / server editions | planned |
+| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress (code-complete; Phase D hardware-gated) |
+| **v0.7 — desktop / laptop / realtime / server editions** | ⚙ in progress (current version) |
 | v0.8 — benchmark lab, published results | planned |
 | v0.9 — release candidate hardening | planned |
 | v1.0 — installable, benchmarked, stable | planned |
@@ -321,7 +324,9 @@ profiles. Available editions:
 | edition | image id | config |
 |---|---|---|
 | `desktop` | `rush-linux-desktop` | `mkosi/mkosi.profiles/desktop/mkosi.conf` |
+| `laptop` | `rush-linux-laptop` | `mkosi/mkosi.profiles/laptop/mkosi.conf` |
 | `livedev` | `rush-linux-livedev` | `mkosi/mkosi.profiles/livedev/mkosi.conf` |
+| `realtime-audio` | `rush-linux-realtime-audio` | `mkosi/mkosi.profiles/realtime-audio/mkosi.conf` |
 | `server` | `rush-linux-server` | `mkosi/mkosi.profiles/server/mkosi.conf` |
 | `testos` | `rush-linux-testos` | `mkosi/mkosi.profiles/testos/mkosi.conf` |
 

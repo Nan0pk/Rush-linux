@@ -487,7 +487,7 @@
     "2. Run tools/livedev-e2e-dry-run.py --all on main to verify the E2E still passes.",
     "3. Review docs/livedev-user-guide.md and docs/livedev-developer-guide.md.",
     "4. Ratify ADRs 0018, 0023, 0024 (move from proposed to accepted with Ratified-by lines).",
-    "5. Optional: write docs/decisions/0025-livedev-graduated.md declaring LiveDev graduated.",
+    "5. Optional: write docs/decisions/0026-livedev-graduated.md declaring LiveDev graduated.",
     "6. Update livedev-progress.json: current_phase=verification, next_phase=complete.",
     "7. Do NOT modify release/milestones.toml, VERSION, RELEASES.md."
   ],
@@ -899,10 +899,10 @@
     "verification": {
       "status": "next-phase",
       "entry_condition": "e2e PR merged to main.",
-      "exit_condition": "Maintainer verifies the E2E dry run, reviews the docs, and ratifies the LiveDev ADRs (0018, 0023, 0024). Optional: write ADR 0025 (graduation) if the maintainer declares LiveDev graduated from the transition plan.",
+      "exit_condition": "Maintainer verifies the E2E dry run, reviews the docs, and ratifies the LiveDev ADRs (0018, 0023, 0024). Optional: write ADR 0026 (graduation) if the maintainer declares LiveDev graduated from the transition plan.",
       "deliverables_preview": [
         "Maintainer review + ADR ratification",
-        "Optional: docs/decisions/0025-livedev-graduated.md"
+        "Optional: docs/decisions/0026-livedev-graduated.md"
       ],
       "non_deliverables_preview": [
         "No new code.",
