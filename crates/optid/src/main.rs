@@ -22,6 +22,7 @@ mod actuator;
 mod actuators;
 mod allowlist;
 mod args;
+mod capability;
 mod contracts;
 mod dbus;
 mod decision;

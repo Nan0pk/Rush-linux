@@ -19,6 +19,7 @@ use crate::actuators::{display, runtime_pm, storage};
 use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
+use crate::capability::Capability;
 use crate::io_util::{
     append_log, atomic_write_state_file, get_path_hash, guarded_write, mark_applied,
 };
@@ -103,6 +104,13 @@ pub(crate) struct Actuator {
     /// `boot_state.apply_armed`. The curated baseline is gated by
     /// `boot_state.baseline_armed` and applied via `apply_baseline`.
     pub(crate) boot_state: Option<BootState>,
+    /// Test-only hook: when `Some(n)`, the `n`-th `guarded_write` call within
+    /// a single `Action::RuntimePm` apply (1 = delay write, 2 = control write,
+    /// 3 = rollback delay write) returns a synthetic `Err`. This field is
+    /// `#[cfg(test)]` — it does NOT exist in production builds, so there is
+    /// zero test-hook state in the production binary.
+    #[cfg(test)]
+    pub(crate) fail_nth_runtime_pm_write: Option<usize>,
 }
 
 impl Actuator {
@@ -122,6 +130,8 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            #[cfg(test)]
+            fail_nth_runtime_pm_write: None,
         }
     }
 
@@ -142,6 +152,8 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            #[cfg(test)]
+            fail_nth_runtime_pm_write: None,
         }
     }
 
@@ -355,6 +367,16 @@ impl Actuator {
                     return Ok(());
                 }
                 for path in paths {
+                    // Phase 5 hardening: typed capability check before
+                    // guarded_write. Defence-in-depth against path discovery
+                    // changes.
+                    if let Err(e) = Capability::CpuEpp.validate_target(&path) {
+                        self.log(&format!(
+                            "skip cpu.epp {}: capability validation failed: {e}",
+                            path.display()
+                        ))?;
+                        continue;
+                    }
                     let old_value = fs::read_to_string(&path)
                         .ok()
                         .unwrap_or_default()
@@ -386,6 +408,13 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
+                    // Phase 5 hardening: typed capability check.
+                    if let Err(e) = Capability::PlatformProfile.validate_target(path) {
+                        self.log(&format!(
+                            "skip platform.profile: capability validation failed: {e}"
+                        ))?;
+                        return Ok(());
+                    }
                     // Soft-fail: a write rejection here should not crash the
                     // daemon. Log and move on; next cycle will retry.
                     match guarded_write(path, value) {
@@ -441,6 +470,15 @@ impl Actuator {
             Action::VmSysctl { path, value, .. } => {
                 let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
                 let key = format!("vm_{filename}");
+
+                // Phase 5 hardening: typed capability check BEFORE journaling
+                // or writing. Rejects paths not matching the VmSysctl shape.
+                if let Err(e) = Capability::VmSysctl.validate_target(path) {
+                    self.log(&format!(
+                        "skip vm.sysctl {filename}: capability validation failed: {e}"
+                    ))?;
+                    return Ok(());
+                }
 
                 // Back up original value if not already backed up
                 let orig_file = self.state_dir.join(format!("original_{key}"));
@@ -514,6 +552,15 @@ impl Actuator {
                 value,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check BEFORE the
+                // allowlist gate or any journaling.
+                if let Err(e) = Capability::DeviceResumeLatency.validate_target(path) {
+                    self.log(&format!(
+                        "skip device_resume_latency {}: capability validation failed: {e}",
+                        path.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N4 safety gate: per-device runtime-PM resume latency is a
                 // depth-enabler knob, so it must clear the hardware allowlist
                 // before any write. Default-deny when the gate is enabled and
@@ -577,6 +624,27 @@ impl Actuator {
                 autosuspend_delay_ms,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check BEFORE the
+                // allowlist gate or any journaling. Validate both target
+                // paths (power/control and power/autosuspend_delay_ms).
+                let control_path = device_dir.join("power").join("control");
+                let delay_path = device_dir.join("power").join("autosuspend_delay_ms");
+                if let Err(e) = Capability::RuntimePm.validate_target(&control_path) {
+                    self.log(&format!(
+                        "skip runtime_pm {}: capability validation failed for control path: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
+                if delay_path.exists() {
+                    if let Err(e) = Capability::RuntimePm.validate_target(&delay_path) {
+                        self.log(&format!(
+                            "skip runtime_pm {}: capability validation failed for delay path: {e}",
+                            device_dir.display()
+                        ))?;
+                        return Ok(());
+                    }
+                }
                 // WP-N5 safety gate: enabling autosuspend is a depth-enabler, so
                 // it must clear the N4 allowlist (domain runtime_pm). Default-deny
                 // + skip when the HWID is unknown. No-op when the gate is off.
@@ -610,40 +678,95 @@ impl Actuator {
                     return Ok(());
                 }
 
-                let control_path = device_dir.join("power").join("control");
-                let delay_path = device_dir.join("power").join("autosuspend_delay_ms");
                 let delay_str = autosuspend_delay_ms.to_string();
 
-                // Journal originals once (device dir + control + delay) so
-                // revert_runtime_pm can restore them on stop.
+                // ── Phase 6: journaled transactional application ──────────
+                //
+                // 1. Resolve and validate every target (done above).
+                // 2. Read all original values.
+                // 3. Persist the complete recovery journal durably.
+                // 4. Apply writes in deterministic order: delay, then control.
+                // 5. If the second write fails, roll back the first.
+                // 6. If rollback fails, retain the journal and report.
+                // 7. Do not mark applied until every write succeeds.
+                //
+                // We do NOT claim atomicity across kernel sysfs files. This
+                // is journaled transactional application with compensating
+                // rollback: the journal makes the operation recoverable,
+                // and the rollback makes the failure mode well-defined.
+
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_rpm_{hash}"));
-                if !orig_file.exists() {
-                    let orig_control = fs::read_to_string(&control_path)
+                let intended_file = self.state_dir.join(format!("intended_rpm_{hash}"));
+
+                // Step 2: read originals (reuse existing journal if present
+                // from a previous cycle that crashed before marking applied).
+                let (orig_control, orig_delay) = if orig_file.exists() {
+                    let content = fs::read_to_string(&orig_file).unwrap_or_default();
+                    let mut lines = content.lines();
+                    let _dev = lines.next();
+                    let c = lines.next().unwrap_or("on").to_string();
+                    let d = lines.next().unwrap_or("n/a").to_string();
+                    (c, d)
+                } else {
+                    let c = fs::read_to_string(&control_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "on".to_string());
-                    let orig_delay = fs::read_to_string(&delay_path)
-                        .ok()
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_else(|| "n/a".to_string());
-                    let content = format!("{}\n{orig_control}\n{orig_delay}", device_dir.display());
-                    let _ = atomic_write_state_file(&orig_file, &content);
+                    let d = if delay_path.exists() {
+                        fs::read_to_string(&delay_path)
+                            .ok()
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_else(|| "n/a".to_string())
+                    } else {
+                        "n/a".to_string()
+                    };
+                    (c, d)
+                };
+
+                // Step 3: persist the recovery journal durably BEFORE any
+                // mutation so a crash during apply leaves a complete record.
+                let journal_content =
+                    format!("{}\n{orig_control}\n{orig_delay}", device_dir.display());
+                if let Err(e) = atomic_write_state_file(&orig_file, &journal_content) {
+                    self.log(&format!(
+                        "skip runtime_pm {}: failed to write recovery journal: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
                 }
-                let intended_file = self.state_dir.join(format!("intended_rpm_{hash}"));
                 let _ = atomic_write_state_file(&intended_file, &format!("auto\n{delay_str}"));
 
-                // Set the delay first (harmless while control is still "on"),
-                // then enable autosuspend. Soft-fail each write independently.
-                if delay_path.exists() {
-                    if let Err(e) = guarded_write(&delay_path, &delay_str) {
-                        self.log(&format!(
-                            "skip runtime_pm delay {}: write failed: {e}",
-                            device_dir.display()
-                        ))?;
+                // Step 4: apply writes in deterministic order.
+                // delay first (harmless while control is still "on"),
+                // then control=auto (which actually enables autosuspend).
+                //
+                // Test hook: `fail_nth_runtime_pm_write` (#[cfg(test)] only)
+                // injects a synthetic failure at write #1, #2, or #3 to
+                // exercise each failure point deterministically. In production
+                // builds this field does not exist and the cfg!(test) branches
+                // are compiled out.
+                let delay_applied = if delay_path.exists() {
+                    match self.runtime_pm_write(&delay_path, &delay_str, 1) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            self.log(&format!(
+                                "skip runtime_pm delay {}: write failed (no rollback needed): {e}",
+                                device_dir.display()
+                            ))?;
+                            false
+                        }
                     }
+                } else {
+                    true
+                };
+
+                if !delay_applied {
+                    return Ok(());
                 }
-                match guarded_write(&control_path, "auto") {
+
+                // Step 5: second write. If this fails, roll back the first.
+                match self.runtime_pm_write(&control_path, "auto", 2) {
                     Ok(_) => {
                         self.last_runtime_pm
                             .insert(device_dir.clone(), *autosuspend_delay_ms);
@@ -656,9 +779,26 @@ impl Actuator {
                     }
                     Err(e) => {
                         self.log(&format!(
-                            "skip runtime_pm {}: control write failed: {e}",
+                            "runtime_pm {}: control write failed after delay write succeeded; rolling back delay: {e}",
                             device_dir.display()
                         ))?;
+                        if delay_path.exists() && orig_delay != "n/a" {
+                            match self.runtime_pm_write(&delay_path, &orig_delay, 3) {
+                                Ok(_) => {
+                                    self.log(&format!(
+                                        "runtime_pm {}: rolled back delay to {orig_delay}",
+                                        device_dir.display()
+                                    ))?;
+                                }
+                                Err(re_err) => {
+                                    self.log(&format!(
+                                        "runtime_pm {}: ROLLBACK FAILED — delay left at {delay_str}, control unchanged. Journal retained for recovery. Rollback error: {re_err}",
+                                        device_dir.display()
+                                    ))?;
+                                }
+                            }
+                        }
+                        // Do NOT mark applied. last_runtime_pm is not updated.
                     }
                 }
             }
@@ -667,6 +807,15 @@ impl Actuator {
                 enable,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let aspm_path = device_dir.join("link").join("l1_aspm");
+                if let Err(e) = Capability::PcieAspm.validate_target(&aspm_path) {
+                    self.log(&format!(
+                        "skip pcie_aspm {}: capability validation failed: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N6 PCIe ASPM, gated on the N4 allowlist (domain pci_aspm).
                 if !self.allowlist_permits(
                     "pci_aspm",
@@ -729,6 +878,15 @@ impl Actuator {
                 policy,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let policy_path = host_dir.join("link_power_management_policy");
+                if let Err(e) = Capability::SataAlpm.validate_target(&policy_path) {
+                    self.log(&format!(
+                        "skip sata_alpm {}: capability validation failed: {e}",
+                        host_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N6 SATA ALPM, gated on the N4 allowlist (domain sata_alpm).
                 // The scsi_host has no modalias of its own — resolve the backing
                 // PCI controller's HWID by walking ancestors.
@@ -783,6 +941,15 @@ impl Actuator {
                 target_pct,
                 reason,
             } => {
+                // Phase 5 hardening: typed capability check.
+                let bright_path = device_dir.join("brightness");
+                if let Err(e) = Capability::Backlight.validate_target(&bright_path) {
+                    self.log(&format!(
+                        "skip backlight {}: capability validation failed: {e}",
+                        device_dir.display()
+                    ))?;
+                    return Ok(());
+                }
                 // WP-N7 backlight, gated on the N4 allowlist (domain backlight,
                 // HWID from the backing GPU via ancestor-walk).
                 if !self.allowlist_permits(
@@ -850,6 +1017,38 @@ impl Actuator {
 
     fn log(&mut self, message: &str) -> io::Result<()> {
         append_log(&self.log_path, &format!("{} {message}\n", now_unix()))
+    }
+
+    /// Phase 6: write helper for RuntimePm's transactional two-write + rollback
+    /// sequence. In production this is a thin wrapper around `guarded_write`.
+    /// In test builds, if `fail_nth_runtime_pm_write` is `Some(n)` and `n`
+    /// matches `write_num`, a synthetic `Err` is returned instead. This keeps
+    /// the test-hook state `#[cfg(test)]`-only (zero production overhead)
+    /// while giving tests deterministic control over each failure point.
+    fn runtime_pm_write(&mut self, path: &Path, value: &str, write_num: usize) -> io::Result<()> {
+        #[cfg(test)]
+        {
+            if self.fail_nth_runtime_pm_write == Some(write_num) {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    format!(
+                        "test-injected failure on RuntimePm write #{} ({})",
+                        write_num,
+                        match write_num {
+                            1 => "delay",
+                            2 => "control",
+                            3 => "rollback",
+                            _ => "unknown",
+                        }
+                    ),
+                ));
+            }
+        }
+        #[cfg(not(test))]
+        {
+            let _ = write_num; // suppress unused-variable warning in production
+        }
+        guarded_write(path, value)
     }
 }
 
