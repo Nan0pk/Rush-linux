@@ -467,7 +467,7 @@ def cmd_mock() -> int:
 # --- Plan -------------------------------------------------------------------
 
 
-def cmd_plan() -> int:
+def cmd_plan(baseline_only: bool = False) -> int:
     print("=" * 60)
     print("  Rush LiveDev - Generate Plan")
     print("=" * 60)
@@ -475,6 +475,8 @@ def cmd_plan() -> int:
 
     plan_path = "/tmp/rush-livedev-plan.json"
     cmd = ["python3", "tools/rush-autopilot", "plan", "--dry-run", "--slot", "laptop", "--output", plan_path]
+    if baseline_only:
+        cmd.append("--baseline-only")
     print(f"  Running: {' '.join(cmd)}")
     print()
     rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=60)
@@ -885,6 +887,10 @@ def main(argv: list[str] | None = None) -> int:
         "--submit-real", action="store_true", default=False,
         help="Used with --resume: open a real evidence PR (no auto-merge).",
     )
+    parser.add_argument(
+        "--baseline-only", action="store_true", default=False,
+        help="With --plan, forbid optid actuation and redact the repository path.",
+    )
     # ── --run-vm flags ───────────────────────────────────────────────────
     parser.add_argument("--image", default="build/rush-linux-livedev.raw",
                         help="disk image to boot (default: build/rush-linux-livedev.raw)")
@@ -924,7 +930,7 @@ def main(argv: list[str] | None = None) -> int:
     if ns.mock:
         return cmd_mock()
     if ns.plan:
-        return cmd_plan()
+        return cmd_plan(baseline_only=ns.baseline_only)
     if ns.run:
         return cmd_run(ns.run)
     if ns.submit:

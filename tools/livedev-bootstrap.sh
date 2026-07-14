@@ -341,7 +341,7 @@ do_auto() {
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "    [dry-run] python3 tools/livedev-next --plan"
     else
-        python3 tools/livedev-next --plan || die "Plan generation failed."
+        python3 tools/livedev-next --plan --baseline-only || die "Plan generation failed."
         ok "Plan generated: /tmp/rush-livedev-plan.json"
         local generated_plan="/tmp/rush-livedev-plan.json"
         PLAN_PATH="$PERSISTENT_RUN_DIR/plan.json"

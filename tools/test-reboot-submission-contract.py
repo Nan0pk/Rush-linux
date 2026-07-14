@@ -118,6 +118,14 @@ def test_1_bootstrap_state_machine_stubbed():
     if not plan_path.is_file() or plan_path.is_symlink():
         print(f"FAIL: persistent plan is missing or unsafe: {plan_path}")
         return False
+    plan = json.loads(plan_path.read_text())
+    serialized_plan = json.dumps(plan)
+    if plan.get("campaign_scope") != "baseline-only":
+        print(f"FAIL: physical bootstrap plan is not baseline-only: {plan}")
+        return False
+    if "--apply" in serialized_plan or "/home/" in serialized_plan:
+        print("FAIL: baseline plan contains optid actuation or a private home path")
+        return False
     try:
         plan_path.resolve().relative_to(run_dir.resolve())
     except ValueError:
