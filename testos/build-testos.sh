@@ -155,6 +155,14 @@ cat > "${EXTRA_DIR}/etc/testos/source-sha" << EOF
 ${SOURCE_GIT_SHA}
 EOF
 
+# Write the canonical version (from the repo VERSION file) to
+# /etc/testos/version. The testos-runner reads this to populate
+# manifest.testos_version, ensuring the manifest version matches the
+# release asset version exactly.
+cat > "${EXTRA_DIR}/etc/testos/version" << EOF
+${VERSION}
+EOF
+
 # OS metadata
 cat > "${EXTRA_DIR}/etc/os-release" << EOF
 NAME="testOS"

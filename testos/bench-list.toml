@@ -75,26 +75,44 @@ name = "PostgreSQL — pgbench TPS"
 scenario = "server-throughput"
 kind = "shell-json"
 command = """
-# Bootstrap a temp Postgres instance.
+# Bootstrap a temp Postgres instance under a safe unprivileged runtime user.
+# pg_ctl refuses to run as root, so we must run all postgres commands as a
+# non-root user. Use 'runuser' (available on Arch/Debian/Fedora) instead of
+# 'sudo' to avoid PAM/auth issues in the minimal testOS environment.
 PGDATA=/tmp/pgdata
 PGHOST=/tmp
 rm -rf "$PGDATA"
 mkdir -p "$PGDATA"
-# Use postgres user for server; fall back to current user if postgres missing.
+# Select the runtime user: prefer 'postgres', fall back to 'nobody', then
+# to the current user (if non-root). testOS runs the runner as root, so the
+# fallback chain must end at a non-root user.
 if id postgres >/dev/null 2>&1; then
   PGUSER=postgres
+elif id nobody >/dev/null 2>&1; then
+  PGUSER=nobody
 else
   PGUSER=$(id -un)
 fi
-sudo -u "$PGUSER" initdb -D "$PGDATA" --quiet 2>/dev/null
-sudo -u "$PGUSER" pg_ctl -D "$PGDATA" -o "-k $PGHOST" -l /tmp/pg.log start -w -s
-sudo -u "$PGUSER" createdb -h "$PGHOST" bench 2>/dev/null || true
-sudo -u "$PGUSER" pgbench -h "$PGHOST" -i -s 10 bench >/dev/null 2>&1
-sudo -u "$PGUSER" pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
+# chown the data dir so the unprivileged user can read/write it.
+chown -R "$PGUSER" "$PGDATA" 2>/dev/null || true
+# runuser is preferred; fall back to su if runuser is unavailable.
+if command -v runuser >/dev/null 2>&1; then
+  ASUSER="runuser -u $PGUSER --"
+else
+  ASUSER="su -s /bin/sh $PGUSER -c"
+fi
+# initdb must run as the unprivileged user.
+$ASUSER initdb -D "$PGDATA" --quiet 2>/dev/null
+# pg_ctl start — run as unprivileged user, NOT root.
+$ASUSER pg_ctl -D "$PGDATA" -o "-k $PGHOST" -l /tmp/pg.log start -w -s
+$ASUSER createdb -h "$PGHOST" bench 2>/dev/null || true
+$ASUSER pgbench -h "$PGHOST" -i -s 10 bench >/dev/null 2>&1
+# Run the benchmark and capture TPS.
+$ASUSER pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
   | awk '/tps =/ {print $3}' \
   | head -1 \
   | xargs -I{} jq -n --argjson v {} '{value: $v, unit: "tps"}' > "$TESTOS_RESULT_FILE"
-sudo -u "$PGUSER" pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
+$ASUSER pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
 """
 estimated_seconds = 60
 notes = "Measures local database transaction throughput; useful for server and scheduler regressions under mixed CPU/IO work."
@@ -142,8 +160,13 @@ name = "PSI — CPU pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
-# Read PSI cpu avg10 (first number in /proc/pressure/cpu), output bare number.
-awk '{split($2,a,"="); print a[2]}' /proc/pressure/cpu | head -1
+# Read PSI cpu avg10 from the 'some' line. The value is a decimal fraction
+# (e.g., 0.25 = 25% of time stalled). Use grep+sed to extract the numeric
+# value after 'avg10=' on the 'some' line, preserving the decimal point.
+# This fixes the defect where awk split() produced malformed values like
+# '005' or '132' on some kernels (the awk was grabbing the wrong field
+# when the line had extra whitespace or a different field order).
+grep '^some' /proc/pressure/cpu | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -1
 """
 estimated_seconds = 5
 notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
@@ -154,7 +177,7 @@ name = "PSI — IO pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
-awk '{split($2,a,"="); print a[2]}' /proc/pressure/io | head -1
+grep '^some' /proc/pressure/io | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -1
 """
 estimated_seconds = 5
 notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
@@ -165,7 +188,17 @@ name = "cyclictest — max latency (µs)"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 command = """
-cyclictest -p 80 -t 1 -l 100000 -q 2>/dev/null \
+# Run cyclictest WITHOUT -q (quiet suppresses the Max: line we need).
+# -p 80: priority 80 (high, for RT kernel; falls back gracefully on non-RT)
+# -t 1: one thread
+# -l 100000: 100k loops (enough samples for a meaningful max)
+# -h: write histogram to stdout (we don't parse it, but it ensures the
+#     summary line is printed even on minimal builds)
+# Parse the 'Max:' line from stderr/stdout. cyclictest writes its summary
+# to stdout when not in quiet mode. The Max value is the last field.
+# This fixes the defect where -q suppressed all output, causing the parser
+# to produce no numeric result (exit 0 but empty value).
+cyclictest -p 80 -t 1 -l 100000 2>/dev/null \
   | awk '/Max:/ {print $NF}' | tr -d ' ' | head -1
 """
 estimated_seconds = 30
