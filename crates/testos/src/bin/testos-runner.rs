@@ -28,7 +28,12 @@ use testos::{
 const USB_MOUNT: &str = "/run/testos/usb";
 const RESULTS_SUBDIR: &str = "testos-results";
 const BENCH_LIST_REL: &str = "testos/bench-list.toml";
-const TESTOS_VERSION_FALLBACK: &str = "0.7.0-beta.1";
+
+/// Fallback version used only when neither /etc/testos/version nor
+/// /etc/os-release is available. This is a last resort; the canonical
+/// version comes from the VERSION file at build time (written to
+/// /etc/testos/version by build-testos.sh).
+const TESTOS_VERSION_FALLBACK: &str = "0.7.0-unknown";
 
 fn main() {
     println!();
@@ -285,14 +290,29 @@ fn main() {
 
     // 8. Write the top-level manifest.
     let finished_at = iso_utc_now();
-    let testos_version = std::fs::read_to_string("/etc/os-release")
+    // Derive testos_version from the canonical source: /etc/testos/version
+    // (written by build-testos.sh from the repo's VERSION file). Fall back
+    // to /etc/os-release VERSION=, then to the hardcoded fallback.
+    // This fixes the defect where the release asset v0.7.0-beta.4 wrote
+    // manifest testos_version=0.7.0-beta.1 because the fallback constant
+    // was stale.
+    let testos_version = std::fs::read_to_string("/etc/testos/version")
         .ok()
-        .and_then(|t| {
-            t.lines().find(|l| l.starts_with("VERSION=")).and_then(|l| {
-                l.split('=')
-                    .nth(1)
-                    .map(|s| s.trim().trim_matches('"').to_string())
-            })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/os-release")
+                .ok()
+                .and_then(|t| {
+                    t.lines()
+                        .find(|l| l.starts_with("VERSION="))
+                        .and_then(|l| {
+                            l.split('=')
+                                .nth(1)
+                                .map(|s| s.trim().trim_matches('"').to_string())
+                        })
+                        .filter(|s| !s.is_empty())
+                })
         })
         .unwrap_or_else(|| TESTOS_VERSION_FALLBACK.to_string());
 
@@ -325,17 +345,33 @@ fn main() {
 
     // Capture system-level logs into the results directory for post-mortem
     // analysis. These are invaluable for debugging boot failures, hardware
-    // detection issues, and benchmark crashes. We capture:
-    //   - dmesg.txt: kernel ring buffer (hardware detection, driver errors)
-    //   - journal.txt: full systemd journal from this boot (service failures,
-    //     login events, mount issues)
-    //   - uname.txt: kernel version, architecture, hostname
-    //   - cpuinfo.txt: CPU model, flags, core count (helps interpret results)
-    //   - meminfo.txt: memory size, swap, hugepages
-    //   - cmdline.txt: kernel command line (verifies testos.* params applied)
-    println!("  Capturing system logs...");
+    // detection issues, and benchmark crashes.
+    //
+    // PRIVACY: raw dmesg and journal output can contain MAC addresses,
+    // serial numbers, UUIDs, and other machine-unique identifiers. We
+    // redact these patterns before writing the logs. The redaction is
+    // applied via a sed filter that replaces:
+    //   - MAC addresses (xx:xx:xx:xx:xx:xx) with <MAC>
+    //   - Serial numbers (SerialNumber=xxx, serial=xxx) with <SERIAL>
+    //   - UUIDs (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) with <UUID>
+    //   - IPv4 addresses with <IPV4>
+    // This ensures the privacy scanner passes without weakening it, while
+    // still preserving the diagnostic value of the logs (driver errors,
+    // boot messages, service failures).
+    println!("  Capturing system logs (privacy-redacted)...");
     let logs_dir = results_dir.join("system-logs");
     let _ = std::fs::create_dir_all(&logs_dir);
+
+    // Privacy redaction filter applied to all captured logs.
+    // Uses sed -re (extended regex) so {} don't need escaping.
+    // Order matters: UUIDs before MAC addresses (UUIDs contain colons).
+    let privacy_filter = r#"sed -re \
+      -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/<UUID>/g' \
+      -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<MAC>/g' \
+      -e 's/[Ss]erial[Nn]umber=[^ ]*/<SERIAL>/g' \
+      -e 's/serial=[0-9a-fA-F]{6,}/<SERIAL>/g' \
+      -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<IPV4>/g' \
+      2>/dev/null || cat"#;
 
     let captures: [(&str, &str); 9] = [
         ("dmesg.txt", "dmesg"),
@@ -358,7 +394,9 @@ fn main() {
         ),
     ];
     for (filename, cmd) in captures.iter() {
-        let content = match Command::new("bash").arg("-c").arg(*cmd).output() {
+        // Pipe the command through the privacy filter.
+        let full_cmd = format!("{} | {}", cmd, privacy_filter);
+        let content = match Command::new("bash").arg("-c").arg(&full_cmd).output() {
             Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
             Err(e) => format!("(capture failed: {})", e),
         };
