@@ -14,9 +14,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # SECURITY (audit finding #5): the previous `command: check advisories`
+      # syntax was invalid — `check advisories` is not a single cargo-deny
+      # subcommand. The latest maintenance run failed before scanning
+      # dependencies with `unrecognized subcommand 'warn'`, leaving the
+      # advisory status unknown.
+      #
+      # Correct syntax (per EmbarkStudios/cargo-deny-action README):
+      #   command: check
+      #   command-arguments: advisories
+      # `command` is the cargo-deny subcommand; `command-arguments` is the
+      # space-separated list of check types to run.
+      #
+      # We pin to @v2 (major) rather than a SHA for now; SHA pinning is
+      # tracked as a separate supply-chain hardening task across all
+      # workflow actions.
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check advisories
+          command: check
+          command-arguments: advisories
 
   external-links:
     name: External documentation links
