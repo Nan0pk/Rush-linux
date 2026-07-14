@@ -21,7 +21,14 @@
 #   - Administrator privileges (to mount partitions)
 #   - The GITHUB_TOKEN env var set (or pass -GitHubToken). The token is
 #     scoped to the Rush-linux repo and used for git push and PR creation.
-#     It is never written to disk. The script never merges or enables auto-merge.
+#     # SECURITY (audit finding #6): the token is held in the process environment
+# and passed to git via http.extraheader (a per-invocation git -c setting).
+# It is NOT embedded in the clone URL and is NOT written to .git/config.
+# The previous version embedded the token in the clone URL, which Git
+# stored in .git/config remote.origin.url — contradicting the script's
+# assertion that the token was never written to disk. Dry-run mode
+# retained the work directory (including .git/config with the token).
+# This version never writes the token to .git/config at all.
 
 [CmdletBinding()]
 param(
@@ -220,20 +227,38 @@ if (Test-Path $ManifestPath) {
 }
 
 # --- Clone or pull the repo ---------------------------------------
+# SECURITY (audit finding #6): the previous version embedded the token in
+# the clone URL (https://x-access-token:$GitHubToken@github.com/...),
+# which Git stored in .git/config remote.origin.url. Even after the script
+# unset branch.*.remote, the token remained in remote.origin.url and was
+# retained on disk in dry-run mode.
+#
+# This version uses git's http.extraheader mechanism via `git -c`:
+#   1. Build a base64-encoded Basic auth header with the token.
+#   2. Pass it as `git -c http.https://github.com/.extraheader=...`.
+#   3. Clone from the SAFE URL (no token in URL).
+#   4. The -c setting is process-local; it is NOT persisted to .git/config.
+# After push, a defensive `git remote set-url origin $SafeUrl` runs as
+# belt-and-braces, and a verification step checks that no token leaked
+# into .git/config.
 Write-Info "Preparing repo clone at $WorkDir..."
-$RepoUrl = "https://x-access-token:$GitHubToken@github.com/$Repo.git"
+$SafeUrl = "https://github.com/$Repo.git"
+
+# Build the per-invocation extraheader. base64 of "x-access-token:$GitHubToken".
+$B64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$GitHubToken"))
+$ExtraHeader = "http.https://github.com/.extraheader=Authorization: Basic $B64Auth"
 
 if (Test-Path $WorkDir) {
     Remove-Item $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 
-Write-Info "Cloning $Repo (shallow, depth 1)..."
-$CloneResult = & git clone --depth 1 $RepoUrl $WorkDir 2>&1
+Write-Info "Cloning $Repo (shallow, depth 1) from safe URL (no token in URL)..."
+$CloneResult = & git -c $ExtraHeader clone --depth 1 $SafeUrl $WorkDir 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Err "git clone failed: $CloneResult"
 }
-Write-OK "Cloned."
+Write-OK "Cloned. Token was passed via http.extraheader (not in URL, not in .git/config)."
 
 # --- Copy results into the clone ----------------------------------
 $DestResults = Join-Path $WorkDir "benchmarks\results"
@@ -283,13 +308,23 @@ try {
     if ($DryRun) {
         Write-Info "DryRun: skipping push. Branch $BranchName is ready in $WorkDir"
     } else {
-        Write-Info "Pushing branch..."
-        $PushResult = & git push $RepoUrl $BranchName 2>&1
+        Write-Info "Pushing branch (token via http.extraheader, not in URL)..."
+        $PushResult = & git -c $ExtraHeader push $SafeUrl $BranchName 2>&1
         if ($LASTEXITCODE -ne 0) { Write-Err "git push failed: $PushResult" }
         Write-OK "Pushed."
-        # Scrub the token from the remote config
+        # SECURITY (audit finding #6): defensively scrub the remote URL even
+        # though we never wrote the token to it. Belt-and-braces: if a future
+        # refactor accidentally uses the token-URL approach, this line
+        # overwrites it with the safe URL.
+        & git remote set-url origin $SafeUrl 2>$null
         & git config --local --unset "branch.$BranchName.remote" 2>$null
         & git config --local --unset "branch.$BranchName.merge" 2>$null
+        # Verify no token remains in .git/config. If it does, warn loudly.
+        $ConfigCheck = & git config --local --list 2>&1 | Select-String -Pattern 'github_pat','x-access-token' -SimpleMatch
+        if ($ConfigCheck) {
+            Write-Warn "WARNING: token found in .git/config after scrub. Manual cleanup required:"
+            $ConfigCheck | ForEach-Object { Write-Warn $_.ToString() }
+        }
     }
 } finally {
     Pop-Location

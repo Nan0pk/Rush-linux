@@ -192,10 +192,68 @@ latest_run_dir() {
 
 manifest_value() { jq -r "$1 // empty" "$2"; }
 
+# Validate that a string is safe to use as a single path component under
+# the repo's benchmarks/results/ tree. Rejects:
+#   - empty strings
+#   - anything containing / or \ (path separators)
+#   - '.' or '..' (traversal)
+#   - strings starting with '-' (could be misread as a flag by downstream tools)
+#   - strings containing NUL, newline, or any byte outside the safe set
+# Allowed characters: ASCII letters, digits, '_', '-', '.', ':', and '+'.
+# (':' and '+' are included because host fingerprints and ISO timestamps use them.)
+safe_path_component() {
+    local name="$1" label="$2"
+    [[ -n "$name" ]] || die "Refusing to use empty value for $label (possible manifest tampering)."
+    [[ "$name" != "." && "$name" != ".." ]] || die "Refusing to use traversal name '$name' for $label."
+    [[ "$name" != */* && "$name" != *\\* ]] || die "Refusing to use path-containing value '$name' for $label."
+    [[ "$name" != -* ]] || die "Refusing to use dash-leading value '$name' for $label (flag injection risk)."
+    # Reject any byte that isn't in the safe set. Use printf to handle NUL.
+    local bad
+    bad="$(printf '%s' "$name" | LC_ALL=C tr -d 'A-Za-z0-9_.:-+' )"
+    [[ -z "$bad" ]] || die "Refusing to use $label with disallowed characters: '$name' (unexpected bytes: '$bad')."
+}
+
+# Verify that a resolved path is strictly under a parent directory.
+# Uses realpath(1) so symlinks are resolved; if realpath is unavailable,
+# falls back to readlink -f. If neither exists, the check is skipped with a warning.
+is_strictly_under() {
+    local child="$1" parent="$2"
+    local child_resolved parent_resolved
+    if command -v realpath >/dev/null 2>&1; then
+        child_resolved="$(realpath "$child" 2>/dev/null || true)"
+        parent_resolved="$(realpath "$parent" 2>/dev/null || true)"
+    elif command -v readlink >/dev/null 2>&1; then
+        child_resolved="$(readlink -f "$child" 2>/dev/null || true)"
+        parent_resolved="$(readlink -f "$parent" 2>/dev/null || true)"
+    else
+        warn "realpath/readlink unavailable; cannot verify path containment for $child. Proceeding with caution."
+        return 0
+    fi
+    [[ -n "$child_resolved" && -n "$parent_resolved" ]] || return 1
+    # child must equal parent, or start with parent + '/'
+    [[ "$child_resolved" == "$parent_resolved" || "$child_resolved" == "$parent_resolved/"* ]]
+}
+
 copy_tree() {
     local src="$1" dst="$2"
     mkdir -p "$dst"
-    (cd "$src" && tar cf - .) | (cd "$dst" && tar xf -)
+    # Security: reject symlinks in the source tree before copying. A hostile
+    # USB could include a symlink pointing outside the run dir (e.g. to
+    # /etc/shadow or /dev/zero); tar would faithfully reproduce it, and a
+    # downstream tool writing through the symlink would escape the sandbox.
+    # --no-symlinks is a GNU tar extension; if unavailable, fall back to a
+    # find-based symlink rejection.
+    if (cd "$src" && tar --help 2>&1 | grep -q -- '--no-symlinks'); then
+        (cd "$src" && tar --no-symlinks -cf - .) | (cd "$dst" && tar -xf -)
+    else
+        # find -type l lists any symlinks; if any exist, abort.
+        local symcount
+        symcount="$(find "$src" -type l 2>/dev/null | wc -l)"
+        if [[ "$symcount" -gt 0 ]]; then
+            die "Refusing to copy: source tree contains $symcount symlink(s). Hostile media may try to escape the ingestion directory."
+        fi
+        (cd "$src" && tar -cf - .) | (cd "$dst" && tar -xf -)
+    fi
 }
 
 write_summary() {
@@ -228,6 +286,10 @@ fi
 
 RUN_NAME="$(latest_run_dir)"
 [[ -n "$RUN_NAME" ]] || die "No run directories found under $RESULTS_ROOT."
+# RUN_NAME comes from find -maxdepth 1 -type d -printf '%f', so it cannot
+# contain '/'. But it could theoretically be '.' or '..' if the filesystem
+# is hostile; validate defensively.
+safe_path_component "$RUN_NAME" "run directory name"
 RUN_DIR="$RESULTS_ROOT/$RUN_NAME"
 MANIFEST="$RUN_DIR/manifest.json"
 [[ -f "$MANIFEST" ]] || die "No manifest.json in latest run: $RUN_DIR"
@@ -241,6 +303,14 @@ HOST_FP="$(manifest_value '.host.fingerprint' "$MANIFEST")"
 DATE_PART="${STARTED_AT%%T*}"
 [[ -n "$DATE_PART" && "$DATE_PART" != "$STARTED_AT" ]] || DATE_PART="${RUN_NAME%%T*}"
 [[ -n "$HOST_FP" ]] || HOST_FP="unknown-host"
+
+# Security (audit finding #2): DATE_PART and HOST_FP are derived from
+# untrusted manifest fields on hostile media. They are used to construct
+# the destination path for rm -rf + copy_tree. Validate them BEFORE any
+# filesystem mutation to prevent path traversal.
+safe_path_component "$DATE_PART" "manifest started_at date"
+safe_path_component "$HOST_FP" "manifest host.fingerprint"
+
 ok "Latest run: $RUN_NAME — $PASSED passed, $FAILED failed, $SKIPPED skipped ($TOTAL total)"
 
 STAMP="$(date -u +%Y%m%d-%H%M%SZ)"
@@ -253,9 +323,24 @@ log "Cloning $REPO shallow into $WORK_DIR ..."
 git clone --depth 1 "$SAFE_URL" "$WORK_DIR"
 
 DEST_RESULTS="$WORK_DIR/benchmarks/results/$DATE_PART/$HOST_FP"
+# Security: verify the computed DEST_RESULTS is strictly under the repo's
+# benchmarks/results/ directory before the rm -rf. This is a redundant
+# post-check — safe_path_component above already validated each component —
+# but defense in depth: a future bug in DATE_PART/HOST_FP derivation that
+# re-introduces traversal would be caught here instead of causing a
+# destructive rm -rf outside the intended tree.
+DEST_PARENT="$WORK_DIR/benchmarks/results"
+mkdir -p "$DEST_PARENT"
+if ! is_strictly_under "$DEST_RESULTS" "$DEST_PARENT"; then
+    die "Refusing to proceed: destination '$DEST_RESULTS' is not strictly under '$DEST_PARENT'. Possible path traversal."
+fi
 log "Copying latest run to benchmarks/results/$DATE_PART/$HOST_FP ..."
 rm -rf "$DEST_RESULTS"
 copy_tree "$RUN_DIR" "$DEST_RESULTS"
+# Post-copy verification: ensure nothing escaped during the tar copy.
+if ! is_strictly_under "$DEST_RESULTS" "$DEST_PARENT"; then
+    die "Post-copy containment check failed: '$DEST_RESULTS' resolved outside '$DEST_PARENT'."
+fi
 write_summary "$DEST_RESULTS" "$DEST_RESULTS/manifest.json"
 
 INSTALL_LOG_SRC="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/testos-installer"
@@ -286,6 +371,14 @@ git push "$PUSH_URL" "$BRANCH"
 git config --local --unset "branch.${BRANCH}.remote" 2>/dev/null || true
 git config --local --unset "branch.${BRANCH}.merge" 2>/dev/null || true
 git remote set-url origin "$SAFE_URL" 2>/dev/null || true
+# SECURITY (audit finding #6, shell side): verify no token leaked into
+# .git/config. The PUSH_URL contained the token for the push only; it
+# should NOT persist in remote.origin.url or any other config key.
+LEAKED="$(git config --local --list 2>/dev/null | grep -E 'github_pat|x-access-token' || true)"
+if [[ -n "$LEAKED" ]]; then
+    warn "WARNING: token found in .git/config after scrub. Manual cleanup required:"
+    printf '%s\n' "$LEAKED" >&2
+fi
 ok "Pushed and scrubbed local git config."
 
 PR_BODY="Auto-collected from USB by collect-results.sh.\n\nRun summary:\n- Date: ${STARTED_AT}\n- Host: ${HOST_FP}\n- Passed: ${PASSED}\n- Failed: ${FAILED}\n- Skipped: ${SKIPPED}\n\nIncludes per-benchmark JSON results, generated SUMMARY.md, system logs captured by testOS, and installer logs when available."
