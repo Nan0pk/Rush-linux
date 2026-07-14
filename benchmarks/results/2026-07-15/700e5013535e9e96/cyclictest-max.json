@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "bench_id": "cyclictest-max",
+  "bench_name": "cyclictest — max latency (µs)",
+  "scenario": "mixed-load-responsiveness",
+  "status": "fail",
+  "started_at": "2026-07-15T02:22:52Z",
+  "finished_at": "2026-07-15T02:24:32Z",
+  "elapsed_seconds": 100.068784636,
+  "stdout": "",
+  "stderr": "",
+  "exit_code": 0,
+  "host": {
+    "kernel": "7.0.14-arch1-1",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "HP 8BC2",
+    "battery_design_uwh": 70070000,
+    "fingerprint": "700e5013535e9e96"
+  }
+}
