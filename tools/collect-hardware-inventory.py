@@ -59,11 +59,11 @@ def run_cmd(cmd: list[str], timeout: int = 5) -> str:
 
 
 def check_redaction(text: str) -> list[str]:
-    """Check if text contains any redactable patterns. Returns list of matches."""
+    """Return matched rule names without echoing sensitive matched values."""
     matches = []
-    for pattern in REDACTED_PATTERNS:
-        for m in re.finditer(pattern, text):
-            matches.append(f"{pattern} -> {m.group(0)[:40]}")
+    for index, pattern in enumerate(REDACTED_PATTERNS, start=1):
+        if re.search(pattern, text):
+            matches.append(f"privacy rule {index}")
     return matches
 
 
@@ -88,11 +88,22 @@ def collect_cpu() -> dict:
             break
     info["model"] = model
     # Topology
-    info["cores_per_socket"] = safe_read("/sys/devices/system/cpu/cpu0/topology/core_siblings_list") or "unknown"
-    info["sockets"] = safe_read("/sys/devices/system/cpu/cpu0/topology/physical_package_id") or "unknown"
-    # Count online CPUs
     cpu_dirs = [d for d in os.listdir("/sys/devices/system/cpu/") if d.startswith("cpu") and d[3:].isdigit()]
-    info["online_cpus"] = len([d for d in cpu_dirs if safe_read(f"/sys/devices/system/cpu/{d}/online") != "0"])
+    online = [d for d in cpu_dirs if safe_read(f"/sys/devices/system/cpu/{d}/online") != "0"]
+    packages = set()
+    cores = set()
+    for cpu in online:
+        topology = f"/sys/devices/system/cpu/{cpu}/topology"
+        package = safe_read(f"{topology}/physical_package_id")
+        core = safe_read(f"{topology}/core_id")
+        if package:
+            packages.add(package)
+        if package and core:
+            cores.add((package, core))
+    info["online_cpus"] = len(online)
+    info["sockets"] = len(packages) or "unknown"
+    info["physical_cores"] = len(cores) or "unknown"
+    info["threads_per_core"] = round(len(online) / len(cores), 1) if cores else "unknown"
     # Frequency range
     info["freq_min_khz"] = safe_read("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq") or "unknown"
     info["freq_max_khz"] = safe_read("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq") or "unknown"
@@ -118,7 +129,15 @@ def collect_gpu() -> list:
                 desc = parts[2].strip()
                 # Remove the [hex:hex] device IDs (keep description only)
                 desc = re.sub(r"\[[0-9a-f]{4}:[0-9a-f]{4}\]", "", desc).strip()
-                gpus.append({"model": desc})
+                address = line.split()[0]
+                if address.count(":") == 1:
+                    address = f"0000:{address}"
+                driver_link = Path("/sys/bus/pci/devices") / address / "driver"
+                try:
+                    driver = driver_link.resolve(strict=True).name
+                except OSError:
+                    driver = "unknown"
+                gpus.append({"model": desc, "driver": driver})
     return gpus
 
 
@@ -167,10 +186,18 @@ def collect_dmi() -> dict:
 
 def collect_battery() -> dict:
     """Collect battery design/full capacity and status (no serials)."""
-    info = {"present": False}
+    info = {"present": False, "ac_online": None}
     bat_dir = Path("/sys/class/power_supply")
     if not bat_dir.exists():
         return info
+    ac_online = None
+    for supply in bat_dir.iterdir():
+        if safe_read(str(supply / "type")) == "Mains":
+            online = safe_read(str(supply / "online"))
+            if online in ("0", "1"):
+                ac_online = online == "1"
+                break
+    info["ac_online"] = ac_online
     for bat in bat_dir.iterdir():
         if not bat.name.startswith("BAT"):
             continue
@@ -271,6 +298,30 @@ def collect_pm_owners() -> dict:
     return owners
 
 
+def collect_power_profile() -> dict:
+    """Collect the current distro power profile without changing it."""
+    current = run_cmd(["powerprofilesctl", "get"])
+    return {"available": bool(current), "current": current or "unknown"}
+
+
+def collect_thermal() -> dict:
+    """Collect a coarse initial temperature summary, without device IDs."""
+    temperatures = []
+    for path in Path("/sys/class/hwmon").glob("hwmon*/temp*_input"):
+        raw = safe_read(str(path))
+        try:
+            value = int(raw) / 1000
+        except ValueError:
+            continue
+        if -20 <= value <= 150:
+            temperatures.append(value)
+    return {
+        "available": bool(temperatures),
+        "sensor_count": len(temperatures),
+        "maximum_celsius": max(temperatures) if temperatures else None,
+    }
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Privacy-safe hardware inventory")
@@ -299,6 +350,8 @@ def main():
         "storage": collect_storage(),
         "pci_modaliases": collect_pci_modaliases(),
         "pm_owners": collect_pm_owners(),
+        "power_profile": collect_power_profile(),
+        "initial_thermal": collect_thermal(),
     }
 
     # Privacy scan: check the entire JSON for redactable patterns

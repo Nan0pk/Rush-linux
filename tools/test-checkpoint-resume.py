@@ -59,7 +59,9 @@ def save_checkpoint(env: dict, run_id: str, phase: str,
                     run_dir: str = "") -> None:
     cmd = ["python3", str(CHECKPOINT), "save", "--run-id", run_id, "--phase", phase]
     if run_dir:
-        cmd += ["--run-dir", run_dir]
+        persistent = TEST_XDG / "rush-livedev" / "runs" / run_id
+        (persistent / "results").mkdir(parents=True, exist_ok=True)
+        cmd += ["--run-dir", str(persistent)]
     run(cmd, env=env)
 
 
@@ -275,6 +277,18 @@ def test_inventory_privacy_scan_passes():
         if not inv_path.exists():
             print("FAIL: inventory file not written")
             return False
+        inventory = json.loads(inv_path.read_text())
+        required = {"power_profile", "initial_thermal"}
+        if not required.issubset(inventory):
+            print(f"FAIL: inventory missing baseline capability fields: {required - set(inventory)}")
+            return False
+        if "ac_online" not in inventory.get("battery", {}):
+            print("FAIL: inventory missing AC state")
+            return False
+        for gpu in inventory.get("gpu", []):
+            if "driver" not in gpu:
+                print("FAIL: inventory GPU entry missing driver")
+                return False
         # Verify no redactable patterns
         text = inv_path.read_text()
         import re
@@ -328,6 +342,30 @@ def test_one_command_before_reboot():
     return True
 
 
+def test_tampered_checkpoint_cannot_redirect_paths():
+    """A stale or edited checkpoint must fail closed before resume."""
+    env = setup_test_env()
+    cp_path = TEST_XDG / "rush-livedev" / "checkpoint.json"
+    cp_path.parent.mkdir(parents=True, exist_ok=True)
+    cp_path.write_text(json.dumps({
+        "run_id": "tampered",
+        "phase": "usb_prepared",
+        "run_dir": "/tmp/redirected-run",
+        "inventory_path": "/etc/passwd",
+        "plan_path": "/tmp/plan.json",
+    }))
+    rc, stdout, stderr = run(["python3", str(CHECKPOINT), "load"], env=env)
+    cp_path.unlink(missing_ok=True)
+    if rc == 0 or stdout.strip() != "null":
+        print("FAIL: tampered checkpoint was accepted")
+        return False
+    if "INVALID CHECKPOINT" not in stderr:
+        print(f"FAIL: rejection reason was not reported: {stderr}")
+        return False
+    print("PASS: tampered checkpoint cannot redirect persistent paths")
+    return True
+
+
 def main():
     tests = [
         test_all_phases_generate_parseable_commands,
@@ -337,6 +375,7 @@ def main():
         test_resume_command_executes_dry_run,
         test_inventory_privacy_scan_passes,
         test_one_command_before_reboot,
+        test_tampered_checkpoint_cannot_redirect_paths,
     ]
     passed = 0
     failed = 0

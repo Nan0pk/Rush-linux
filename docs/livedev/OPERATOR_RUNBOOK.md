@@ -102,13 +102,13 @@ If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo.
 
 1. **Clone/fetch repo.** If invoked inside a Rush-linux checkout, uses the current checkout and pulls latest `main`. If `./Rush-linux` already exists and is a git repo, reuses it. If `./Rush-linux` exists but is not a git repo, clones into a timestamped `Rush-linux-livedev-*` alternate directory. Otherwise clones into `./Rush-linux`.
 2. **Mock verification.** Runs `python3 tools/livedev-next --mock` (skip with `--skip-mock`). This executes the three end-to-end dry-run scenarios plus the evidence fixture validator. No hardware, no network, ~10 seconds.
-3. **Generate plan.** Runs `python3 tools/livedev-next --plan`. The planner reads the repo state plus the host hardware fingerprint and writes `/tmp/rush-livedev-plan.json`.
+3. **Generate and preserve plan.** Runs `python3 tools/livedev-next --plan --baseline-only`. This plan records no private repository path, contains no optid actuation, and makes no milestone claim. The planner writes `/tmp/rush-livedev-plan.json`; the bootstrap then verifies it is a regular non-symlink file, copies it to the persistent run as `plan.json`, and records its absolute path in the checkpoint before USB preparation.
 4. **Prepare USB.** Invokes the testOS installer (`testos/install.sh` on Linux/macOS, `testos/install.ps1` on Windows). The script prints `Using testOS as the current LiveDev boot backend.` because the LiveDev image is not yet wired as a separate boot backend. In `--dry-run` mode, prints the exact command but does not write the USB.
 5. **Print reboot instructions.** Exact boot-menu keys, Secure Boot note, testOS menu controls, and the next command to run after reboot (`bash livedev-bootstrap.sh --resume` or `.\livedev-bootstrap.ps1 -Resume`).
 
 After the test machine reboots back to its host OS:
 
-6. **Resume collection** (`--resume`): scans for a removable USB disk, mounts its ESP read-only, and copies `testos-results/<latest>/` into a temp run directory.
+6. **Resume collection** (`--resume`): validates every checkpoint path beneath the persistent Rush run root, scans for a removable USB disk, mounts its ESP read-only, and copies `testos-results/<latest>/` into that same persistent run. The pre-reboot inventory and plan are copied into the final bundle.
 7. **Validate results.** Runs a basic manifest schema check (parses, has host fingerprint, has passed/failed/skipped counts). If the bundle has a LiveDev `run-record.json`, runs the full 14-check `validate-hwtest-evidence.py` validator.
 8. **Submit dry-run** (default): runs `python3 tools/livedev-next --submit <RUN_DIR> --dry-run`. No push, no PR, no merge.
 9. **Submit real** (`--submit`): pushes a branch and opens an evidence PR via the GitHub API. No merge API call is made. A maintainer reviews and merges.
