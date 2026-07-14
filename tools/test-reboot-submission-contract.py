@@ -14,8 +14,8 @@ These tests prove the physical USB workflow survives a simulated reboot:
   8. Start from the front-page curl working directory and prove resume works
   9. Prove the real workflow reaches submission dry-run after simulated reboot
 
-Cloud-safe: no real hardware, no USB, no network. Uses RUSH_LIVEDEV_TEST_STUB
-and --dry-run to stub physical operations.
+Cloud-safe: no USB and no required network. Uses a test-only USB-write stub
+while executing the real inventory, plan persistence, and checkpoint path.
 """
 
 import json
@@ -86,15 +86,13 @@ def delete_tmp_rush_dirs() -> None:
 
 
 def test_1_bootstrap_state_machine_stubbed():
-    """Run the actual bootstrap state machine with USB/install operations stubbed."""
+    """Run real pre-reboot persistence with only the destructive write stubbed."""
     env = setup_test_env()
     clear_checkpoint(env)
-    # Use --dry-run (not TEST_STUB) so Step 0 (inventory) is shown.
-    # TEST_STUB exits at repo resolution; --dry-run shows the full pipeline
-    # without writing USB or running sudo.
     env.pop("RUSH_LIVEDEV_TEST_STUB", None)
+    env["RUSH_LIVEDEV_TEST_SKIP_USB_WRITE"] = "1"
     rc, stdout, stderr = run(
-        ["bash", str(BOOTSTRAP), "--auto", "--dry-run"], env=env, timeout=60
+        ["bash", str(BOOTSTRAP), "--auto", "--skip-mock"], env=env, timeout=60
     )
     if rc != 0:
         print(f"FAIL: bootstrap --auto --dry-run exited {rc}: {stderr[-300:]}")
@@ -102,11 +100,31 @@ def test_1_bootstrap_state_machine_stubbed():
     if "Step 0/4" not in stdout:
         print(f"FAIL: bootstrap did not show Step 0 (inventory collection)")
         return False
-    if "Step 1/4" not in stdout:
-        print(f"FAIL: bootstrap did not show Step 1 (mock verification)")
+    if "Step 2/4" not in stdout:
+        print(f"FAIL: bootstrap did not reach plan generation")
+        return False
+    rc, checkpoint_json, checkpoint_error = run(
+        ["python3", str(CHECKPOINT), "load"], env=env
+    )
+    if rc != 0:
+        print(f"FAIL: checkpoint could not be loaded: {checkpoint_error[-300:]}")
+        return False
+    checkpoint = json.loads(checkpoint_json)
+    plan_path = Path(checkpoint.get("plan_path", ""))
+    run_dir = Path(checkpoint.get("run_dir", ""))
+    if not plan_path.is_file() or plan_path.is_symlink():
+        print(f"FAIL: persistent plan is missing or unsafe: {plan_path}")
+        return False
+    try:
+        plan_path.resolve().relative_to(run_dir.resolve())
+    except ValueError:
+        print(f"FAIL: plan_path escapes run_dir: {plan_path}")
+        return False
+    if checkpoint.get("phase") != "usb_prepared":
+        print(f"FAIL: expected usb_prepared checkpoint: {checkpoint}")
         return False
     clear_checkpoint(env)
-    print("PASS: bootstrap state machine runs with USB/install stubbed (--dry-run)")
+    print("PASS: bootstrap persists plan and checkpoint with USB write stubbed")
     return True
 
 

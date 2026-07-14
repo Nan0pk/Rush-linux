@@ -615,6 +615,7 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
                 _checkpoint_save(
                     cp.get("run_id", "unknown"), "submitted",
                     run_dir=run_dir,
+                    plan_path=cp.get("plan_path", ""),
                     inventory_path=cp.get("inventory_path", ""),
                     branch=cp.get("branch", ""),
                     pr_url=pr_url,

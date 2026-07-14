@@ -40,6 +40,7 @@ WORK_DIR_NAME="Rush-linux"
 #                            reboot instructions requiring action, PR
 #                            submission, and real hardware are skipped.
 TEST_STUB="${RUSH_LIVEDEV_TEST_STUB:-0}"
+TEST_SKIP_USB_WRITE="${RUSH_LIVEDEV_TEST_SKIP_USB_WRITE:-0}"
 SOURCE_REPO="${RUSH_LIVEDEV_SOURCE_REPO:-}"
 REPO_DIR_OVERRIDE="${RUSH_LIVEDEV_REPO_DIR:-}"
 
@@ -293,13 +294,17 @@ do_auto() {
     echo
     log "Step 0/4: Collect privacy-safe hardware inventory."
     local INVENTORY_PATH=""
+    local PLAN_PATH=""
     # Create a persistent run directory for this run. Use one stable run_id
     # across preflight, USB preparation, reboot, collection, validation and
     # submission. If a checkpoint already exists (e.g., operator is retrying
     # preflight), reuse its run_id.
     local RUN_ID=""
     if [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json" ]]; then
-        RUN_ID="$(python3 -c "import json; d=json.load(open('${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json')); print(d.get('run_id',''))" 2>/dev/null || echo "")"
+        local checkpoint_json
+        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load)" || \
+            die "Existing LiveDev checkpoint failed path-safety validation. Inspect it before continuing."
+        RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))')"
     fi
     if [[ -z "$RUN_ID" ]]; then
         RUN_ID="auto-$(date -u +%Y%m%d-%H%M%S)"
@@ -346,6 +351,21 @@ do_auto() {
     else
         python3 tools/livedev-next --plan || die "Plan generation failed."
         ok "Plan generated: /tmp/rush-livedev-plan.json"
+        local generated_plan="/tmp/rush-livedev-plan.json"
+        PLAN_PATH="$PERSISTENT_RUN_DIR/plan.json"
+        [[ -f "$generated_plan" && ! -L "$generated_plan" ]] || \
+            die "Generated plan is missing, non-regular, or a symlink: $generated_plan"
+        [[ ! -L "$PLAN_PATH" ]] || die "Refusing to overwrite symlink plan destination: $PLAN_PATH"
+        if [[ -e "$PLAN_PATH" ]]; then
+            [[ -f "$PLAN_PATH" ]] || die "Existing persistent plan is not a regular file: $PLAN_PATH"
+            ok "Reusing existing persistent plan without altering it: $PLAN_PATH"
+        else
+            cp "$generated_plan" "$PLAN_PATH" || die "Failed to preserve benchmark plan in persistent run directory."
+        fi
+        [[ -f "$PLAN_PATH" && ! -L "$PLAN_PATH" ]] || \
+            die "Persistent plan verification failed: $PLAN_PATH"
+        checkpoint_save "$RUN_ID" "plan_ready" "$PERSISTENT_RUN_DIR" "$INVENTORY_PATH" "$PLAN_PATH"
+        ok "Persistent plan: $PLAN_PATH"
     fi
 
     # Step 3: prepare USB using the current testOS backend.
@@ -360,6 +380,8 @@ do_auto() {
             echo "      sudo bash testos/install.sh"
         fi
         echo "    [dry-run] Not writing USB."
+    elif [[ "$TEST_SKIP_USB_WRITE" == "1" ]]; then
+        ok "[TEST] USB write skipped after plan/checkpoint preparation."
     else
         if [[ -n "$DEVICE" ]]; then
             sudo bash testos/install.sh "$DEVICE"
@@ -378,7 +400,7 @@ do_auto() {
     # After reboot, the operator runs the resume command to continue.
     # Use the SAME RUN_ID from Step 0 so the persistent run_dir is reused.
     if [[ "$DRY_RUN" != "true" ]]; then
-        checkpoint_save "$RUN_ID" "usb_prepared" "$PERSISTENT_RUN_DIR" "$INVENTORY_PATH"
+        checkpoint_save "$RUN_ID" "usb_prepared" "$PERSISTENT_RUN_DIR" "$INVENTORY_PATH" "$PLAN_PATH"
         echo
         log "Checkpoint saved. After reboot, resume with one command:"
         echo "    python3 tools/rush-livedev-checkpoint.py resume-command"
@@ -441,13 +463,14 @@ EOF
 # reboot. The checkpoint tool stores state in ~/.local/share/rush-livedev/
 # which survives reboot (unlike /tmp). NEVER stores tokens.
 checkpoint_save() {
-    local run_id="$1" phase="$2" run_dir="${3:-}" inventory_path="${4:-}"
+    local run_id="$1" phase="$2" run_dir="${3:-}" inventory_path="${4:-}" plan_path="${5:-}"
     if [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
         local cmd=(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" save
                    --run-id "$run_id" --phase "$phase")
         [[ -n "$run_dir" ]] && cmd+=(--run-dir "$run_dir")
         [[ -n "$inventory_path" ]] && cmd+=(--inventory-path "$inventory_path")
-        "${cmd[@]}" 2>/dev/null || true
+        [[ -n "$plan_path" ]] && cmd+=(--plan-path "$plan_path")
+        "${cmd[@]}" || die "Failed to save a path-safe LiveDev checkpoint."
     fi
 }
 
@@ -517,11 +540,16 @@ do_resume() {
     # would lose the pre-reboot inventory reference.
     local CP_RUN_ID=""
     local CP_INVENTORY=""
+    local CP_PLAN=""
     local CP_FILE=""
     CP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json"
     if [[ -f "$CP_FILE" ]]; then
-        CP_RUN_ID="$(python3 -c "import json; d=json.load(open('$CP_FILE')); print(d.get('run_id',''))" 2>/dev/null || echo "")"
-        CP_INVENTORY="$(python3 -c "import json; d=json.load(open('$CP_FILE')); print(d.get('inventory_path',''))" 2>/dev/null || echo "")"
+        local checkpoint_json
+        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load)" || \
+            die "Existing LiveDev checkpoint failed path-safety validation. Inspect it before continuing."
+        CP_RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))')"
+        CP_INVENTORY="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("inventory_path", ""))')"
+        CP_PLAN="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("plan_path", ""))')"
     fi
 
     if [[ -n "$CP_RUN_ID" ]]; then
@@ -635,6 +663,17 @@ PYEOF
         fi
     fi
 
+    if [[ -n "$CP_PLAN" ]]; then
+        [[ -f "$CP_PLAN" && ! -L "$CP_PLAN" ]] || \
+            die "Persistent benchmark plan is missing, non-regular, or a symlink."
+        local plan_dest="$RUN_DIR/plan.json"
+        [[ ! -L "$plan_dest" ]] || die "Refusing to overwrite symlink plan destination in evidence bundle."
+        cp "$CP_PLAN" "$plan_dest" || die "Failed to copy benchmark plan into evidence bundle."
+        ok "Copied benchmark plan into evidence bundle: $plan_dest"
+    else
+        die "Checkpoint has no persistent plan_path; refusing incomplete evidence collection."
+    fi
+
     # Step 2: validate.
     echo
     log "Step 2/3: Validate results."
@@ -647,7 +686,7 @@ PYEOF
     # persistent run_dir stays consistent across preflight -> reboot -> resume.
     if [[ "$DRY_RUN" != "true" ]]; then
         if [[ -n "$CP_RUN_ID" ]]; then
-            checkpoint_save "$CP_RUN_ID" "collected" "$RUN_DIR" "$CP_INVENTORY"
+            checkpoint_save "$CP_RUN_ID" "collected" "$RUN_DIR" "$CP_INVENTORY" "$CP_PLAN"
         else
             # No prior checkpoint — create a new one.
             checkpoint_save "resume-$(date -u +%Y%m%d-%H%M%S)" "collected" "$RUN_DIR"
