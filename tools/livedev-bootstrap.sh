@@ -336,6 +336,17 @@ do_auto() {
     log "Step 4/4: Boot the USB and run tests."
     print_boot_instructions
 
+    # Save checkpoint: USB is prepared, operator needs to boot.
+    # After reboot, the operator runs the resume command to continue.
+    local run_id
+    run_id="usb-$(date -u +%Y%m%d-%H%M%S)"
+    if [[ "$DRY_RUN" != "true" ]]; then
+        checkpoint_save "$run_id" "usb_prepared"
+        echo
+        log "Checkpoint saved. After reboot, resume with one command:"
+        echo "    python3 tools/rush-livedev-checkpoint.py resume-command"
+    fi
+
     echo
     log "After testOS reboots the test machine back to its host OS, plug the USB"
     log "back into this workstation and run:"
@@ -377,11 +388,36 @@ print_boot_instructions() {
 
          bash livedev-bootstrap.sh --resume
 
+       Or use the checkpoint resume command (prints the exact command):
+
+         python3 tools/rush-livedev-checkpoint.py resume-command
+
     ---
 
     You only approve: USB erase, boot from USB, physical AC/battery
     prompts, and (later) GitHub auth. Everything else is automatic.
 EOF
+}
+
+# --- Checkpoint integration --------------------------------------------------
+# Save persistent state so the operator can resume with one command after
+# reboot. The checkpoint tool stores state in ~/.local/share/rush-livedev/
+# which survives reboot (unlike /tmp). NEVER stores tokens.
+checkpoint_save() {
+    local run_id="$1" phase="$2" run_dir="${3:-}" inventory_path="${4:-}"
+    if [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
+        local cmd=(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" save
+                   --run-id "$run_id" --phase "$phase")
+        [[ -n "$run_dir" ]] && cmd+=(--run-dir "$run_dir")
+        [[ -n "$inventory_path" ]] && cmd+=(--inventory-path "$inventory_path")
+        "${cmd[@]}" 2>/dev/null || true
+    fi
+}
+
+checkpoint_resume_command() {
+    if [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
+        python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" resume-command 2>/dev/null || true
+    fi
 }
 
 # --- RESUME MODE ------------------------------------------------------------
@@ -490,6 +526,11 @@ PYEOF
     log "Step 2/3: Validate results."
     if [[ "$DRY_RUN" != "true" ]]; then
         validate_results "$RUN_DIR"
+    fi
+
+    # Save checkpoint: results collected, ready to submit.
+    if [[ "$DRY_RUN" != "true" ]]; then
+        checkpoint_save "resume-$(date -u +%Y%m%d-%H%M%S)" "collected" "$RUN_DIR"
     fi
 
     # Step 3: submit.

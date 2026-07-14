@@ -34,6 +34,90 @@ from pathlib import Path
 _TOOLS_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _TOOLS_DIR.parent
 
+# ── Checkpoint integration ──────────────────────────────────────────────────
+# The checkpoint tool provides persistent resumable state across reboots.
+# livedev-next saves a checkpoint at each phase transition so the operator
+# can resume with a single generated command after reboot.
+_CHECKPOINT_TOOL = _TOOLS_DIR / "rush-livedev-checkpoint.py"
+_INVENTORY_TOOL = _TOOLS_DIR / "collect-hardware-inventory.py"
+
+
+def _checkpoint_save(run_id: str, phase: str, run_dir: str = "",
+                     plan_path: str = "", inventory_path: str = "",
+                     branch: str = "", pr_url: str = "") -> None:
+    """Save a checkpoint. Non-fatal if it fails (checkpoint is a convenience)."""
+    if not _CHECKPOINT_TOOL.exists():
+        return
+    cmd = [
+        "python3", str(_CHECKPOINT_TOOL), "save",
+        "--run-id", run_id,
+        "--phase", phase,
+    ]
+    if run_dir:
+        cmd += ["--run-dir", run_dir]
+    if plan_path:
+        cmd += ["--plan-path", plan_path]
+    if inventory_path:
+        cmd += ["--inventory-path", inventory_path]
+    if branch:
+        cmd += ["--branch", branch]
+    if pr_url:
+        cmd += ["--pr-url", pr_url]
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _checkpoint_load() -> dict | None:
+    """Load the current checkpoint, or None if absent/unreadable."""
+    if not _CHECKPOINT_TOOL.exists():
+        return None
+    try:
+        r = subprocess.run(
+            ["python3", str(_CHECKPOINT_TOOL), "load"],
+            capture_output=True, text=True, timeout=5
+        )
+        if r.returncode == 0 and r.stdout.strip() != "null":
+            return json.loads(r.stdout)
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        pass
+    return None
+
+
+def _collect_hardware_inventory(run_dir: str) -> str:
+    """Collect privacy-safe hardware inventory into run_dir.
+
+    Returns the path to the written inventory file, or empty string on
+    failure. The inventory is collected automatically as part of --auto
+    so the evidence bundle includes the host's capabilities without the
+    operator needing to run a separate command.
+
+    Privacy: the collector has a built-in privacy scanner that refuses
+    to write output if any redactable pattern (serials, MACs, UUIDs,
+    IPs, hostnames, SSIDs, home paths) is detected.
+    """
+    if not _INVENTORY_TOOL.exists():
+        return ""
+    inventory_path = str(Path(run_dir) / "hardware-inventory.json")
+    try:
+        r = subprocess.run(
+            ["python3", str(_INVENTORY_TOOL), "--output", inventory_path],
+            capture_output=True, text=True, timeout=30
+        )
+        if r.returncode == 0 and Path(inventory_path).exists():
+            return inventory_path
+        # Privacy violation (exit 2) or other failure — log but don't crash.
+        if r.returncode == 2:
+            print(f"  [WARN] Hardware inventory collection refused (privacy violation):")
+            for line in r.stderr.strip().splitlines()[:3]:
+                print(f"         {line}")
+        else:
+            print(f"  [WARN] Hardware inventory collection failed (exit {r.returncode})")
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return ""
+
 REQUIRED_TOOLS = [
     "tools/livedev-e2e-dry-run.py",
     "tools/rush-autopilot",
@@ -197,6 +281,10 @@ def cmd_auto(dry_run: bool = False) -> int:
     With --dry-run, prints every command instead of executing it. Does not
     write a USB -- USB preparation is --prepare-usb's job, and the full
     one-command USB workflow is the bootstrap script's job.
+
+    Saves a persistent checkpoint at each phase so the operator can resume
+    with a single generated command after reboot. Collects a privacy-safe
+    hardware inventory into the run_dir automatically.
     """
     print("=" * 60)
     print("  Rush LiveDev - Full Pipeline")
@@ -209,8 +297,28 @@ def cmd_auto(dry_run: bool = False) -> int:
         print("  [dry-run]   for the full one-command USB workflow.")
         print()
 
+    # Generate a run_id for this pipeline run. Used for checkpoint state.
+    import datetime
+    run_id = datetime.datetime.now(datetime.timezone.utc).strftime("auto-%Y%m%d-%H%M%S")
     run_dir = tempfile.mkdtemp(prefix="rush-livedev-auto-")
     plan_path = "/tmp/rush-livedev-plan.json"
+
+    # Step 0: Collect privacy-safe hardware inventory.
+    # This is collected BEFORE any benchmark runs so the inventory reflects
+    # the host's baseline capabilities, not any state changed by optid.
+    print("  Step 0/4: Collecting privacy-safe hardware inventory...")
+    if dry_run:
+        print(f"    [dry-run] python3 tools/collect-hardware-inventory.py --output {run_dir}/hardware-inventory.json")
+        inventory_path = ""
+    else:
+        inventory_path = _collect_hardware_inventory(run_dir)
+        if inventory_path:
+            print(f"    [OK] Inventory: {inventory_path}")
+        else:
+            print("    [WARN] Inventory collection skipped (non-fatal)")
+    _checkpoint_save(run_id, "preflight", run_dir=run_dir,
+                     plan_path=plan_path, inventory_path=inventory_path)
+    print()
 
     # Step 1: Plan.
     print("  Step 1/4: Generating plan...")
@@ -230,6 +338,8 @@ def cmd_auto(dry_run: bool = False) -> int:
         if not dry_run and stderr.strip():
             print(f"     {stderr.strip()[-300:]}")
         return 1
+    _checkpoint_save(run_id, "plan_ready", run_dir=run_dir,
+                     plan_path=plan_path, inventory_path=inventory_path)
     print()
 
     # Step 2: Run (fake mode - safe, no hardware).
@@ -269,6 +379,8 @@ def cmd_auto(dry_run: bool = False) -> int:
         print()
         print(f"  Run dir: {run_dir}")
         return 1
+    _checkpoint_save(run_id, "validated", run_dir=run_dir,
+                     plan_path=plan_path, inventory_path=inventory_path)
     print()
 
     # Step 4: Submit (dry-run).
@@ -291,6 +403,10 @@ def cmd_auto(dry_run: bool = False) -> int:
         print("  [dry-run] Pipeline complete (no commands executed).")
     else:
         print(f"  [OK] Pipeline complete. Run dir: {run_dir}")
+        if inventory_path:
+            print(f"  [OK] Hardware inventory: {inventory_path}")
+        print(f"  [OK] Checkpoint saved. Resume after reboot with:")
+        print(f"       python3 tools/rush-livedev-checkpoint.py resume-command")
     print()
     print("  To submit for real (opens a PR for maintainer review):")
     print(f"    python3 tools/livedev-next --submit {run_dir}")
@@ -475,6 +591,26 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
         if rc == 0:
             print()
             print("  [OK] PR opened. Check the output above for the PR URL.")
+            # Update checkpoint to mark submission complete.
+            # Try to extract PR URL from stdout for the checkpoint record.
+            pr_url = ""
+            for line in stdout.splitlines():
+                if "github.com" in line and "/pull/" in line:
+                    # Extract the URL from the line
+                    import re
+                    m = re.search(r'https://github\.com/\S+/pull/\d+', line)
+                    if m:
+                        pr_url = m.group(0)
+                        break
+            cp = _checkpoint_load()
+            if cp:
+                _checkpoint_save(
+                    cp.get("run_id", "unknown"), "submitted",
+                    run_dir=run_dir,
+                    inventory_path=cp.get("inventory_path", ""),
+                    branch=cp.get("branch", ""),
+                    pr_url=pr_url,
+                )
         else:
             print()
             print(f"  [FAIL] Submission failed (exit {rc})")
@@ -549,6 +685,19 @@ def cmd_resume(dry_run: bool = False, submit: bool = False) -> int:
     print("=" * 60)
     print()
 
+    # Load checkpoint to show the operator what phase we're resuming from.
+    cp = _checkpoint_load()
+    if cp:
+        print(f"  [checkpoint] Run ID: {cp.get('run_id', '?')}")
+        print(f"  [checkpoint] Phase:  {cp.get('phase', '?')}")
+        print(f"  [checkpoint] Saved:  {cp.get('saved_at', '?')[:19]}")
+        if cp.get("run_dir"):
+            print(f"  [checkpoint] Run dir: {cp.get('run_dir')}")
+        print()
+    else:
+        print("  [checkpoint] No checkpoint found. Resuming from USB/VM scan.")
+        print()
+
     bootstrap_sh = _REPO_ROOT / "tools/livedev-bootstrap.sh"
 
     if not bootstrap_sh.exists():
@@ -576,6 +725,17 @@ def cmd_resume(dry_run: bool = False, submit: bool = False) -> int:
         print(f"  [FAIL] bootstrap.sh exited {rc}")
         if stderr.strip():
             print(f"     {stderr.strip()[-300:]}")
+        return rc
+
+    # Update checkpoint: resume succeeded, move to collected/validated phase.
+    if cp:
+        run_id = cp.get("run_id", "unknown")
+        run_dir = cp.get("run_dir", "")
+        inventory_path = cp.get("inventory_path", "")
+        # If bootstrap.sh produced a RUN_DIR in its output, capture it.
+        # Otherwise keep the checkpoint's run_dir.
+        _checkpoint_save(run_id, "collected", run_dir=run_dir,
+                         inventory_path=inventory_path)
     return rc
 
 

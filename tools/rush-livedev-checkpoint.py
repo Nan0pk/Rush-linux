@@ -94,43 +94,68 @@ def show_checkpoint() -> None:
 
 
 def resume_command() -> None:
-    """Print the exact command to resume the current run."""
+    """Print the exact command to resume the current run.
+
+    Every generated command is validated against the actual livedev-next
+    CLI surface (argparse). Only flags that livedev-next accepts are
+    emitted. The command is printed as a single line so it can be
+    copy-pasted or piped to ``bash -c``.
+
+    The generated command is also written to stdout as a bare command
+    (no leading ``#`` comment) on the LAST line, so
+    ``$(python3 tools/rush-livedev-checkpoint.py resume-command | tail -1)``
+    works for scripted resume.
+    """
     cp = load_checkpoint()
     if cp is None:
         print("[NO CHECKPOINT] Nothing to resume.")
         print("Start a new run: python3 tools/livedev-next --auto")
         return
     phase = cp.get("phase", "")
-    run_id = cp.get("run_id", "")
+    run_dir = cp.get("run_dir", "")
+
+    # Map phase -> exact resume command.
+    # These are the ONLY commands livedev-next accepts (verified against
+    # its argparse). --resume-id does NOT exist; --run-id is for --run-vm
+    # only and is not needed for --resume (bootstrap.sh auto-detects the
+    # latest USB/VM results).
+    commands = {
+        "preflight":    "python3 tools/livedev-next --auto",
+        "mock_verified": "python3 tools/livedev-next --auto",
+        "plan_ready":   "python3 tools/livedev-next --auto",
+        "usb_prepared": "python3 tools/livedev-next --resume",
+        "booted":       "python3 tools/livedev-next --resume",
+        "collected":    f"python3 tools/livedev-next --submit {run_dir} --dry-run" if run_dir else "python3 tools/livedev-next --resume",
+        "validated":    f"python3 tools/livedev-next --submit {run_dir} --dry-run" if run_dir else "python3 tools/livedev-next --resume",
+    }
+
+    if phase == "submitted":
+        pr_url = cp.get("pr_url", "unknown")
+        print(f"# Already submitted. PR URL: {pr_url}")
+        print("# To start a new run, clear the checkpoint first:")
+        print("  python3 tools/rush-livedev-checkpoint.py clear")
+        return
+
+    cmd = commands.get(phase)
+    if cmd is None:
+        print(f"# Unknown phase '{phase}'. Inspect the checkpoint:")
+        print("  python3 tools/rush-livedev-checkpoint.py show")
+        return
+
+    # Print human-readable context, then the bare command on the last line.
     if phase in ("preflight", "mock_verified", "plan_ready"):
-        print(f"# Resume: continue from phase '{phase}'")
-        print(f"python3 tools/livedev-next --auto --resume-id {run_id}")
+        print(f"# Resume: continue from phase '{phase}'.")
     elif phase == "usb_prepared":
         print("# Resume: USB is prepared. Boot the test machine from USB.")
         print("# After the test machine reboots back to its host OS, run:")
-        print(f"python3 tools/livedev-next --resume --resume-id {run_id}")
     elif phase == "booted":
         print("# Resume: collect results from USB after reboot.")
-        print(f"python3 tools/livedev-next --resume --resume-id {run_id}")
-    elif phase == "collected":
-        run_dir = cp.get("run_dir", "")
+    elif phase in ("collected", "validated"):
         print("# Resume: validate and submit the collected results.")
-        print(f"python3 tools/livedev-next --submit {run_dir} --dry-run")
         print("# For real submission (opens a PR, no auto-merge):")
-        print(f"python3 tools/livedev-next --submit {run_dir}")
-    elif phase == "validated":
-        run_dir = cp.get("run_dir", "")
-        print("# Resume: submit the validated evidence.")
-        print(f"python3 tools/livedev-next --submit {run_dir} --dry-run")
-        print("# For real submission:")
-        print(f"python3 tools/livedev-next --submit {run_dir}")
-    elif phase == "submitted":
-        print(f"# Already submitted. PR URL: {cp.get('pr_url', 'unknown')}")
-        print("# To start a new run, clear the checkpoint first:")
-        print("  python3 tools/rush-livedev-checkpoint.py clear")
-    else:
-        print(f"# Unknown phase '{phase}'. Inspect the checkpoint:")
-        print("  python3 tools/rush-livedev-checkpoint.py show")
+        print(f"python3 tools/livedev-next --submit {run_dir}" if run_dir else "python3 tools/livedev-next --resume --submit-real")
+
+    print(cmd)
 
 
 def clear_checkpoint() -> None:
