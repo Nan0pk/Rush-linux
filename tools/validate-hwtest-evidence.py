@@ -268,7 +268,14 @@ class BundleValidator:
             )
 
     def _check_source_commit(self) -> None:
-        """Check 4: source_commit exists in git."""
+        """Check 4: source_commit exists in git.
+
+        Handles shallow clones: if ``git cat-file`` fails (the commit is
+        not in the local object store), attempt ``git fetch --depth=1
+        origin <sha>`` to retrieve just that commit before declaring it
+        missing. This makes the validator work from a ``--depth 1`` clone,
+        which is what ``livedev-bootstrap.sh`` and CI typically create.
+        """
         if self.manifest is None:
             return
         commit = self.manifest.get("source_commit")
@@ -281,8 +288,61 @@ class BundleValidator:
                 text=True,
                 timeout=5,
             )
-            if r.returncode != 0 or r.stdout.strip() != "commit":
-                self.err(f"source_commit {commit!r} does not exist in git")
+            if r.returncode == 0 and r.stdout.strip() == "commit":
+                return  # commit exists locally
+
+            # Shallow-clone recovery: try to fetch just this commit.
+            # This is safe — it only adds objects to the local store,
+            # it does not modify any branch or working tree.
+            # Validate the commit hash format before passing to git to
+            # prevent injection (git is generally safe, but defense in
+            # depth).
+            if not all(c in "0123456789abcdefABCDEF" for c in commit) or len(commit) < 7:
+                self.err(
+                    f"source_commit {commit!r} is not a valid git SHA"
+                )
+                return
+
+            fetch_r = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(self.repo_root),
+                    "fetch",
+                    "--depth=1",
+                    "origin",
+                    commit,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if fetch_r.returncode == 0:
+                # Re-check after fetch.
+                r2 = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(self.repo_root),
+                        "cat-file",
+                        "-t",
+                        commit,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if r2.returncode == 0 and r2.stdout.strip() == "commit":
+                    return  # successfully fetched
+                self.err(
+                    f"source_commit {commit!r} fetched but still not resolvable"
+                )
+            else:
+                self.err(
+                    f"source_commit {commit!r} does not exist in git "
+                    f"(not in local store and fetch failed: "
+                    f"{fetch_r.stderr.strip()[:200]})"
+                )
         except (OSError, subprocess.TimeoutExpired) as e:
             self.warn(f"could not verify source_commit in git: {e}")
 

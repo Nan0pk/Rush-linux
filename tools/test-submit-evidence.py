@@ -138,7 +138,20 @@ def test_pr_body_has_pass_fail_badge():
         run_dir = _make_valid_run_dir(Path(tmp))
         _, _, manifest = rse.validate_run_dir(run_dir)
         body = rse.generate_pr_body(run_dir, manifest, "test-branch", None)
-        assert "shields.io" in body  # has a badge
+        # Extract all URLs from the body using a regex (handles markdown
+        # ![alt](url) syntax and bare URLs). A naive split() on whitespace
+        # leaves ![alt]( prefix attached to the URL token, so urlparse
+        # returns None for the hostname. The regex captures the URL after
+        # `](` in markdown image links, or bare http(s) URLs.
+        import re
+        from urllib.parse import urlparse
+
+        url_pattern = re.compile(r'https?://[^\s\)\]]+')
+        urls = url_pattern.findall(body)
+        hosts = [urlparse(u).hostname for u in urls]
+        assert any(host and host.endswith(".shields.io") or host == "shields.io" for host in hosts), (
+            f"expected a shields.io badge URL in body, got hosts={hosts}"
+        )
 
 
 def test_pr_body_has_host_table():
