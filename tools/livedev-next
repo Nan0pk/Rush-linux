@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -603,13 +604,12 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
             # Try to extract PR URL from stdout for the checkpoint record.
             pr_url = ""
             for line in stdout.splitlines():
-                if "github.com" in line and "/pull/" in line:
-                    # Extract the URL from the line
-                    import re
-                    m = re.search(r'https://github\.com/\S+/pull/\d+', line)
-                    if m:
-                        pr_url = m.group(0)
-                        break
+                m = re.search(
+                    r'https://github\.com/[^/\s]+/[^/\s]+/pull/\d+\b', line
+                )
+                if m:
+                    pr_url = m.group(0)
+                    break
             cp = _checkpoint_load()
             if cp:
                 _checkpoint_save(
