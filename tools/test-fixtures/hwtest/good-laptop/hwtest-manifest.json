@@ -12,6 +12,6 @@
   "privacy_report_path": "privacy-report.json",
   "schema_version": 1,
   "source_commit": "2a10847d89d4413b9df305c48bb8c4545ce3017e",
-  "source_version": "0.7.0-beta.1",
+  "source_version": "0.7.0-beta.4",
   "verdict_path": "VERDICT.md"
 }

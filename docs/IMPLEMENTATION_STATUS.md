@@ -18,7 +18,7 @@ engineering milestones.
 
 ## Implemented
 
-- Current project version recorded in `VERSION` as `0.7.0-beta.1`. The
+- Current project version recorded in `VERSION` as `0.7.0-beta.4`. The
   preceding `0.6.0-beta.1` (Hardware-Aware optid) is code-complete (PPD +
   GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186) but its two
   quantitative exit criteria remain **pending Phase D** physical-hardware

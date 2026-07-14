@@ -47,7 +47,7 @@ Every agentic or human work session must follow this turnkey lifecycle:
 
 ## 📊 Current State of the Architecture
 
-Rush Linux has completed the beta `v0.5.0-beta.1` Minimal Installable System milestone (all four exit criteria verified, PR #174) and the in-container portion of `v0.6.0-beta.1` Hardware-Aware optid (PPD + GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186). The version pointer is now `0.7.0-beta.1` (Editions). **`v0.6.0-beta.1` is code-complete but not yet certified:** its two quantitative criteria are hardware-gated and await Phase D physical-hardware benchmarks.
+Rush Linux has completed the beta `v0.5.0-beta.1` Minimal Installable System milestone (all four exit criteria verified, PR #174) and the in-container portion of `v0.6.0-beta.1` Hardware-Aware optid (PPD + GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186). The version pointer is now `0.7.0-beta.4` (Editions). **`v0.6.0-beta.1` is code-complete but not yet certified:** its two quantitative criteria are hardware-gated and await Phase D physical-hardware benchmarks.
 
 ### 🏆 Implemented and Fully Hardened
 - **Semantic Issue Boundary (ADR 0016):** Overarching multi-year Epics (Tracks A–D) and specification tracks (`WP-N1`–`WP-N9`, `WP-B1`) have been officially migrated out of open GitHub issues and consolidated into our markdown canon (`docs/SPEC-northstar.md` and `ROADMAP.md`). The GitHub repository presents exactly **1 Open Issue** (`good first issue` #3: *"Split optid into modules"*).
@@ -76,7 +76,7 @@ The implementation plan lives at
 `docs/plans/v0.6-hardware-aware-optid-proposal.md` (5-phase: A through E).
 Merged Work Packages: Phase A (allowlist foundation), Phase B1/B2 (PPD shim
 PR #183, GameMode shim PR #184), Phase C2 (`vm.guest` class PR #185), Phase C1
-(foreground stub PR #186), and Phase E (version bump to `0.7.0-beta.1`, this
+(foreground stub PR #186), and Phase E (version bump to `0.7.0-beta.4`, this
 branch).
 
 **THE LIVE BLOCKER IS PHASE D (hardware gate).** The two quantitative v0.6

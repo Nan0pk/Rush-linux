@@ -1,6 +1,6 @@
 # Releases
 
-Current project version: `0.7.0-beta.5`
+Current project version: `0.7.0-beta.4`
 
 This version opens the editions milestone. The preceding `0.6.0-beta.1`
 (Hardware-Aware optid) is **code-complete but not yet certified** — see the

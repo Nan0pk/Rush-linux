@@ -1,5 +1,5 @@
 [project]
-current_version = "0.7.0-beta.1"
+current_version = "0.7.0-beta.4"
 final_target = "1.0.0"
 first_stable_arch = "x86_64"
 arm64_status = "experimental-until-tested"
