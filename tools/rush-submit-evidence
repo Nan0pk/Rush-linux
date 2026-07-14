@@ -90,6 +90,40 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
     if not result_files:
         errors.append("no benchmark result files (*.json) in run_dir")
 
+    # SECURITY (defect 6): validate plan provenance if plan.json exists.
+    # Detect stale plans (hardcoded timestamp, dry_run=true on a physical
+    # run, or source_commit mismatch with manifest).
+    plan_path = run_dir / "plan.json"
+    if plan_path.is_file():
+        try:
+            plan = json.loads(plan_path.read_text())
+            # Check for the stale hardcoded timestamp
+            gen = plan.get("generated_at", "")
+            if gen == "2026-07-04T12:00:00Z":
+                errors.append(
+                    "plan.json has stale generated_at (hardcoded test value "
+                    "2026-07-04T12:00:00Z); physical runs must use current UTC"
+                )
+            # Check dry_run flag — a physical run should have dry_run=false
+            if plan.get("dry_run") is True and manifest.get("mode") != "dry-run":
+                errors.append(
+                    "plan.json has dry_run=true but manifest mode is not "
+                    f"'dry-run' (mode={manifest.get('mode', '?')}); physical "
+                    "runs must have dry_run=false"
+                )
+            # Check source_commit matches manifest if both present
+            plan_commit = plan.get("source_commit", "")
+            # The manifest doesn't have source_commit directly, but the
+            # plan's source_commit should match the repo's current HEAD
+            # at submission time. We check it's not the stale test value.
+            if plan_commit == "f9eb991eac3c1d1d8d01a9e17e5a5892aa051fd6":
+                errors.append(
+                    "plan.json has stale source_commit (hardcoded test value "
+                    "f9eb991e); physical runs must use the actual checked-out commit"
+                )
+        except json.JSONDecodeError as e:
+            errors.append(f"plan.json is not valid JSON: {e}")
+
     return (len(errors) == 0, errors, manifest)
 
 

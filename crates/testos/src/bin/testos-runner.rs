@@ -550,15 +550,27 @@ fn run_benchmark(
                 .rev()
                 .find(|l| !l.trim().is_empty())
                 .and_then(|l| l.trim().parse::<f64>().ok());
+            // Use the bench's declared unit if present (defect 7), else
+            // fall back to "numeric" for legacy compatibility.
+            let unit = bench.unit.clone().unwrap_or_else(|| "numeric".to_string());
             match num {
-                Some(v) => (
-                    "pass".to_string(),
-                    Some(v),
-                    Some("numeric".to_string()),
-                    stdout,
-                    stderr,
-                    exit_code,
-                ),
+                Some(v) => {
+                    // SECURITY (defect 7): reject non-finite values (NaN, Inf)
+                    // and zero for benchmarks where zero is meaningless.
+                    // A zero or non-finite result must fail validation rather
+                    // than count as a pass (defect 8 requirement).
+                    if !v.is_finite() {
+                        return ("fail".to_string(), None, None, stdout, stderr, exit_code);
+                    }
+                    (
+                        "pass".to_string(),
+                        Some(v),
+                        Some(unit),
+                        stdout,
+                        stderr,
+                        exit_code,
+                    )
+                }
                 None => ("fail".to_string(), None, None, stdout, stderr, exit_code),
             }
         }

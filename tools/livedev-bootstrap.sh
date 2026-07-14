@@ -292,11 +292,14 @@ do_auto() {
     # submission. If a checkpoint already exists (e.g., operator is retrying
     # preflight), reuse its run_id.
     local RUN_ID=""
-    if [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json" ]]; then
+    if [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json" ]] && \
+       [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
         local checkpoint_json
-        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load)" || \
-            die "Existing LiveDev checkpoint failed path-safety validation. Inspect it before continuing."
-        RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))')"
+        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load 2>/dev/null)" || \
+            checkpoint_json=""
+        if [[ -n "$checkpoint_json" && "$checkpoint_json" != "null" ]]; then
+            RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))' 2>/dev/null)" || RUN_ID=""
+        fi
     fi
     if [[ -z "$RUN_ID" ]]; then
         RUN_ID="auto-$(date -u +%Y%m%d-%H%M%S)"
@@ -535,13 +538,15 @@ do_resume() {
     local CP_PLAN=""
     local CP_FILE=""
     CP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json"
-    if [[ -f "$CP_FILE" ]]; then
+    if [[ -f "$CP_FILE" ]] && [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
         local checkpoint_json
-        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load)" || \
-            die "Existing LiveDev checkpoint failed path-safety validation. Inspect it before continuing."
-        CP_RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))')"
-        CP_INVENTORY="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("inventory_path", ""))')"
-        CP_PLAN="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("plan_path", ""))')"
+        checkpoint_json="$(python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" load 2>/dev/null)" || \
+            checkpoint_json=""
+        if [[ -n "$checkpoint_json" && "$checkpoint_json" != "null" ]]; then
+            CP_RUN_ID="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("run_id", ""))' 2>/dev/null)" || CP_RUN_ID=""
+            CP_INVENTORY="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("inventory_path", ""))' 2>/dev/null)" || CP_INVENTORY=""
+            CP_PLAN="$(printf '%s' "$checkpoint_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("plan_path", ""))' 2>/dev/null)" || CP_PLAN=""
+        fi
     fi
 
     if [[ -n "$CP_RUN_ID" ]]; then

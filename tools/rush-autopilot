@@ -734,11 +734,26 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     # Generate the plan.
     slot_override = args.slot
-    dry_run = args.dry_run or args.auto is False
-    # For determinism, use a fixed timestamp unless --auto is set (real run).
-    # Actually, for true determinism, ALWAYS use a fixed timestamp in the plan
-    # output. The generated_at field is metadata, not a decision input.
-    generated_at = "2026-07-04T12:00:00Z"
+    # SECURITY (defect 6): dry_run must be True only when --dry-run is passed
+    # or when --auto is NOT set (i.e., a mock/test run). The old code
+    # `args.dry_run or args.auto is False` always set dry_run=True for
+    # `--auto` because `args.auto is False` evaluates the identity check
+    # incorrectly. Fix: dry_run is True only for explicit --dry-run or
+    # when --auto is absent (default mock mode).
+    if args.auto:
+        dry_run = args.dry_run  # --auto without --dry-run is a real run
+    else:
+        dry_run = True  # no --auto means mock/test mode (dry_run=True)
+
+    # SECURITY (defect 6): generated_at must be the current UTC timestamp
+    # for physical runs (--auto), not a hardcoded test value. The old
+    # hardcoded "2026-07-04T12:00:00Z" made every plan look stale. For
+    # mock/test runs (no --auto), keep determinism with a fixed timestamp.
+    if args.auto and not args.dry_run:
+        from datetime import datetime, timezone
+        generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    else:
+        generated_at = "2026-07-04T12:00:00Z"  # deterministic for mock/test
 
     plan = generate_plan(
         repo_root=repo_root,

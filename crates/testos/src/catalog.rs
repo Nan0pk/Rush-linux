@@ -43,6 +43,12 @@ pub struct Bench {
     /// Optional: free-form notes shown in the menu.
     #[serde(default)]
     pub notes: Option<String>,
+    /// Optional: the unit for shell-numeric benchmarks (e.g. "ms", "us",
+    /// "percent", "Gbit/s", "requests/s"). If absent, shell-numeric results
+    /// record unit="numeric" (legacy behavior). shell-json benchmarks get
+    /// their unit from the JSON the command writes.
+    #[serde(default)]
+    pub unit: Option<String>,
 }
 
 /// The full editable list.
