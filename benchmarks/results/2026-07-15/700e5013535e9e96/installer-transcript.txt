@@ -1,0 +1,43 @@
+[1m>> [0mInstall transcript: <installer-cache>/install-log-20260714-211457Z.txt
+[1m>> [0mFinding the latest testOS release...
+[1m>> [0mLatest release: [1mv0.7.0-beta.4[0m
+[1m>> [0mDownloading SHA256SUMS...
+[1m>> [0mChecking cache at <installer-cache> ...
+[1m>> [0mVerifying SHA256 for testos-0.7.0-beta.4.raw.zst ...
+[32m[OK][0m SHA256 OK for testos-0.7.0-beta.4.raw.zst
+[32m[OK][0m Cache hit (raw+zst): using <installer-cache>/testos-0.7.0-beta.4.raw (skipping download and decompression).
+[1m>> [0mDownloading testos-launcher...
+[1m>> [0mDownloading testos-ingest...
+[1m>> [0mNote: target disk is 58655 MB, image is 3073 MB; remaining space will stay unallocated.
+
+[1mAbout to write 3073 MiB to:[0m
+  Device:  /dev/sda
+  Identity:  USB     SanDisk 3.2Gen1 57.3G usb    1
+
+[31mALL DATA ON THIS DISK WILL BE LOST.[0m
+
+Is this your USB stick? Type 'yes' to confirm (anything else aborts): [1m>> [0mWriting <installer-cache>/testos-0.7.0-beta.4.raw to /dev/sda with dd...
+276824064 bytes (277 MB, 264 MiB) copied, 1 s, 275 MB/s960495616 bytes (960 MB, 916 MiB) copied, 2 s, 477 MB/s1451229184 bytes (1.5 GB, 1.4 GiB) copied, 3 s, 481 MB/s2071986176 bytes (2.1 GB, 1.9 GiB) copied, 4 s, 518 MB/s2600468480 bytes (2.6 GB, 2.4 GiB) copied, 5 s, 518 MB/s2847932416 bytes (2.8 GB, 2.7 GiB) copied, 6 s, 474 MB/s3091202048 bytes (3.1 GB, 2.9 GiB) copied, 7 s, 441 MB/s3222294528 bytes (3.2 GB, 3.0 GiB) copied, 7.62384 s, 423 MB/s
+
+768+1 records in
+768+1 records out
+3222294528 bytes (3.2 GB, 3.0 GiB) copied, 21.1654 s, 152 MB/s
+[32m[OK][0m Write complete.
+
+[1mNext steps:[0m
+
+  1. Plug the USB into the test machine.
+  2. Reboot. Enter the boot menu (F12, F8, F11, or Esc -- depends on vendor).
+  3. Pick the USB from the list.
+  4. (If it refuses to boot) Disable Secure Boot -- testOS UKIs are unsigned for now.
+  5. testOS boots, shows a menu of benchmarks.
+  6. Pick 'Run all' (0) or specific test numbers. Press Esc to abort.
+  7. When done, testOS syncs the USB and reboots back to the host OS.
+  8. Plug the USB back here, then collect + push results:
+
+       export GH_TOKEN=github_pat_xxx   # GITHUB_TOKEN is also accepted by LiveDev submit
+       curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/collect-results.sh | sudo bash
+
+  Results land in benchmarks/results/<date>/<host-fingerprint>/ and open a PR for maintainer review.
+
+Install log saved to: <installer-cache>/install-log-20260714-211457Z.txt

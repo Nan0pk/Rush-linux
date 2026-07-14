@@ -1,9 +1,0 @@
-[book]
-authors = ["Nan0pk"]
-language = "en"
-multilingual = false
-src = "docs"
-title = "Rush Linux Documentation"
-
-[output.html]
-git-repository-url = "https://github.com/Nan0pk/Rush-linux"

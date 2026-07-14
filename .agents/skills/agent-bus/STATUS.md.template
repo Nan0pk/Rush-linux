@@ -1,8 +1,0 @@
-# Agent Bus — Human Status
-
-**NOW:** <one-line: where the project is, in plain English.>
-**YOUR MOVE:** <one-line: what HUMAN must do next, if anything.>
-**LAST:** <one-line: most recent state-changing action.>
-**NEXT:** <one-line: what comes after the human's move.>
-
-Updated: <ISO timestamp> by <role> (<session id>).

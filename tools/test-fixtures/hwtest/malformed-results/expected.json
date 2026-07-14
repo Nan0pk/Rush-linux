@@ -1,8 +1,0 @@
-{
-  "description": "Malformed baseline result JSON \u2014 checks 9+11 fail.",
-  "expect_errors": [
-    "cannot parse",
-    "no baseline pair"
-  ],
-  "expect_pass": false
-}

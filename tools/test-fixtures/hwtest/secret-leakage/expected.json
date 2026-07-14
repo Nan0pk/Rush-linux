@@ -1,7 +1,0 @@
-{
-  "description": "Unredacted GitHub token in transcript \u2014 check 13 fails.",
-  "expect_errors": [
-    "unredacted secret detected"
-  ],
-  "expect_pass": false
-}

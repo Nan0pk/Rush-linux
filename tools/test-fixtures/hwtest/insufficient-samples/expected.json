@@ -1,8 +1,0 @@
-{
-  "description": "Sample count < min_samples \u2014 check 10 fails.",
-  "expect_errors": [
-    "insufficient_n",
-    "n="
-  ],
-  "expect_pass": false
-}

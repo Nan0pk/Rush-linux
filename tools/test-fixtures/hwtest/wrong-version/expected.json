@@ -1,7 +1,0 @@
-{
-  "description": "Wrong source_version \u2014 check 3 fails.",
-  "expect_errors": [
-    "does not match VERSION"
-  ],
-  "expect_pass": false
-}

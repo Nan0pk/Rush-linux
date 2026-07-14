@@ -1,7 +1,0 @@
-{
-  "description": "Battery run with AC online \u2014 check 7 fails.",
-  "expect_errors": [
-    "power_source=battery but ac_online=true"
-  ],
-  "expect_pass": false
-}

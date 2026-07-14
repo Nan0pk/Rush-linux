@@ -1,8 +1,0 @@
-{
-  "description": "Tampered event chain \u2014 event chain validation fails.",
-  "expect_errors": [
-    "event chain:",
-    "event_sha256 mismatch"
-  ],
-  "expect_pass": false
-}

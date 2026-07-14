@@ -1,9 +1,0 @@
-date=2026-06-22T10:02:05Z
-host=Claude Code remote container (Debian trixie, no root/KVM)
-kernel=6.18.5
-criterion=v0.5.0-beta.1 / "server edition has no desktop dependency"
-method=static analysis of the declared mkosi package set (base + server profile)
-result=PASS (no plasma/wayland/pipewire/xorg/x11/gnome/kde declared)
-scope_note=Static check of the DECLARED package set. Transitive dependency-closure on a BUILT server image (pacman -Qg) is listed in BUILD-HOST-RUNBOOK.md as confirmation; the declared base (base, linux, systemd-boot, ukify, zram-generator, nftables, dbus, bash) contains no desktop component.
-git_commit=85e5544
-project_version=0.5.0-beta.1
