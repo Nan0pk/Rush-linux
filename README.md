@@ -358,6 +358,7 @@ Additional tools:
 | `rush-exec` | `tools/rush-exec` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+| `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
@@ -427,6 +428,7 @@ Additional tools:
 | `rush-exec` | `tools/rush-exec` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
+| `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
@@ -459,6 +461,7 @@ Run the test suite locally:
 ```sh
 python3 -m pytest \
   tools/test-builder.py \
+  tools/test-checkpoint-resume.py \
   tools/test-frontpage-sync.py \
   tools/test-livedev-hardening.py \
   tools/test-livedev-image.py \
