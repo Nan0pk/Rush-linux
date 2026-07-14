@@ -13,7 +13,7 @@
   <a href="https://github.com/Nan0pk/Rush-linux/actions"><img src="https://img.shields.io/github/actions/workflow/status/Nan0pk/Rush-linux/ci.yml?branch=main&style=flat-square" alt="CI"></a>
   <a href="https://github.com/Nan0pk/Rush-linux/releases"><img src="https://img.shields.io/github/v/release/Nan0pk/Rush-linux?include_prereleases&style=flat-square" alt="release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="license"></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-0.7.0--beta.1-blue?style=flat-square" alt="version"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-0.7.0--beta.4-blue?style=flat-square" alt="version"></a>
 </p>
 
 <hr>
@@ -117,7 +117,7 @@ Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK
 
 testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB for real-hardware testing. It is preserved as a manual fallback path for users who want to drive each step themselves. For QEMU-driven dev/CI testing, use `python3 tools/livedev-next --run-vm` with the LiveDev mkosi image instead.
 
-> **Latest release: [v0.7.0-beta.1](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.1)**
+> **Latest release: [v0.7.0-beta.4](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.4)**
 
 <details>
 <summary><strong>Linux</strong> — write the USB manually</summary>

@@ -11,7 +11,7 @@
   "host_kind": "hwtest-host",
   "kernel": "6.1.0-test",
   "ncpu": 8,
-  "optid_version": "optid 0.7.0-beta.1",
+  "optid_version": "optid 0.7.0-beta.4",
   "platform_profile_available": true,
   "rapl_domain": "/sys/class/powercap/intel-rapl:0",
   "schema_version": 1,

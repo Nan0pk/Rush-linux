@@ -250,8 +250,8 @@ if [[ -n "$SUMS_URL" ]] && ! $SKIP_VERIFY; then
 fi
 
 # --- Cache paths -----------------------------------------------------------
-ZST_CACHE="${CACHE_DIR}/${IMAGE_BASENAME}"    # e.g. cache/testos-0.7.0-beta.1.raw.zst
-RAW_CACHE="${CACHE_DIR}/${RAW_BASENAME}"      # e.g. cache/testos-0.7.0-beta.1.raw
+ZST_CACHE="${CACHE_DIR}/${IMAGE_BASENAME}"    # e.g. cache/testos-0.7.0-beta.4.raw.zst
+RAW_CACHE="${CACHE_DIR}/${RAW_BASENAME}"      # e.g. cache/testos-0.7.0-beta.4.raw
 
 RESOLVED_RAW=""  # will be set to the final .raw path before writing
 
