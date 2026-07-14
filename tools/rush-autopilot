@@ -192,6 +192,7 @@ class Plan:
     existing_evidence: list[str] = field(default_factory=list)
     steps: list[PlanStep] = field(default_factory=list)
     dry_run: bool = False
+    campaign_scope: str = "comparative"
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -450,6 +451,7 @@ def generate_plan(
     slot_override: str | None = None,
     dry_run: bool = False,
     generated_at: str | None = None,
+    baseline_only: bool = False,
 ) -> Plan:
     """Generate a Plan from repo state + hardware state.
 
@@ -600,11 +602,35 @@ def generate_plan(
         ))
         seq += 1
 
+    if baseline_only:
+        relevant_criteria = []
+        steps = [
+            PlanStep(
+                seq=0,
+                kind="physical-prompt",
+                default="wait",
+                reason="collect baseline-only testOS hardware evidence without optid actuation",
+                rollback="reboot to the unchanged host OS",
+                action="Boot the verified testOS USB and choose 0 for all available benchmarks",
+                detection_signal="testOS writes manifest.json and per-benchmark result files to the USB",
+                timeout="30m",
+            ),
+            PlanStep(
+                seq=1,
+                kind="validation",
+                default="proceed",
+                reason="validate baseline testOS schema, preserved failures/skips, paths, and privacy",
+                rollback="N/A (validation is read-only)",
+                validator="baseline testOS evidence validation",
+                bundle="persistent-run/results",
+            ),
+        ]
+
     plan = Plan(
         generated_at=generated_at,
         source_version=version,
         source_commit=commit,
-        repo_root=str(repo_root),
+        repo_root="." if baseline_only else str(repo_root),
         hardware_slot=slot,
         slot_confidence=confidence,
         ambiguities=ambiguities,
@@ -619,6 +645,7 @@ def generate_plan(
         existing_evidence=existing_evidence,
         steps=steps,
         dry_run=dry_run,
+        campaign_scope="baseline-only" if baseline_only else "comparative",
     )
     return plan
 
@@ -719,6 +746,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         slot_override=slot_override,
         dry_run=dry_run,
         generated_at=generated_at,
+        baseline_only=args.baseline_only,
     )
 
     # Safety floor check.
@@ -957,6 +985,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Path to the repo root (default: auto-detect).")
     p_plan.add_argument("--fake-sys", type=str, default=None,
                         help="Path to a fake sysfs/proc root for testing (e.g. /tmp/fake-sys).")
+    p_plan.add_argument("--baseline-only", action="store_true", default=False,
+                        help="Generate a privacy-safe testOS plan with no optid actuation.")
     p_plan.set_defaults(func=cmd_plan)
 
     # ── run subcommand ──

@@ -172,6 +172,14 @@ def generate_pr_body(run_dir: Path, manifest: dict[str, Any],
     badge = _pass_fail_badge(len(passed), len(failed))
     host_table = _host_table(manifest)
     bench_table = _bench_table(run_dir, manifest)
+    artifact_files = ", ".join(sorted(p.name for p in run_dir.iterdir() if p.is_file()))
+    report = {}
+    report_path = run_dir / "collection-report.json"
+    if report_path.is_file():
+        try:
+            report = json.loads(report_path.read_text())
+        except json.JSONDecodeError:
+            pass
 
     lines = [
         f"# {badge} Evidence: {started_at}",
@@ -179,6 +187,7 @@ def generate_pr_body(run_dir: Path, manifest: dict[str, Any],
         f"**Run:** `{started_at}` → `{finished_at}`  ",
         f"**Mode:** `{mode}`  ",
         f"**testOS version:** `{testos_version}`  ",
+        f"**Classification:** `{report.get('classification', 'testOS hardware evidence')}`  ",
         f"**Branch:** `{branch}`",
         "",
         "## Summary",
@@ -206,9 +215,23 @@ def generate_pr_body(run_dir: Path, manifest: dict[str, Any],
             "## Artifact bundle",
             "",
             f"The full result bundle is at `{bundle_path.name}` ({size_str}).",
-            f"It contains: manifest.json, per-benchmark JSON, system-logs/ (dmesg, journal, cpuinfo, lspci, lsblk, meminfo, uname, cmdline).",
+            f"Files: {artifact_files}.",
             "",
         ]
+
+    reviewer_notes = [
+        "- This PR adds evidence only. It does NOT modify release truth (VERSION, milestones.toml, RELEASES.md).",
+        "- Failed benchmarks are preserved as evidence — do not delete them.",
+    ]
+    if report.get("classification") == "baseline testOS hardware evidence":
+        reviewer_notes.append(
+            "- Baseline-only: optid was not applied; this does not prove improvement or verify a milestone."
+        )
+    if report.get("privacy", {}).get("excluded_usb_files"):
+        reviewer_notes.append(
+            "- Raw system logs were excluded after privacy scanning; see collection-report.json."
+        )
+    reviewer_notes.append("- A maintainer reviews and merges. No auto-merge (ADR 0018 §6.2).")
 
     lines += [
         "## Validation",
@@ -219,9 +242,7 @@ def generate_pr_body(run_dir: Path, manifest: dict[str, Any],
         "",
         "## Reviewer notes",
         "",
-        "- This PR adds evidence only. It does NOT modify release truth (VERSION, milestones.toml, RELEASES.md).",
-        "- Failed benchmarks are preserved as evidence — do not delete them.",
-        "- A maintainer reviews and merges. No auto-merge (ADR 0018 §6.2).",
+        *reviewer_notes,
         "",
         f"<!-- rush-evidence-bot host={manifest.get('host', {}).get('fingerprint', '?')} date={started_at.split('T')[0] if 'T' in started_at else '?'} -->",
     ]
@@ -345,7 +366,7 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
         tmp_path = Path(tmp)
         # Shallow clone.
         r = subprocess.run(
-            ["git", "clone", "--depth", "1", "--no-checkout",
+            ["git", "clone", "--depth", "1",
              "https://github.com/Nan0pk/Rush-linux.git", str(tmp_path)],
             capture_output=True, text=True, timeout=60,
         )
@@ -412,15 +433,10 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
             return ("error", f"git commit failed: {r.stderr.strip()}")
 
         # Push.
-        push_url = f"https://x-access-token:{token}@github.com/Nan0pk/Rush-linux.git"
         r = subprocess.run(
-            ["git", "push", push_url, f"{branch}:{branch}"],
+            ["git", "push", "origin", f"{branch}:{branch}"],
             cwd=str(tmp_path), capture_output=True, text=True, timeout=60,
         )
-        # Scrub the URL from git config.
-        subprocess.run(["git", "remote", "set-url", "origin",
-                        "https://github.com/Nan0pk/Rush-linux.git"],
-                       cwd=str(tmp_path), capture_output=True, timeout=5)
         if r.returncode != 0:
             return ("error", f"git push failed: {r.stderr.strip()}")
 
@@ -445,6 +461,7 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
         "head": branch,
         "base": "main",
         "body": pr_body,
+        "draft": True,
     })
     if status >= 400:
         return ("error", f"PR creation failed: HTTP {status} {resp}")

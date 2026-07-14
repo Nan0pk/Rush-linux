@@ -124,9 +124,43 @@ def load_checkpoint() -> dict | None:
     if not cp.exists():
         return None
     try:
-        return json.loads(cp.read_text())
-    except (json.JSONDecodeError, OSError):
+        data = json.loads(cp.read_text())
+        validate_checkpoint(data)
+        return data
+    except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+        print(f"[INVALID CHECKPOINT] {exc}", file=sys.stderr)
         return None
+
+
+def _contained_path(raw: str, root: Path, field: str) -> Path:
+    """Validate an absolute checkpoint path beneath the persistent run root."""
+    path = Path(raw)
+    if not path.is_absolute():
+        raise ValueError(f"{field} is not absolute")
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=True))
+    except (OSError, RuntimeError, ValueError):
+        raise ValueError(f"{field} escapes the persistent run directory")
+    if path.is_symlink():
+        raise ValueError(f"{field} is a symlink")
+    return path
+
+
+def validate_checkpoint(data: dict) -> None:
+    """Fail closed if persisted paths can escape the current run directory."""
+    if not isinstance(data, dict):
+        raise TypeError("checkpoint must be a JSON object")
+    run_id = safe_run_id(data.get("run_id", ""))
+    root = runs_dir() / run_id
+    root.mkdir(parents=True, exist_ok=True)
+    expected = root.resolve(strict=True)
+    run_dir = _contained_path(data.get("run_dir", ""), expected, "run_dir")
+    if run_dir.resolve(strict=False) != expected:
+        raise ValueError("run_dir must be the persistent run root")
+    for field in ("inventory_path", "plan_path"):
+        raw = data.get(field, "")
+        if raw:
+            _contained_path(raw, expected, field)
 
 
 def _repo_root() -> Path:
@@ -280,6 +314,17 @@ def main():
     if args.command == "save":
         # Ensure the run directory exists (persistent, outside /tmp)
         rd = run_dir_for(args.run_id)
+        if args.run_dir:
+            supplied = Path(args.run_dir).resolve(strict=False)
+            expected = rd.resolve(strict=True)
+            if supplied != expected and supplied != expected / "results":
+                raise SystemExit("run_dir must be the persistent run root or its results directory")
+        for field, raw in (("plan_path", args.plan_path),
+                           ("inventory_path", args.inventory_path)):
+            if raw:
+                path = _contained_path(raw, rd, field)
+                if not path.exists() or not path.is_file():
+                    raise SystemExit(f"{field} must be an existing regular file")
         data = {
             "run_id": args.run_id,
             "phase": args.phase,
