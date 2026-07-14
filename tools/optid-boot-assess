@@ -1,0 +1,125 @@
+#!/bin/sh
+# optid-boot-assess — Boot assessment and rollback marker tool.
+#
+# Part of the v0.4 boot rollback system. Manages boot-good markers on the ESP.
+#
+# Commands:
+#   mark-good    Write a boot-good marker for the current boot.
+#   check        Check if the previous boot was good (exit 0 = good, 1 = bad).
+#   count-failed Return the number of consecutive failed boots.
+#   reset        Reset failure counters (call after a successful rollback).
+#
+# The boot assessment works by:
+# 1. Before boot: systemd-boot (or initrd) writes a "booting" marker with the
+#    UKI version and a monotonic counter.
+# 2. After reaching multi-user.target: optid-boot-assess mark-good replaces
+#    the "booting" marker with a "good" marker.
+# 3. If the system crashes/hangs before multi-user.target, the marker stays
+#    as "booting" — the next boot counts it as a failure.
+# 4. After MAX_FAILURES consecutive failures, the bootloader should fall back
+#    to the previous known-good UKI entry.
+#
+# Environment:
+#   RUSH_ESP_MOUNT   Path to ESP mount (default: /boot)
+#   MAX_FAILURES     Consecutive failures before rollback (default: 3)
+
+set -euo pipefail
+
+ESP_MOUNT="${RUSH_ESP_MOUNT:-/boot}"
+ASSESS_DIR="${ESP_MOUNT}/loader/rush-assess"
+CURRENT_BOOT_FILE="${ASSESS_DIR}/current-boot"
+HISTORY_FILE="${ASSESS_DIR}/boot-history"
+MAX_FAILURES="${MAX_FAILURES:-3}"
+BOOT_ID="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"
+KERNEL_RELEASE="$(uname -r)"
+TIMESTAMP="$(date -Iseconds 2>/dev/null || date)"
+
+ensure_dir() {
+    mkdir -p "${ASSESS_DIR}"
+}
+
+cmd_mark_good() {
+    ensure_dir
+    echo "Boot assessment: marking boot ${BOOT_ID} as GOOD"
+    echo "good ${BOOT_ID} ${KERNEL_RELEASE} ${TIMESTAMP}" > "${CURRENT_BOOT_FILE}"
+    echo "good ${BOOT_ID} ${KERNEL_RELEASE} ${TIMESTAMP}" >> "${HISTORY_FILE}"
+    echo "Boot-good marker written to ${CURRENT_BOOT_FILE}"
+}
+
+cmd_check() {
+    ensure_dir
+    if [ ! -f "${CURRENT_BOOT_FILE}" ]; then
+        echo "No previous boot marker found (first boot or cleared)"
+        exit 1
+    fi
+
+    PREV_STATUS="$(head -1 "${CURRENT_BOOT_FILE}" | awk '{print $1}')"
+    case "${PREV_STATUS}" in
+        good)
+            echo "Previous boot was GOOD"
+            exit 0
+            ;;
+        booting)
+            echo "Previous boot was INCOMPLETE (did not reach multi-user.target)"
+            exit 1
+            ;;
+        *)
+            echo "Unknown previous boot status: ${PREV_STATUS}"
+            exit 1
+            ;;
+    esac
+}
+
+cmd_count_failed() {
+    ensure_dir
+    FAILURES=0
+    if [ ! -f "${HISTORY_FILE}" ]; then
+        echo "0"
+        exit 0
+    fi
+
+    # Count consecutive "booting" entries from the end of history
+    # (most recent first)
+    tac "${HISTORY_FILE}" | while IFS= read -r line; do
+        STATUS="$(echo "${line}" | awk '{print $1}')"
+        if [ "${STATUS}" = "booting" ]; then
+            FAILURES=$((FAILURES + 1))
+        else
+            break
+        fi
+    done
+    echo "${FAILURES}"
+}
+
+cmd_reset() {
+    ensure_dir
+    echo "Resetting boot assessment counters"
+    rm -f "${CURRENT_BOOT_FILE}"
+    [ -f "${HISTORY_FILE}" ] && : > "${HISTORY_FILE}"
+    echo "Boot assessment state cleared"
+}
+
+case "${1:-help}" in
+    mark-good)
+        cmd_mark_good
+        ;;
+    check)
+        cmd_check
+        ;;
+    count-failed)
+        cmd_count_failed
+        ;;
+    reset)
+        cmd_reset
+        ;;
+    help|--help|-h)
+        echo "Usage: optid-boot-assess {mark-good|check|count-failed|reset}"
+        echo ""
+        echo "Boot assessment tool for Rush Linux rollback support."
+        ;;
+    *)
+        echo "Unknown command: ${1}" >&2
+        echo "Usage: optid-boot-assess {mark-good|check|count-failed|reset}" >&2
+        exit 1
+        ;;
+esac

@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""
+rush-livedev-autostart — safe countdown before autopilot starts.
+
+Displays a countdown on tty1 with an option to press ESC for a menu shell.
+No destructive action without confirmation.
+
+Behavior:
+  1. Print a banner with host info + RUSH-DATA status.
+  2. Start a countdown (default 10 seconds, configurable via
+     livedev.countdown_sec= kernel cmdline).
+  3. If ESC is pressed during the countdown, drop to a bash shell on tty1
+     (the "escape/menu path").
+  4. If the countdown completes, exit 0 (systemd proceeds to start
+     rush-capture.service + rush-autopilot.service).
+  5. If livedev.autostart=0 is on the kernel cmdline, skip the countdown
+     entirely and exit 0 immediately.
+
+This script does NOT start benchmarks, does NOT write to the host disk,
+and does NOT call AI. It only displays a countdown and optionally drops
+to a shell.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import time
+import subprocess
+from pathlib import Path
+
+
+def _read_cmdline() -> str:
+    """Read /proc/cmdline."""
+    try:
+        return Path("/proc/cmdline").read_text()
+    except OSError:
+        return ""
+
+
+def _get_cmdline_value(cmdline: str, key: str, default: str = "") -> str:
+    """Extract a key=value from the kernel cmdline."""
+    for token in cmdline.split():
+        if token.startswith(f"{key}="):
+            return token.split("=", 1)[1]
+        if token == key:
+            return "1"
+    return default
+
+
+def _check_rush_data() -> dict:
+    """Check the RUSH-DATA directory structure."""
+    rush_data = Path("/RUSH-DATA")
+    info = {
+        "exists": rush_data.exists(),
+        "subdirs": {},
+    }
+    if rush_data.exists():
+        for sub in ("repo", "state", "results", "logs", "ai", "secrets", "cache"):
+            info["subdirs"][sub] = (rush_data / sub).exists()
+    return info
+
+
+def _print_banner(countdown_sec: int) -> None:
+    """Print the autostart banner."""
+    print()
+    print("=" * 60)
+    print("  Rush Linux LiveDev — Autostart")
+    print("=" * 60)
+    print()
+
+    # Host info.
+    try:
+        hostname = subprocess.run(["hostname"], capture_output=True, text=True, timeout=2).stdout.strip()
+    except Exception:
+        hostname = "unknown"
+    try:
+        kernel = subprocess.run(["uname", "-r"], capture_output=True, text=True, timeout=2).stdout.strip()
+    except Exception:
+        kernel = "unknown"
+    print(f"  Host:    {hostname}")
+    print(f"  Kernel:  {kernel}")
+
+    # RUSH-DATA status.
+    rush = _check_rush_data()
+    if rush["exists"]:
+        print(f"  RUSH-DATA: /RUSH-DATA ({'ready' if all(rush['subdirs'].values()) else 'incomplete'})")
+    else:
+        print("  RUSH-DATA: not mounted (running in volatile mode)")
+
+    print()
+    print(f"  Autopilot starts in {countdown_sec} seconds.")
+    print(f"  Press ESC for a shell, or wait for autopilot.")
+    print()
+
+
+def _countdown_with_escape(seconds: int) -> bool:
+    """Run a countdown. Returns True if the countdown completed, False if ESC was pressed."""
+    # Try to set tty to raw mode for ESC detection.
+    try:
+        import termios
+        import tty
+        old_settings = termios.tcgetattr(sys.stdin)
+        tty.setraw(sys.stdin.fileno())
+    except (ImportError, termios.error, OSError):
+        # No tty available — just sleep the countdown.
+        for i in range(seconds, 0, -1):
+            print(f"\r  Starting in {i:2d}s... (press ESC for shell)", end="", flush=True)
+            time.sleep(1)
+        print("\r  Starting autopilot...                    ")
+        return True
+
+    try:
+        for i in range(seconds, 0, -1):
+            print(f"\r  Starting in {i:2d}s... (press ESC for shell)", end="", flush=True)
+            # Check for ESC key (0x1b) with a short timeout.
+            import select
+            readable, _, _ = select.select([sys.stdin], [], [], 1.0)
+            if readable:
+                ch = sys.stdin.read(1)
+                if ch == "\x1b":  # ESC
+                    print("\r  ESC pressed — dropping to shell...        ")
+                    return False
+        print("\r  Starting autopilot...                    ")
+        return True
+    finally:
+        try:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        except Exception:
+            pass
+
+
+def _drop_to_shell() -> None:
+    """Drop to a bash shell on the current tty."""
+    print()
+    print("  Rush LiveDev — Shell (escape/menu path)")
+    print("  The autopilot will NOT start.")
+    print("  To start it manually: systemctl start rush-capture.service rush-autopilot.service")
+    print()
+    # Exec bash — replaces this process.
+    os.execvp("bash", ["bash", "-l"])
+
+
+def main() -> int:
+    cmdline = _read_cmdline()
+
+    # Check if autostart is disabled.
+    autostart = _get_cmdline_value(cmdline, "livedev.autostart", "1")
+    if autostart == "0":
+        print("rush-livedev-autostart: autostart disabled (livedev.autostart=0)")
+        return 0
+
+    # Get countdown duration.
+    countdown_sec = int(_get_cmdline_value(cmdline, "livedev.countdown_sec", "10"))
+
+    # Print banner.
+    _print_banner(countdown_sec)
+
+    # Run countdown with ESC detection.
+    completed = _countdown_with_escape(countdown_sec)
+
+    if not completed:
+        _drop_to_shell()
+        # _drop_to_shell execs bash, so we never get here.
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

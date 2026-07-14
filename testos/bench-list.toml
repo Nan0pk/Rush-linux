@@ -1,0 +1,191 @@
+# testOS bench catalog
+#
+# This is the editable list of benchmarks testOS knows how to run.
+# The launcher reads this to show the menu and estimate total runtime;
+# the runner reads this to know what commands to execute after boot.
+#
+# To add a new test:
+#   1. Add a new [[benches]] entry below.
+#   2. Run `testos-launcher build` to bake it into the USB image.
+# That's it — no code changes needed.
+#
+# Schema:
+#   id                 — short identifier used in filenames, e.g. "fio-seq-read"
+#   name               — human-readable name shown in the menu
+#   scenario           — which manifest scenario this contributes to
+#                        (mixed-load-responsiveness | server-throughput | laptop-battery
+#                         | gaming-frame-time | realtime-audio)
+#   kind               — shell-numeric | shell-json | shell-pass-fail | rushbench
+#     shell-numeric    — stdout's last non-empty line is the numeric result
+#     shell-json       — writes {"value": <number>, "unit": "<string>"} to $TESTOS_RESULT_FILE
+#     shell-pass-fail  — exit code is the only signal (0 = pass)
+#     rushbench        — calls `rushbench run ...` and parses the median from stdout
+#   command            — the shell command to run (executed via `bash -c`)
+#   estimated_seconds  — wall-clock estimate for one run (used to compute total ETA)
+#   requires_battery   — true means the runner will prompt the user to unplug AC first
+#   notes              — optional free-form notes shown in the menu
+
+version = 1
+
+# ─── Server throughput scenario ─────────────────────────────────────
+
+[[benches]]
+id = "fio-seq-read"
+name = "fio — sequential read IOPS"
+scenario = "server-throughput"
+kind = "shell-json"
+command = """
+fio --name=seqread --rw=read --bs=4k --size=256M --numjobs=1 --time_based=0 \
+    --directory=/tmp --output-format=json \
+  | jq '{value: (.jobs[0].read.iops), unit: "iops"}' > "$TESTOS_RESULT_FILE"
+"""
+estimated_seconds = 30
+notes = "Measures cached small-block read speed; useful for spotting CPU/filesystem overhead, not disk limits."
+
+[[benches]]
+id = "fio-seq-write"
+name = "fio — sequential write IOPS"
+scenario = "server-throughput"
+kind = "shell-json"
+command = """
+fio --name=seqwrite --rw=write --bs=4k --size=256M --numjobs=1 --time_based=0 \
+    --directory=/tmp --output-format=json \
+  | jq '{value: (.jobs[0].write.iops), unit: "iops"}' > "$TESTOS_RESULT_FILE"
+"""
+estimated_seconds = 30
+notes = "Measures cached small-block write speed; useful for spotting filesystem/write-path overhead, not disk limits."
+
+[[benches]]
+id = "iperf3-tcp"
+name = "iperf3 — TCP throughput (loopback)"
+scenario = "server-throughput"
+kind = "shell-numeric"
+command = """
+iperf3 -s -D --one-off
+sleep 1
+iperf3 -c 127.0.0.1 -t 10 -J \
+  | jq -r '.end.sum_received.bits_per_second / 1e9 | floor' | head -1
+"""
+estimated_seconds = 20
+notes = "Measures local TCP stack throughput; useful for catching kernel/network-regression overhead without external LAN noise."
+
+[[benches]]
+id = "postgres-tps"
+name = "PostgreSQL — pgbench TPS"
+scenario = "server-throughput"
+kind = "shell-json"
+command = """
+# Bootstrap a temp Postgres instance.
+PGDATA=/tmp/pgdata
+PGHOST=/tmp
+rm -rf "$PGDATA"
+mkdir -p "$PGDATA"
+# Use postgres user for server; fall back to current user if postgres missing.
+if id postgres >/dev/null 2>&1; then
+  PGUSER=postgres
+else
+  PGUSER=$(id -un)
+fi
+sudo -u "$PGUSER" initdb -D "$PGDATA" --quiet 2>/dev/null
+sudo -u "$PGUSER" pg_ctl -D "$PGDATA" -o "-k $PGHOST" -l /tmp/pg.log start -w -s
+sudo -u "$PGUSER" createdb -h "$PGHOST" bench 2>/dev/null || true
+sudo -u "$PGUSER" pgbench -h "$PGHOST" -i -s 10 bench >/dev/null 2>&1
+sudo -u "$PGUSER" pgbench -h "$PGHOST" -c 4 -j 2 -t 1000 bench \
+  | awk '/tps =/ {print $3}' \
+  | head -1 \
+  | xargs -I{} jq -n --argjson v {} '{value: $v, unit: "tps"}' > "$TESTOS_RESULT_FILE"
+sudo -u "$PGUSER" pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
+"""
+estimated_seconds = 60
+notes = "Measures local database transaction throughput; useful for server and scheduler regressions under mixed CPU/IO work."
+
+[[benches]]
+id = "nginx-rps"
+name = "nginx — requests per second"
+scenario = "server-throughput"
+kind = "shell-numeric"
+command = """
+# Start a temp nginx serving a small static file.
+NGINX_CONF=/tmp/nginx.conf
+NGINX_ROOT=/tmp/nginx-root
+mkdir -p "$NGINX_ROOT"
+echo "ok" > "$NGINX_ROOT/index.html"
+# Use a quoted heredoc so we can write $uri literally (no shell expansion).
+cat > "$NGINX_CONF" <<'EOF'
+worker_processes 1;
+error_log /tmp/nginx-error.log;
+pid /tmp/nginx.pid;
+events { worker_connections 1024; }
+http {
+  access_log off;
+  server {
+    listen 8080;
+    root /tmp/nginx-root;
+    location / { try_files $uri /index.html; }
+  }
+}
+EOF
+nginx -c "$NGINX_CONF" 2>/dev/null
+sleep 1
+ab -n 10000 -c 10 http://127.0.0.1:8080/ 2>/dev/null \
+  | awk '/Requests per second/ {print $4}' | head -1
+nginx -c "$NGINX_CONF" -s stop 2>/dev/null
+"""
+estimated_seconds = 30
+notes = "Measures local HTTP request throughput; useful for web-serving responsiveness and syscall/network-stack overhead."
+
+# ─── Mixed-load responsiveness scenario ────────────────────────────
+
+[[benches]]
+id = "psi-cpu-avg10"
+name = "PSI — CPU pressure avg10"
+scenario = "mixed-load-responsiveness"
+kind = "shell-numeric"
+command = """
+# Read PSI cpu avg10 (first number in /proc/pressure/cpu), output bare number.
+awk '{split($2,a,"="); print a[2]}' /proc/pressure/cpu | head -1
+"""
+estimated_seconds = 5
+notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
+
+[[benches]]
+id = "psi-io-avg10"
+name = "PSI — IO pressure avg10"
+scenario = "mixed-load-responsiveness"
+kind = "shell-numeric"
+command = """
+awk '{split($2,a,"="); print a[2]}' /proc/pressure/io | head -1
+"""
+estimated_seconds = 5
+notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
+
+[[benches]]
+id = "cyclictest-max"
+name = "cyclictest — max latency (µs)"
+scenario = "mixed-load-responsiveness"
+kind = "shell-numeric"
+command = """
+cyclictest -p 80 -t 1 -l 100000 -q 2>/dev/null \
+  | awk '/Max:/ {print $NF}' | tr -d ' ' | head -1
+"""
+estimated_seconds = 30
+notes = "Measures worst-case wakeup latency; useful for real-time audio, input, and jitter-sensitive workloads."
+
+[[benches]]
+id = "foreground-launch"
+name = "foreground launch latency (ms)"
+scenario = "mixed-load-responsiveness"
+kind = "shell-numeric"
+command = """
+# Measure median of 5 launches of `true` via bash, in milliseconds.
+for i in 1 2 3 4 5; do
+  /usr/bin/time -f '%e' bash -c 'true' 2>&1
+done | awk '{a[NR]=$1} END {n=NR; if (n%2==1) print a[(n+1)/2]*1000; else print (a[n/2]+a[n/2+1])/2*1000}'
+"""
+estimated_seconds = 10
+notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."
+
+# ─── Future scenarios (declared, not yet wired) ────────────────────
+# Add laptop-battery, gaming-frame-time, realtime-audio entries here as
+# hardware becomes available. Each scenario's tools may need to be added
+# to mkosi/mkosi.profiles/testos/mkosi.conf as well.

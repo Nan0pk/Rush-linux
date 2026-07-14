@@ -1,0 +1,921 @@
+# Rush Linux Documentation Map
+#
+# This is the single source of truth for doc ownership, coverage, and
+# cross-references. When any doc changes, check the deps and freshens lists
+# to find what else needs updating.
+#
+# Schema:
+#   [docs.<path>]
+#   purpose       = "one-line description"
+#   owner_area    = "area tag" (matches GitHub labels)
+#   covers_code   = ["paths that this doc describes"]
+#   deps          = ["other docs whose content this doc depends on"]
+#   freshens      = ["other docs that should be refreshed when this doc changes"]
+#   last_verified = "YYYY-MM-DD" (set when a human or agent confirms accuracy)
+#   validator     = "hint" for the sync checker (version_match, status_match, etc.)
+#
+# Guidelines:
+# - When you add a new doc, add an entry here.
+# - When you change a doc, update its last_verified date.
+# - When you change code, check covers_code to find affected docs.
+# - When you change a doc, check freshens to find dependent docs.
+
+[docs."README.md"]
+purpose = "Project overview, repo layout, build instructions, design rules"
+owner_area = "area:docs"
+covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
+deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+freshens = []
+last_verified = "2026-06-26"
+validator = "no_stale_next_step"
+
+[docs."CONTRIBUTING.md"]
+purpose = "Contributor onboarding: how to build, test, and submit changes"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/documentation-policy.md", "docs/architecture.md"]
+freshens = []
+last_verified = "2026-06-11"
+validator = "contains_heading:Documentation Is Required"
+
+[docs."docs/PROJECT_BRIEF.md"]
+purpose = "Mission statement, success criteria, engineering principles"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["README.md", "docs/architecture.md"]
+last_verified = "2026-06-14"
+
+[docs."docs/IMPLEMENTATION_STATUS.md"]
+purpose = "Authoritative list of what is implemented and what is not"
+owner_area = "area:docs"
+covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
+deps = ["VERSION", "ROADMAP.md"]
+freshens = ["README.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-06-29"
+validator = "version_matches:VERSION"
+
+[docs."docs/AI_CONTINUATION.md"]
+purpose = "Handoff document for AI agents or new maintainers continuing the project"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
+freshens = []
+last_verified = "2026-06-29"
+validator = "version_matches:VERSION"
+
+[docs."ROADMAP.md"]
+purpose = "Phase and version milestones with exit criteria"
+owner_area = "area:docs"
+covers_code = []
+deps = ["VERSION", "RELEASES.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-06-29"
+validator = "version_matches:VERSION"
+
+[docs."RELEASES.md"]
+purpose = "Release ledger with version history"
+owner_area = "area:docs"
+covers_code = []
+deps = ["VERSION"]
+freshens = []
+last_verified = "2026-06-29"
+
+[docs."VERSION"]
+purpose = "Single file holding the current project version string"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md", "RELEASES.md"]
+last_verified = "2026-06-29"
+validator = "semver"
+
+[docs."SECURITY.md"]
+purpose = "Security policy, reporting channels, supported versions, security requirements"
+owner_area = "area:security"
+covers_code = ["crates/optid/src/main.rs"]
+deps = []
+freshens = []
+last_verified = "2026-06-14"
+
+[docs."CODE_OF_CONDUCT.md"]
+purpose = "Contributor Covenant v2.1 with enforcement contact"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-14"
+
+[docs."AUTHORS"]
+purpose = "Contributor recognition list"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-14"
+
+[docs."docs/architecture.md"]
+purpose = "Four-layer system architecture and subsystem boundaries"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/PROJECT_BRIEF.md"]
+freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
+last_verified = "2026-06-14"
+
+[docs."docs/adaptive-engine.md"]
+purpose = "optid design: inputs, actions, guardrails, current MVP scope"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/conflict.rs", "crates/optid/src/shim/ppd.rs", "crates/optid/src/shim/gamemode.rs", "config/optid/policy.toml"]
+deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-06-29"
+validator = "covers_optid_features"
+
+[docs."docs/kernel-policy.md"]
+purpose = "Kernel config fragment rationale and edition kernel rules"
+owner_area = "area:kernel"
+covers_code = ["distro/kernel/"]
+deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/packaging-and-builds.md"]
+purpose = "Recipe schema, build system design, package metadata, rootfs assembly"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh", "recipes/"]
+deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/boot-and-updates.md"]
+purpose = "UKI boot flow, systemd-sysupdate, rollback policy"
+owner_area = "area:boot"
+covers_code = ["distro/boot/", "distro/sysupdate/", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
+deps = ["docs/decisions/0003-uki-rollback.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/hardware-support.md"]
+purpose = "Hardware enablement strategy, allowlist database, device policy"
+owner_area = "area:docs"
+covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/src/args.rs", "crates/optid/data/allowlist.toml"]
+deps = ["docs/research/0006-hw-allowlist-db-design.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = []
+last_verified = "2026-07-10"
+
+[docs."docs/testing-and-benchmarks.md"]
+purpose = "Test tiers, benchmark methodology, and risk-scoped validation"
+owner_area = "area:docs"
+covers_code = ["benchmarks/manifest.toml", "release/test-tiers.toml", "crates/rushbench/src/main.rs"]
+deps = ["docs/decisions/0011-benchmark-methodology.md", "docs/project-workflow.md"]
+freshens = []
+last_verified = "2026-07-10"
+
+[docs."docs/non-goals.md"]
+purpose = "Explicit list of what Rush Linux does NOT aim to do"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/PROJECT_BRIEF.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/validation.md"]
+purpose = "Change-aware repository validation and the limits of a green CI result"
+owner_area = "area:docs"
+covers_code = ["tools/checks.sh", "tools/validate-repo.ps1", ".github/workflows/ci.yml"]
+deps = ["docs/project-workflow.md", "docs/agent-protocol.md"]
+freshens = []
+last_verified = "2026-07-10"
+
+[docs."docs/versioning.md"]
+purpose = "Semantic versioning rules, channel naming, bump policy"
+owner_area = "area:docs"
+covers_code = ["VERSION"]
+deps = []
+freshens = ["ROADMAP.md", "RELEASES.md"]
+last_verified = "2026-06-10"
+
+[docs."docs/release-policy.md"]
+purpose = "Release cadence, blocker criteria, cherry-pick rules"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/versioning.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/release-checklist.md"]
+purpose = "Step-by-step checklist for cutting a release"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/release-policy.md", "docs/versioning.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/release-plan-v1.md"]
+purpose = "Detailed milestone gates and test-tier requirements for v1.0"
+owner_area = "area:docs"
+covers_code = []
+deps = ["ROADMAP.md", "docs/release-policy.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/documentation-policy.md"]
+purpose = "Update documentation when documented truth changes without forcing unrelated churn"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/project-workflow.md"]
+freshens = ["CONTRIBUTING.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/how-rush-is-built.md"]
+purpose = "Outlines governed development model, evidence rule, C1 incident, and honest-claims policy"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/project-workflow.md"]
+freshens = ["README.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/graphify-knowledge-graph.md"]
+purpose = "How the Graphify knowledge graph works, refresh procedures, graphify-data branch fetch instructions"
+owner_area = "area:docs"
+covers_code = [".github/workflows/graphify.yml", "tools/graphify-refresh.sh"]
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/project-sustainability.md"]
+purpose = "People/infrastructure plan: contributor model, governance, hardware lab"
+owner_area = "area:docs"
+covers_code = []
+deps = ["CONTRIBUTING.md", "CODE_OF_CONDUCT.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/decisions/README.md"]
+purpose = "ADR lifecycle, ratification rules, numbering policy"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/decisions/0001-systemd-cgroup-v2.md"]
+purpose = "ADR: use systemd with unified cgroup v2"
+owner_area = "area:docs"
+covers_code = ["distro/systemd/"]
+deps = []
+freshens = ["docs/architecture.md"]
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0002-wayland-pipewire.md"]
+purpose = "ADR: Wayland-first desktop with PipeWire audio"
+owner_area = "area:docs"
+covers_code = ["distro/editions/desktop.toml"]
+deps = []
+freshens = ["docs/architecture.md"]
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0003-uki-rollback.md"]
+purpose = "ADR: UKI-first boot with rollback entries"
+owner_area = "area:boot"
+covers_code = ["distro/boot/", "distro/sysupdate/"]
+deps = []
+freshens = ["docs/boot-and-updates.md"]
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0004-adaptive-optid.md"]
+purpose = "ADR: optid is the sole adaptive policy owner"
+owner_area = "area:optid"
+covers_code = ["crates/optid/", "config/optid/policy.toml", "packaging/systemd/optid.service"]
+deps = []
+freshens = ["docs/adaptive-engine.md", "docs/architecture.md"]
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0005-avoid-obsolete-defaults.md"]
+purpose = "ADR: avoid legacy defaults unless no modern alternative"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0006-performance-tweaks.md"]
+purpose = "ADR: latency-focused sysctl baseline"
+owner_area = "area:kernel"
+covers_code = ["config/optid/policy.toml"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0007-project-and-dbus-naming.md"]
+purpose = "ADR: io.rushlinux.* D-Bus namespace and project naming"
+owner_area = "area:optid"
+covers_code = ["packaging/dbus/"]
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+validator = "status:accepted"
+
+[docs."docs/decisions/0008-software-delivery-and-packaging.md"]
+purpose = "ADR: recipe-based source builds with signed metadata"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py", "recipes/"]
+deps = []
+freshens = ["docs/packaging-and-builds.md"]
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0009-optid-security-boundary.md"]
+purpose = "ADR: threat model, polkit, write allowlist, sandbox hardening"
+owner_area = "area:security"
+covers_code = ["crates/optid/src/main.rs", "packaging/systemd/optid.service"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = ["SECURITY.md"]
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0010-realtime-edition-kernel-policy.md"]
+purpose = "ADR: PREEMPT_RT is opt-in, not universal default"
+owner_area = "area:kernel"
+covers_code = ["distro/kernel/realtime.config", "distro/editions/realtime-audio.toml"]
+deps = []
+freshens = ["docs/kernel-policy.md"]
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0011-benchmark-methodology.md"]
+purpose = "ADR: benchmark harness design and comparison baselines"
+owner_area = "area:docs"
+covers_code = ["benchmarks/manifest.toml"]
+deps = []
+freshens = ["docs/testing-and-benchmarks.md"]
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0012-reproducible-build-discipline.md"]
+purpose = "ADR: reproducible build goals for v1"
+owner_area = "area:packaging"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0013-detection-and-ml-boundary.md"]
+purpose = "ADR: rule-based now, ML later with constraints"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs"]
+deps = ["docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-10"
+validator = "status:proposed"
+
+[docs."docs/decisions/0014-image-composition-mkosi-arch.md"]
+purpose = "ADR: image composition via mkosi on Arch Linux"
+owner_area = "area:packaging"
+covers_code = ["tools/rush-builder.py"]
+deps = ["docs/decisions/0008-software-delivery-and-packaging.md"]
+freshens = []
+last_verified = "2026-06-14"
+validator = "status:proposed"
+
+[docs."docs/decisions/0015-sched-ext-default-on.md"]
+purpose = "ADR: sched_ext as default-on centerpiece"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs"]
+deps = ["docs/decisions/0010-realtime-edition-kernel-policy.md"]
+freshens = ["docs/non-goals.md"]
+last_verified = "2026-06-14"
+validator = "status:proposed"
+
+[docs."docs/decisions/0016-retire-epic-issues-to-spec.md"]
+purpose = "ADR: migrate multi-year Epics and Work Package ledgers out of GitHub Issues"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["ROADMAP.md", "docs/SPEC-northstar.md"]
+last_verified = "2026-06-17"
+validator = "status:accepted"
+
+[docs."docs/contributing/first-pr.md"]
+purpose = "Step-by-step guide for making your first contribution"
+owner_area = "area:docs"
+covers_code = []
+deps = ["CONTRIBUTING.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/agent-decisions/README.md"]
+purpose = "Index of agent-authored decisions and review notes"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/decisions/README.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+# ── Configuration files that also serve as documentation ──
+
+[docs."config/optid/policy.toml"]
+purpose = "Default optimizer policy: thresholds, per-mode configs, competing daemons, PPD/GameMode shim mapping"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/ppd.rs", "crates/optid/src/shim/gamemode.rs"]
+deps = ["docs/adaptive-engine.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-29"
+
+[docs."DIRTY_STATE.md"]
+purpose = "Work-in-progress flag. Present only when the repo is mid-work. Contains session notes for the next agent."
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+validator = "optional_file"
+
+[docs."docs/templates/VERIFICATION.md"]
+purpose = "Template for verifier reports (WP acceptance criteria, exit codes, verdicts)"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-10"
+validator = "optional_file"
+
+[docs."docs/plans/agent-work-plan-v1.md"]
+purpose = "Agent work plan v1: 4 tracks, 13 WPs to stabilize repo, harden optid, close v0.4, and deliver first benchmark evidence"
+owner_area = "area:project"
+covers_code = []
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/plans/work-plan-v2.md"]
+purpose = "Work Plan v2: recovery sprint with explicit builder/verifier/human roles and evidence rule"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/agent-protocol.md"]
+freshens = []
+last_verified = "2026-06-10"
+
+[docs."docs/agent-protocol.md"]
+purpose = "Agent claim levels, scoped independent verification, maintainer authority, and evidence without gridlock"
+owner_area = "area:docs"
+covers_code = []
+deps = ["AGENTS.md", "docs/project-workflow.md"]
+freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/plans/work-plan-v2.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/SPEC-northstar.md"]
+purpose = "Canon specifications: objective function, lever ledger, and WP mapping"
+owner_area = "area:docs"
+covers_code = ["config/optid/contracts.toml"]
+deps = []
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-06-14"
+
+[docs."docs/strategy/COMPASS.md"]
+purpose = "Living strategic why/where doc: origin arc, drift check, visibility, verdict + course-corrections; refreshed each reassessment cycle"
+owner_area = "area:project"
+covers_code = [".github/workflows/reassess.yml"]
+deps = ["docs/SPEC-northstar.md", "docs/strategy/strategic-plan-v1.2.md"]
+freshens = []
+last_verified = "2026-06-26"
+
+[docs."docs/strategy/strategic-plan-v1.2.md"]
+purpose = "Long-horizon consolidated strategic plan (v1.2): core plan, AI capability integration, AI Council governance transition, synchronization layer, revision history"
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = ["docs/strategy/COMPASS.md"]
+last_verified = "2026-06-19"
+
+
+[docs."docs/research/0001-apple-power-stack-analysis.md"]
+purpose = "Synthesis of reverse-engineering Apple power stack and Linux blind spots"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = ["docs/architecture.md", "docs/adaptive-engine.md"]
+last_verified = "2026-06-13"
+
+[docs."docs/research/0002-rush-linux-architecture-review.md"]
+purpose = "Architecture review of Rush Linux as a unified power orchestrator"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-13"
+
+[docs."docs/research/0003-unified-power-orchestrator-paper.md"]
+purpose = "Paper on closing the loop on the Linux platform stack"
+owner_area = "area:docs"
+covers_code = []
+deps = []
+freshens = []
+last_verified = "2026-06-13"
+
+[docs."docs/research/0006-hw-allowlist-db-design.md"]
+purpose = "Specifies the HWID allowlist DB that gates every depth-enabler actuation in optid (WP-N4)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/allowlist.rs",
+    "crates/optid/src/args.rs",
+    "crates/optid/build.rs",
+    "crates/optid/data/allowlist.toml",
+    "crates/optctl/src/allow.rs",
+    "packaging/udev/rules.d/99-optid.rules",
+    "packaging/systemd/optid.service",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+last_verified = "2026-06-28"
+validator = "status_match:WIP"
+
+[docs."docs/research/0009-runtime-pm-autosuspend-policy.md"]
+purpose = "Specifies per-device-class autosuspend delay policy, wakeup protection, carrier-aware skip, and revert for the Linux runtime PM framework (WP-N5)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/runtime_pm.rs",
+    "crates/optid/src/policy.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md"]
+purpose = "Specifies NVMe APST, PCIe ASPM, and SATA ALPM policy; documents known-broken HWIDs and firmware version gates (WP-N6)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/storage.rs",
+    "crates/optid/src/sensors.rs",
+    "crates/optid/src/actuator.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0007-display-panel-backlight-psr-vrr-dpms.md"]
+purpose = "Specifies backlight selection/dimming, PSR/VRR observability, DPST/ABM, and DPMS sequencing for display power management (WP-N7 panel side)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/display.rs",
+    "crates/optid/src/sensors.rs",
+    "crates/optid/src/actuator.rs",
+    "crates/optid/data/allowlist.toml",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0006-hw-allowlist-db-design.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/dragnet-protocol.md"]
+purpose = "Recurring evidence-integrity sweep: the dragnet.py runner, the validate-evidence.py gate, cadence, and the milestone-close checklist"
+owner_area = "area:docs"
+covers_code = ["tools/dragnet.py", "tools/validate-evidence.py", "release/milestones.toml", "release/evidence/dragnet/LEDGER.md"]
+deps = ["docs/agent-protocol.md"]
+freshens = ["docs/AI_CONTINUATION.md", "ROADMAP.md", "RELEASES.md"]
+last_verified = "2026-06-26"
+
+[docs."docs/plans/v0.6-hardware-aware-optid-proposal.md"]
+purpose = "v0.6.0-beta.1 implementation proposal (revised 2026-06-26): verify+flip allowlist default (WP-N4 already landed), PPD/GameMode shims, foreground detection, vm.guest class, reference-machine benchmarks"
+owner_area = "area:project"
+covers_code = ["crates/optid/src/allowlist.rs", "crates/optid/data/allowlist.toml", "crates/optid/build.rs", "crates/optid/src/actuator.rs", "crates/optid/src/shim/", "crates/optid/src/foreground/", "crates/optid/tests/write_site_gating.rs", "crates/optid/tests/shim_ppd.rs", "crates/optid/tests/shim_gamemode.rs", "crates/optctl/src/allow.rs"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md", "docs/plans/v0.5-minimal-installable-system-proposal.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md", "docs/research/0006-hw-allowlist-db-design.md"]
+last_verified = "2026-06-29"
+validator = "optional_file"
+
+[docs."docs/plans/v0.5-minimal-installable-system-proposal.md"]
+purpose = "v0.5.0-beta.1 implementation proposal: mkosi/Arch parity, edition profiles, installer flow, double-boot + rollback tests"
+owner_area = "area:project"
+covers_code = ["mkosi/mkosi.conf", "mkosi/mkosi.repart/", "mkosi/mkosi.profiles/", "tools/build-mkosi-image.sh", "tools/rush-install.sh", "tools/test-install.sh", "tools/test-double-boot.sh"]
+deps = ["ROADMAP.md", "docs/IMPLEMENTATION_STATUS.md", "docs/agent-protocol.md"]
+freshens = ["ROADMAP.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-06-20"
+validator = "optional_file"
+
+[docs."release/milestones.toml"]
+purpose = "Canonical machine-readable milestone definitions: version, channel, exit criteria, per-criterion verified state + transcript path. The source of truth that release/evidence/README.md renders."
+owner_area = "area:release"
+covers_code = ["tools/validate-evidence.py", "tools/dragnet.py"]
+deps = ["docs/agent-protocol.md"]
+freshens = ["RELEASES.md", "ROADMAP.md", "release/evidence/README.md", "release/evidence/dragnet/LEDGER.md"]
+last_verified = "2026-06-26"
+validator = "optional_file"
+
+[docs."release/evidence/README.md"]
+purpose = "Human-readable index of the evidence tree: per-milestone criterion-to-transcript tables, current state, Builder/Verifier protocol summary, and how to add new evidence"
+owner_area = "area:release"
+covers_code = ["release/milestones.toml", "tools/validate-evidence.py", "release/evidence/"]
+deps = ["docs/agent-protocol.md", "release/milestones.toml"]
+freshens = ["README.md", "RELEASES.md", "release/evidence/dragnet/LEDGER.md"]
+last_verified = "2026-06-26"
+validator = "optional_file"
+
+[docs."docs/strategy/reference-hardware.md"]
+purpose = "v0.6 Phase D (D1): canonical record of the two physical reference machines (desktop + battery laptop) used to certify the hardware-gated v0.6 exit criteria"
+owner_area = "area:release"
+covers_code = ["crates/optid/data/allowlist.toml", "config/optid/hardware-allowlist.toml"]
+deps = ["docs/plans/v0.6-hardware-aware-optid-proposal.md", "release/milestones.toml"]
+freshens = ["docs/strategy/mixed-load-workload.md", "release/milestones.toml"]
+last_verified = "2026-06-29"
+validator = "optional_file"
+
+[docs."docs/strategy/mixed-load-workload.md"]
+purpose = "v0.6 Phase D (D2): definition of the mixed-load-001 benchmark workload (phases, classes, metrics, pass conditions) captured by rushbench for v0.6 certification"
+owner_area = "area:release"
+covers_code = ["benchmarks/manifest.toml", "crates/rushbench/src/main.rs", "crates/rushbench/src/report.rs"]
+deps = ["docs/plans/v0.6-hardware-aware-optid-proposal.md", "docs/strategy/reference-hardware.md"]
+freshens = ["release/milestones.toml", "release/evidence/README.md"]
+last_verified = "2026-06-29"
+validator = "optional_file"
+
+[docs."docs/research/0020-third-pass-tech-debt-audit.md"]
+purpose = "Third-pass technical debt audit (2026-07-02): audit-of-audits with 20 findings, recursive truth maintenance thesis, phased remediation plan"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/decisions/0017-rush-telemetry-fate.md", "docs/plans/phase0-policy-fail-closed-design.md", "docs/plans/phase0-host-bench-evidence-schema.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "HANDOFF.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/decisions/0017-rush-telemetry-fate.md"]
+purpose = "ADR: decide whether rush_telemetry is fixed-and-reincluded, moved out, feature-flagged, or deleted — before v0.7 desktop work multiplies the integration surface"
+owner_area = "area:docs"
+covers_code = ["crates/rush_telemetry/"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/plans/phase0-policy-fail-closed-design.md"]
+purpose = "Phase 0 design doc: fail-closed Policy::load and allowlist override handling in --apply mode, with boot-time status surface and migration plan"
+owner_area = "area:docs"
+covers_code = ["crates/optid/src/policy.rs", "crates/optid/src/allowlist.rs", "crates/optid/src/main.rs"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/plans/phase0-host-bench-evidence-schema.md"]
+purpose = "Phase 0 evidence schema: content-aware validation for host-bench transcripts (required markers, validation rules, test fixtures) — closes the existence-vs-truth gap"
+owner_area = "area:docs"
+covers_code = ["tools/validate-evidence.py"]
+deps = ["docs/research/0020-third-pass-tech-debt-audit.md", "release/milestones.toml"]
+freshens = ["release/evidence/README.md", "tools/validate-evidence.py"]
+last_verified = "2026-07-02"
+validator = "optional_file"
+
+[docs."docs/decisions/0018-rush-livedev-architecture-contract.md"]
+purpose = "ADR: scope Rush LiveDev as the long-term successor path to testOS — minimal bootable skeleton, can test hardware/capture evidence/sync with repo/submit PRs/optionally use online AI; hard limits: no self-verify, no self-merge, no host-disk mutation by default. testOS remains available during transition."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md", "docs/decisions/0014-image-composition-mkosi-arch.md", "docs/decisions/0016-retire-epic-issues-to-spec.md", "docs/decisions/0017-rush-telemetry-fate.md", "docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md", "docs/automation-human-interface.md", "docs/ai-interface-policy.md", "testos/README.md"]
+freshens = ["docs/IMPLEMENTATION_STATUS.md", "docs/plans/livedev-progress.json", "ROADMAP.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/automation-human-interface.md"]
+purpose = "Policy: boundary between what the system may infer and what requires a human — humans handle physical actions, secrets, money, destructive confirmation, and final approval; physical prompts wait for detectable state; every prompt logs reason/default/outcome."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/ai-interface-policy.md"]
+freshens = ["docs/agent-protocol.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/ai-interface-policy.md"]
+purpose = "Policy: AI interface is CLI/harness-based (not browser-chat); browser only for auth and PR viewing; online AI providers for serious model work; tests must use a mock provider; no local LLM inference during benchmarks; AI cannot verify evidence, execute shell commands, merge PRs, or change release truth."
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/agent-protocol.md", "docs/decisions/0013-detection-and-ml-boundary.md", "docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/automation-human-interface.md"]
+freshens = ["docs/agent-protocol.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-transition-plan.md"]
+purpose = "LiveDev transition plan: exact 9-phase build sequence (optid-safety → rush-exec/rush-capture → evidence schema/validator → autopilot planner → plan runner/testOS transition → AI harness → LiveDev image/profile → PR submission/CI → E2E dry run). Phases are fixed-order with explicit entry/exit conditions and deliverables."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/automation-human-interface.md", "docs/ai-interface-policy.md", "docs/plans/livedev-progress.json", "docs/plans/livedev-workspace-enablement.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/plans/livedev-progress.json", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-workspace-enablement.md"]
+purpose = "LiveDev workspace-enablement plan (Prompt 1 output): repo map, reusable assets, missing components, safety-sensitive areas, testOS role (preserved), evidence/release/version state (untouched), tool availability, proposed build sequence. Companion to livedev-progress.json."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/plans/livedev-progress.json", "docs/plans/livedev-transition-plan.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md"]
+freshens = ["docs/plans/livedev-progress.json"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."docs/plans/livedev-progress.json"]
+purpose = "LiveDev machine-readable phase handoff: current_phase, next_phase, source_commit, working branch, verified repo paths, missing components, reusable assets, safety-sensitive areas, tool availability, baseline commands, proposed build sequence, per-phase state."
+owner_area = "area:project"
+covers_code = []
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md"]
+freshens = ["docs/plans/livedev-workspace-enablement.md", "docs/plans/livedev-transition-plan.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."testos/README.md"]
+purpose = "testOS — real-hardware benchmark environment for Rush Linux: bootable USB image, single-shot appliance, results-to-USB workflow. Canonical record of what testOS is and is not; LiveDev (ADR 0018) does not modify testOS's role."
+owner_area = "area:release"
+covers_code = ["crates/testos/", "testos/", ".github/workflows/release-testos.yml"]
+deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md"]
+freshens = ["README.md", "release/evidence/README.md"]
+last_verified = "2026-07-04"
+validator = "optional_file"
+
+[docs."AGENTS.md"]
+purpose = "Agent constitution: authority, source order, human-effort rule, evidence scope, blocker traceability, and repository safety"
+owner_area = "area:project"
+covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/"]
+deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/agent-protocol.md"]
+freshens = ["CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/SUMMARY.md"]
+purpose = "Complete reader-facing documentation index, including every research paper"
+owner_area = "area:docs"
+covers_code = []
+deps = ["docs/project-workflow.md", "docs/decisions/README.md"]
+freshens = []
+last_verified = "2026-07-10"
+
+[docs."docs/decisions/0024-livedev-pr-submission.md"]
+purpose = "Superseded LiveDev PR-submission design; safe submission behavior retained under ADR 0025"
+owner_area = "area:project"
+covers_code = ["tools/rush_pr_lib.py", "tools/rush-autopilot"]
+deps = ["docs/decisions/0025-risk-based-project-workflow.md"]
+freshens = []
+last_verified = "2026-07-10"
+validator = "status_match:superseded"
+
+[docs."docs/decisions/0025-risk-based-project-workflow.md"]
+purpose = "Accepted decision for the idea-to-release workflow, risk-based checks, scoped proof, and no-auto-merge rule"
+owner_area = "area:project"
+covers_code = ["tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/ci.yml", ".github/workflows/maintenance.yml"]
+deps = ["docs/project-workflow.md", "AGENTS.md", "docs/agent-protocol.md"]
+freshens = ["docs/decisions/0024-livedev-pr-submission.md", "CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+validator = "status_match:accepted"
+
+[docs."docs/project-workflow.md"]
+purpose = "Single idea-to-release workflow, research states, scoped evidence rules, risk roots, and logical pull-request checks"
+owner_area = "area:project"
+covers_code = ["tools/checks.sh", ".github/workflows/ci.yml", ".github/workflows/maintenance.yml"]
+deps = ["docs/SPEC-northstar.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/how-rush-is-built.md"]
+last_verified = "2026-07-10"
+
+[docs."docs/research/0004-telemetry-fidelity-rca-and-architecture.md"]
+purpose = "WIP research into benchmark telemetry failure and a replacement measurement architecture"
+owner_area = "area:benchmarks"
+covers_code = ["crates/rushbench/", "crates/rush_telemetry/"]
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-17"
+validator = "status_match:WIP"
+
+[docs."docs/research/0005-focus-vs-resource-pull.md"]
+purpose = "WIP research into workload importance signals and focus as an override"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0002-rush-linux-architecture-review.md"]
+freshens = []
+last_verified = "2026-06-18"
+validator = "status_match:WIP"
+
+[docs."docs/research/0010-ppd-gamemode-dbus-shim.md"]
+purpose = "WIP design for PowerProfilesDaemon and GameMode compatibility surfaces"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/shim/"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0004-adaptive-optid.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0011-dgpu-runtime-pm-and-mux.md"]
+purpose = "WIP research into discrete-GPU runtime power and MUX safety"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0006-hw-allowlist-db-design.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0012-dtpm-powercap-outer-loop.md"]
+purpose = "WIP research into a powercap budget-control loop"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0013-thermal-fan-budget-coupling.md"]
+purpose = "WIP research into thermal sensing, fan behavior, and power budgets"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0012-dtpm-powercap-outer-loop.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0014-sched-ext-selector-per-workload-class.md"]
+purpose = "WIP research into sched_ext selection by workload class"
+owner_area = "area:kernel"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0015-sched-ext-default-on.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0015-zram-mglru-tuning-per-ram-tier.md"]
+purpose = "WIP research into zram and MGLRU policy by memory size"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0016-mkosi-ala-snapshot-pinning.md"]
+purpose = "WIP research into reproducible mkosi builds with Arch snapshot pinning"
+owner_area = "area:packaging"
+covers_code = ["mkosi/"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0014-image-composition-mkosi-arch.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0017-uki-signing-secure-boot-enrollment.md"]
+purpose = "WIP research into UKI signing, Secure Boot enrollment, and key handling"
+owner_area = "area:boot"
+covers_code = ["tools/sign_updates.py", "tools/sign-updates.sh"]
+deps = ["docs/SPEC-northstar.md", "docs/decisions/0003-uki-rollback.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0018-telemetry-runtime-state-observability.md"]
+purpose = "WIP research into wakeup, runtime-PM, C-state, and PM-QoS observation"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0004-telemetry-fidelity-rca-and-architecture.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"
+
+[docs."docs/research/0019-gpu-upscaling-resolution-scaling-als.md"]
+purpose = "WIP research into display upscaling, resolution scaling, and ambient-light control"
+owner_area = "area:optid"
+covers_code = []
+deps = ["docs/SPEC-northstar.md", "docs/research/0007-display-panel-backlight-psr-vrr-dpms.md"]
+freshens = []
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

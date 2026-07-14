@@ -1,0 +1,25 @@
+# WP-<NAME> — BUILDER Handoff (Baton to VERIFIER)
+
+**Branch**: `<branch>`
+**HEAD SHA**: `<sha>`
+**PR**: #N
+**Tracks**: <issue / spec section>
+
+## Work Done (BUILDER)
+1. <one-line per concrete change with commit SHA if available>
+2. ...
+
+## Evidence
+- <one-line per concrete artifact>
+
+### <artifact 1>
+```json
+<excerpt>
+```
+
+## Next Step (VERIFIER)
+- <one-line: what the verifier must check>
+- <one-line: the gate criterion>
+
+## Caveats (BUILDER is honest)
+- <one bullet per known limitation>

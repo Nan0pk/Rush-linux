@@ -1,0 +1,7 @@
+{
+  "description": "AI-generated verdict \u2014 check 14 fails.",
+  "expect_errors": [
+    "AI-summary-as-evidence"
+  ],
+  "expect_pass": false
+}

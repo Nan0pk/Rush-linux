@@ -1,0 +1,68 @@
+# Rush Linux front page manifest.
+#
+# This is the source-of-truth for the generated README section between
+# <!-- RUSH_FRONTPAGE:START --> and <!-- RUSH_FRONTPAGE:END --> markers.
+# Run `python3 tools/render-frontpage.py --write` to regenerate README.md.
+# Run `python3 tools/render-frontpage.py --check` to verify it is in sync.
+#
+# The generator ALSO scans deterministic repo locations (mkosi profiles,
+# packaging/systemd, .github/workflows, tools/, docs/) so the generated
+# output reflects the actual repo state. This manifest holds the prose
+# that cannot be derived mechanically (intro sentences, links, ordering).
+
+schema_version: 1
+project:
+  name: Rush Linux
+  tagline: "adaptive power & performance for Arch"
+  description: |
+    Rush Linux is an Arch-based distribution that watches what you're doing
+    and tunes the hardware to match. Fast CPU when you're compiling. Tight
+    latency when you're on a video call. Idle states when you're reading.
+    No manual power profiles to flip between — every decision is logged,
+    explained, and reversible.
+
+sections:
+  - kind: editions
+    title: Editions
+    intro: |
+      Rush Linux is built from a single mkosi base plus per-edition
+      profiles. Available editions:
+
+  - kind: livedev
+    title: Rush LiveDev
+    intro: |
+      Deterministic hardware-test and benchmark-campaign workflow with
+      two operator paths: `--run-vm` (QEMU-driven, for CI/dev) and
+      `--auto`/`--resume` (USB-based, for real hardware).
+
+  - kind: workflows
+    title: CI workflows
+    intro: |
+      GitHub Actions workflows that run on PRs and on main:
+
+  - kind: services
+    title: Systemd services
+    intro: |
+      Services shipped in the image (optid is the adaptive optimizer;
+      rush-* are the LiveDev tools):
+
+  - kind: commands
+    title: Operator commands
+    intro: |
+      Single entrypoint for LiveDev operations:
+
+  - kind: docs
+    title: Documentation
+    intro: |
+      Key docs:
+
+  - kind: tests
+    title: Tests & validation
+    intro: |
+      Run the test suite locally:
+
+links:
+  repo: https://github.com/Nan0pk/Rush-linux
+  docs_index: docs/SUMMARY.md
+  runbook: docs/livedev/OPERATOR_RUNBOOK.md
+  contributing: CONTRIBUTING.md

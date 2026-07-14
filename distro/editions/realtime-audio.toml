@@ -1,0 +1,20 @@
+[edition]
+name = "realtime-audio"
+description = "Specialist audio profile with optional PREEMPT_RT kernel"
+
+[defaults]
+inherits = "desktop"
+kernel = "linux-adaptive-rt"
+optimizer_mode = "realtime"
+rt_access = "rtkit-pipewire"
+cpu_isolation = "manual-opt-in"
+
+[packages]
+required = [
+  "adaptive-desktop-plasma",
+  "linux-adaptive-rt",
+  "optid",
+  "pipewire",
+  "wireplumber",
+]
+

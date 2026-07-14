@@ -1,0 +1,8 @@
+* @Nan0pk
+crates/optid/ @Nan0pk @agent-rust
+crates/optctl/ @Nan0pk @agent-rust
+crates/rush_collect/ @Nan0pk @agent-rust
+crates/rush_telemetry/ @Nan0pk @agent-rust
+crates/rushbench/ @Nan0pk @agent-rust
+tools/ @Nan0pk @agent-shell
+.github/ @Nan0pk

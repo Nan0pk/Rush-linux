@@ -1,0 +1,39 @@
+# GRUB compatibility-fallback bootloader recipe (skeleton).
+#
+# Rush Linux boots UKI + systemd-boot by default (ADR 0003). GRUB exists ONLY as
+# a compatibility fallback for hardware that cannot do UKI cleanly (older/buggy
+# UEFI implementations, some ARM boards). This skeleton makes that fallback a
+# real, buildable artifact rather than an aspirational promise; the v0.4
+# milestone wires it into the boot/rollback flow.
+[package]
+schema_version = 0
+name = "grub-fallback"
+version = "stable-tracked"
+kind = "bootloader"
+
+[source]
+upstream = "https://ftp.gnu.org/gnu/grub/"
+verification = "signed-tarball"
+
+[build]
+# Fallback only: not installed by default. Editions/installer opt in when UKI
+# boot is not viable on the target firmware.
+default = false
+reproducible = true
+# Targets are intentionally minimal; expand as hardware coverage is validated.
+targets = [
+  "x86_64-efi",
+  "i386-pc",
+]
+
+[policy]
+role = "compatibility-fallback"
+# GRUB rollback must mirror the UKI rollback contract (three retained entries).
+rollback_entries = 3
+owns_default_boot = false
+
+[outputs]
+packages = [
+  "grub-fallback",
+  "grub-fallback-efi",
+]

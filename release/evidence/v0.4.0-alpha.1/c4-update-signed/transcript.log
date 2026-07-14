@@ -1,0 +1,41 @@
+============================================
+  Update Signing Test Suite (v0.4)
+============================================
+
+━━━ Test 1: Generate test signing keys ━━━
+Private key: /home/user/Rush-linux/config/keys/testing.private.pem
+Public key:  /home/user/Rush-linux/config/keys/testing.public.pem
+
+⚠  These are TEST keys only. Never use in production.
+=== Generating test update signing keys ===
+Private key: /home/user/Rush-linux/build/test-signing/keys/testing.private.pem
+Public key:  /home/user/Rush-linux/build/test-signing/keys/testing.public.pem
+
+⚠  These are TEST keys only. Never use in production.
+   Add /home/user/Rush-linux/build/test-signing/keys/testing.private.pem to .gitignore before pushing.
+
+✅ Test signing keys generated
+✅ PASS: Test 1: Test signing keys generated at /home/user/Rush-linux/build/test-signing/keys
+
+━━━ Test 2: Sign update metadata ━━━
+  SHA-256: c35a175da4f42cab38011b85162a70396c1b88f617499378ec69562656eae123
+  Signature: /home/user/Rush-linux/build/test-signing/repo/repodata.json.sig
+✅ Update metadata signed
+✅ PASS: Test 2: repodata.json signed (manifest created)
+✅ PASS: Test 2a: Detached binary signature created
+✅ PASS: Test 2b: Signature algorithm is Ed25519
+
+━━━ Test 3: Verify valid signature ━━━
+✅ Signature VERIFIED: /home/user/Rush-linux/build/test-signing/repo/repodata.json
+✅ PASS: Test 3: Valid signature verified successfully
+
+━━━ Test 4: Detect tampered data ━━━
+❌ Signature INVALID: /home/user/Rush-linux/build/test-signing/repo/repodata.json: 
+✅ PASS: Test 4: Tampered data correctly rejected by signature verification
+
+============================================
+  All signing tests PASSED
+============================================
+
+v0.4.0-alpha.1 exit criterion verified:
+  ✅ Test update metadata is signed

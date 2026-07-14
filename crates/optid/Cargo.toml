@@ -1,0 +1,26 @@
+[package]
+name = "optid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "optid"
+path = "src/main.rs"
+
+[dependencies]
+zbus = { version = "5.16.0", features = ["blocking"] }
+# zvariant is re-exported by zbus but we use OwnedValue directly in the
+# PPD shim's Profiles property (aa{sv}); declare it as a direct dep so
+# the version stays in lockstep with zbus's expectation.
+zvariant = "5"
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.1"
+signal-hook = "0.4"
+libc = "0.2"
+
+[build-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.1"

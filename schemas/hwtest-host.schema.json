@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nan0pk/Rush-linux/raw/main/schemas/hwtest-host.schema.json",
+  "title": "Hardware Test Host Fingerprint",
+  "description": "Host fingerprint for a hardware evidence bundle. Field choices match crates/testos/src/host.rs::HostFingerprint and crates/rushbench/src/types.rs::HostInfo so the two rigs can be joined without translation.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "host_kind",
+    "slot",
+    "kernel",
+    "cpu_model",
+    "dmi_board",
+    "battery_design_uwh",
+    "fingerprint",
+    "captured_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "host_kind": {
+      "type": "string",
+      "const": "hwtest-host"
+    },
+    "slot": {
+      "type": "string",
+      "enum": ["desktop", "laptop"],
+      "description": "Which reference-hardware slot this host fills."
+    },
+    "kernel": {
+      "type": "string",
+      "description": "uname -r output."
+    },
+    "cpu_model": {
+      "type": "string",
+      "description": "First 'model name' line from /proc/cpuinfo, stripped."
+    },
+    "dmi_board": {
+      "type": "string",
+      "description": "'board_vendor board_name' from /sys/class/dmi/id/, or 'unknown'."
+    },
+    "battery_design_uwh": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Battery design capacity in microwatt-hours (energy_full_design). 0 for desktop slots (no battery)."
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "FNV-1a 64-bit hex hash of 'kernel|cpu_model|dmi_board|battery_design_uwh', used as the directory name."
+    },
+    "captured_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 UTC timestamp when the host fingerprint was captured."
+    },
+    "ncpu": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional: number of logical CPUs."
+    },
+    "cpufreq_driver": {
+      "type": "string",
+      "description": "Optional: cpufreq driver name."
+    },
+    "governor": {
+      "type": "string",
+      "description": "Optional: default CPU governor."
+    },
+    "platform_profile_available": {
+      "type": "boolean",
+      "description": "Optional: whether /sys/firmware/acpi/platform_profile exists."
+    },
+    "rapl_domain": {
+      "type": "string",
+      "description": "Optional: RAPL domain path (e.g. /sys/class/powercap/intel-rapl:0)."
+    },
+    "optid_version": {
+      "type": "string",
+      "description": "Optional: 'optid --version' output (NOT usage text)."
+    },
+    "git_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Optional: 40-character git commit SHA."
+    },
+    "baseline_distro": {
+      "type": "string",
+      "description": "Optional: baseline distro + power-profiles-daemon profile (e.g. 'Ubuntu 24.04 LTS, PPD balanced')."
+    }
+  }
+}

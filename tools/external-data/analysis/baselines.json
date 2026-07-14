@@ -1,0 +1,263 @@
+{
+  "_note": "Generated against the pre-correction latency-critical contract (10 us / 100 us). The contract has since been corrected to 1 ms / 1 ms (1000 us / 1000 us); the OSADL cyclictest data remains factually accurate, but the contract-relative commentary in osadl_cyclictest.insight is obsolete. Re-running tools/external-data/analyze_baselines.py produces updated commentary.",
+  "spec_power": {
+    "ssj_ops_per_watt": {
+      "label": "ssj_ops/watt (overall)",
+      "n": 0
+    },
+    "active_idle_watts": {
+      "label": "active idle watts",
+      "n": 0
+    },
+    "insight": "Server idle power floor: provides a reference for what 'idle' should cost relative to full throughput. If optid's idle class has higher proportional draw than these servers, the power policy is under-tuned."
+  },
+  "osadl_cyclictest": {
+    "max_latency_us": {
+      "label": "cyclictest max latency (\u00b5s)",
+      "n": 0
+    },
+    "pct_under_100us": 0.0,
+    "pct_under_50us": 0.0,
+    "insight": "Most RT-kernel systems achieve max cyclictest < 100 \u00b5s. optid's latency-critical contract bound (10 \u00b5s cyclictest max) is very tight \u2014 only achievable on tuned RT kernels with CPU isolation. Recommend softening to 50 \u00b5s for a production-realistic default."
+  },
+  "geekbench": {
+    "single_core": {
+      "label": "single-core score",
+      "n": 0
+    },
+    "multi_core": {
+      "label": "multi-core score",
+      "n": 0
+    },
+    "by_cpu_family": {},
+    "insight": "Single-core score predicts interactive/latency-critical workload performance. Multi-core score predicts throughput class ceiling. Use these to normalise rushbench foreground-launch latency across machines."
+  },
+  "local_rushbench": {
+    "total_records": 20,
+    "total_anomalies": 10,
+    "zero_psi_records": 10,
+    "by_workload": {
+      "throughput/psi-cpu": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 32.4,
+          "source": "benchmarks/results/2026-06-14/fedora/throughput/psi-cpu.json"
+        }
+      ],
+      "throughput/foreground-launch": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "unsupported_here"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/throughput/foreground-launch.json"
+        }
+      ],
+      "throughput/cyclictest": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "class_mismatch"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/throughput/cyclictest.json"
+        }
+      ],
+      "throughput/psi-io": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 38.4,
+          "source": "benchmarks/results/2026-06-14/fedora/throughput/psi-io.json"
+        }
+      ],
+      "idle/psi-cpu": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 28.8,
+          "source": "benchmarks/results/2026-06-14/fedora/idle/psi-cpu.json"
+        }
+      ],
+      "idle/foreground-launch": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "unsupported_here"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/idle/foreground-launch.json"
+        }
+      ],
+      "idle/cyclictest": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "class_mismatch"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/idle/cyclictest.json"
+        }
+      ],
+      "idle/psi-io": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 31.2,
+          "source": "benchmarks/results/2026-06-14/fedora/idle/psi-io.json"
+        }
+      ],
+      "interactive/psi-cpu": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 34.8,
+          "source": "benchmarks/results/2026-06-14/fedora/interactive/psi-cpu.json"
+        }
+      ],
+      "interactive/foreground-launch": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "unsupported_here"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/interactive/foreground-launch.json"
+        }
+      ],
+      "interactive/cyclictest": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "class_mismatch"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/interactive/cyclictest.json"
+        }
+      ],
+      "interactive/psi-io": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 33.6,
+          "source": "benchmarks/results/2026-06-14/fedora/interactive/psi-io.json"
+        }
+      ],
+      "light/psi-cpu": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 32.4,
+          "source": "benchmarks/results/2026-06-14/fedora/light/psi-cpu.json"
+        }
+      ],
+      "light/foreground-launch": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "unsupported_here"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/light/foreground-launch.json"
+        }
+      ],
+      "light/cyclictest": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "class_mismatch"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/light/cyclictest.json"
+        }
+      ],
+      "light/psi-io": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 38.4,
+          "source": "benchmarks/results/2026-06-14/fedora/light/psi-io.json"
+        }
+      ],
+      "latency-critical/psi-cpu": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 38.4,
+          "source": "benchmarks/results/2026-06-14/fedora/latency-critical/psi-cpu.json"
+        }
+      ],
+      "latency-critical/foreground-launch": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "unsupported_here"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/latency-critical/foreground-launch.json"
+        }
+      ],
+      "latency-critical/cyclictest": [
+        {
+          "median": null,
+          "p95": null,
+          "iqr": null,
+          "anomalies": [
+            "class_mismatch"
+          ],
+          "energy_avg_watts": null,
+          "source": "benchmarks/results/2026-06-14/fedora/latency-critical/cyclictest.json"
+        }
+      ],
+      "latency-critical/psi-io": [
+        {
+          "median": 0.0,
+          "p95": 0.0,
+          "iqr": 0.0,
+          "anomalies": [],
+          "energy_avg_watts": 32.4,
+          "source": "benchmarks/results/2026-06-14/fedora/latency-critical/psi-io.json"
+        }
+      ]
+    },
+    "data_quality_verdict": "POOR"
+  }
+}

@@ -1,0 +1,27 @@
+# Docmap entry for 0006-hw-allowlist-db-design.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — do NOT add to docmap until §4 evidence gaps are closed and seeded baseline
+# covers ≥5 laptops × ≥3 HWIDs each.
+
+[docs."docs/research/0006-hw-allowlist-db-design.md"]
+purpose = "Specifies the HWID allowlist DB that gates every depth-enabler actuation in optid (WP-N4)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/allowlist.rs",
+    "crates/optid/data/allowlist.toml",
+    "crates/optctl/src/allow.rs",
+    "packaging/udev/rules.d/99-optid.rules",
+    "packaging/systemd/optid.service",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+    "docs/decisions/0013-detection-and-ml-boundary.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/decisions/0009-optid-security-boundary.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

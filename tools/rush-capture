@@ -1,0 +1,357 @@
+#!/usr/bin/env python3
+"""
+rush-capture — session capture manager for the Rush LiveDev capture substrate.
+
+Manages a capture session's lifecycle: start, event, finish, validate-chain,
+summarize. Each session is rooted in a "run directory" that holds the
+tamper-evident event chain, command log, host/software fingerprints, privacy
+report, and human-readable summary.
+
+Usage:
+  tools/rush-capture start    --run-dir <path> [--repo-root <path>]
+  tools/rush-capture event    --run-dir <path> --kind <kind> [--payload <json>] [--payload-file <path>]
+  tools/rush-capture finish   --run-dir <path>
+  tools/rush-capture validate-chain --run-dir <path>
+  tools/rush-capture summarize --run-dir <path>
+
+Run directory layout (created by 'start'):
+  <run-dir>/
+    manifest.json          — session metadata (schema, start time, run-dir path)
+    events.jsonl           — tamper-evident event chain (one JSON object per line)
+    command-log.jsonl      — per-command execution records (one JSON object per line)
+    host.json              — host fingerprint (kernel, CPU, DMI board, battery)
+    software.json          — software fingerprint (git commit, project version, rustc)
+    privacy-report.json    — redaction summary (what was redacted, how many)
+    summary.md             — human-readable session summary
+    stdout/                — per-command stdout files (<seq>.txt)
+    stderr/                — per-command stderr files (<seq>.txt)
+
+Tamper-evident chain:
+  Each event in events.jsonl carries:
+    seq, timestamp, kind, payload (or payload_path),
+    prev_event_sha256, event_sha256
+  validate-chain detects edited, deleted, reordered, or inserted events.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import rush_capture_lib as lib  # noqa: E402
+
+
+def cmd_start(ns: argparse.Namespace) -> int:
+    run_dir: Path = ns.run_dir
+    repo_root: Path | None = ns.repo_root
+
+    lib.init_run_dir(run_dir)
+
+    # If already started, refuse (idempotent start would corrupt the chain).
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        print(
+            f"rush-capture: run-dir already started ({manifest_path} exists). "
+            f"Use a fresh run-dir or 'rush-capture finish' first.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Capture host + software fingerprints.
+    host = lib.capture_host()
+    software = lib.capture_software(repo_root)
+
+    # Write the static files.
+    started_at = lib._now_iso()
+    manifest = {
+        "schema_version": lib.SCHEMA_VERSION,
+        "run_dir": str(run_dir),
+        "started_at": started_at,
+        "tool": "rush-capture",
+        "tool_version": "0.1.0",
+    }
+    _write_json(manifest_path, manifest)
+    _write_json(run_dir / "host.json", host)
+    _write_json(run_dir / "software.json", software)
+
+    # Initialize the event chain with a "start" event.
+    start_event = lib.make_event(seq=0, kind="start", payload={"started_at": started_at})
+    lib.append_jsonl(run_dir / "events.jsonl", start_event)
+
+    # Initialize the command log (empty file; rush-exec appends to it).
+    (run_dir / "command-log.jsonl").touch()
+
+    # Initialize the privacy report (will be updated on finish).
+    _write_json(
+        run_dir / "privacy-report.json",
+        lib.RedactionReport().to_dict(),
+    )
+
+    print(f"rush-capture: started session at {run_dir}")
+    print(f"  host fingerprint: {host['fingerprint']}")
+    print(f"  events: {run_dir / 'events.jsonl'}")
+    print(f"  command-log: {run_dir / 'command-log.jsonl'}")
+    return 0
+
+
+def cmd_event(ns: argparse.Namespace) -> int:
+    run_dir: Path = ns.run_dir
+    kind: str = ns.kind
+    payload: Any = None
+    payload_path: str | None = None
+
+    if ns.payload is not None:
+        try:
+            payload = json.loads(ns.payload)
+        except json.JSONDecodeError as e:
+            print(f"rush-capture: --payload is not valid JSON: {e}", file=sys.stderr)
+            return 1
+    if ns.payload_file is not None:
+        pf = Path(ns.payload_file)
+        if not pf.is_absolute():
+            # Resolve relative to run_dir for stability.
+            pf = run_dir / pf
+        if not pf.exists():
+            print(f"rush-capture: --payload-file not found: {pf}", file=sys.stderr)
+            return 1
+        payload_path = str(pf.relative_to(run_dir))
+
+    if payload is None and payload_path is None:
+        payload = {}
+
+    seq = lib.next_seq(run_dir / "events.jsonl")
+    prev_sha = lib.last_event_sha256(run_dir / "events.jsonl")
+    event = lib.make_event(
+        seq=seq,
+        kind=kind,
+        payload=payload,
+        payload_path=payload_path,
+        prev_event_sha256=prev_sha,
+    )
+    lib.append_jsonl(run_dir / "events.jsonl", event)
+    print(f"rush-capture: appended event seq={seq} kind={kind}")
+    return 0
+
+
+def cmd_finish(ns: argparse.Namespace) -> int:
+    run_dir: Path = ns.run_dir
+    events_path = run_dir / "events.jsonl"
+    if not events_path.exists():
+        print(f"rush-capture: no event chain at {events_path}", file=sys.stderr)
+        return 1
+
+    # Append the "finish" event.
+    seq = lib.next_seq(events_path)
+    prev_sha = lib.last_event_sha256(events_path)
+    finished_at = lib._now_iso()
+    finish_event = lib.make_event(
+        seq=seq,
+        kind="finish",
+        payload={"finished_at": finished_at},
+        prev_event_sha256=prev_sha,
+    )
+    lib.append_jsonl(events_path, finish_event)
+
+    # Generate the summary and privacy report.
+    summarize(run_dir)
+    update_privacy_report(run_dir)
+
+    print(f"rush-capture: finished session at {run_dir}")
+    print(f"  events: {seq + 1} total")
+    print(f"  summary: {run_dir / 'summary.md'}")
+    return 0
+
+
+def cmd_validate_chain(ns: argparse.Namespace) -> int:
+    run_dir: Path = ns.run_dir
+    events_path = run_dir / "events.jsonl"
+    events = lib.read_jsonl(events_path)
+    if not events:
+        print(f"rush-capture: no events to validate at {events_path}", file=sys.stderr)
+        return 1
+
+    ok, errors = lib.validate_chain(events)
+    if ok:
+        print(f"rush-capture: chain OK — {len(events)} events validated")
+        return 0
+    else:
+        print(f"rush-capture: chain BROKEN — {len(errors)} error(s):", file=sys.stderr)
+        for e in errors:
+            print(f"  ✗ {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_summarize(ns: argparse.Namespace) -> int:
+    run_dir: Path = ns.run_dir
+    if not (run_dir / "events.jsonl").exists():
+        print(f"rush-capture: no event chain at {run_dir / 'events.jsonl'}", file=sys.stderr)
+        return 1
+    summarize(run_dir)
+    update_privacy_report(run_dir)
+    print(f"rush-capture: summary written to {run_dir / 'summary.md'}")
+    return 0
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def _write_json(path: Path, obj: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, sort_keys=True, indent=2)
+        f.write("\n")
+
+
+def summarize(run_dir: Path) -> None:
+    """Generate summary.md from the event chain + command log."""
+    events = lib.read_jsonl(run_dir / "events.jsonl")
+    commands = lib.read_jsonl(run_dir / "command-log.jsonl")
+
+    manifest = {}
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+
+    host = {}
+    host_path = run_dir / "host.json"
+    if host_path.exists():
+        host = json.loads(host_path.read_text())
+
+    lines: list[str] = []
+    lines.append("# Capture Session Summary")
+    lines.append("")
+    lines.append(f"- **Run dir:** `{run_dir}`")
+    lines.append(f"- **Started:** {manifest.get('started_at', 'unknown')}")
+    if events and events[-1].get("kind") == "finish":
+        finish_payload = events[-1].get("payload", {})
+        lines.append(f"- **Finished:** {finish_payload.get('finished_at', 'unknown')}")
+    lines.append(f"- **Host fingerprint:** `{host.get('fingerprint', 'unknown')}`")
+    lines.append(f"- **Kernel:** {host.get('kernel', 'unknown')}")
+    lines.append(f"- **CPU:** {host.get('cpu_model', 'unknown')}")
+    lines.append(f"- **Events:** {len(events)}")
+    lines.append(f"- **Commands:** {len(commands)}")
+    lines.append("")
+
+    # Event chain summary
+    lines.append("## Event Chain")
+    lines.append("")
+    lines.append("| seq | kind | timestamp | sha256 (first 12) |")
+    lines.append("|---|---|---|---|")
+    for e in events:
+        sha = e.get("event_sha256", "")[:12]
+        lines.append(f"| {e.get('seq', '?')} | {e.get('kind', '?')} | {e.get('timestamp', '?')} | `{sha}…` |")
+    lines.append("")
+
+    # Command summary
+    if commands:
+        lines.append("## Commands")
+        lines.append("")
+        lines.append("| seq | exit | duration_ms | argv | stdout_sha256 |")
+        lines.append("|---|---|---|---|---|")
+        for c in commands:
+            argv = " ".join(c.get("argv", []))
+            if len(argv) > 60:
+                argv = argv[:57] + "…"
+            sha = c.get("stdout_sha256", "")[:12]
+            lines.append(
+                f"| {c.get('seq', '?')} | {c.get('exit_code', '?')} | "
+                f"{c.get('duration_ms', '?')} | `{argv}` | `{sha}…` |"
+            )
+        lines.append("")
+
+    # Privacy report summary
+    privacy_path = run_dir / "privacy-report.json"
+    if privacy_path.exists():
+        privacy = json.loads(privacy_path.read_text())
+        lines.append("## Privacy Report")
+        lines.append("")
+        lines.append(f"- **Total redactions:** {privacy.get('total', 0)}")
+        counts = privacy.get("counts", {})
+        if counts:
+            lines.append("- **By kind:**")
+            for kind, count in sorted(counts.items()):
+                lines.append(f"  - `{kind}`: {count}")
+        else:
+            lines.append("- No redactions applied.")
+        lines.append("")
+
+    # Chain validation
+    ok, errors = lib.validate_chain(events)
+    lines.append("## Chain Validation")
+    lines.append("")
+    if ok:
+        lines.append("- ✅ Chain intact — all hashes verify.")
+    else:
+        lines.append(f"- ❌ Chain BROKEN — {len(errors)} error(s):")
+        for e in errors:
+            lines.append(f"  - {e}")
+    lines.append("")
+
+    (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def update_privacy_report(run_dir: Path) -> None:
+    """Aggregate redaction counts from all command-log entries into the privacy report."""
+    commands = lib.read_jsonl(run_dir / "command-log.jsonl")
+    report = lib.RedactionReport()
+    for c in commands:
+        counts = c.get("redaction_counts", {})
+        for kind, n in counts.items():
+            report.record(kind, n)
+    _write_json(run_dir / "privacy-report.json", report.to_dict())
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="rush-capture",
+        description="Session capture manager for the Rush LiveDev capture substrate.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_start = sub.add_parser("start", help="Initialize a capture session.")
+    p_start.add_argument("--run-dir", required=True, type=Path)
+    p_start.add_argument("--repo-root", type=Path, default=None)
+    p_start.set_defaults(func=cmd_start)
+
+    p_event = sub.add_parser("event", help="Append an event to the chain.")
+    p_event.add_argument("--run-dir", required=True, type=Path)
+    p_event.add_argument("--kind", required=True)
+    p_event.add_argument("--payload", default=None, help="Inline JSON payload.")
+    p_event.add_argument(
+        "--payload-file",
+        default=None,
+        help="Path to a payload file (relative to run-dir or absolute).",
+    )
+    p_event.set_defaults(func=cmd_event)
+
+    p_finish = sub.add_parser("finish", help="Finalize the session.")
+    p_finish.add_argument("--run-dir", required=True, type=Path)
+    p_finish.set_defaults(func=cmd_finish)
+
+    p_validate = sub.add_parser("validate-chain", help="Validate the event chain.")
+    p_validate.add_argument("--run-dir", required=True, type=Path)
+    p_validate.set_defaults(func=cmd_validate_chain)
+
+    p_summarize = sub.add_parser("summarize", help="Generate/refresh summary.md.")
+    p_summarize.add_argument("--run-dir", required=True, type=Path)
+    p_summarize.set_defaults(func=cmd_summarize)
+
+    return parser.parse_args(argv)
+
+
+# Forward-declare the type used in cmd_event (Any from typing).
+from typing import Any  # noqa: E402
+
+
+def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    ns = parse_args(argv)
+    return ns.func(ns)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

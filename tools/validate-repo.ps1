@@ -1,0 +1,184 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+$Root = Split-Path -Parent $PSScriptRoot
+
+function Assert-File {
+    param([string]$Path)
+    $full = Join-Path $Root $Path
+    if (-not (Test-Path -LiteralPath $full)) {
+        throw "Missing required file: $Path"
+    }
+}
+
+function Assert-Contains {
+    param(
+        [string]$Path,
+        [string]$Pattern
+    )
+    $full = Join-Path $Root $Path
+    $text = Get-Content -LiteralPath $full -Raw
+    if ($text -notmatch $Pattern) {
+        throw "Expected $Path to contain pattern: $Pattern"
+    }
+}
+
+function Assert-NotContains {
+    param(
+        [string]$Path,
+        [string]$Pattern
+    )
+    $full = Join-Path $Root $Path
+    $text = Get-Content -LiteralPath $full -Raw
+    if ($text -match $Pattern) {
+        throw "Forbidden legacy/default pattern in ${Path}: $Pattern"
+    }
+}
+
+$required = @(
+    'VERSION',
+    'Cargo.lock',
+    'RELEASES.md',
+    'docs/PROJECT_BRIEF.md',
+    'docs/AI_CONTINUATION.md',
+    'docs/IMPLEMENTATION_STATUS.md',
+    'ROADMAP.md',
+    'CONTRIBUTING.md',
+    'SECURITY.md',
+    'README.md',
+    'AGENTS.md',
+    'Cargo.toml',
+    'crates/optid/src/main.rs',
+    'crates/optctl/src/main.rs',
+    'config/optid/policy.toml',
+    'packaging/systemd/optid.service',
+    'packaging/systemd/optid-apply.service',
+    'distro/boot/cmdline.d/adaptive.conf',
+    'distro/boot/uki.toml',
+    'distro/kernel/default-adaptive.config',
+    'distro/kernel/realtime.config',
+    'distro/network/nftables.conf',
+    'distro/systemd/user.slice.d/10-adaptive-accounting.conf',
+    'distro/systemd/background.slice',
+    'recipes/core/linux.toml',
+    'recipes/core/linux-rt.toml',
+    'recipes/core/optid.toml',
+    'recipes/core/systemd.toml',
+    'recipes/desktop/plasma-wayland.toml',
+    'recipes/server/minimal.toml',
+    'packaging/dbus/io.rushlinux.Optid.xml',
+    'packaging/dbus/io.rushlinux.Optid.service',
+    'distro/sysupdate/base.conf',
+    'distro/sysupdate/uki.conf',
+    'distro/editions/desktop.toml',
+    'distro/editions/laptop.toml',
+    'distro/editions/server.toml',
+    'distro/editions/realtime-audio.toml',
+    'benchmarks/manifest.toml',
+    'docs/architecture.md',
+    'docs/adaptive-engine.md',
+    'docs/kernel-policy.md',
+    'docs/packaging-and-builds.md',
+    'docs/boot-and-updates.md',
+    'docs/hardware-support.md',
+    'docs/testing-and-benchmarks.md',
+    'docs/non-goals.md',
+    'docs/validation.md',
+    'docs/project-workflow.md',
+    'docs/versioning.md',
+    'docs/release-policy.md',
+    'docs/release-checklist.md',
+    'docs/release-plan-v1.md',
+    'docs/documentation-policy.md',
+    'docs/decisions/README.md',
+    'docs/decisions/0001-systemd-cgroup-v2.md',
+    'docs/decisions/0002-wayland-pipewire.md',
+    'docs/decisions/0003-uki-rollback.md',
+    'docs/decisions/0004-adaptive-optid.md',
+    'docs/decisions/0005-avoid-obsolete-defaults.md',
+    'tools/build-rootfs.sh',
+    'tools/checks.sh',
+    'tools/check-workflow-safety.py',
+    'tools/publish-github.ps1',
+    'release/milestones.toml',
+    'release/test-tiers.toml'
+)
+
+foreach ($file in $required) {
+    Assert-File $file
+}
+
+Assert-Contains 'distro/boot/cmdline.d/adaptive.conf' 'cgroup_no_v1=all'
+Assert-Contains 'distro/boot/cmdline.d/adaptive.conf' 'psi=1'
+Assert-Contains 'distro/kernel/default-adaptive.config' 'CONFIG_PREEMPT_DYNAMIC=y'
+Assert-Contains 'distro/kernel/default-adaptive.config' 'CONFIG_PSI=y'
+Assert-Contains 'distro/kernel/default-adaptive.config' 'CONFIG_CGROUP_BPF=y'
+Assert-Contains 'distro/kernel/default-adaptive.config' 'CONFIG_ZSWAP=y'
+Assert-Contains 'distro/kernel/realtime.config' 'CONFIG_PREEMPT_RT=y'
+Assert-Contains 'distro/network/nftables.conf' 'table inet adaptive_filter'
+Assert-Contains 'packaging/systemd/optid.service' 'Conflicts=tlp.service power-profiles-daemon.service tuned.service'
+Assert-NotContains 'packaging/systemd/optid.service' '--apply'
+Assert-Contains 'packaging/systemd/optid-apply.service' '--apply'
+Assert-Contains 'packaging/dbus/io.rushlinux.Optid.xml' 'io.rushlinux.Optid1'
+Assert-Contains 'distro/sysupdate/uki.conf' 'Type=url-file'
+Assert-Contains 'distro/editions/realtime-audio.toml' 'linux-adaptive-rt'
+Assert-Contains 'benchmarks/manifest.toml' 'mixed-load-responsiveness'
+# Validate VERSION format (not a pinned value) so this gate does not silently
+# drift out of date at every release; RELEASES.md and release/milestones.toml are
+# the source of truth for the current version value.
+Assert-Contains 'VERSION' '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?\s*$'
+Assert-Contains 'RELEASES.md' '0\.1\.0-alpha\.1'
+Assert-Contains 'docs/AI_CONTINUATION.md' 'Forbidden Shortcuts'
+Assert-Contains 'docs/AI_CONTINUATION.md' 'Next Task'
+Assert-Contains 'docs/IMPLEMENTATION_STATUS.md' 'Not Yet Implemented'
+Assert-Contains 'ROADMAP.md' 'v0\.1\.0-alpha\.1: Compile-Clean Core'
+Assert-Contains 'CONTRIBUTING.md' 'Documentation Is Required'
+Assert-Contains 'docs/testing-and-benchmarks.md' 'bash tools/checks.sh'
+Assert-Contains 'docs/validation.md' 'Change checks'
+Assert-Contains 'docs/versioning.md' 'MAJOR'
+Assert-Contains 'docs/release-policy.md' 'Release Blockers'
+Assert-Contains 'docs/release-checklist.md' 'Stable Release'
+Assert-Contains 'docs/release-plan-v1.md' 'v1\.0\.0: Final Stable Release'
+Assert-Contains 'docs/documentation-policy.md' 'documented truth changes'
+Assert-Contains 'release/milestones.toml' 'version = "1\.0\.0"'
+Assert-Contains 'release/test-tiers.toml' '\[tier\.T5\]'
+Assert-Contains 'docs/decisions/0001-systemd-cgroup-v2.md' 'Status: accepted'
+Assert-Contains 'docs/decisions/0004-adaptive-optid.md' 'only default runtime optimization policy owner'
+
+# ADR ratification gate (see docs/decisions/README.md): agent-era ADRs (0008+)
+# may only be marked "accepted" once a human maintainer has ratified them, which
+# is recorded with a "Ratified-by:" line. This stops a future agent from
+# silently promoting its own proposed decision to binding. Every ADR must also
+# declare a valid Status.
+$decisionsDir = Join-Path $Root 'docs/decisions'
+foreach ($adr in Get-ChildItem -LiteralPath $decisionsDir -Filter '*.md') {
+    if ($adr.Name -eq 'README.md') { continue }
+    if ($adr.BaseName -notmatch '^(?<num>\d{4})') { continue }
+    $num = [int]$Matches['num']
+    $adrText = Get-Content -LiteralPath $adr.FullName -Raw
+    if ($adrText -notmatch '(?m)^Status:\s*(proposed|accepted|superseded|rejected)\b') {
+        throw "ADR $($adr.Name) must declare a valid 'Status:' (proposed|accepted|superseded|rejected)."
+    }
+    if ($num -ge 8 -and $adrText -match '(?m)^Status:\s*accepted\b' -and $adrText -notmatch '(?m)^Ratified-by:\s*\S') {
+        throw "ADR $($adr.Name) is marked 'accepted' but has no 'Ratified-by:' line; agent-era ADRs (0008+) require recorded human ratification (see docs/decisions/README.md)."
+    }
+}
+
+$legacyChecks = @{
+    'recipes/desktop/plasma-wayland.toml' = @('pulseaudio_default = true', 'legacy_x11_default = true')
+    'recipes/server/minimal.toml' = @('iptables', 'cgroup_v1')
+    'distro/editions/desktop.toml' = @('x11', 'pulseaudio', 'iptables')
+    'distro/editions/laptop.toml' = @('x11', 'pulseaudio', 'iptables')
+    'distro/editions/server.toml' = @('iptables', 'cgroup_v1')
+    'distro/network/nftables.conf' = @('iptables', 'ip6tables', 'arptables', 'ebtables')
+    'recipes/core/systemd.toml' = @('dual_init_supported = true', 'cgroup_v1_supported = true')
+}
+
+foreach ($entry in $legacyChecks.GetEnumerator()) {
+    foreach ($pattern in $entry.Value) {
+        Assert-NotContains $entry.Key ([regex]::Escape($pattern))
+    }
+}
+
+Write-Host "Rush Linux repository validation passed."

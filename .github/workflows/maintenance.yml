@@ -1,0 +1,53 @@
+name: Scheduled maintenance
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-policy:
+    name: New dependency advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # SECURITY (audit finding #5): the previous `command: check advisories`
+      # syntax was invalid — `check advisories` is not a single cargo-deny
+      # subcommand. The latest maintenance run failed before scanning
+      # dependencies with `unrecognized subcommand 'warn'`, leaving the
+      # advisory status unknown.
+      #
+      # Correct syntax (per EmbarkStudios/cargo-deny-action README):
+      #   command: check
+      #   command-arguments: advisories
+      # `command` is the cargo-deny subcommand; `command-arguments` is the
+      # space-separated list of check types to run.
+      #
+      # We pin to @v2 (major) rather than a SHA for now; SHA pinning is
+      # tracked as a separate supply-chain hardening task across all
+      # workflow actions.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          command-arguments: advisories
+
+  external-links:
+    name: External documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --root-dir .
+            --no-progress
+            --accept 200,206,429
+            --max-concurrency 4
+            --max-retries 2
+            --retry-wait-time 2
+            --exclude '(^|/)localhost(:|/|$)'
+            --exclude '127\.0\.0\.1'
+            './**/*.md'

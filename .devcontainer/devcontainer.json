@@ -1,0 +1,23 @@
+{
+  "name": "Rush Linux Development",
+  "image": "mcr.microsoft.com/devcontainers/rust:1",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/powershell:1": {}
+  },
+  "postCreateCommand": "apt-get update && apt-get install -y libdbus-1-dev pkg-config && cargo build --workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb"
+      ],
+      "settings": {
+        "rust-analyzer.cargo.allFeatures": true,
+        "rust-analyzer.check.command": "clippy"
+      }
+    }
+  }
+}

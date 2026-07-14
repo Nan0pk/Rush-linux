@@ -1,0 +1,24 @@
+# Docmap entry for 0014-sched-ext-selector-per-workload-class.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — C6 residency and scheduler switch latency experiments pending.
+
+[docs."docs/research/0014-sched-ext-selector-per-workload-class.md"]
+purpose = "Specifies sched_ext scheduler selection per workload class and its effect on C-state residency and IPC (WP-N10, WP-N11)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/actuators/sched.rs",
+    "crates/optid/src/sensors/workload.rs",
+    "packaging/systemd/optid.service",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/decisions/0015-sched-ext-default-on.md",
+    "docs/research/0018-telemetry-runtime-state-observability.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/decisions/0015-sched-ext-default-on.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

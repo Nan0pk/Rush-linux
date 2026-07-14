@@ -1,0 +1,13 @@
+NAME          SIZE TYPE MOUNTPOINT      FSTYPE LABEL
+sda          57.3G disk                        
+├─sda1          1G part /run/testos/usb vfat   RUSHESP
+└─sda2          2G part /               ext4   RushRoot
+zram0         7.6G disk [SWAP]          swap   zram0
+nvme0n1     953.9G disk                        
+├─nvme0n1p1   200M part                 vfat   
+├─nvme0n1p2    16M part                        
+├─nvme0n1p3    92G part                 ntfs   
+├─nvme0n1p4   892M part                 ntfs   
+├─nvme0n1p5 762.4G part                 ntfs   New Volume
+├─nvme0n1p6     2G part                 ext4   
+└─nvme0n1p7  96.3G part                 btrfs  fedora

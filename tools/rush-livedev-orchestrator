@@ -1,0 +1,1108 @@
+#!/usr/bin/env python3
+"""
+rush-livedev-orchestrator — host-side state machine for livedev.
+
+This is the deterministic replacement for the old "tell the user to reboot
+and run --resume" flow. The host orchestrator:
+
+  1. Generates a run_id.
+  2. Prepares the artifacts directory.
+  3. Creates the persistent test-intent state file.
+  4. Injects the state file into the guest's /RUSH-DATA (via a writable
+     overlay on the disk image, or via a virtiofs/9p share, or by writing
+     directly to the mounted image — whichever the operator chose).
+  5. Launches QEMU with stable options and serial console capture.
+  6. Waits for explicit markers (BOOT_READY, TEST_START, TEST_PASS,
+     TEST_FAIL, SHUTDOWN) — NOT arbitrary sleeps.
+  7. Detects failure patterns (panic, emergency mode, login prompt,
+     root shell) and fails the run immediately.
+  8. Collects artifacts from the guest (via the same share or by
+     re-mounting the image after shutdown).
+  9. Writes summary.json + metadata.json.
+ 10. Optionally submits results (local bundle / GitHub / HTTP).
+ 11. Exits with the test exit code or an infrastructure-failure code.
+
+Exit codes:
+    0   — test passed
+    1   — test failed (nonzero exit from test command)
+    2   — infrastructure failure (QEMU missing, image missing, etc.)
+    3   — boot timeout
+    4   — test-start timeout (BOOT_READY seen but no TEST_START)
+    5   — test-execution timeout (TEST_START seen but no terminal marker)
+    6   — shutdown timeout (terminal marker seen but QEMU did not exit)
+    7   — unexpected guest failure (root prompt, panic, emergency mode)
+    8   — state error / invalid intent
+   70  — generic infrastructure error
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import threading
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+
+import rush_livedev_state as st  # noqa: E402
+import rush_livedev_markers as mk  # noqa: E402
+
+# Exit codes (mirrored in the docstring above).
+RC_PASS = 0
+RC_TEST_FAIL = 1
+RC_INFRA = 2
+RC_BOOT_TIMEOUT = 3
+RC_TEST_START_TIMEOUT = 4
+RC_TEST_TIMEOUT = 5
+RC_SHUTDOWN_TIMEOUT = 6
+RC_GUEST_FAILURE = 7
+RC_STATE_ERROR = 8
+RC_GENERIC = 70
+
+DEFAULT_ARTIFACTS_ROOT = "artifacts/livedev"
+DEFAULT_RUN_ID_PREFIX = "run"
+
+# Default timeouts (seconds). Tuned for the Rush livedev image: ~30s boot,
+# ~1s plan generation, tests are usually 1-5 minutes.
+DEFAULT_BOOT_TIMEOUT = 180
+DEFAULT_TEST_START_TIMEOUT = 60
+DEFAULT_TEST_TIMEOUT = 30 * 60
+DEFAULT_SHUTDOWN_TIMEOUT = 60
+
+
+@dataclass
+class OrchestratorConfig:
+    """All knobs the host orchestrator needs."""
+
+    image: str = ""
+    state_path_in_image: str = "/RUSH-DATA/state/livedev-state.json"
+    artifacts_dir: str = ""
+    run_id: str = ""
+    suite: str = "default"
+    test_command: str = "true"  # default: no-op success
+    submit_mode: str = "local"
+    debug: bool = False
+    ci: bool = False
+    boot_timeout: int = DEFAULT_BOOT_TIMEOUT
+    test_start_timeout: int = DEFAULT_TEST_START_TIMEOUT
+    test_timeout: int = DEFAULT_TEST_TIMEOUT
+    shutdown_timeout: int = DEFAULT_SHUTDOWN_TIMEOUT
+    qemu_binary: str = "qemu-system-x86_64"
+    qemu_memory: str = "2G"
+    qemu_cpus: int = 2
+    qemu_accel: str = "auto"  # auto|kvm|tcg
+    qemu_firmware: str = ""  # auto-detect if empty
+    qemu_extra_args: list[str] = field(default_factory=list)
+    keep_vm: bool = False
+    console_log: str = ""
+    verbose: bool = False
+    inject_state_method: str = "copy-on-image"  # copy-on-image|virtiofs|9p|none
+    virtiofs_share: str = ""  # host path to share as /RUSH-DATA
+    artifacts_host_path: str = ""  # filled by orchestrator
+    extra_state: dict[str, Any] = field(default_factory=dict)
+
+    def to_metadata(self) -> dict[str, Any]:
+        return {
+            "image": self.image,
+            "state_path_in_image": self.state_path_in_image,
+            "artifacts_dir": self.artifacts_dir,
+            "run_id": self.run_id,
+            "suite": self.suite,
+            "test_command": self.test_command,
+            "submit_mode": self.submit_mode,
+            "debug": self.debug,
+            "ci": self.ci,
+            "timeouts": {
+                "boot": self.boot_timeout,
+                "test_start": self.test_start_timeout,
+                "test": self.test_timeout,
+                "shutdown": self.shutdown_timeout,
+            },
+            "qemu": {
+                "binary": self.qemu_binary,
+                "memory": self.qemu_memory,
+                "cpus": self.qemu_cpus,
+                "accel": self.qemu_accel,
+                "firmware": self.qemu_firmware,
+                "extra_args": list(self.qemu_extra_args),
+            },
+            "inject_state_method": self.inject_state_method,
+            "virtiofs_share": self.virtiofs_share,
+            "keep_vm": self.keep_vm,
+        }
+
+
+@dataclass
+class RunResult:
+    """Final result of a livedev run."""
+
+    run_id: str
+    status: str = "unknown"  # passed|failed|timeout|infra_error|guest_failure
+    exit_code: int = RC_GENERIC
+    failure_reason: str = ""
+    started_at: str = ""
+    finished_at: str = ""
+    duration_sec: float = 0.0
+    markers_seen: list[str] = field(default_factory=list)
+    artifacts_dir: str = ""
+    console_log: str = ""
+    bundle_path: str = ""
+    summary_path: str = ""
+    metadata_path: str = ""
+    submit_status: str = "none"  # none|local|github|http|skipped|error
+    submit_error: str = ""
+
+    def to_summary(self, cfg: OrchestratorConfig) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "summary_kind": "rush-livedev-host-summary",
+            "run_id": self.run_id,
+            "status": self.status,
+            "exit_code": self.exit_code,
+            "failure_reason": self.failure_reason,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "duration_sec": round(self.duration_sec, 3),
+            "markers_seen": list(self.markers_seen),
+            "test_command": cfg.test_command,
+            "suite": cfg.suite,
+            "image": cfg.image,
+            "image_sha256": _sha256_or_empty(cfg.image),
+            "artifacts_dir": self.artifacts_dir,
+            "console_log": self.console_log,
+            "bundle_path": self.bundle_path,
+            "submit_mode": cfg.submit_mode,
+            "submit_status": self.submit_status,
+            "submit_error": self.submit_error,
+            "host": _host_metadata(),
+            "config": cfg.to_metadata(),
+        }
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def _now_iso() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+def _sha256_or_empty(path: str) -> str:
+    if not path or not Path(path).exists():
+        return ""
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return ""
+
+
+def _host_metadata() -> dict[str, Any]:
+    md: dict[str, Any] = {
+        "kernel": "",
+        "hostname": "",
+        "qemu_version": "",
+    }
+    try:
+        md["kernel"] = subprocess.check_output(
+            ["uname", "-r"], text=True, timeout=5
+        ).strip()
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        md["hostname"] = subprocess.check_output(
+            ["hostname"], text=True, timeout=5
+        ).strip()
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        out = subprocess.check_output(
+            ["qemu-system-x86_64", "--version"], text=True, timeout=5
+        )
+        m = re.search(r"QEMU emulator version ([\d.]+)", out)
+        if m:
+            md["qemu_version"] = m.group(1)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    return md
+
+
+def _git_state(repo_root: Path) -> dict[str, str]:
+    out: dict[str, str] = {"commit": "", "branch": "", "dirty": ""}
+    try:
+        out["commit"] = subprocess.check_output(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            text=True, timeout=5,
+        ).strip()
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        out["branch"] = subprocess.check_output(
+            ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True, timeout=5,
+        ).strip()
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+        )
+        out["dirty"] = "true" if r.stdout.strip() else "false"
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    return out
+
+
+def _detect_firmware() -> str:
+    for candidate in (
+        "/usr/share/ovmf/OVMF.fd",
+        "/usr/share/OVMF/OVMF_CODE.fd",
+        "/usr/share/OVMF/OVMF_CODE_4M.fd",
+        "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+    ):
+        if Path(candidate).exists():
+            return candidate
+    return ""
+
+
+def _detect_accel() -> str:
+    if Path("/dev/kvm").exists() and os.access("/dev/kvm", os.R_OK | os.W_OK):
+        return "kvm"
+    return "tcg"
+
+
+# ─── State machine ───────────────────────────────────────────────────────────
+
+
+class OrchestratorState:
+    """Thread-safe state shared between the console reader and the main loop."""
+
+    def __init__(self, run_id: str):
+        self.run_id = run_id
+        self.lock = threading.Lock()
+        self.console_lines: list[str] = []
+        self.markers_seen: list[str] = []
+        self.failure_desc: str = ""
+        self.terminal_marker: mk.Marker | None = None
+        self.shutdown_marker_seen: bool = False
+        self.boot_ready_seen: bool = False
+        self.test_start_seen: bool = False
+        self.qemu_proc: subprocess.Popen | None = None
+        self.qemu_died: bool = False
+
+    def add_line(self, line: str) -> None:
+        with self.lock:
+            self.console_lines.append(line)
+            # Keep the buffer bounded so very long runs don't eat RAM.
+            if len(self.console_lines) > 200_000:
+                # Drop oldest 50k lines.
+                self.console_lines = self.console_lines[150_000:]
+
+    def add_marker(self, marker: mk.Marker) -> None:
+        with self.lock:
+            self.markers_seen.append(marker.kind)
+            if marker.kind == mk.KIND_BOOT_READY:
+                self.boot_ready_seen = True
+            elif marker.kind == mk.KIND_TEST_START:
+                self.test_start_seen = True
+            elif marker.kind == mk.KIND_SHUTDOWN:
+                self.shutdown_marker_seen = True
+            elif marker.is_terminal:
+                self.terminal_marker = marker
+
+
+# ─── Console reader thread ───────────────────────────────────────────────────
+
+
+def _console_reader(proc: subprocess.Popen, state: OrchestratorState,
+                    verbose: bool) -> None:
+    """Read QEMU stdout line-by-line, parse markers, detect failures.
+
+    Uses readline() explicitly instead of `for line in proc.stdout` because
+    the latter uses read-ahead buffering that can delay line delivery until
+    the buffer fills or EOF — which would defeat our marker-driven state
+    machine.
+    """
+    assert proc.stdout is not None
+    try:
+        while True:
+            raw_line = proc.stdout.readline()
+            if not raw_line:
+                break  # EOF — QEMU exited
+            line = raw_line.decode("utf-8", errors="replace")
+            state.add_line(line)
+            if verbose:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            # Strip trailing newline for parsing.
+            stripped = line.rstrip("\r\n")
+            # Check for failure patterns first — these are fatal even if a
+            # valid marker appears on the same line.
+            fail = mk.detect_failure(stripped)
+            if fail and not state.boot_ready_seen:
+                # Only treat as failure if we haven't even reached BOOT_READY.
+                # After BOOT_READY, a "login:" string might legitimately appear
+                # in test output (e.g. `echo "login:"`), so we don't fail there.
+                with state.lock:
+                    if not state.failure_desc:
+                        state.failure_desc = fail
+                continue
+            marker = mk.parse_marker(stripped)
+            if marker:
+                state.add_marker(marker)
+                if verbose:
+                    sys.stderr.write(
+                        f"[orchestrator] marker: {marker.kind} "
+                        f"run_id={marker.run_id}\n"
+                    )
+                    sys.stderr.flush()
+    finally:
+        # QEMU exited.
+        with state.lock:
+            state.qemu_died = True
+
+
+# ─── QEMU launch ─────────────────────────────────────────────────────────────
+
+
+def _build_qemu_cmd(cfg: OrchestratorConfig, console_log: Path) -> list[str]:
+    """Build the QEMU command line."""
+    cmd: list[str] = [cfg.qemu_binary]
+    # CPU/memory.
+    cmd += ["-m", cfg.qemu_memory]
+    cmd += ["-smp", str(cfg.qemu_cpus)]
+    # Acceleration.
+    accel = cfg.qemu_accel
+    if accel == "auto":
+        accel = _detect_accel()
+    if accel == "kvm" and Path("/dev/kvm").exists():
+        cmd += ["-enable-kvm", "-cpu", "host"]
+    else:
+        cmd += ["-accel", "tcg"]
+    # Firmware (UEFI).
+    firmware = cfg.qemu_firmware or _detect_firmware()
+    if firmware:
+        cmd += ["-bios", firmware]
+    # Disk.
+    cmd += ["-drive", f"file={cfg.image},format=raw,if=virtio"]
+    # Console: serial to stdio, plus a virtio-console for markers.
+    # We use -nographic which wires ttyS0 to stdio.
+    cmd += ["-nographic", "-no-reboot"]
+    # Network: user-mode networking (no inbound).
+    cmd += ["-netdev", "user,id=n0", "-device", "virtio-net-pci,netdev=n0"]
+    # Optional: virtiofs share for /RUSH-DATA.
+    if cfg.inject_state_method == "virtiofs" and cfg.virtiofs_share:
+        # The share must be exported by virtiofsd separately.
+        # The guest mounts it via: mount -t virtiofs rushdata /RUSH-DATA
+        cmd += [
+            "-chardev", f"socket,id=char0,path=/tmp/virtiofsd.sock",
+            "-device", "vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=rushdata",
+        ]
+    # Extra args.
+    cmd += list(cfg.qemu_extra_args)
+    return cmd
+
+
+# ─── State injection ─────────────────────────────────────────────────────────
+
+
+def _inject_state_into_image(image: str, state: st.LiveDevState,
+                             state_path_in_image: str) -> None:
+    """Inject the state file into the guest image's /RUSH-DATA.
+
+    This uses libguestfs if available (guestfish); otherwise it falls back to
+    a loopback mount. Both require root. If neither is available, the
+    orchestrator fails loudly — silent skipping is forbidden.
+    """
+    state_json = json.dumps(state.to_dict(), indent=2, sort_keys=True) + "\n"
+    tmp = Path("/tmp") / f"livedev-state-{state.run_id}.json"
+    tmp.write_text(state_json, encoding="utf-8")
+    try:
+        # Try guestfish (libguestfs) first — non-interactive, no root needed
+        # if libguestfs is configured to use qemu.
+        if shutil.which("guestfish"):
+            cmd = [
+                "guestfish", "--ro" if False else "-a", image, "-i",
+                "mkdir-p", os.path.dirname(state_path_in_image),
+                "upload", str(tmp), state_path_in_image,
+            ]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if r.returncode != 0:
+                raise RuntimeError(
+                    f"guestfish state injection failed: {r.stderr.strip()}"
+                )
+            return
+        # Fallback: loopback mount (requires root).
+        if os.geteuid() == 0:
+            mnt = Path("/mnt") / f"livedev-state-{state.run_id}"
+            mnt.mkdir(parents=True, exist_ok=True)
+            # Try mounting the root partition. Partprobe to make sure the
+            # kernel sees the partitions.
+            subprocess.run(["partprobe", image], check=False, timeout=10)
+            # The image has GPT with partition 2 = root (per mkosi.repart).
+            loop_dev = image + "2"  # e.g. /dev/loop0p2 if loop-mounted
+            # Use mount with offset if direct device doesn't work.
+            r = subprocess.run(
+                ["mount", "-o", "loop,offset=1048576", image, str(mnt)],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r.returncode != 0:
+                raise RuntimeError(f"mount failed: {r.stderr.strip()}")
+            try:
+                target = mnt / state_path_in_image.lstrip("/")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(state_json, encoding="utf-8")
+                # Sync to make sure the write hits disk before unmount.
+                subprocess.run(["sync"], check=False, timeout=10)
+            finally:
+                subprocess.run(["umount", str(mnt)], check=False, timeout=10)
+                mnt.rmdir()
+            return
+        raise RuntimeError(
+            "cannot inject state into image: neither guestfish nor root "
+            "loop-mount is available. Install libguestfs or run as root."
+        )
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+# ─── Artifact collection ────────────────────────────────────────────────────
+
+
+def _collect_artifacts_from_image(image: str, artifacts_guest_path: str,
+                                  host_artifacts_dir: Path) -> bool:
+    """Copy artifacts out of the guest image after shutdown.
+
+    Returns True if artifacts were collected, False otherwise.
+    """
+    guest_path = artifacts_guest_path.replace("<run_id>", "")
+    if not guest_path:
+        return False
+    # guest_path is something like /RUSH-DATA/results/livedev/<run_id>
+    rel = guest_path.lstrip("/")
+    if shutil.which("guestfish"):
+        cmd = [
+            "guestfish", "-a", image, "-i",
+            "tar-out", "/" + rel, "-",
+        ]
+        r = subprocess.run(cmd, capture_output=True, timeout=120)
+        if r.returncode == 0 and r.stdout:
+            import tarfile, io
+            try:
+                with tarfile.open(fileobj=io.BytesIO(r.stdout), mode="r|") as tf:
+                    tf.extractall(host_artifacts_dir)
+                return True
+            except tarfile.TarError:
+                pass
+    if os.geteuid() == 0:
+        mnt = host_artifacts_dir / ".guest-mount"
+        mnt.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(
+            ["mount", "-o", "loop,offset=1048576", image, str(mnt)],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            mnt.rmdir()
+            return False
+        try:
+            src = mnt / rel
+            if src.exists():
+                # Copy everything from the run dir into the host artifacts dir.
+                subprocess.run(
+                    ["cp", "-a", str(src) + "/.", str(host_artifacts_dir)],
+                    check=False, timeout=120,
+                )
+                return True
+            return False
+        finally:
+            subprocess.run(["umount", str(mnt)], check=False, timeout=10)
+            try:
+                mnt.rmdir()
+            except OSError:
+                pass
+    return False
+
+
+def _bundle_artifacts(artifacts_dir: Path, run_id: str) -> Path | None:
+    """Create a tar.zst (or tar.gz) bundle of the artifacts directory."""
+    parent = artifacts_dir.parent
+    name = artifacts_dir.name
+    bundle_zst = parent / f"rush-livedev-results-{run_id}.tar.zst"
+    bundle_gz = parent / f"rush-livedev-results-{run_id}.tar.gz"
+    if shutil.which("zstd"):
+        r = subprocess.run(
+            ["tar", "--zstd", "-C", str(parent), "-cf", str(bundle_zst), name],
+            capture_output=True, timeout=300,
+        )
+        if r.returncode == 0 and bundle_zst.exists():
+            return bundle_zst
+    r = subprocess.run(
+        ["tar", "-C", str(parent), "-czf", str(bundle_gz), name],
+        capture_output=True, timeout=300,
+    )
+    if r.returncode == 0 and bundle_gz.exists():
+        return bundle_gz
+    return None
+
+
+# ─── The state machine ──────────────────────────────────────────────────────
+
+
+def run(cfg: OrchestratorConfig, repo_root: Path) -> RunResult:
+    """Execute a single livedev run. Returns the RunResult."""
+
+    # Step 0: validate config.
+    if not cfg.image or not Path(cfg.image).exists():
+        return RunResult(
+            run_id=cfg.run_id or "(none)",
+            status="infra_error",
+            exit_code=RC_INFRA,
+            failure_reason=f"image not found: {cfg.image!r}",
+            started_at=_now_iso(),
+            finished_at=_now_iso(),
+        )
+    if not shutil.which(cfg.qemu_binary):
+        return RunResult(
+            run_id=cfg.run_id or "(none)",
+            status="infra_error",
+            exit_code=RC_INFRA,
+            failure_reason=f"QEMU binary not found: {cfg.qemu_binary!r}",
+            started_at=_now_iso(),
+            finished_at=_now_iso(),
+        )
+
+    # Step 1: generate run_id if not provided.
+    if not cfg.run_id:
+        cfg.run_id = (
+            f"{DEFAULT_RUN_ID_PREFIX}-"
+            f"{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')}-"
+            f"{os.getpid() & 0xFFFF:04x}"
+        )
+
+    # Step 2: prepare artifacts directory.
+    if not cfg.artifacts_dir:
+        cfg.artifacts_dir = str(Path(DEFAULT_ARTIFACTS_ROOT) / cfg.run_id)
+    artifacts_dir = Path(cfg.artifacts_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    console_log = Path(cfg.console_log) if cfg.console_log else (
+        artifacts_dir / "console.log"
+    )
+    console_log.parent.mkdir(parents=True, exist_ok=True)
+
+    # Step 3: write host-side metadata.json early so it exists even on crash.
+    started_at = _now_iso()
+    git_state = _git_state(repo_root)
+    metadata = {
+        "schema_version": 1,
+        "metadata_kind": "rush-livedev-host-metadata",
+        "run_id": cfg.run_id,
+        "started_at": started_at,
+        "config": cfg.to_metadata(),
+        "git": git_state,
+        "host": _host_metadata(),
+    }
+    metadata_path = artifacts_dir / "metadata.json"
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    # Step 4: create persistent test-intent state.
+    state = st.LiveDevState.new(
+        run_id=cfg.run_id,
+        test_command=cfg.test_command,
+        suite=cfg.suite,
+        artifacts_guest_path=f"/RUSH-DATA/results/livedev/{cfg.run_id}",
+        artifacts_host_path=str(artifacts_dir),
+        submit_mode=cfg.submit_mode,
+        debug=cfg.debug,
+        ci=cfg.ci,
+        extra={
+            "test_timeout_sec": cfg.test_timeout,
+            **cfg.extra_state,
+        },
+    )
+    # The host writes its own state file alongside the artifacts for debugging.
+    host_state_path = artifacts_dir / "livedev-state.json"
+    st.StateStore(host_state_path).write(state)
+
+    # Step 5: inject state into the guest image.
+    if cfg.inject_state_method == "copy-on-image":
+        try:
+            _inject_state_into_image(
+                cfg.image, state, cfg.state_path_in_image
+            )
+        except Exception as e:
+            return _finish(
+                cfg=cfg, result=RunResult(
+                    run_id=cfg.run_id,
+                    status="infra_error",
+                    exit_code=RC_INFRA,
+                    failure_reason=f"state injection failed: {e}",
+                    started_at=started_at,
+                    artifacts_dir=str(artifacts_dir),
+                    console_log=str(console_log),
+                    metadata_path=str(metadata_path),
+                ),
+                console_log=console_log,
+                host_state_path=host_state_path,
+            )
+
+    # Step 6: launch QEMU.
+    qemu_cmd = _build_qemu_cmd(cfg, console_log)
+    qemu_cmd_str = " ".join(qemu_cmd)
+    print(f"[orchestrator] launching QEMU: {qemu_cmd_str}", flush=True)
+    try:
+        # start_new_session=True puts QEMU in its own process group so we
+        # can killpg() it (and any child processes it spawned) cleanly.
+        proc = subprocess.Popen(
+            qemu_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        return _finish(
+            cfg=cfg, result=RunResult(
+                run_id=cfg.run_id,
+                status="infra_error",
+                exit_code=RC_INFRA,
+                failure_reason=f"QEMU launch failed: {e}",
+                started_at=started_at,
+                artifacts_dir=str(artifacts_dir),
+                console_log=str(console_log),
+                metadata_path=str(metadata_path),
+            ),
+            console_log=console_log,
+            host_state_path=host_state_path,
+        )
+
+    orch_state = OrchestratorState(cfg.run_id)
+    orch_state.qemu_proc = proc
+
+    # Start the console reader thread.
+    reader = threading.Thread(
+        target=_console_reader,
+        args=(proc, orch_state, cfg.verbose),
+        daemon=True,
+    )
+    reader.start()
+
+    # Step 7: state machine — wait for markers with timeouts.
+    result = _wait_for_completion(proc, orch_state, cfg, started_at,
+                                  reader=reader)
+
+    # Step 8: ensure QEMU is dead.
+    if proc.poll() is None:
+        if cfg.keep_vm:
+            print("[orchestrator] --keep-vm: leaving QEMU running", flush=True)
+        else:
+            print("[orchestrator] terminating QEMU", flush=True)
+            # Try graceful SIGTERM to the process group first.
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                # Force SIGKILL to the whole process group.
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    proc.kill()
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    print("[orchestrator] WARNING: QEMU did not exit after "
+                          "SIGKILL; process may be stuck", flush=True)
+
+    # Step 9: flush console log.
+    reader.join(timeout=5)
+    with orch_state.lock:
+        console_text = "".join(orch_state.console_lines)
+    console_log.write_text(console_text, encoding="utf-8")
+
+    # Step 10: collect artifacts from the guest image.
+    if not cfg.keep_vm and result.status != "infra_error":
+        try:
+            _collect_artifacts_from_image(
+                cfg.image, state.artifacts_guest_path, artifacts_dir
+            )
+        except Exception as e:
+            print(f"[orchestrator] artifact collection failed: {e}",
+                  flush=True)
+
+    # Step 11: write summary.json.
+    result.artifacts_dir = str(artifacts_dir)
+    result.console_log = str(console_log)
+    result.metadata_path = str(metadata_path)
+    bundle = _bundle_artifacts(artifacts_dir, cfg.run_id)
+    if bundle:
+        result.bundle_path = str(bundle)
+    summary_path = artifacts_dir / "summary.json"
+    summary = result.to_summary(cfg)
+    summary["bundle_path"] = result.bundle_path
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    result.summary_path = str(summary_path)
+
+    # Step 12: submission.
+    try:
+        from rush_livedev_submit import submit
+        result.submit_status, result.submit_error = submit(
+            cfg.submit_mode, artifacts_dir, run_id=cfg.run_id,
+            summary=summary, console_log=console_log, repo_root=repo_root,
+        )
+    except Exception as e:
+        result.submit_status = "error"
+        result.submit_error = f"submit module error: {e}"
+
+    # Step 13: cleanup the host-side state file (keep the guest's).
+    if not cfg.keep_vm:
+        try:
+            host_state_path.unlink()
+        except OSError:
+            pass
+
+    return result
+
+
+def _wait_for_completion(proc: subprocess.Popen,
+                         state: OrchestratorState,
+                         cfg: OrchestratorConfig,
+                         started_at: str,
+                         reader: threading.Thread | None = None) -> RunResult:
+    """Drive the state machine until a terminal state is reached."""
+
+    def _drain_reader_if_dead() -> None:
+        """If QEMU has exited, wait for the reader thread to finish draining
+        the console pipe. This avoids a race where the main loop sees
+        proc.poll() != None before the reader has processed the final
+        SHUTDOWN/TEST_PASS markers."""
+        if proc.poll() is not None and reader is not None and reader.is_alive():
+            # Give the reader up to 5 seconds to drain remaining console.
+            reader.join(timeout=5)
+
+    # Phase A: boot — wait for BOOT_READY (or TEST_START, which implies it).
+    boot_deadline = time.monotonic() + cfg.boot_timeout
+    while True:
+        if proc.poll() is not None:
+            _drain_reader_if_dead()
+            # QEMU exited before we saw BOOT_READY. But it may have
+            # emitted a terminal marker (TEST_PASS/SHUTDOWN) just before
+            # exiting — that's a valid outcome, not an infra failure.
+            with state.lock:
+                if state.terminal_marker:
+                    return _result_terminal(state, cfg, started_at,
+                                            state.terminal_marker)
+                if state.failure_desc:
+                    return _result_guest_failure(state, cfg, started_at,
+                                                 state.failure_desc)
+            return _result_qemu_died(state, cfg, started_at, "boot")
+        with state.lock:
+            if state.failure_desc:
+                return _result_guest_failure(state, cfg, started_at,
+                                             state.failure_desc)
+            if state.boot_ready_seen or state.test_start_seen:
+                break
+            # The entire test cycle may have completed in one sleep cycle
+            # (fast fake QEMU, or a real guest that boots + tests + shuts
+            # down in under 0.2s). Catch a terminal marker here too.
+            if state.terminal_marker:
+                return _result_terminal(state, cfg, started_at,
+                                        state.terminal_marker)
+        if time.monotonic() > boot_deadline:
+            return _result_timeout(state, cfg, started_at,
+                                   "boot", RC_BOOT_TIMEOUT)
+        time.sleep(0.2)
+
+    # Phase B: test-start — wait for TEST_START.
+    if not state.test_start_seen:
+        ts_deadline = time.monotonic() + cfg.test_start_timeout
+        while True:
+            if proc.poll() is not None:
+                _drain_reader_if_dead()
+                return _result_qemu_died(state, cfg, started_at, "test-start")
+            with state.lock:
+                if state.failure_desc:
+                    return _result_guest_failure(state, cfg, started_at,
+                                                 state.failure_desc)
+                if state.test_start_seen:
+                    break
+                if state.terminal_marker:
+                    # Got a terminal marker before TEST_START — failure.
+                    return _result_terminal(state, cfg, started_at,
+                                            state.terminal_marker)
+            if time.monotonic() > ts_deadline:
+                return _result_timeout(state, cfg, started_at,
+                                       "test-start", RC_TEST_START_TIMEOUT)
+            time.sleep(0.2)
+
+    # Phase C: test execution — wait for a terminal marker.
+    test_deadline = time.monotonic() + cfg.test_timeout
+    while True:
+        if proc.poll() is not None:
+            # QEMU exited. Drain the reader so we see any final markers
+            # before deciding this is an infra failure.
+            _drain_reader_if_dead()
+            with state.lock:
+                if state.terminal_marker:
+                    return _result_terminal(state, cfg, started_at,
+                                            state.terminal_marker)
+            return _result_qemu_died(state, cfg, started_at, "test")
+        with state.lock:
+            if state.failure_desc:
+                return _result_guest_failure(state, cfg, started_at,
+                                             state.failure_desc)
+            if state.terminal_marker:
+                return _result_terminal(state, cfg, started_at,
+                                        state.terminal_marker)
+        if time.monotonic() > test_deadline:
+            return _result_timeout(state, cfg, started_at,
+                                   "test", RC_TEST_TIMEOUT)
+        time.sleep(0.2)
+
+    # Phase D: shutdown — wait for QEMU to exit (terminal marker seen).
+    # (Unreachable: the loop above always returns. But kept for clarity.)
+
+
+def _result_terminal(state: OrchestratorState, cfg: OrchestratorConfig,
+                     started_at: str, marker: mk.Marker) -> RunResult:
+    """A terminal marker was seen."""
+    if os.environ.get("RUSH_LIVEDEV_DEBUG"):
+        print(f"[orchestrator] _result_terminal: kind={marker.kind} "
+              f"shutdown_timeout={cfg.shutdown_timeout}", flush=True)
+    # Wait a bit for the guest to actually power off (it emitted SHUTDOWN).
+    if marker.kind != mk.KIND_SHUTDOWN:
+        # Give the guest a chance to emit SHUTDOWN and power off.
+        # Read state fields without the lock — boolean/None reads are
+        # atomic in CPython, and we don't need strict synchronization here
+        # (the worst case is one extra 0.2s sleep before we notice).
+        shutdown_deadline = time.monotonic() + cfg.shutdown_timeout
+        while time.monotonic() < shutdown_deadline:
+            if state.qemu_died or state.shutdown_marker_seen:
+                break
+            try:
+                time.sleep(0.2)
+            except InterruptedError:
+                pass
+    if os.environ.get("RUSH_LIVEDEV_DEBUG"):
+        print(f"[orchestrator] _result_terminal: returning, "
+              f"qemu_died={state.qemu_died}", flush=True)
+
+    status = "passed" if marker.is_pass else "failed"
+    exit_code = marker.exit_code if marker.exit_code is not None else (
+        RC_PASS if marker.is_pass else RC_TEST_FAIL
+    )
+    reason = ""
+    if marker.kind == mk.KIND_DEBUG_SHELL:
+        status = "failed"
+        exit_code = RC_GUEST_FAILURE
+        reason = "guest dropped to interactive debug shell"
+    elif marker.kind == mk.KIND_TEST_FAIL:
+        reason = f"test command exited with code {marker.exit_code}"
+    return RunResult(
+        run_id=cfg.run_id,
+        status=status,
+        exit_code=exit_code,
+        failure_reason=reason,
+        started_at=started_at,
+        finished_at=_now_iso(),
+        markers_seen=list(state.markers_seen),
+    )
+
+
+def _result_timeout(state: OrchestratorState, cfg: OrchestratorConfig,
+                    started_at: str, phase: str, rc: int) -> RunResult:
+    """A timeout was reached."""
+    return RunResult(
+        run_id=cfg.run_id,
+        status="timeout",
+        exit_code=rc,
+        failure_reason=f"{phase} timeout exceeded",
+        started_at=started_at,
+        finished_at=_now_iso(),
+        markers_seen=list(state.markers_seen),
+    )
+
+
+def _result_guest_failure(state: OrchestratorState, cfg: OrchestratorConfig,
+                          started_at: str, desc: str) -> RunResult:
+    """An unintended guest failure pattern was detected."""
+    return RunResult(
+        run_id=cfg.run_id,
+        status="guest_failure",
+        exit_code=RC_GUEST_FAILURE,
+        failure_reason=f"guest failure pattern: {desc}",
+        started_at=started_at,
+        finished_at=_now_iso(),
+        markers_seen=list(state.markers_seen),
+    )
+
+
+def _result_qemu_died(state: OrchestratorState, cfg: OrchestratorConfig,
+                      started_at: str, phase: str) -> RunResult:
+    """QEMU exited unexpectedly in phase `phase`."""
+    with state.lock:
+        markers = list(state.markers_seen)
+    # If we saw TEST_PASS and QEMU exited cleanly, that's success even
+    # without an explicit SHUTDOWN marker.
+    if mk.KIND_TEST_PASS in markers:
+        return RunResult(
+            run_id=cfg.run_id,
+            status="passed",
+            exit_code=RC_PASS,
+            failure_reason="",
+            started_at=started_at,
+            finished_at=_now_iso(),
+            markers_seen=markers,
+        )
+    return RunResult(
+        run_id=cfg.run_id,
+        status="infra_error",
+        exit_code=RC_INFRA,
+        failure_reason=f"QEMU exited unexpectedly during {phase} phase",
+        started_at=started_at,
+        finished_at=_now_iso(),
+        markers_seen=markers,
+    )
+
+
+def _finish(cfg: OrchestratorConfig, result: RunResult,
+            console_log: Path, host_state_path: Path) -> RunResult:
+    """Early-finish path: write a minimal summary and return."""
+    result.finished_at = result.finished_at or _now_iso()
+    if not result.started_at:
+        result.started_at = result.finished_at
+    try:
+        result.duration_sec = (
+            datetime.datetime.fromisoformat(result.finished_at.replace("Z", "+00:00"))
+            - datetime.datetime.fromisoformat(result.started_at.replace("Z", "+00:00"))
+        ).total_seconds()
+    except Exception:
+        pass
+    console_log.parent.mkdir(parents=True, exist_ok=True)
+    console_log.write_text("", encoding="utf-8")
+    return result
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+
+def _main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="rush-livedev-orchestrator",
+        description="Host-side state machine for Rush LiveDev.",
+    )
+    parser.add_argument("--image", required=True, help="disk image to boot")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--suite", default="default")
+    parser.add_argument("--test-cmd", default="true",
+                        help="command to run on the guest after reboot")
+    parser.add_argument("--submit", default="local",
+                        choices=sorted(st.ALLOWED_SUBMIT))
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--ci", action="store_true")
+    parser.add_argument("--boot-timeout", type=int, default=DEFAULT_BOOT_TIMEOUT)
+    parser.add_argument("--test-start-timeout", type=int,
+                        default=DEFAULT_TEST_START_TIMEOUT)
+    parser.add_argument("--test-timeout", type=int, default=DEFAULT_TEST_TIMEOUT)
+    parser.add_argument("--shutdown-timeout", type=int,
+                        default=DEFAULT_SHUTDOWN_TIMEOUT)
+    parser.add_argument("--artifacts-dir", default="")
+    parser.add_argument("--console-log", default="")
+    parser.add_argument("--keep-vm", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--qemu-binary", default="qemu-system-x86_64")
+    parser.add_argument("--qemu-memory", default="2G")
+    parser.add_argument("--qemu-cpus", type=int, default=2)
+    parser.add_argument("--qemu-accel", default="auto")
+    parser.add_argument("--qemu-firmware", default="")
+    parser.add_argument("--inject-state", default="copy-on-image",
+                        choices=["copy-on-image", "virtiofs", "9p", "none"])
+    parser.add_argument("--virtiofs-share", default="")
+    parser.add_argument("--state-path-in-image",
+                        default="/RUSH-DATA/state/livedev-state.json")
+    ns = parser.parse_args()
+
+    # Env overrides (lower priority than CLI flags).
+    submit_env = os.environ.get("RUSH_LIVEDEV_SUBMIT")
+    if submit_env and not any(f"--submit" in a for a in sys.argv):
+        ns.submit = submit_env
+
+    cfg = OrchestratorConfig(
+        image=ns.image,
+        run_id=ns.run_id,
+        suite=ns.suite,
+        test_command=ns.test_cmd,
+        submit_mode=ns.submit,
+        debug=ns.debug,
+        ci=ns.ci,
+        boot_timeout=ns.boot_timeout,
+        test_start_timeout=ns.test_start_timeout,
+        test_timeout=ns.test_timeout,
+        shutdown_timeout=ns.shutdown_timeout,
+        artifacts_dir=ns.artifacts_dir,
+        console_log=ns.console_log,
+        keep_vm=ns.keep_vm,
+        verbose=ns.verbose,
+        qemu_binary=ns.qemu_binary,
+        qemu_memory=ns.qemu_memory,
+        qemu_cpus=ns.qemu_cpus,
+        qemu_accel=ns.qemu_accel,
+        qemu_firmware=ns.qemu_firmware,
+        inject_state_method=ns.inject_state,
+        virtiofs_share=ns.virtiofs_share,
+        state_path_in_image=ns.state_path_in_image,
+    )
+
+    repo_root = Path(__file__).resolve().parent.parent
+    result = run(cfg, repo_root)
+
+    # Print a human-readable summary.
+    print(flush=True)
+    print("=" * 60, flush=True)
+    print(f"  Rush LiveDev — run {result.run_id}", flush=True)
+    print("=" * 60, flush=True)
+    print(f"  status:        {result.status}", flush=True)
+    print(f"  exit_code:     {result.exit_code}", flush=True)
+    if result.failure_reason:
+        print(f"  failure:       {result.failure_reason}", flush=True)
+    print(f"  markers:       {', '.join(result.markers_seen) or '(none)'}", flush=True)
+    print(f"  artifacts_dir: {result.artifacts_dir}", flush=True)
+    print(f"  console_log:   {result.console_log}", flush=True)
+    print(f"  summary:       {result.summary_path}", flush=True)
+    if result.bundle_path:
+        print(f"  bundle:        {result.bundle_path}", flush=True)
+    print(f"  submit:        {result.submit_status}"
+          + (f" ({result.submit_error})" if result.submit_error else ""),
+          flush=True)
+    print("=" * 60, flush=True)
+
+    return result.exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(_main())

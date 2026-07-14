@@ -1,0 +1,23 @@
+# Build artifacts — large, never useful as context
+target/
+**/*.rlib
+**/*.rmeta
+**/*.d
+**/*.pdb
+
+# Benchmark outputs
+rushbench/results/
+**/*.flamegraph.svg
+**/*.perf
+
+# Generated / cache
+.cache/
+graphify-out/
+docs/_build/
+
+# Unsorted drafts — not validated, not ready for agent context
+docs/inbox/
+
+# Signing keys
+config/keys/
+

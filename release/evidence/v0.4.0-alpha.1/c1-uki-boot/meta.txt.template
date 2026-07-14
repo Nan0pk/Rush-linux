@@ -1,0 +1,11 @@
+# Fill in and rename to meta.txt before committing.
+# See release/evidence/BUILD-HOST-RUNBOOK.md for the capture block and the
+# acceptance command for this criterion. Commit meta.txt + transcript.log here.
+date=<RFC3339>
+host=<build host>
+kernel=<uname -r>
+cpu=<lscpu Model name>
+git_commit=<git rev-parse --short HEAD>
+project_version=<cat VERSION>
+acceptance_command=<see runbook>
+result=<PASS|FAIL>

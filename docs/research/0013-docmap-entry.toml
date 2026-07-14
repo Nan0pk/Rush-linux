@@ -1,0 +1,22 @@
+# Docmap entry for 0013-thermal-fan-budget-coupling.md
+# Append to docs/docmap.toml when this research is validated and merged.
+# Status: WIP — linear budget formula validation and skin temp sensor survey pending.
+
+[docs."docs/research/0013-thermal-fan-budget-coupling.md"]
+purpose = "Specifies CPU/GPU thermal sensor enumeration and the linear derating budget formula that feeds the powercap outer loop (WP-N7, WP-N8, WP-N9)"
+owner_area = "area:optid"
+covers_code = [
+    "crates/optid/src/sensors/thermal.rs",
+    "crates/optid/src/policy.rs",
+]
+deps = [
+    "docs/SPEC-northstar.md",
+    "docs/agent-protocol.md",
+    "docs/research/0012-dtpm-powercap-outer-loop.md",
+]
+freshens = [
+    "docs/research/0002-rush-linux-architecture-review.md",
+    "docs/research/0004-telemetry-fidelity-rca-and-architecture.md",
+]
+last_verified = "2026-06-19"
+validator = "status_match:WIP"

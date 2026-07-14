@@ -1,0 +1,113 @@
+# Default Rush Linux optimizer policy.
+# The Rust MVP currently embeds these defaults; this file is the package
+# interface that the daemon will parse once the D-Bus/config layer lands.
+
+[policy]
+owner = "optid"
+competing_policy_daemons = [
+  "tlp.service",
+  "power-profiles-daemon.service",
+  "tuned.service",
+]
+
+# v0.6 Phase B1: PPD compatibility shim configuration.
+# The shim implements net.hadess.PowerProfiles on optid's D-Bus connection
+# so GNOME Settings and KDE powerdevil drive optid without code changes.
+# When the shim is active (no PPD conflict detected at startup), optid
+# claims the net.hadess.PowerProfiles bus name.
+#
+# The [shim.ppd.profiles] map overrides the default PPD profile → optid
+# mode mapping. Omitted profile names fall back to:
+#   power-saver  → battery
+#   balanced     → auto   (clears override; classifier drives mode)
+#   performance  → performance
+# Mapping values must be valid optid Mode strings: auto, battery,
+# balanced, performance, realtime. An invalid value causes the PPD
+# Set / HoldProfile call to fail with a clear error.
+[shim.ppd.profiles]
+# Default mapping — uncomment and edit to override per-deployment.
+# "power-saver"  = "battery"
+# "balanced"     = "auto"
+# "performance"  = "performance"
+
+# v0.6 Phase B2: GameMode compatibility shim configuration.
+# The shim implements com.feralinteractive.GameMode on optid's D-Bus
+# connection so Steam, Lutris, and Heroic drive optid without code changes.
+# On RegisterGame(pid), optid writes state_dir/pins/<pid> with the
+# configured pin_class (default: latency-critical). The run loop reads
+# the pin on the next tick and applies the latency contract. On
+# UnregisterGame(pid), the pin file is removed.
+#
+# The TTL is best-effort: stale registrations are expired lazily on the
+# next RegisterGame / QueryStatus / QueryStatusClient call.
+[shim.gamemode]
+ttl_sec = 1800                      # 30 minutes (default)
+pin_class = "latency-critical"      # default; one of: idle, light, interactive, latency-critical, throughput
+
+# v0.6 Phase C1: foreground-app detection configuration.
+# When --foreground=auto is passed (default is off), optid spawns a
+# subscriber thread that — in v0.6 — is a stub (never yields events).
+# v0.7 will fill in real compositor integration (login1 SessionNew +
+# Mutter/KWin/wlr-foreign-toplevel-management focus signals) and use
+# this config to map window classes to workload classes.
+[foreground]
+game_class = "latency-critical"     # default; class to pin game windows to
+
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+# Memory / VM tuning is owned by optid (ADR 0004), NOT by a static sysctl
+# drop-in, so the values can adapt to mode and hardware instead of being baked
+# in unconditionally at boot. In particular vm.swappiness is only safe at high
+# values when ZRAM is the active swap device, so it is gated on detected swap.
+# NOTE: the Rust MVP does not yet actuate these keys (it ignores unknown keys);
+# sysctl actuation in optid is a tracked follow-up. Until then no aggressive
+# swappiness/dirty value is applied unconditionally (the previous static file
+# that did so was removed to resolve the ADR 0004 contradiction).
+[memory]
+owner = "optid"
+# Apply high swappiness only when ZRAM-backed swap is active.
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+background_cpu_weight = 25
+background_io_weight = 25
+# Conservative on battery: avoid aggressive swap churn that costs power.
+vm_swappiness = 60
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+user_cpu_weight = 150
+user_io_weight = 150
+vm_swappiness = 100
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 200
+user_io_weight = 200
+# High swappiness only meaningful with ZRAM (see high_swappiness_requires_zram).
+vm_swappiness = 150
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 250
+user_io_weight = 200
+requires_controlled_rt_access = true
+vm_swappiness = 10
+

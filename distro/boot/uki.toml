@@ -1,0 +1,18 @@
+[uki]
+layout = "bls-type-2"
+builder = "systemd-ukify"
+secure_boot = "supported"
+measured_boot = "supported"
+rollback_entries = 3
+fallback_bootloader = "grub"
+
+[systemd_boot]
+fallback_path = "/EFI/BOOT/BOOTX64.EFI"
+loader_config = "/loader/loader.conf"
+default_entry = "/loader/entries/rush-linux.conf"
+default_entry_efi = "/EFI/Linux/rush-linux.efi"
+
+[assessment]
+use_systemd_boot_check_no_failures = true
+mark_good_after = "multi-user.target"
+
