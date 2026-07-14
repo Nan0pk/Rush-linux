@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "bench_id": "postgres-tps",
+  "bench_name": "PostgreSQL — pgbench TPS",
+  "scenario": "server-throughput",
+  "status": "fail",
+  "started_at": "2026-07-15T02:22:50Z",
+  "finished_at": "2026-07-15T02:22:50Z",
+  "elapsed_seconds": 0.197365026,
+  "stdout": "",
+  "stderr": "pg_ctl: cannot be run as root\nPlease log in (using, e.g., \"su\") as the (unprivileged) user that will\nown the server process.\npgbench: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory\n\tIs the server running locally and accepting connections on that socket?\npgbench: error: could not create connection for setup\n",
+  "exit_code": 1,
+  "host": {
+    "kernel": "7.0.14-arch1-1",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "HP 8BC2",
+    "battery_design_uwh": 70070000,
+    "fingerprint": "700e5013535e9e96"
+  }
+}
