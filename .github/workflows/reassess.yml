@@ -45,7 +45,19 @@ jobs:
           fire=false
           case "${{ github.event_name }}" in
             schedule|workflow_dispatch) fire=true ;;
-            push) [ "$n" -ge "${REASSESS_EVERY_N_MERGES}" ] && fire=true ;;
+            push)
+              # SECURITY (audit finding #9): the previous line used
+              #   [ "$n" -ge "$REASSESS_EVERY_N_MERGES" ] && fire=true
+              # under `set -e`. When n < threshold, the [ test returns 1,
+              # the && list returns 1, and `set -e` exits the step before
+              # writing the fire output — causing the whole job to fail.
+              # Use an if/else instead so both branches are explicit.
+              if [ "$n" -ge "$REASSESS_EVERY_N_MERGES" ]; then
+                fire=true
+              else
+                fire=false
+              fi
+              ;;
           esac
           echo "commits_since=$n" >> "$GITHUB_OUTPUT"
           echo "fire=$fire" >> "$GITHUB_OUTPUT"
@@ -147,6 +159,12 @@ EOF
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rev-parse HEAD > "$COUNTER_FILE"
           git add "$COUNTER_FILE"
+          # SECURITY (audit finding #9): the previous commit message used
+          # \$(date -u +%Y-%m-%d) inside a double-quoted heredoc/EOF context,
+          # which caused the backslash to be emitted literally instead of
+          # invoking date. Use a shell variable assigned before the commit
+          # so the date is expanded correctly.
+          DATE_STR="$(date -u +%Y-%m-%d)"
           # [skip ci] prevents this bookkeeping push from re-triggering the workflow.
-          git commit -m "docs(strategy): auto-generate reassessment for \$(date -u +%Y-%m-%d) [skip ci]" || exit 0
+          git commit -m "docs(strategy): auto-generate reassessment for ${DATE_STR} [skip ci]" || exit 0
           git push || echo "counter push skipped (branch protection?) — non-fatal"
