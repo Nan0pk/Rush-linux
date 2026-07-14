@@ -12,15 +12,46 @@ Restart=on-failure
 RestartSec=2
 StateDirectory=optid
 RuntimeDirectory=optid
-CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE CAP_SYS_RESOURCE
+
+# SECURITY (audit finding #8): drop CAP_SYS_ADMIN per ADR 0009.
+# Dry-run mode does NOT write to sysfs/procfs/cgroupfs at all — it only
+# logs what it WOULD do. So it needs even fewer capabilities than apply
+# mode: just CAP_SYS_NICE (in case real-time mode is enabled) and
+# CAP_SYS_RESOURCE (for RLIMIT_NOFILE when polling many sysfs files).
+# No CAP_SYS_ADMIN: the daemon does not mount, pivot_root, or perform
+# any admin-only operation in dry-run.
+CapabilityBoundingSet=CAP_SYS_NICE CAP_SYS_RESOURCE
+
+# Core isolation
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+# PrivateDevices=no: dry-run still opens /dev/cpu_dma_latency read-only
+# to check if the device exists (it does not write in dry-run, but the
+# open() call is part of the actuator's probe logic). Hiding /dev would
+# cause the probe to soft-fail, which is acceptable but produces noisy
+# logs. Keep PrivateDevices=no for now; revisit if the daemon is split
+# into a minimal privileged helper.
 PrivateDevices=no
 ReadWritePaths=/run/optid
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 SystemCallArchitectures=native
+
+# SECURITY (audit finding #8): ADR-0009-recommended hardening directives.
+# Same set as optid-apply.service; see the comment there for rationale.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @obsolete
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+ProcSubset=pid
+ProtectProc=invisible
 
 [Install]
 WantedBy=multi-user.target
