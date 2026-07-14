@@ -91,6 +91,9 @@ def test_1_bootstrap_state_machine_stubbed():
     clear_checkpoint(env)
     env.pop("RUSH_LIVEDEV_TEST_STUB", None)
     env["RUSH_LIVEDEV_TEST_SKIP_USB_WRITE"] = "1"
+    before_branch = subprocess.check_output(
+        ["git", "-C", str(REPO_ROOT), "branch", "--show-current"], text=True
+    ).strip()
     rc, stdout, stderr = run(
         ["bash", str(BOOTSTRAP), "--auto", "--skip-mock"], env=env, timeout=60
     )
@@ -122,6 +125,12 @@ def test_1_bootstrap_state_machine_stubbed():
         return False
     if checkpoint.get("phase") != "usb_prepared":
         print(f"FAIL: expected usb_prepared checkpoint: {checkpoint}")
+        return False
+    after_branch = subprocess.check_output(
+        ["git", "-C", str(REPO_ROOT), "branch", "--show-current"], text=True
+    ).strip()
+    if after_branch != before_branch:
+        print(f"FAIL: bootstrap changed branch from {before_branch} to {after_branch}")
         return False
     clear_checkpoint(env)
     print("PASS: bootstrap persists plan and checkpoint with USB write stubbed")

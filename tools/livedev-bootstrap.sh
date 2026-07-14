@@ -181,17 +181,9 @@ sync_existing_repo() {
     local current
     current="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
     if [[ "$current" != "main" ]]; then
-        if git -C "$REPO_DIR" diff --quiet 2>/dev/null && git -C "$REPO_DIR" diff --cached --quiet 2>/dev/null; then
-            if git -C "$REPO_DIR" rev-parse --verify main >/dev/null 2>&1; then
-                git -C "$REPO_DIR" checkout main --quiet 2>/dev/null || \
-                    warn "Could not switch to main. Staying on '$current'."
-            else
-                warn "Branch 'main' does not exist in $REPO_DIR. Staying on '$current'."
-            fi
-        else
-            warn "Working tree is dirty on branch '$current'. Staying on this branch."
-            warn "Your local work is preserved."
-        fi
+        warn "Repo is on branch '$current'; preserving the explicit branch."
+        warn "Only a checkout already on main is fast-forwarded automatically."
+        return 0
     fi
     git -C "$REPO_DIR" pull --ff-only origin main --quiet 2>/dev/null || \
         warn "git pull --ff-only failed (diverged or offline?). Continuing with current state."
