@@ -71,24 +71,37 @@ def get_resume_command(env: dict) -> str:
 
 
 def parse_check(cmd: str) -> bool:
-    """Verify a generated command parses with livedev-next's argparse."""
-    if not cmd or "livedev-next" not in cmd:
+    """Verify a generated command parses with its tool's argparse."""
+    if not cmd:
         return False
-    # Extract args after the livedev-next path
     parts = cmd.split()
-    # Find the part that ends with 'livedev-next'
-    idx = -1
-    for i, p in enumerate(parts):
-        if p.endswith("livedev-next"):
-            idx = i
-            break
-    if idx < 0:
-        return False
-    args = parts[idx + 1:]
-    # Use --help to test argparse without executing the real command.
-    # argparse exits 0 on --help if all args parse.
-    rc, _, _ = run(["python3", str(LIVEDEV_NEXT)] + args + ["--help"])
-    return rc == 0
+    # Handle both 'python3 <abs>/livedev-next ...' and 'bash <abs>/livedev-bootstrap.sh ...'
+    if "livedev-next" in cmd:
+        # Find the part that ends with 'livedev-next'
+        idx = -1
+        for i, p in enumerate(parts):
+            if p.endswith("livedev-next"):
+                idx = i
+                break
+        if idx < 0:
+            return False
+        args = parts[idx + 1:]
+        # Use --help to test argparse without executing the real command.
+        rc, _, _ = run(["python3", str(LIVEDEV_NEXT)] + args + ["--help"])
+        return rc == 0
+    elif "livedev-bootstrap.sh" in cmd:
+        # bash scripts: test with --help (prints usage and exits 0)
+        idx = -1
+        for i, p in enumerate(parts):
+            if p.endswith("livedev-bootstrap.sh"):
+                idx = i
+                break
+        if idx < 0:
+            return False
+        script_path = parts[idx]
+        rc, _, _ = run(["bash", script_path, "--help"])
+        return rc == 0
+    return False
 
 
 # ─── Tests ───────────────────────────────────────────────────────────────────

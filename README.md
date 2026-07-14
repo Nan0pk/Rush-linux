@@ -489,6 +489,7 @@ python3 -m pytest \
   tools/test-livedev-orchestrator.py \
   tools/test-livedev-smoke.py \
   tools/test-livedev-state.py \
+  tools/test-reboot-submission-contract.py \
   tools/test-rush-agent.py \
   tools/test-rush-autopilot.py \
   tools/test-rush-builder-unit.py \

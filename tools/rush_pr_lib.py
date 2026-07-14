@@ -183,9 +183,33 @@ def privacy_scan(run_dir: Path) -> tuple[bool, list[str]]:
     errors: list[str] = []
     report = lib.RedactionReport()
 
+    # SECURITY: reject symlinks before scanning. A symlink in the run_dir
+    # could point to an external file (e.g., /etc/shadow), and read_text()
+    # would follow it, leaking secrets that the redactor doesn't know about.
+    try:
+        from rush_path_safety import reject_symlinks
+        symlinks = reject_symlinks(run_dir)
+        if symlinks:
+            for sl in symlinks:
+                errors.append(
+                    f"symlink in evidence directory (refusing to scan): "
+                    f"{sl.relative_to(run_dir)}"
+                )
+            return (False, errors)
+    except ImportError:
+        pass  # module not available; fall back to is_file() check below
+
     for p in run_dir.rglob("*"):
-        if not p.is_file():
-            continue
+        # SECURITY: use is_regular_file (rejects symlinks) instead of is_file()
+        # (which follows symlinks). A symlink to an external sentinel would
+        # pass is_file() and its target would be scanned, leaking secrets.
+        try:
+            from rush_path_safety import is_regular_file
+            if not is_regular_file(p):
+                continue
+        except ImportError:
+            if not p.is_file():
+                continue
         if p.suffix in (".json", ".jsonl", ".md", ".txt", ".csv", ".log"):
             try:
                 text = p.read_text(encoding="utf-8", errors="replace")
@@ -257,9 +281,25 @@ def prepare_evidence_pr(
     priv_ok, priv_errors = privacy_scan(run_dir)
 
     # 3. List files to add.
+    # SECURITY: reject symlinks — only list regular files. A symlink could
+    # point outside the run_dir and its target would be copied into the
+    # evidence bundle, leaking secrets or external data.
     files_to_add: list[str] = []
+    try:
+        from rush_path_safety import is_regular_file, reject_symlinks
+        symlinks = reject_symlinks(run_dir)
+        if symlinks:
+            for sl in symlinks:
+                priv_errors.append(
+                    f"symlink in evidence directory (refusing to add): "
+                    f"{sl.relative_to(run_dir)}"
+                )
+            priv_ok = False
+    except ImportError:
+        is_regular_file = lambda p: p.is_file()  # noqa: E731
+
     for p in sorted(run_dir.rglob("*")):
-        if p.is_file():
+        if is_regular_file(p):
             rel = p.relative_to(run_dir)
             files_to_add.append(f"{evidence_subdir}/{rel}")
 
@@ -501,15 +541,44 @@ def execute_submission(
         return result
 
     # 4. Copy evidence files (for evidence PRs).
+    # SECURITY: use safe_copy which rejects symlinks and non-regular files.
+    # A symlink in run_dir could point to /etc/shadow or an external sentinel;
+    # shutil.copy2 would follow it and copy the target into the evidence bundle.
     if plan.kind in ("evidence", "failing-evidence") and run_dir:
         evidence_dest = repo_root / plan.evidence_path
         evidence_dest.mkdir(parents=True, exist_ok=True)
+        try:
+            from rush_path_safety import safe_copy, reject_symlinks
+            symlinks = reject_symlinks(run_dir)
+            if symlinks:
+                result["error"] = (
+                    f"refusing to copy: {len(symlinks)} symlink(s) found in "
+                    f"run_dir (possible path-traversal attack): "
+                    f"{[str(s.relative_to(run_dir)) for s in symlinks]}"
+                )
+                return result
+        except ImportError:
+            safe_copy = None  # type: ignore[assignment]
+
         for p in run_dir.rglob("*"):
-            if p.is_file():
+            if safe_copy is not None:
+                if not p.is_file() and not p.is_symlink():
+                    continue
                 rel = p.relative_to(run_dir)
                 dest = evidence_dest / rel
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(p, dest)
+                try:
+                    safe_copy(p, dest)
+                except ValueError as e:
+                    result["error"] = str(e)
+                    return result
+            else:
+                # Fallback (no rush_path_safety module): use is_file but
+                # this follows symlinks — logged as a warning.
+                if p.is_file():
+                    rel = p.relative_to(run_dir)
+                    dest = evidence_dest / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(p, dest)
 
     # 5. Add + commit. Stage ONLY the evidence directory (not -A).
     try:

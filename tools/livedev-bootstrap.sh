@@ -288,28 +288,40 @@ do_auto() {
 
     # Step 0: collect privacy-safe hardware inventory.
     # This is collected BEFORE any benchmark runs so the inventory reflects
-    # the host's baseline capabilities. The inventory is stored in a temp
-    # dir and referenced by the checkpoint so it survives reboot.
+    # the host's baseline capabilities. The inventory is stored in a
+    # PERSISTENT directory under XDG_DATA_HOME (survives reboot, unlike /tmp).
     echo
     log "Step 0/4: Collect privacy-safe hardware inventory."
     local INVENTORY_PATH=""
-    local INV_RUN_DIR
-    INV_RUN_DIR="$(mktemp -d -t rush-livedev-inventory.XXXXXX)"
+    # Create a persistent run directory for this run. Use one stable run_id
+    # across preflight, USB preparation, reboot, collection, validation and
+    # submission. If a checkpoint already exists (e.g., operator is retrying
+    # preflight), reuse its run_id.
+    local RUN_ID=""
+    if [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json" ]]; then
+        RUN_ID="$(python3 -c "import json; d=json.load(open('${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json')); print(d.get('run_id',''))" 2>/dev/null || echo "")"
+    fi
+    if [[ -z "$RUN_ID" ]]; then
+        RUN_ID="auto-$(date -u +%Y%m%d-%H%M%S)"
+    fi
+    local PERSISTENT_RUN_DIR
+    PERSISTENT_RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/runs/$RUN_ID"
+    mkdir -p "$PERSISTENT_RUN_DIR"
+    ok "Persistent run dir: $PERSISTENT_RUN_DIR"
+
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] python3 tools/collect-hardware-inventory.py --output $INV_RUN_DIR/hardware-inventory.json"
+        echo "    [dry-run] python3 tools/collect-hardware-inventory.py --output $PERSISTENT_RUN_DIR/hardware-inventory.json"
     else
-        INVENTORY_PATH="$(collect_hardware_inventory "$INV_RUN_DIR")"
+        INVENTORY_PATH="$(collect_hardware_inventory "$PERSISTENT_RUN_DIR")"
         if [[ -n "$INVENTORY_PATH" ]]; then
             ok "Hardware inventory: $INVENTORY_PATH"
         else
             warn "Hardware inventory collection skipped (non-fatal)."
         fi
         # Save a preflight checkpoint immediately so the inventory path
-        # is preserved even if USB prep fails later. This ensures the
-        # operator can always find the inventory via the checkpoint.
-        local run_id
-        run_id="auto-$(date -u +%Y%m%d-%H%M%S)"
-        checkpoint_save "$run_id" "preflight" "" "$INVENTORY_PATH"
+        # and run_id are preserved even if USB prep fails later. The
+        # run_dir points to the persistent directory, not /tmp.
+        checkpoint_save "$RUN_ID" "preflight" "$PERSISTENT_RUN_DIR" "$INVENTORY_PATH"
     fi
 
     # Step 1: mock verification.
@@ -364,10 +376,9 @@ do_auto() {
 
     # Save checkpoint: USB is prepared, operator needs to boot.
     # After reboot, the operator runs the resume command to continue.
-    local run_id
-    run_id="usb-$(date -u +%Y%m%d-%H%M%S)"
+    # Use the SAME RUN_ID from Step 0 so the persistent run_dir is reused.
     if [[ "$DRY_RUN" != "true" ]]; then
-        checkpoint_save "$run_id" "usb_prepared" "" "$INVENTORY_PATH"
+        checkpoint_save "$RUN_ID" "usb_prepared" "$PERSISTENT_RUN_DIR" "$INVENTORY_PATH"
         echo
         log "Checkpoint saved. After reboot, resume with one command:"
         echo "    python3 tools/rush-livedev-checkpoint.py resume-command"
@@ -500,7 +511,29 @@ do_resume() {
     # If neither has results, abort — do NOT fall through to submit on empty.
     echo
     log "Step 1/3: Locate results."
-    RUN_DIR="$(mktemp -d -t rush-livedev-resume.XXXXXX)"
+
+    # SECURITY: use the persistent run_dir from the checkpoint if available.
+    # Do NOT create a new /tmp directory — it would be lost on reboot and
+    # would lose the pre-reboot inventory reference.
+    local CP_RUN_ID=""
+    local CP_INVENTORY=""
+    local CP_FILE=""
+    CP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/checkpoint.json"
+    if [[ -f "$CP_FILE" ]]; then
+        CP_RUN_ID="$(python3 -c "import json; d=json.load(open('$CP_FILE')); print(d.get('run_id',''))" 2>/dev/null || echo "")"
+        CP_INVENTORY="$(python3 -c "import json; d=json.load(open('$CP_FILE')); print(d.get('inventory_path',''))" 2>/dev/null || echo "")"
+    fi
+
+    if [[ -n "$CP_RUN_ID" ]]; then
+        # Use the persistent run directory created at preflight time.
+        RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/runs/$CP_RUN_ID/results"
+        mkdir -p "$RUN_DIR"
+        ok "Using persistent run dir: $RUN_DIR"
+    else
+        # No checkpoint — fall back to a temp dir (best effort).
+        RUN_DIR="$(mktemp -d -t rush-livedev-resume.XXXXXX)"
+        warn "No checkpoint found. Using temp dir: $RUN_DIR (may not survive reboot)."
+    fi
 
     # Try USB first.
     local usb_found=false
@@ -518,15 +551,19 @@ do_resume() {
         local vm_dir=""
         if [[ -d "${REPO_DIR}/artifacts/livedev" ]]; then
             vm_dir="$(find "${REPO_DIR}/artifacts/livedev" -mindepth 1 -maxdepth 1 -type d \
-                       -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)"
+                       -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
         fi
         if [[ -n "$vm_dir" && -f "$vm_dir/summary.json" ]]; then
             ok "Found VM run: $vm_dir"
             if [[ "$DRY_RUN" != "true" ]]; then
-                # Copy the VM run dir into RUN_DIR so the submit tool can
-                # find it. We also synthesize a manifest.json from the
-                # summary.json so rush-submit-evidence's validator passes.
-                cp -a "$vm_dir/." "$RUN_DIR/" 2>/dev/null || true
+                # SECURITY: reject symlinks before copying VM artifacts.
+                local vm_symcount
+                vm_symcount="$(find "$vm_dir" -type l 2>/dev/null | wc -l)"
+                if [[ "$vm_symcount" -gt 0 ]]; then
+                    warn "Refusing to copy: $vm_symcount symlink(s) in VM run dir."
+                    return 1
+                fi
+                cp -a "$vm_dir/." "$RUN_DIR/"
                 python3 - "$RUN_DIR" <<'PYEOF'
 import json, sys, os
 from pathlib import Path
@@ -567,7 +604,6 @@ PYEOF
     if [[ -z "$(ls -A "$RUN_DIR" 2>/dev/null)" ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
             echo "    [dry-run] No results found (would look for USB or VM artifacts)."
-            rmdir "$RUN_DIR" 2>/dev/null || true
             return 0
         fi
         warn "No results found."
@@ -577,8 +613,26 @@ PYEOF
         warn ""
         warn "  To produce results, run:"
         warn "    bash livedev-bootstrap.sh        # then pick 'vm' or 'usb'"
-        rmdir "$RUN_DIR" 2>/dev/null || true
         return 1
+    fi
+
+    # SECURITY: copy the pre-reboot hardware inventory into the final evidence
+    # bundle so it is included in validation and submission. This must happen
+    # BEFORE validation so the validator sees the complete bundle.
+    if [[ -n "$CP_INVENTORY" && -f "$CP_INVENTORY" ]]; then
+        local inv_dest="$RUN_DIR/hardware-inventory.json"
+        if [[ ! -f "$inv_dest" ]]; then
+            # SECURITY: reject if the inventory is a symlink (could have been
+            # tampered with between collection and resume).
+            if [[ -L "$CP_INVENTORY" ]]; then
+                warn "Refusing to copy inventory: source is a symlink (possible tampering)."
+            else
+                cp "$CP_INVENTORY" "$inv_dest"
+                ok "Copied hardware inventory into evidence bundle: $inv_dest"
+            fi
+        else
+            ok "Hardware inventory already in bundle: $inv_dest"
+        fi
     fi
 
     # Step 2: validate.
@@ -589,8 +643,15 @@ PYEOF
     fi
 
     # Save checkpoint: results collected, ready to submit.
+    # Use the SAME run_id from the checkpoint (not a new timestamp) so the
+    # persistent run_dir stays consistent across preflight -> reboot -> resume.
     if [[ "$DRY_RUN" != "true" ]]; then
-        checkpoint_save "resume-$(date -u +%Y%m%d-%H%M%S)" "collected" "$RUN_DIR"
+        if [[ -n "$CP_RUN_ID" ]]; then
+            checkpoint_save "$CP_RUN_ID" "collected" "$RUN_DIR" "$CP_INVENTORY"
+        else
+            # No prior checkpoint — create a new one.
+            checkpoint_save "resume-$(date -u +%Y%m%d-%H%M%S)" "collected" "$RUN_DIR"
+        fi
     fi
 
     # Step 3: submit.
@@ -616,22 +677,49 @@ copy_results_into_run_dir() {
     local dev="/dev/$disk"
     # Find first FAT/vfat partition on the USB.
     part="$(lsblk -ln -o NAME,TYPE,FSTYPE "$dev" 2>/dev/null \
-            | awk '$2=="part" && $3 ~ /^(vfat|fat|msdos|exfat)$/ {print "/dev/"$1; exit}' || true)"
+            | awk '$2=="part" && $3 ~ /^(vfat|fat|msdos|exfat)$/ {print "/dev/"$1; exit}')"
     if [[ -z "$part" ]]; then
         warn "No FAT partition found on $dev."
         return 0
     fi
     mnt="$(mktemp -d -t rush-livedev-usb.XXXXXX)"
-    sudo mount -o ro "$part" "$mnt" 2>/dev/null || true
+    # SECURITY: mount read-only. Do NOT use || true on mount — if it fails,
+    # we must not proceed to copy (the USB may not be ready).
+    if ! sudo mount -o ro "$part" "$mnt" 2>/dev/null; then
+        warn "Failed to mount $part read-only. Skipping USB collection."
+        rmdir "$mnt" 2>/dev/null
+        return 0
+    fi
     if [[ -d "$mnt/testos-results" ]]; then
-        latest="$(find "$mnt/testos-results" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort | tail -1 || true)"
+        latest="$(find "$mnt/testos-results" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort | tail -1)"
         if [[ -n "$latest" ]]; then
-            cp -a "$mnt/testos-results/$latest/." "$out/" 2>/dev/null || true
+            # SECURITY: reject symlinks during copy. cp -a follows symlinks
+            # by default; use --no-dereference + find -type l pre-check.
+            # First, scan for symlinks in the source.
+            symcount="$(find "$mnt/testos-results/$latest" -type l 2>/dev/null | wc -l)"
+            if [[ "$symcount" -gt 0 ]]; then
+                warn "Refusing to copy: $symcount symlink(s) found in USB results (possible hostile media)."
+                sudo umount "$mnt" 2>/dev/null
+                rmdir "$mnt" 2>/dev/null
+                return 1
+            fi
+            # No symlinks — safe to copy with cp -a (which preserves perms).
+            # Do NOT use || true — copy failure means evidence is incomplete.
+            if ! cp -a "$mnt/testos-results/$latest/." "$out/"; then
+                warn "Failed to copy testOS results from USB."
+                sudo umount "$mnt" 2>/dev/null
+                rmdir "$mnt" 2>/dev/null
+                return 1
+            fi
             ok "Copied testOS run: $latest"
         fi
     fi
-    sudo umount "$mnt" 2>/dev/null || true
-    rmdir "$mnt" 2>/dev/null || true
+    # SECURITY: always unmount, even on partial failure. Do not use || true
+    # silently — report if unmount fails (USB may still be busy).
+    if ! sudo umount "$mnt" 2>/dev/null; then
+        warn "Failed to unmount $mnt (USB may still be busy). Manual cleanup needed."
+    fi
+    rmdir "$mnt" 2>/dev/null
 }
 
 validate_results() {
@@ -822,8 +910,16 @@ print(m.get('host', {}).get('fingerprint', 'unknown-host'))
     git checkout -b "$branch"
 
     # Copy results into the clone.
+    # SECURITY: reject symlinks before copying. A symlink in run_dir could
+    # point outside the evidence directory; cp -a would follow it and copy
+    # the target into the repo, leaking secrets or external data.
     local dest="benchmarks/results/$date_part/$host_fp"
     mkdir -p "$dest"
+    local submit_symcount
+    submit_symcount="$(find "$run_dir" -type l 2>/dev/null | wc -l)"
+    if [[ "$submit_symcount" -gt 0 ]]; then
+        die "Refusing to copy: $submit_symcount symlink(s) in run_dir (possible hostile evidence)."
+    fi
     cp -a "$run_dir/." "$dest/"
     find "$dest" -type d -exec chmod 755 {} +
     find "$dest" -type f -exec chmod 644 {} +
