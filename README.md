@@ -117,7 +117,7 @@ Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK
 
 testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB for real-hardware testing. It is preserved as a manual fallback path for users who want to drive each step themselves. For QEMU-driven dev/CI testing, use `python3 tools/livedev-next --run-vm` with the LiveDev mkosi image instead.
 
-> **Latest release: [v0.7.0-beta.1](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.1)**
+> **Latest release: [v0.7.0-beta.4](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.4)**
 
 <details>
 <summary><strong>Linux</strong> — write the USB manually</summary>
