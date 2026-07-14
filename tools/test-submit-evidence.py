@@ -24,6 +24,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 _TOOLS_DIR = Path(__file__).resolve().parent
 _ROOT = _TOOLS_DIR.parent
@@ -143,6 +144,9 @@ def test_pr_body_has_pass_fail_badge():
         # leaves ![alt]( prefix attached to the URL token, so urlparse
         # returns None for the hostname. The regex captures the URL after
         # `](` in markdown image links, or bare http(s) URLs.
+        # This resolves CodeQL alert #86 (incomplete URL substring
+        # sanitization) by replacing the naive `assert "shields.io" in body`
+        # substring check with proper URL parsing.
         import re
         from urllib.parse import urlparse
 
