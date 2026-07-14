@@ -362,10 +362,16 @@ jobs:
               SUCCESS=1
               break
             fi
-            # Also check for the failure banner (runner diagnostic output)
+            # Check for the failure banner (runner diagnostic output).
+            # SECURITY (audit finding #3): a runner failure must NOT be
+            # treated as a successful smoke test. The previous code set
+            # SUCCESS=1 here, which let the release job publish an image
+            # while claiming the QEMU smoke test passed. We still break out
+            # of the poll loop so the diagnostic output is captured and
+            # uploaded, but SUCCESS stays 0 so the final exit 1 fires.
             if grep -q "testOS RUNNER FAILED" qemu-serial.log 2>/dev/null; then
               echo "=== testOS runner started but FAILED ==="
-              SUCCESS=1  # The runner ran, just failed - we want to see the diag
+              echo "=== Capturing diagnostics; smoke test will fail. ==="
               break
             fi
             # Check for login prompt (means runner didn't start - condition issue)
@@ -388,9 +394,22 @@ jobs:
           echo "=== QEMU stdout/stderr ==="
           cat qemu-stdout.log 2>/dev/null || echo "(no QEMU output)"
 
+          # SECURITY (audit finding #3): belt-and-braces final assertion.
+          # Even if the poll loop above somehow set SUCCESS=1 despite a
+          # failure banner (e.g. a future refactor re-introduces the bug),
+          # this independent check forces a hard failure. The release job
+          # depends on this job, so a failure here blocks publication.
+          if grep -q "testOS RUNNER FAILED" qemu-serial.log 2>/dev/null; then
+            echo ""
+            echo "=== FAILURE: testOS runner reported failure (testOS RUNNER FAILED banner detected) ==="
+            echo "The image booted, but the testOS runner service reported a fatal error."
+            echo "This is a release blocker. Check the serial log above for runner diagnostics."
+            exit 1
+          fi
+
           if [ $SUCCESS -eq 0 ]; then
             echo ""
-            echo "=== FAILURE: testOS did not boot to the benchmark menu within 120s ==="
+            echo "=== FAILURE: testOS did not boot to the benchmark menu within ${BOOT_TIMEOUT}s ==="
             echo "The image may have a boot issue (broken UKI, missing service, wrong cmdline)."
             echo "Check the serial log above for details."
             exit 1
@@ -455,6 +474,6 @@ jobs:
 
             **Mock build:** ${{ github.event.inputs.mock == 'true' }}
 
-            **QEMU boot smoke test:** passed (the image boots to the testOS benchmark menu in QEMU before this release was published).
+            **QEMU boot smoke test:** passed (the image booted to the testOS benchmark menu in QEMU with no `testOS RUNNER FAILED` banner before this release was published).
 
             See the [testOS README](https://github.com/Nan0pk/Rush-linux/blob/main/testos/README.md) for usage.
