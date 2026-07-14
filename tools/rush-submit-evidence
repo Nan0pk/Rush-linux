@@ -366,7 +366,7 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
         tmp_path = Path(tmp)
         # Shallow clone.
         r = subprocess.run(
-            ["git", "clone", "--depth", "1", "--no-checkout",
+            ["git", "clone", "--depth", "1",
              "https://github.com/Nan0pk/Rush-linux.git", str(tmp_path)],
             capture_output=True, text=True, timeout=60,
         )

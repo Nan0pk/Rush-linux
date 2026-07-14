@@ -287,6 +287,11 @@ def test_dry_run_does_not_push():
         assert status == "dry-run"
 
 
+def test_submission_clone_populates_worktree():
+    source = (_TOOLS_DIR / "rush-submit-evidence").read_text()
+    assert "--no-checkout" not in source
+
+
 # ─── Standalone runner ──────────────────────────────────────────────────────
 
 
