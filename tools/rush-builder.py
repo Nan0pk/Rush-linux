@@ -221,11 +221,33 @@ def cmd_repo_init(args):
     if sign_tool.exists() and (key_dir / "testing.private.pem").exists():
         try:
             from tools.sign_updates import sign_repodata
-            sign_repodata(repo_dir, key_dir)
+            # SECURITY (audit finding #7): bind the return value to sig_path
+            # before using it. The previous code called sign_repodata() but
+            # discarded its return value, then referenced an undefined
+            # sig_path variable (NameError). The broad except Exception
+            # below caught the NameError and silently fell back to mock
+            # signing, so real signing was effectively broken.
+            sig_path = sign_repodata(repo_dir, key_dir)
             print(f"Generated repository signature: {sig_path.name}")
-        except Exception:
-            # Fall back to mock if cryptography package not available
+        except ImportError:
+            # cryptography package not installed — fall back to mock.
+            # This is the ONLY acceptable fallback: a missing dependency is
+            # a legitimate dev-environment issue. Other exceptions (OSError,
+            # ValueError, signing key errors) are real failures and must
+            # NOT silently degrade to mock signing.
             _write_mock_signature(repo_dir, repodata_hash.hexdigest())
+        except Exception as e:
+            # SECURITY (audit finding #7): real signing failures must be
+            # loud, not silent. The previous broad except caught NameError
+            # (from the sig_path bug) and any other error, then wrote a
+            # mock signature as if nothing happened. Now we fail hard.
+            print(
+                f"ERROR: real signing failed: {e}. "
+                f"Refusing to silently fall back to mock signature. "
+                f"Fix the signing setup or run with --allow-mock-signing.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     else:
         _write_mock_signature(repo_dir, repodata_hash.hexdigest())
 
