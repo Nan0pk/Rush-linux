@@ -60,11 +60,14 @@ id = "iperf3-tcp"
 name = "iperf3 — TCP throughput (loopback)"
 scenario = "server-throughput"
 kind = "shell-numeric"
+unit = "Gbit/s"
 command = """
 iperf3 -s -D --one-off
 sleep 1
+# SECURITY (defect 7): preserve decimal precision — do NOT use floor.
+# Divide by 1e9 to convert bits/s to Gbit/s, keep 2 decimal places.
 iperf3 -c 127.0.0.1 -t 10 -J \
-  | jq -r '.end.sum_received.bits_per_second / 1e9 | floor' | head -1
+  | jq -r '(.end.sum_received.bits_per_second / 1e9 * 100 | floor) / 100' | head -1
 """
 estimated_seconds = 20
 notes = "Measures local TCP stack throughput; useful for catching kernel/network-regression overhead without external LAN noise."
@@ -122,6 +125,7 @@ id = "nginx-rps"
 name = "nginx — requests per second"
 scenario = "server-throughput"
 kind = "shell-numeric"
+unit = "requests/s"
 command = """
 # Start a temp nginx serving a small static file.
 NGINX_CONF=/tmp/nginx.conf
@@ -159,7 +163,8 @@ id = "psi-cpu-avg10"
 name = "PSI — CPU pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
-command = """
+unit = "percent"
+command = '''
 # Read PSI cpu avg10 from the 'some' line. The value is a decimal fraction
 # (e.g., 0.25 = 25% of time stalled). Use grep+sed to extract the numeric
 # value after 'avg10=' on the 'some' line, preserving the decimal point.
@@ -167,7 +172,7 @@ command = """
 # '005' or '132' on some kernels (the awk was grabbing the wrong field
 # when the line had extra whitespace or a different field order).
 grep '^some' /proc/pressure/cpu | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -1
-"""
+'''
 estimated_seconds = 5
 notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
 
@@ -176,9 +181,10 @@ id = "psi-io-avg10"
 name = "PSI — IO pressure avg10"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
-command = """
+unit = "percent"
+command = '''
 grep '^some' /proc/pressure/io | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -1
-"""
+'''
 estimated_seconds = 5
 notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
 
@@ -187,6 +193,7 @@ id = "cyclictest-max"
 name = "cyclictest — max latency (µs)"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
+unit = "us"
 command = """
 # Run cyclictest WITHOUT -q (quiet suppresses the Max: line we need).
 # -p 80: priority 80 (high, for RT kernel; falls back gracefully on non-RT)
@@ -209,11 +216,29 @@ id = "foreground-launch"
 name = "foreground launch latency (ms)"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
+unit = "ms"
 command = """
-# Measure median of 5 launches of `true` via bash, in milliseconds.
-for i in 1 2 3 4 5; do
-  /usr/bin/time -f '%e' bash -c 'true' 2>&1
-done | awk '{a[NR]=$1} END {n=NR; if (n%2==1) print a[(n+1)/2]*1000; else print (a[n/2]+a[n/2+1])/2*1000}'
+# SECURITY (defect 8): /usr/bin/time -f %e lacks sufficient resolution for
+# `true` (reports 0.00). Replace with monotonic high-resolution timing using
+# python3's time.perf_counter_ns (nanosecond resolution).
+# Measure median of 11 launches of a meaningful deterministic operation
+# (echo through a subshell — available in every testOS image).
+python3 -c '
+import subprocess, time, statistics
+samples = []
+for _ in range(11):
+    t0 = time.perf_counter_ns()
+    subprocess.run(["bash", "-c", "echo ok >/dev/null"], capture_output=True)
+    t1 = time.perf_counter_ns()
+    samples.append((t1 - t0) / 1e6)  # convert ns to ms
+median_ms = statistics.median(samples)
+# Reject zero or non-finite — a zero result means timing failed.
+import math
+if not math.isfinite(median_ms) or median_ms == 0:
+    print("ERROR", end="")
+else:
+    print(f"{median_ms:.3f}")
+'
 """
 estimated_seconds = 10
 notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."
