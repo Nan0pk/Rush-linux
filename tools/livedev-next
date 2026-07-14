@@ -300,8 +300,16 @@ def cmd_auto(dry_run: bool = False) -> int:
     # Generate a run_id for this pipeline run. Used for checkpoint state.
     import datetime
     run_id = datetime.datetime.now(datetime.timezone.utc).strftime("auto-%Y%m%d-%H%M%S")
-    run_dir = tempfile.mkdtemp(prefix="rush-livedev-auto-")
-    plan_path = "/tmp/rush-livedev-plan.json"
+    # SECURITY: use a persistent run directory under XDG_DATA_HOME so the
+    # inventory and results survive reboot. This is the same location
+    # bootstrap.sh uses, so livedev-next --auto and bootstrap.sh --auto
+    # share the same persistent layout.
+    xdg_data = os.environ.get("XDG_DATA_HOME") or os.path.join(
+        os.environ.get("HOME", "/tmp"), ".local", "share"
+    )
+    run_dir = os.path.join(xdg_data, "rush-livedev", "runs", run_id)
+    os.makedirs(run_dir, exist_ok=True)
+    plan_path = os.path.join(run_dir, "plan.json")
 
     # Step 0: Collect privacy-safe hardware inventory.
     # This is collected BEFORE any benchmark runs so the inventory reflects
@@ -727,15 +735,17 @@ def cmd_resume(dry_run: bool = False, submit: bool = False) -> int:
             print(f"     {stderr.strip()[-300:]}")
         return rc
 
-    # Update checkpoint: resume succeeded, move to collected/validated phase.
-    if cp:
-        run_id = cp.get("run_id", "unknown")
-        run_dir = cp.get("run_dir", "")
-        inventory_path = cp.get("inventory_path", "")
-        # If bootstrap.sh produced a RUN_DIR in its output, capture it.
-        # Otherwise keep the checkpoint's run_dir.
-        _checkpoint_save(run_id, "collected", run_dir=run_dir,
-                         inventory_path=inventory_path)
+    # SECURITY: after bootstrap returns, RELOAD the checkpoint rather than
+    # overwriting it with stale data. bootstrap.sh's do_resume updates the
+    # checkpoint with the correct run_dir (persistent, not /tmp) and
+    # inventory_path. If we overwrote it with the old `cp` data we captured
+    # before calling bootstrap, we would lose bootstrap's updates.
+    cp_after = _checkpoint_load()
+    if cp_after:
+        print()
+        print(f"  [checkpoint] Updated by bootstrap:")
+        print(f"    Phase:    {cp_after.get('phase', '?')}")
+        print(f"    Run dir:  {cp_after.get('run_dir', '?')}")
     return rc
 
 

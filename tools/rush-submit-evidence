@@ -367,10 +367,34 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
         dest = tmp_path / "benchmarks" / "results" / date_part / host_fp
         dest.mkdir(parents=True, exist_ok=True)
         # Copy all files from run_dir into dest.
+        # SECURITY: reject symlinks and non-regular files. A symlink could
+        # point outside run_dir and its target would be copied, leaking
+        # secrets or external data into the evidence bundle.
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from rush_path_safety import is_regular_file, safe_copy, reject_symlinks
+            symlinks = reject_symlinks(run_dir)
+            if symlinks:
+                print(f"  [FAIL] Refusing to copy: {len(symlinks)} symlink(s) "
+                      f"found in run_dir: "
+                      f"{[str(s.relative_to(run_dir)) for s in symlinks]}",
+                      file=sys.stderr)
+                return 1
+        except ImportError:
+            is_regular_file = lambda p: p.is_file()  # noqa: E731
+            safe_copy = None
+
         for item in run_dir.iterdir():
-            if item.is_file():
-                shutil.copy2(item, dest / item.name)
-            elif item.is_dir():
+            if is_regular_file(item):
+                if safe_copy is not None:
+                    try:
+                        safe_copy(item, dest / item.name)
+                    except ValueError as e:
+                        print(f"  [FAIL] {e}", file=sys.stderr)
+                        return 1
+                else:
+                    shutil.copy2(item, dest / item.name)
+            elif item.is_dir() and not item.is_symlink():
                 shutil.copytree(item, dest / item.name, dirs_exist_ok=True)
 
         # Commit.
