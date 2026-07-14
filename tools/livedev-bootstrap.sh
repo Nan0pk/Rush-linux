@@ -286,6 +286,32 @@ do_auto() {
         return 0
     fi
 
+    # Step 0: collect privacy-safe hardware inventory.
+    # This is collected BEFORE any benchmark runs so the inventory reflects
+    # the host's baseline capabilities. The inventory is stored in a temp
+    # dir and referenced by the checkpoint so it survives reboot.
+    echo
+    log "Step 0/4: Collect privacy-safe hardware inventory."
+    local INVENTORY_PATH=""
+    local INV_RUN_DIR
+    INV_RUN_DIR="$(mktemp -d -t rush-livedev-inventory.XXXXXX)"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "    [dry-run] python3 tools/collect-hardware-inventory.py --output $INV_RUN_DIR/hardware-inventory.json"
+    else
+        INVENTORY_PATH="$(collect_hardware_inventory "$INV_RUN_DIR")"
+        if [[ -n "$INVENTORY_PATH" ]]; then
+            ok "Hardware inventory: $INVENTORY_PATH"
+        else
+            warn "Hardware inventory collection skipped (non-fatal)."
+        fi
+        # Save a preflight checkpoint immediately so the inventory path
+        # is preserved even if USB prep fails later. This ensures the
+        # operator can always find the inventory via the checkpoint.
+        local run_id
+        run_id="auto-$(date -u +%Y%m%d-%H%M%S)"
+        checkpoint_save "$run_id" "preflight" "" "$INVENTORY_PATH"
+    fi
+
     # Step 1: mock verification.
     if [[ "$SKIP_MOCK" != "true" ]]; then
         echo
@@ -341,7 +367,7 @@ do_auto() {
     local run_id
     run_id="usb-$(date -u +%Y%m%d-%H%M%S)"
     if [[ "$DRY_RUN" != "true" ]]; then
-        checkpoint_save "$run_id" "usb_prepared"
+        checkpoint_save "$run_id" "usb_prepared" "" "$INVENTORY_PATH"
         echo
         log "Checkpoint saved. After reboot, resume with one command:"
         echo "    python3 tools/rush-livedev-checkpoint.py resume-command"
@@ -414,9 +440,38 @@ checkpoint_save() {
     fi
 }
 
+checkpoint_show() {
+    if [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
+        python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" show 2>/dev/null || true
+    fi
+}
+
 checkpoint_resume_command() {
     if [[ -f "$REPO_DIR/tools/rush-livedev-checkpoint.py" ]]; then
         python3 "$REPO_DIR/tools/rush-livedev-checkpoint.py" resume-command 2>/dev/null || true
+    fi
+}
+
+# Collect privacy-safe hardware inventory into a run_dir.
+# The collector has a built-in privacy scanner that refuses to write
+# output if any redactable pattern (serials, MACs, UUIDs, IPs, hostnames,
+# SSIDs, home paths) is detected.
+# Returns the inventory path on stdout; human-readable output goes to stderr.
+collect_hardware_inventory() {
+    local run_dir="$1"
+    if [[ -f "$REPO_DIR/tools/collect-hardware-inventory.py" ]]; then
+        local inv_path="$run_dir/hardware-inventory.json"
+        # The collector prints human-readable progress to stdout.
+        # Redirect its stdout to stderr so only our final echo of the
+        # path ends up on stdout (captured by the caller via $(...)).
+        if python3 "$REPO_DIR/tools/collect-hardware-inventory.py" \
+               --output "$inv_path" 1>&2; then
+            echo "$inv_path"
+        else
+            echo ""
+        fi
+    else
+        echo ""
     fi
 }
 
@@ -425,6 +480,11 @@ do_resume() {
     log "=== Rush LiveDev — resume/submit ==="
 
     ensure_repo
+
+    # Show checkpoint state so the operator knows what phase we're resuming from.
+    echo
+    log "Checkpoint state:"
+    checkpoint_show
 
     # PRE-FLIGHT: if --submit was requested, verify we can authenticate
     # BEFORE doing any work.

@@ -40,21 +40,41 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livede
 curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
-That's it. The script asks you what to do (or auto-picks if non-interactive):
+That's it. The script auto-detects what to do:
+
+- **USB with `testos-results/` plugged in** → resume: copy results, validate, submit evidence PR
+- **QEMU installed, no USB results** → run deterministic VM test cycle (no USB, no reboot)
+- **No QEMU, no USB results** → prepare USB via testOS, print boot instructions
+
+In interactive mode (terminal attached), it shows a context-dependent menu:
 
 ```
   What would you like to do?
 
-  [1] resume — Copy results from USB, validate, submit evidence PR
-  [2] vm     — Run deterministic QEMU test cycle (no USB, no reboot)
-  [3] usb    — Prepare a USB via testOS (for real-hardware testing)
+  [1] usb — Prepare a USB via testOS (for real-hardware testing)
+  [2] submit-vm — Submit the most recent VM run (from artifacts/livedev/)
 
-  Pick [1-3] (or press Enter for default 1):
+  Pick [1-2] (or press Enter for default 1):
 ```
 
-Options appear based on what's available: USB with results shows `resume`, QEMU installed shows `vm`, `usb` is always available. Non-interactive runs (CI, piped stdin) auto-pick.
+The menu is context-dependent: `resume` appears only when a USB with results is detected, `vm` appears only when QEMU is installed, `submit-vm` appears only when VM artifacts exist. Non-interactive runs (CI, piped stdin) auto-pick based on what's available.
 
-You only approve: USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, never edits release truth.
+**Note:** the USB path requires `sudo` for writing the USB device. The script will prompt for your password when it reaches that step.
+
+The script automatically:
+- Collects a **privacy-safe hardware inventory** (CPU, GPU, RAM, battery, kernel, DMI board vendor/model — no serials, MACs, UUIDs, or hostnames) before any benchmarks run
+- Saves a **persistent checkpoint** so you can resume with one command after reboot
+- Never auto-merges, never marks milestones verified, never edits release truth
+
+### After reboot — one command to resume
+
+When the script prints boot instructions, it also saves a checkpoint. After the test machine reboots back to its host OS, plug the USB back in and run:
+
+```sh
+python3 tools/rush-livedev-checkpoint.py resume-command
+```
+
+This prints the exact command to resume (e.g. `python3 tools/livedev-next --resume`). The checkpoint survives reboot because it's stored in `~/.local/share/rush-livedev/`, not `/tmp`.
 
 ### GitHub auth (for `--submit`)
 
