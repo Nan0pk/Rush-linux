@@ -59,23 +59,43 @@ jobs:
           python-version: '3.12'
 
       - name: Install Graphify
-        run: python -m pip install --upgrade pip graphifyy
+        # SECURITY (audit finding #4): pin graphifyy to a specific version
+        # instead of installing the latest from PyPI. A compromised package
+        # release would otherwise have a direct secret-exfiltration and
+        # repository-mutation path (the job runs with multiple API keys,
+        # persisted Git credentials, and contents:write).
+        #
+        # Pinning to ~=0.9.15 allows patch updates within 0.9.x (bug fixes)
+        # but blocks minor-version bumps that could introduce new attack
+        # surface. Bump the pin deliberately when upgrading; review the
+        # changelog and release notes first.
+        #
+        # TODO (follow-up): add --require-hashes with a verified hashes file
+        # for full supply-chain protection. That requires generating and
+        # committing a constraints file; tracked separately.
+        run: python -m pip install --upgrade pip 'graphifyy~=0.9.15'
 
       - name: Refresh graph
+        # SECURITY (audit finding #4): only pass LLM backend secrets in full
+        # mode. Code mode (default) is AST/local extraction only and does
+        # not call any LLM backend — passing secrets there would expose them
+        # to the graphifyy package without benefit, expanding the blast
+        # radius of a supply-chain compromise.
+        #
+        # In code mode the secrets are not exported at all; in full mode all
+        # configured backends are exposed so the operator can pick any of
+        # them via --backend. This is the minimum secret surface consistent
+        # with the workflow's documented behavior.
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+          # No secrets here — they are injected conditionally inside the
+          # run block based on the selected mode.
+          EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
           mode="code"
           backend="auto"
           no_viz="false"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             mode="${{ github.event.inputs.mode }}"
             backend="${{ github.event.inputs.backend }}"
             no_viz="${{ github.event.inputs.no_viz }}"
@@ -86,6 +106,18 @@ jobs:
           fi
           if [[ "$no_viz" == "true" ]]; then
             args+=(--no-viz)
+          fi
+          # SECURITY: only export secrets in full mode. In code mode the
+          # graphifyy process runs with no API keys in its environment,
+          # so a compromised package cannot exfiltrate them.
+          if [[ "$mode" == "full" ]]; then
+            export GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
+            export GOOGLE_API_KEY="${{ secrets.GOOGLE_API_KEY }}"
+            export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+            export OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+            export MOONSHOT_API_KEY="${{ secrets.MOONSHOT_API_KEY }}"
+            export DEEPSEEK_API_KEY="${{ secrets.DEEPSEEK_API_KEY }}"
+            export AWS_REGION="${{ secrets.AWS_REGION }}"
           fi
           ./tools/graphify-refresh.sh "$mode" "${args[@]}"
 
