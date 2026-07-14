@@ -192,10 +192,16 @@ def test_pr_body_has_summary_counts():
 def test_pr_body_has_reviewer_notes():
     with tempfile.TemporaryDirectory() as tmp:
         run_dir = _make_valid_run_dir(Path(tmp))
+        (run_dir / "collection-report.json").write_text(json.dumps({
+            "classification": "baseline testOS hardware evidence",
+            "privacy": {"excluded_usb_files": ["system-logs/dmesg.txt"]},
+        }))
         _, _, manifest = rse.validate_run_dir(run_dir)
         body = rse.generate_pr_body(run_dir, manifest, "test-branch", None)
         assert "ADR 0018" in body
         assert "No auto-merge" in body or "no auto-merge" in body.lower()
+        assert "Baseline-only" in body
+        assert "system-logs/ (" not in body
 
 
 def test_pr_body_has_bot_signature():
