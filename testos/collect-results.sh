@@ -371,6 +371,14 @@ git push "$PUSH_URL" "$BRANCH"
 git config --local --unset "branch.${BRANCH}.remote" 2>/dev/null || true
 git config --local --unset "branch.${BRANCH}.merge" 2>/dev/null || true
 git remote set-url origin "$SAFE_URL" 2>/dev/null || true
+# SECURITY (audit finding #6, shell side): verify no token leaked into
+# .git/config. The PUSH_URL contained the token for the push only; it
+# should NOT persist in remote.origin.url or any other config key.
+LEAKED="$(git config --local --list 2>/dev/null | grep -E 'github_pat|x-access-token' || true)"
+if [[ -n "$LEAKED" ]]; then
+    warn "WARNING: token found in .git/config after scrub. Manual cleanup required:"
+    printf '%s\n' "$LEAKED" >&2
+fi
 ok "Pushed and scrubbed local git config."
 
 PR_BODY="Auto-collected from USB by collect-results.sh.\n\nRun summary:\n- Date: ${STARTED_AT}\n- Host: ${HOST_FP}\n- Passed: ${PASSED}\n- Failed: ${FAILED}\n- Skipped: ${SKIPPED}\n\nIncludes per-benchmark JSON results, generated SUMMARY.md, system logs captured by testOS, and installer logs when available."
