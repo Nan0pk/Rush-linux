@@ -40,9 +40,16 @@ pub struct Bench {
     /// Optional: requires battery (true means the runner will prompt the user to unplug AC).
     #[serde(default)]
     pub requires_battery: bool,
-    /// Optional: free-form notes shown in the menu.
+    /// Optional: free-form notes shown in the menu as "What it measures".
     #[serde(default)]
     pub notes: Option<String>,
+    /// Optional: one-sentence "Why it matters" shown in the menu and the
+    /// per-benchmark progress UI. Backward-compatible — older catalogs
+    /// without this field still load (the runner falls back to the `notes`
+    /// text or an empty string). Added by the boot-reliability/UI PR so the
+    /// UI never embeds hard-coded descriptions in code.
+    #[serde(default)]
+    pub significance: Option<String>,
     /// Optional: the unit for shell-numeric benchmarks (e.g. "ms", "us",
     /// "percent", "Gbit/s", "requests/s"). If absent, shell-numeric results
     /// record unit="numeric" (legacy behavior). shell-json benchmarks get
@@ -88,5 +95,34 @@ impl BenchList {
                 format!("{}m {}s", m, s)
             }
         }
+    }
+}
+
+impl Bench {
+    /// Return the "Why it matters" text for the UI, falling back to the
+    /// `notes` field (shown as "What it measures") when `significance` is
+    /// absent. Older catalogs without `significance` still render something
+    /// useful rather than an empty line.
+    pub fn significance_or_fallback(&self) -> &str {
+        if let Some(s) = &self.significance {
+            let t = s.trim();
+            if !t.is_empty() {
+                return t;
+            }
+        }
+        if let Some(n) = &self.notes {
+            let t = n.trim();
+            if !t.is_empty() {
+                return t;
+            }
+        }
+        ""
+    }
+
+    /// Return the "What it measures" text for the UI. This is the `notes`
+    /// field; we treat it as optional and the UI degrades to an empty line
+    /// when absent.
+    pub fn measures_text(&self) -> &str {
+        self.notes.as_deref().map(str::trim).unwrap_or("")
     }
 }

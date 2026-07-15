@@ -165,27 +165,78 @@ def test_4_cyclictest_produces_numeric_result():
     assert "/Max:/" in cyclic_cmd, "cyclictest does not parse Max: line"
 
 
-# ─── Defect 5: dmesg/journal privacy ─────────────────────────────────────────
+# ─── Defect 5: dmesg/journal privacy boundary ────────────────────────────────
 
 
-def test_5_dmesg_journal_privacy_redaction():
-    """dmesg/journal collection must redact MAC/serial/UUID fields."""
+def test_5_dmesg_journal_privacy_boundary():
+    """Raw dmesg/journal MUST live in PRIVATE-DIAGNOSTICS/, never in
+    testos-results/. The old approach wrote redacted logs to
+    `testos-results/<ts>/system-logs/`; the boot-reliability PR replaces
+    that with a hard boundary: raw diagnostics go ONLY to
+    `PRIVATE-DIAGNOSTICS/<run_id>/` on the USB, and the strict evidence
+    validator rejects any bundle containing them.
+    """
     runner_src = (REPO_ROOT / "crates" / "testos" / "src" / "bin" / "testos-runner.rs").read_text()
-    assert "privacy_filter" in runner_src, "no privacy_filter in testos-runner"
-    assert "<MAC>" in runner_src, "no MAC address redaction"
-    assert "<SERIAL>" in runner_src, "no serial number redaction"
-    assert "<UUID>" in runner_src, "no UUID redaction"
 
-    # Verify the sed filter actually works
-    test_input = "MAC=aa:bb:cc:dd:ee:ff SerialNumber=ABC123 UUID=12345678-1234-1234-1234-123456789abc IP=192.168.1.1"
-    sed_filter = r"""sed -re 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/<UUID>/g' -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<MAC>/g' -e 's/[Ss]erial[Nn]umber=[^ ]*/<SERIAL>/g' -e 's/serial=[0-9a-fA-F]{6,}/<SERIAL>/g' -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<IPV4>/g'"""
-    rc, stdout, stderr = run(["bash", "-c", f"echo '{test_input}' | {sed_filter}"])
-    assert rc == 0, f"sed filter failed: {stderr}"
-    redacted = stdout.strip()
-    assert "aa:bb:cc:dd:ee:ff" not in redacted, f"MAC not redacted: {redacted}"
-    assert "ABC123" not in redacted, f"serial not redacted: {redacted}"
-    assert "12345678-1234-1234-1234-123456789abc" not in redacted, f"UUID not redacted: {redacted}"
-    assert "192.168.1.1" not in redacted, f"IP not redacted: {redacted}"
+    # The runner must NOT write a system-logs/ directory into the results.
+    assert "system-logs" not in runner_src, (
+        "runner still writes system-logs/ into testos-results — raw diagnostics "
+        "must go to PRIVATE-DIAGNOSTICS/ instead"
+    )
+    # The runner must NOT keep the old redaction sed filter inlined in
+    # the binary. (Redaction is no longer needed because raw diagnostics
+    # never enter the publishable bundle.)
+    assert "privacy_filter" not in runner_src, (
+        "runner still has the old privacy_filter; the boundary replaces redaction"
+    )
+    # The runner must NOT drop to a root shell on failure. The recovery
+    # screen is the only failure surface. We check the executable code,
+    # not the comments — comments may legitimately say "do NOT drop to a
+    # shell" while explaining the design.
+    # Strip /// doc comments and // line comments before checking.
+    code_only = "\n".join(
+        line for line in runner_src.splitlines()
+        if not line.lstrip().startswith("//")
+    )
+    assert "Dropping to shell" not in code_only, "runner still drops to a root shell"
+    assert "Command::new(\"bash\").status()" not in code_only, (
+        "runner still spawns an interactive bash shell on failure"
+    )
+
+    # The runner must reference PRIVATE-DIAGNOSTICS via the private_diag
+    # module rather than hard-coding the path.
+    assert "private_diag" in runner_src, "runner does not use the private_diag module"
+    assert "PRIVATE-DIAGNOSTICS" in (
+        REPO_ROOT / "crates" / "testos" / "src" / "private_diag.rs"
+    ).read_text(), "private_diag module does not name PRIVATE-DIAGNOSTICS"
+
+    # The recovery screen must exist and must NOT dump raw identifiers.
+    recovery_src = (REPO_ROOT / "crates" / "testos" / "src" / "recovery.rs").read_text()
+    assert "recovery_screen_text" in recovery_src, "no recovery_screen_text helper"
+    assert "FailureCategory" in recovery_src, "no FailureCategory enum"
+    # Extract the body of recovery_screen_text — the function that
+    # generates the on-screen text. We do NOT want raw identifier-dumping
+    # commands in the screen text itself (they belong in PRIVATE-DIAGNOSTICS).
+    import re as _re
+    fn_match = _re.search(
+        r"pub fn recovery_screen_text\([^)]*\)\s*->\s*String\s*\{(?P<body>.*?)\n\}",
+        recovery_src,
+        _re.DOTALL,
+    )
+    assert fn_match is not None, "could not locate recovery_screen_text body"
+    fn_body = fn_match.group("body")
+    for forbidden in ["dmesg", "journalctl", "blkid", "lsblk", "/proc/cmdline"]:
+        assert f'"{forbidden}"' not in fn_body, (
+            f"recovery_screen_text embeds {forbidden!r} in a string literal — "
+            "raw identifiers must not appear on the recovery screen"
+        )
+
+    # The marker text must contain the privacy warning.
+    private_diag_src = (REPO_ROOT / "crates" / "testos" / "src" / "private_diag.rs").read_text()
+    assert "MAY CONTAIN HARDWARE IDENTIFIERS" in private_diag_src, (
+        "private_diag marker does not warn about hardware identifiers"
+    )
+    assert "DO NOT SUBMIT" in private_diag_src, "private_diag marker does not say DO NOT SUBMIT"
 
 
 # ─── Main for direct execution ───────────────────────────────────────────────

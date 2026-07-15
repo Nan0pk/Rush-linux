@@ -542,7 +542,12 @@ def test_testos_menu_still_compiles():
     text = runner_path.read_text()
     # The menu function should still be there.
     assert "fn show_menu" in text
-    assert "Run all" in text
+    # The "Run all" label is rendered by the TUI module (print_menu), not
+    # hard-coded in the runner binary. Verify it exists in the TUI source.
+    tui_path = _ROOT / "crates" / "testos" / "src" / "tui.rs"
+    assert tui_path.exists(), "testOS TUI source should exist"
+    tui_text = tui_path.read_text()
+    assert "Run all" in tui_text, "TUI print_menu does not render 'Run all'"
     # The runner should NOT have been modified to call rush-autopilot
     # (auto-run is deferred to the LiveDev image phase).
     assert "rush-autopilot" not in text, \

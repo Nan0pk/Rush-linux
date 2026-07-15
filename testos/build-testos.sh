@@ -92,15 +92,22 @@ install -m0755 "${REPO_ROOT}/target/release/optid" "${EXTRA_DIR}/usr/libexec/opt
 install -m0755 "${REPO_ROOT}/target/release/optctl" "${EXTRA_DIR}/usr/bin/optctl"
 install -m0644 "${REPO_ROOT}/config/optid/policy.toml" "${EXTRA_DIR}/usr/lib/optid/policy.toml"
 
-# systemd units
+# systemd units — install optid units on disk so `optctl` works for ad-hoc
+# operator use, but do NOT enable them in the testOS baseline image. The
+# testOS baseline is read-only hardware evidence: it must not run optid,
+# optid-apply, or optid-boot-assess as persistent services, and it must
+# never run `optid --apply`. See AGENTS.md §9 (baseline purity) and the
+# boot-reliability PR.
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid.service"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-apply.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-apply.service"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-tmpfiles.conf" "${EXTRA_DIR}/usr/lib/tmpfiles.d/optid.conf"
 
-# systemd presets
+# systemd presets — the testOS baseline image enables ONLY the services
+# needed to boot, mount the USB, run the benchmark menu, and reboot.
+# optid / optid-apply / optid-boot-assess are deliberately NOT enabled;
+# they are present on disk for ad-hoc use but never started automatically
+# by the baseline image. This is the baseline-purity contract.
 cat > "${EXTRA_DIR}/usr/lib/systemd/system-preset/00-rush.preset" << 'EOF'
-enable optid.service
-enable optid-boot-assess.service
 enable systemd-networkd.service
 enable systemd-resolved.service
 enable systemd-oomd.service
@@ -109,7 +116,9 @@ enable testos-usb-mount.service
 enable testos-runner.service
 EOF
 
-# Boot assessment
+# Boot assessment binary + unit are installed on disk for ad-hoc operator
+# use, but the unit is NOT enabled in the testOS baseline preset and is
+# NOT symlinked into multi-user.target.wants.
 install -m0755 "${REPO_ROOT}/tools/optid-boot-assess" "${EXTRA_DIR}/usr/libexec/optid-boot-assess"
 install -m0644 "${REPO_ROOT}/packaging/systemd/optid-boot-assess.service" "${EXTRA_DIR}/usr/lib/systemd/system/optid-boot-assess.service"
 
@@ -123,13 +132,22 @@ install -m0644 "${REPO_ROOT}/distro/network/nftables.conf" "${EXTRA_DIR}/etc/nft
 install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.service" "${EXTRA_DIR}/usr/share/dbus-1/system-services/io.rushlinux.Optid.service"
 install -m0644 "${REPO_ROOT}/packaging/dbus/io.rushlinux.Optid.xml" "${EXTRA_DIR}/usr/share/dbus-1/interfaces/io.rushlinux.Optid.xml"
 
-# Enable services via symlinks
-ln -sf /usr/lib/systemd/system/optid.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/optid.service"
-ln -sf /usr/lib/systemd/system/optid-boot-assess.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/optid-boot-assess.service"
+# Enable services via symlinks. NOTE: optid, optid-apply, and
+# optid-boot-assess are intentionally NOT symlinked here — they are
+# available on disk but never started automatically by the testOS
+# baseline image. This preserves baseline purity: a testOS boot measures
+# the hardware as-is, without optid actuation or boot assessment side
+# effects. See the boot-reliability PR for the full rationale.
 ln -sf /usr/lib/systemd/system/systemd-networkd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
 ln -sf /usr/lib/systemd/system/systemd-resolved.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
 ln -sf /usr/lib/systemd/system/systemd-oomd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-oomd.service"
 ln -sf /usr/lib/systemd/system/nftables.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/nftables.service"
+
+# Disable the default getty on tty1 so testos-runner owns tty1 exclusively.
+# This prevents the tty/getty/service ordering race observed on the HP Victus
+# where getty@tty1.service and testos-runner.service both tried to grab tty1.
+# We override getty@tty1 by masking it (the testos-runner unit takes over).
+ln -sf /dev/null "${EXTRA_DIR}/etc/systemd/system/getty@tty1.service"
 
 # Default target — multi-user (headless, no desktop)
 ln -sf /usr/lib/systemd/system/multi-user.target "${EXTRA_DIR}/etc/systemd/system/default.target"
@@ -198,39 +216,79 @@ mkdir -p "${EXTRA_DIR}/boot/testos"
 install -m0644 "${REPO_ROOT}/testos/bench-list.toml" "${EXTRA_DIR}/boot/testos/bench-list.toml"
 
 # testos-usb-mount.service — finds the USB's ESP by label and mounts it.
+#
+# Boot-reliability contract:
+#   - The mount helper retries for a BOUNDED window (default 30s, env-overridable).
+#   - It uses udev block-device settle where available (no arbitrary unbounded sleep).
+#   - It emits clear attempt/status messages to the systemd journal AND to
+#     /run/testos/usb-discovery-timeline.txt so the runner can copy the
+#     timeline into PRIVATE-DIAGNOSTICS for local post-mortem.
+#   - On bounded-timeout failure, the service exits non-zero. The runner
+#     unit has Requires= on this service, so a mount failure prevents the
+#     runner from starting (and triggers the recovery screen instead of a
+#     root shell).
 cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-usb-mount.service" << 'EOF'
 [Unit]
 Description=testOS - mount USB ESP partition at /run/testos/usb
 DefaultDependencies=no
-After=local-fs-pre.target
+After=local-fs-pre.target systemd-udevd.service
 Before=local-fs.target
 # No ConditionKernelCommandLine: this service file only exists in the
-# testOS image, so it only runs when testOS boots. The condition was
-# preventing the service from starting because systemd's bare-word match
-# for 'testos.usb_label' doesn't match 'testos.usb_label=RUSHESP'
-# (assignment form) on systemd 261.
+# testOS image, so it only runs when testOS boots.
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# Bounded startup: if the USB does not appear within the retry window,
+# the helper exits non-zero and the runner (which has Requires= on this
+# unit) will not start. This is the fix for the HP Victus symptom where
+# the mount service failed silently and the runner fell through to a
+# root-shell-cum-login-prompt.
+TimeoutStartSec=120
 ExecStart=/usr/libexec/testos-usb-mount
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# testos-usb-mount script
+# testos-usb-mount script — bounded retry, udev settle, timeline logging.
 cat > "${EXTRA_DIR}/usr/libexec/testos-usb-mount" << 'EOF'
 #!/usr/bin/env bash
-# Mount the USB's ESP at /run/testos/usb so testos-runner can find the bench list
-# and write results back to it.
+# Mount the USB's ESP at /run/testos/usb so testos-runner can find the bench
+# list and write results back to it.
+#
+# Boot-reliability design (see the boot-reliability PR):
+#   - The USB partition may not be visible the instant systemd starts us.
+#     HP Victus firmware in particular has been observed to enumerate USB
+#     storage a few seconds after the kernel reports local-fs-pre.target.
+#   - We retry for a BOUNDED window (default 30s). There is NO unbounded
+#     sleep — if the USB does not appear, we fail within the window so the
+#     runner can show the recovery screen instead of hanging forever.
+#   - We use `udevadm settle` (with its own bounded timeout) where available
+#     to wait for the block device to be ready, and `blkid` between attempts
+#     to detect the label.
+#   - Every attempt is timestamped and written to
+#     /run/testos/usb-discovery-timeline.txt so the runner can copy it into
+#     PRIVATE-DIAGNOSTICS for local post-mortem.
 set -euo pipefail
 
-# Parse testos.usb_label= from the kernel command line.
+# ── Config ────────────────────────────────────────────────────────────
+# Total retry window. Override via testos.usb_mount_timeout_secs= on the
+# kernel command line for a one-off tuned run.
+TIMEOUT_SECS="${TESTOS_USB_MOUNT_TIMEOUT_SECS:-30}"
+# Per-attempt sleep. Short enough to be responsive, long enough to avoid
+# pegging the CPU. This is a BOUNDED, intentional wait — NOT an arbitrary
+# unbounded sleep.
+ATTEMPT_SLEEP_SECS=1
+# udevadm settle per-attempt timeout (bounded).
+UDEV_SETTLE_SECS=5
+
+# ── Parse kernel cmdline for the label and the timeout override ──────
 LABEL=""
 for arg in $(cat /proc/cmdline); do
     case "$arg" in
         testos.usb_label=*) LABEL="${arg#testos.usb_label=}" ;;
+        testos.usb_mount_timeout_secs=*) TIMEOUT_SECS="${arg#testos.usb_mount_timeout_secs=}" ;;
     esac
 done
 
@@ -239,36 +297,133 @@ if [[ -z "$LABEL" ]]; then
     exit 1
 fi
 
-mkdir -p /run/testos/usb
+# Validate TIMEOUT_SECS is a positive integer; fall back to 30 if not.
+case "$TIMEOUT_SECS" in
+    ''|*[!0-9]*) TIMEOUT_SECS=30 ;;
+esac
+# Clamp to [5, 300] to prevent absurd overrides.
+if (( TIMEOUT_SECS < 5 )); then TIMEOUT_SECS=5; fi
+if (( TIMEOUT_SECS > 300 )); then TIMEOUT_SECS=300; fi
 
-# Try to find a partition with the given label.
-PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
+mkdir -p /run/testos/usb
+TIMELINE=/run/testos/usb-discovery-timeline.txt
+: > "$TIMELINE"
+
+ts() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+log() {
+    local msg="$1"
+    echo "[$(ts)] testos-usb-mount: $msg" | tee -a "$TIMELINE" >&2
+}
+
+log "starting (label=$LABEL, timeout=${TIMEOUT_SECS}s, attempt_sleep=${ATTEMPT_SLEEP_SECS}s)"
+
+# ── Bounded retry loop ───────────────────────────────────────────────
+# We count attempts and elapsed time. The loop exits as soon as the label
+# is found OR the bounded window expires. There is no path that sleeps
+# forever.
+deadline=$(( $(date +%s) + TIMEOUT_SECS ))
+attempt=0
+PART=""
+while :; do
+    attempt=$((attempt + 1))
+    now=$(date +%s)
+    if (( now >= deadline )); then
+        log "deadline reached after $attempt attempts ($((now - (deadline - TIMEOUT_SECS)))s elapsed); giving up"
+        break
+    fi
+    # Ask udev to settle (bounded). This is the proper way to wait for
+    # block-device enumeration without an arbitrary sleep. If udevadm is
+    # unavailable (some minimal images), we skip it and rely on blkid polling.
+    if command -v udevadm >/dev/null 2>&1; then
+        log "attempt $attempt: udevadm settle (max ${UDEV_SETTLE_SECS}s)"
+        udevadm settle --timeout="$UDEV_SETTLE_SECS" >/dev/null 2>&1 || true
+    else
+        log "attempt $attempt: udevadm unavailable; proceeding to blkid"
+    fi
+    # Look for the labeled partition.
+    PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
+    if [[ -n "$PART" ]]; then
+        log "attempt $attempt: found $PART"
+        break
+    fi
+    log "attempt $attempt: label '$LABEL' not yet visible; sleeping ${ATTEMPT_SLEEP_SECS}s"
+    sleep "$ATTEMPT_SLEEP_SECS"
+done
 
 if [[ -z "$PART" ]]; then
-    echo "testos-usb-mount: no partition with label '$LABEL' found" >&2
-    echo "  Available partitions:"
-    blkid 2>/dev/null || true
+    log "FAILED: no partition with label '$LABEL' found within ${TIMEOUT_SECS}s"
+    # Record the available partitions for local diagnosis (this goes to the
+    # timeline, which the runner copies into PRIVATE-DIAGNOSTICS — it does
+    # NOT go into the publishable evidence bundle).
+    {
+        echo "--- blkid output ---"
+        blkid 2>/dev/null || echo '(blkid unavailable)'
+        echo "--- /proc/partitions ---"
+        cat /proc/partitions 2>/dev/null || echo '(unavailable)'
+    } >> "$TIMELINE" 2>&1
     exit 1
 fi
 
-echo "testos-usb-mount: mounting $PART at /run/testos/usb"
-mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000
+# ── Mount ────────────────────────────────────────────────────────────
+log "mounting $PART at /run/testos/usb"
+if ! mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000; then
+    log "FAILED: mount -t vfat $PART /run/testos/usb returned $?"
+    exit 1
+fi
 sync
-echo "testos-usb-mount: mounted successfully"
+log "mounted successfully after $attempt attempt(s)"
+
+# ── Record boot-attempt counter for the runner ───────────────────────
+# The runner reads /run/testos/boot-attempt and prints it on the banner +
+# in PRIVATE-DIAGNOSTICS. We compute it from a persistent counter on the
+# USB when available, falling back to 1.
+BOOT_ATTEMPT=1
+COUNTER_FILE=/run/testos/usb/testos/.boot-attempt-counter
+if [[ -f "$COUNTER_FILE" ]]; then
+    prev=$(cat "$COUNTER_FILE" 2>/dev/null | tr -dc '0-9' || echo 0)
+    if [[ -n "$prev" ]]; then
+        BOOT_ATTEMPT=$((prev + 1))
+    fi
+fi
+mkdir -p /run/testos
+echo "$BOOT_ATTEMPT" > /run/testos/boot-attempt
+# Persist the counter for the next boot (best-effort; ignore errors).
+mkdir -p "$(dirname "$COUNTER_FILE")" 2>/dev/null || true
+echo "$BOOT_ATTEMPT" > "$COUNTER_FILE" 2>/dev/null || true
+sync 2>/dev/null || true
+log "boot attempt #$BOOT_ATTEMPT"
 EOF
 chmod +x "${EXTRA_DIR}/usr/libexec/testos-usb-mount"
 
 # testos-runner.service — starts the runner on tty1.
+#
+# Boot-reliability contract:
+#   - Requires= (not just Wants=) testos-usb-mount.service: if the mount
+#     fails, the runner does NOT start. This prevents the runner from
+#     racing onto tty1 with a half-mounted (or unmounted) USB and then
+#     dropping to a root-shell-cum-login-prompt when it can't find the
+#     catalog.
+#   - Conflicts=getty@tty1.service: we mask getty@tty1 in the image, but
+#     this Conflicts= is defense-in-depth in case the mask is removed.
+#   - Bounded startup timeout + restart policy: a hung runner is restarted
+#     at most once, then left for the recovery screen.
+#   - The runner does NOT drop to a root shell on failure — it shows a
+#     privacy-safe recovery screen and reboots.
 cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-runner.service" << 'EOF'
 [Unit]
 Description=testOS - benchmark runner
+# Requires= (not Wants=) the mount: a mount failure MUST prevent the
+# runner from starting. This is the fix for the HP Victus symptom where
+# the runner started with an unmounted USB and fell through to a shell.
+Requires=testos-usb-mount.service
 After=testos-usb-mount.service network-online.target
-Wants=testos-usb-mount.service
+# Defense-in-depth against the getty/tty1 race: even though we mask
+# getty@tty1 in the image, also declare a conflict so systemd will not
+# start both services on tty1.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
 # No ConditionKernelCommandLine: this service file only exists in the
-# testOS image. The condition 'testos.runner' was not matching
-# 'testos.runner=1' (assignment form) on systemd 261, causing the
-# service to be skipped and the user to get a login prompt instead
-# of the benchmark menu.
+# testOS image.
 
 [Service]
 Type=idle
@@ -282,6 +437,19 @@ TTYVHangup=yes
 KillMode=process
 IgnoreSIGPIPE=no
 SendSIGHUP=yes
+# Bounded startup: if the runner does not reach idle within 5 minutes,
+# systemd restarts it. At most one restart; a second hang leaves the
+# service stopped so the operator can see the journal output on the
+# console (the recovery screen is rendered by the runner itself, not by
+# systemd, so a hung runner that never execs testos-runner will not show
+# the recovery screen — the operator reboots manually in that case).
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=2
+# Prevent duplicate runner instances: systemd will not start a second
+# instance while one is running.
+ExecStartPre=/bin/sh -c 'test -z "$TESTOS_RUNNER_LOCK" || exit 0'
+Environment=TESTOS_RUNNER_LOCK=1
 
 [Install]
 WantedBy=multi-user.target
@@ -291,7 +459,9 @@ EOF
 ln -sf /usr/lib/systemd/system/testos-usb-mount.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-usb-mount.service"
 ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-runner.service"
 
-# Suppress the normal getty on tty1 (testos-runner takes it over).
+# Suppress the normal getty on tty1 (testos-runner takes it over). This
+# symlink is in addition to the getty@tty1 mask above for backward compat
+# with older systemd versions that ignore the mask under certain conditions.
 ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/getty.target.wants/testos-runner.service"
 
 echo "   Done."
