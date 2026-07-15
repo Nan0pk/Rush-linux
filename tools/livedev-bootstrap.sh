@@ -342,8 +342,11 @@ do_auto() {
     echo
     log "Step 2/4: Generate benchmark plan."
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo "    [dry-run] python3 tools/livedev-next --plan"
+        echo "    [dry-run] python3 tools/livedev-next --plan --dry-run --baseline-only"
     else
+        # Physical run: pass --baseline-only WITHOUT --dry-run so
+        # rush-autopilot generates a real plan with dry_run=false,
+        # current UTC generated_at, and the exact source commit.
         python3 tools/livedev-next --plan --baseline-only || die "Plan generation failed."
         ok "Plan generated: /tmp/rush-livedev-plan.json"
         local generated_plan="/tmp/rush-livedev-plan.json"

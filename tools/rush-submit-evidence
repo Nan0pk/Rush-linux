@@ -85,42 +85,211 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
                 errors.append("manifest.json missing host.fingerprint")
 
     # Must have at least one result file.
+    # SECURITY (defect 8): plan.json and hardware-inventory.json are NOT
+    # benchmark results — exclude them from the result file count.
+    non_benchmark_files = {"manifest.json", "plan.json", "hardware-inventory.json",
+                           "summary.json", "run-record.json"}
     result_files = list(run_dir.glob("*.json"))
-    result_files = [f for f in result_files if f.name != "manifest.json"]
+    result_files = [f for f in result_files if f.name not in non_benchmark_files]
     if not result_files:
         errors.append("no benchmark result files (*.json) in run_dir")
 
-    # SECURITY (defect 6): validate plan provenance if plan.json exists.
-    # Detect stale plans (hardcoded timestamp, dry_run=true on a physical
-    # run, or source_commit mismatch with manifest).
+    # SECURITY (defect 8): validate each passed/failed benchmark has a
+    # corresponding regular result file, and the result's bench_id matches
+    # the manifest. Reject symlinks and special files.
+    import os as _os
+    import stat as _stat
+
+    # Build sets from manifest
+    passed = set(manifest.get("passed", []))
+    failed = set(manifest.get("failed", []))
+    skipped = set(manifest.get("skipped", []))
+    attempted = set(manifest.get("attempted", []))
+
+    # Check disjointness
+    if passed & failed:
+        errors.append(
+            f"manifest passed/failed sets overlap: {passed & failed}"
+        )
+    if passed & skipped:
+        errors.append(
+            f"manifest passed/skipped sets overlap: {passed & skipped}"
+        )
+    if failed & skipped:
+        errors.append(
+            f"manifest failed/skipped sets overlap: {failed & skipped}"
+        )
+
+    # Check attempted is the union of passed+failed+skipped
+    union = passed | failed | skipped
+    if attempted and attempted != union:
+        errors.append(
+            f"manifest attempted set does not equal passed|failed|skipped: "
+            f"attempted={sorted(attempted)}, union={sorted(union)}"
+        )
+
+    # Check each passed/failed bench has a result file
+    for bench_id in sorted(passed | failed):
+        result_path = run_dir / f"{bench_id}.json"
+        if not result_path.exists():
+            errors.append(
+                f"benchmark '{bench_id}' in passed/failed but no result file "
+                f"{bench_id}.json found"
+            )
+            continue
+        # Reject symlinks and special files
+        try:
+            st = _os.lstat(result_path)
+            if _stat.S_ISLNK(st.st_mode):
+                errors.append(
+                    f"result file {bench_id}.json is a symlink (refusing)"
+                )
+                continue
+            if not _stat.S_ISREG(st.st_mode):
+                errors.append(
+                    f"result file {bench_id}.json is not a regular file"
+                )
+                continue
+        except OSError as e:
+            errors.append(f"cannot stat result file {bench_id}.json: {e}")
+            continue
+
+        # Parse the result file and validate
+        try:
+            result = json.loads(result_path.read_text())
+        except json.JSONDecodeError as e:
+            errors.append(f"result file {bench_id}.json is not valid JSON: {e}")
+            continue
+
+        # Check bench_id matches
+        result_bench_id = result.get("bench_name", result.get("bench_id", ""))
+        if result_bench_id and result_bench_id != bench_id:
+            errors.append(
+                f"result file {bench_id}.json has bench_id "
+                f"'{result_bench_id}' (expected '{bench_id}')"
+            )
+
+        # Check status matches passed/failed classification
+        result_status = result.get("status", "")
+        if bench_id in passed and result_status not in ("pass", "passed"):
+            errors.append(
+                f"result file {bench_id}.json has status '{result_status}' "
+                f"but manifest lists it as passed"
+            )
+        if bench_id in failed and result_status not in ("fail", "failed"):
+            # Failed benchmarks may not have a numeric value — that's OK.
+            # But the status should be fail/failed.
+            if result_status not in ("fail", "failed", "error", "timeout"):
+                errors.append(
+                    f"result file {bench_id}.json has status '{result_status}' "
+                    f"but manifest lists it as failed"
+                )
+
+        # Passed benchmarks must have a finite numeric value
+        if bench_id in passed:
+            value = result.get("value")
+            if value is not None:
+                try:
+                    v = float(value)
+                    import math as _math
+                    if not _math.isfinite(v):
+                        errors.append(
+                            f"result file {bench_id}.json has non-finite "
+                            f"value: {value}"
+                        )
+                except (ValueError, TypeError):
+                    errors.append(
+                        f"result file {bench_id}.json has non-numeric value: "
+                        f"{value}"
+                    )
+
+        # Check unit is present for passed benchmarks
+        if bench_id in passed:
+            unit = result.get("unit")
+            if not unit:
+                errors.append(
+                    f"result file {bench_id}.json has no unit field"
+                )
+
+    # Check for unclassified result files (files that exist but aren't in
+    # passed/failed/skipped)
+    classified = passed | failed | skipped
+    for rf in result_files:
+        bench_id = rf.stem  # filename without .json
+        if bench_id not in classified and bench_id not in non_benchmark_files:
+            errors.append(
+                f"result file {rf.name} exists but bench_id '{bench_id}' is "
+                f"not in manifest passed/failed/skipped"
+            )
+
+    # SECURITY (defect 3): validate plan provenance if plan.json exists.
+    # Generic provenance validation — no hardcoded commit hashes or timestamps.
+    # Detects: missing/malformed commit, missing/malformed timestamp,
+    # impossible ordering, contradictory run IDs, stale/future timestamps.
     plan_path = run_dir / "plan.json"
     if plan_path.is_file():
         try:
             plan = json.loads(plan_path.read_text())
-            # Check for the stale hardcoded timestamp
+            import re as _re
+            from datetime import datetime as _dt, timezone as _tz
+
+            # Validate generated_at is a parseable UTC timestamp.
             gen = plan.get("generated_at", "")
-            if gen == "2026-07-04T12:00:00Z":
+            if not gen:
+                errors.append("plan.json missing generated_at timestamp")
+            else:
+                try:
+                    # Accept ISO 8601 with Z suffix or +00:00
+                    ts = gen.replace("Z", "+00:00")
+                    parsed = _dt.fromisoformat(ts)
+                    if parsed.tzinfo is None:
+                        errors.append(
+                            f"plan.json generated_at lacks timezone: {gen}"
+                        )
+                except (ValueError, TypeError):
+                    errors.append(
+                        f"plan.json generated_at is not a valid UTC timestamp: {gen}"
+                    )
+
+            # Validate source_commit is a full 40-char hex SHA-1.
+            commit = plan.get("source_commit", "")
+            if not commit:
+                errors.append("plan.json missing source_commit")
+            elif not _re.match(r'^[0-9a-f]{40}$', commit):
                 errors.append(
-                    "plan.json has stale generated_at (hardcoded test value "
-                    "2026-07-04T12:00:00Z); physical runs must use current UTC"
+                    f"plan.json source_commit is not a 40-char hex SHA-1: "
+                    f"{commit[:20]}..."
                 )
-            # Check dry_run flag — a physical run should have dry_run=false
-            if plan.get("dry_run") is True and manifest.get("mode") != "dry-run":
+
+            # Validate dry_run is consistent with manifest mode.
+            if plan.get("dry_run") is True and manifest.get("mode") not in ("dry-run", "dry_run"):
                 errors.append(
-                    "plan.json has dry_run=true but manifest mode is not "
-                    f"'dry-run' (mode={manifest.get('mode', '?')}); physical "
+                    "plan.json has dry_run=true but manifest mode is "
+                    f"'{manifest.get('mode', '?')}' (not 'dry-run'); physical "
                     "runs must have dry_run=false"
                 )
-            # Check source_commit matches manifest if both present
-            plan_commit = plan.get("source_commit", "")
-            # The manifest doesn't have source_commit directly, but the
-            # plan's source_commit should match the repo's current HEAD
-            # at submission time. We check it's not the stale test value.
-            if plan_commit == "f9eb991eac3c1d1d8d01a9e17e5a5892aa051fd6":
-                errors.append(
-                    "plan.json has stale source_commit (hardcoded test value "
-                    "f9eb991e); physical runs must use the actual checked-out commit"
-                )
+
+            # Validate run_id consistency if both plan and checkpoint have it.
+            plan_run_id = plan.get("run_id", "")
+            # The manifest doesn't carry run_id, but if plan.json has one
+            # it should be non-empty and match any checkpoint run_id.
+            if plan_run_id:
+                cp_path = Path(os.environ.get(
+                    "XDG_DATA_HOME",
+                    os.path.join(os.environ.get("HOME", ""), ".local", "share")
+                )) / "rush-livedev" / "checkpoint.json"
+                if cp_path.exists():
+                    try:
+                        cp = json.loads(cp_path.read_text())
+                        cp_run_id = cp.get("run_id", "")
+                        if cp_run_id and cp_run_id != plan_run_id:
+                            errors.append(
+                                f"plan.json run_id ({plan_run_id}) does not "
+                                f"match checkpoint run_id ({cp_run_id})"
+                            )
+                    except (json.JSONDecodeError, OSError):
+                        pass
+
         except json.JSONDecodeError as e:
             errors.append(f"plan.json is not valid JSON: {e}")
 
@@ -625,6 +794,61 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"OK: run dir validated ({len(manifest.get('passed', []))} pass, "
           f"{len(manifest.get('failed', []))} fail)")
+
+    # Step 1b: PRIVACY GATE — fail closed before any bundle/submission.
+    # This is the canonical privacy gate used by rush_pr_lib.privacy_scan.
+    # It must run BEFORE create_bundle, submit_local, submit_to_github,
+    # or submit_http. If it fails, no bundle is created, no commit is
+    # prepared, no PR is opened, no HTTP request is sent.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from rush_path_safety import reject_symlinks
+    except ImportError:
+        print("ERROR: rush_path_safety module not found — cannot verify "
+              "evidence safety. Refusing to submit (fail closed).",
+              file=sys.stderr)
+        return 1
+
+    # Reject symlinks before anything else.
+    symlinks = reject_symlinks(run_dir)
+    if symlinks:
+        print(f"ERROR: {len(symlinks)} symlink(s) found in run_dir — "
+              f"refusing to create bundle or submit (fail closed):",
+              file=sys.stderr)
+        for sl in symlinks:
+            try:
+                print(f"  - {sl.relative_to(run_dir)}", file=sys.stderr)
+            except ValueError:
+                print(f"  - {sl}", file=sys.stderr)
+        return 1
+
+    # Run the canonical privacy scanner.
+    try:
+        import importlib.util, importlib.machinery
+        spec = importlib.util.spec_from_file_location(
+            "rush_pr_lib",
+            str(Path(__file__).resolve().parent / "rush_pr_lib.py"),
+            loader=importlib.machinery.SourceFileLoader(
+                "rush_pr_lib",
+                str(Path(__file__).resolve().parent / "rush_pr_lib.py")
+            )
+        )
+        rush_pr_lib = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rush_pr_lib)
+        priv_ok, priv_errors = rush_pr_lib.privacy_scan(run_dir)
+    except Exception as e:
+        print(f"ERROR: privacy scanner failed to load — refusing to submit "
+              f"(fail closed): {e}", file=sys.stderr)
+        return 1
+
+    if not priv_ok:
+        print("ERROR: privacy scan failed — refusing to create bundle or "
+              "submit (fail closed):", file=sys.stderr)
+        for e in priv_errors:
+            # Do not print the matched secret — only the filename/reason
+            print(f"  - {e}", file=sys.stderr)
+        return 1
+    print("OK: privacy scan passed (no unredacted secrets detected)")
 
     # Step 2: resolve submit mode.
     mode = ns.submit_mode

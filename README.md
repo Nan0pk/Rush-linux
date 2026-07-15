@@ -499,6 +499,7 @@ python3 -m pytest \
   tools/test-submit-evidence.py \
   tools/test-testos-plan-units-timing.py \
   tools/test-testos-real-hardware-defects.py \
+  tools/test-testos-real-path-validation.py \
   tools/test-validate-hwtest-evidence.py
 ```
 
