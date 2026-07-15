@@ -115,20 +115,17 @@ fn main() {
     // an unsigned/default run. The operator must re-prepare the USB from a
     // host that has a valid plan + checkpoint.
     let bench_list_path = usb.join(BENCH_LIST_REL);
-    let intent_raw_bytes: Vec<u8> = std::fs::read(usb.join(testos::run_intent::INTENT_FILENAME))
-        .unwrap_or_else(|_| Vec::new());
-    let intent: RunIntent = match RunIntent::load_and_validate(
-        usb,
-        &running_testos_version,
-        &bench_list_path,
-    ) {
-        Ok(i) => i,
-        Err(e) => {
-            // The intent is the cryptographic association between the host
-            // and the runner. Without it, any results we write would be
-            // unverifiable. Fail closed.
-            fail_with_diag(&format!(
-                "ERROR: run-intent validation failed.\n\
+    let intent_raw_bytes: Vec<u8> =
+        std::fs::read(usb.join(testos::run_intent::INTENT_FILENAME)).unwrap_or_else(|_| Vec::new());
+    let intent: RunIntent =
+        match RunIntent::load_and_validate(usb, &running_testos_version, &bench_list_path) {
+            Ok(i) => i,
+            Err(e) => {
+                // The intent is the cryptographic association between the host
+                // and the runner. Without it, any results we write would be
+                // unverifiable. Fail closed.
+                fail_with_diag(&format!(
+                    "ERROR: run-intent validation failed.\n\
                  The host planner must write a valid run-intent.json to the\n\
                  USB before boot. testOS will not run benchmarks without one.\n\
                  \n\
@@ -137,10 +134,10 @@ fn main() {
                  To recover: re-prepare the USB on the host with\n\
                  `python3 tools/livedev-next --prepare-usb` (or --auto),\n\
                  then reboot from the freshly-prepared USB.",
-                e
-            ));
-        }
-    };
+                    e
+                ));
+            }
+        };
     println!("  Run intent: run_id={}", intent.run_id);
     println!("  Source commit: {}", intent.source_commit);
     println!("  Source version: {}", intent.source_version);
@@ -400,10 +397,7 @@ fn main() {
     let intent_dest = results_dir.join("run-intent.json");
     if !intent_raw_bytes.is_empty() {
         if let Err(e) = std::fs::write(&intent_dest, &intent_raw_bytes) {
-            eprintln!(
-                "WARNING: failed to write run-intent.json to results: {}",
-                e
-            );
+            eprintln!("WARNING: failed to write run-intent.json to results: {}", e);
         }
     }
     // The host planner writes plan.json alongside run-intent.json at the USB
