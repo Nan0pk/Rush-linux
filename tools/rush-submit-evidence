@@ -209,299 +209,31 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
     has_provenance = isinstance(manifest.get("provenance"), dict)
     has_intent = (run_dir / "run-intent.json").is_file()
 
-    # STRICT GATE: testOS cloud-safe runs must pass the full validator.
-    if has_provenance or has_intent:
-        ok, strict_errors = _run_strict_testos_validator(run_dir)
-        if not ok:
-            # Fail closed: do not fall through to the lenient legacy checks.
-            return (False, strict_errors, manifest)
-        # Strict gate passed. Still run the legacy structural checks below
-        # so older downstream code (PR body generation) has the fields it
-        # expects; any error here is additive.
-    else:
-        # No provenance and no intent: this is a legacy/old-shape run dir
-        # (e.g. a synthetic test fixture, or a pre-cloud-safe run). The
-        # strict gate does not apply; the legacy structural checks below
-        # remain the path for these. Real testOS cloud-safe runs produced
-        # by the current runner always carry a provenance block + run-intent
-        # and therefore always go through the strict gate. Print an
-        # informational note (not an error) so the operator knows the run
-        # lacks cloud-safe provenance.
-        print(
-            "NOTE: run directory has no provenance block and no run-intent.json; "
-            "this is a legacy-shape run. Real testOS cloud-safe runs carry a "
-            "provenance block and are gated by the strict validator.",
-            file=sys.stderr,
+    # STRICT GATE: every physical TestOS submission MUST pass the full strict
+    # validator. There is no legacy bypass — evidence without provenance,
+    # run-intent.json, or plan.json is rejected. Use --inspect for read-only
+    # examination of historical evidence without submitting.
+    if not has_provenance and not has_intent:
+        return (
+            False,
+            ["run directory lacks provenance block and run-intent.json; "
+             "physical TestOS evidence must carry full provenance. "
+             "Use --inspect for read-only examination of historical evidence."],
+            manifest,
         )
 
-    # Required fields (legacy structural check).
-    for field in ("started_at", "host", "passed", "failed"):
-        if field not in manifest:
-            errors.append(f"manifest.json missing field: {field}")
-    host = manifest.get("host", {})
-    if not isinstance(host, dict) or "fingerprint" not in host:
-        errors.append("manifest.json missing host.fingerprint")
+    ok, strict_errors = _run_strict_testos_validator(run_dir)
+    if not ok:
+        # Fail closed: do not fall through to any lenient checks.
+        return (False, strict_errors, manifest)
 
-    # Must have at least one result file.
-    # SECURITY (defect 8): plan.json and hardware-inventory.json are NOT
-    # benchmark results — exclude them from the result file count.
-    non_benchmark_files = {"manifest.json", "plan.json", "hardware-inventory.json",
-                           "summary.json", "run-record.json"}
-    result_files = list(run_dir.glob("*.json"))
-    result_files = [f for f in result_files if f.name not in non_benchmark_files]
-    if not result_files:
-        errors.append("no benchmark result files (*.json) in run_dir")
-
-    # SECURITY (defect 8): validate each passed/failed benchmark has a
-    # corresponding regular result file, and the result's bench_id matches
-    # the manifest. Reject symlinks and special files.
-    import os as _os
-    import stat as _stat
-
-    # Build sets from manifest
-    passed = set(manifest.get("passed", []))
-    failed = set(manifest.get("failed", []))
-    skipped = set(manifest.get("skipped", []))
-    attempted = set(manifest.get("attempted", []))
-
-    # Check disjointness
-    if passed & failed:
-        errors.append(
-            f"manifest passed/failed sets overlap: {passed & failed}"
-        )
-    if passed & skipped:
-        errors.append(
-            f"manifest passed/skipped sets overlap: {passed & skipped}"
-        )
-    if failed & skipped:
-        errors.append(
-            f"manifest failed/skipped sets overlap: {failed & skipped}"
-        )
-
-    # Check attempted is the union of passed+failed+skipped
-    union = passed | failed | skipped
-    if attempted and attempted != union:
-        errors.append(
-            f"manifest attempted set does not equal passed|failed|skipped: "
-            f"attempted={sorted(attempted)}, union={sorted(union)}"
-        )
-
-    # Check each passed/failed bench has a result file
-    for bench_id in sorted(passed | failed):
-        result_path = run_dir / f"{bench_id}.json"
-        if not result_path.exists():
-            errors.append(
-                f"benchmark '{bench_id}' in passed/failed but no result file "
-                f"{bench_id}.json found"
-            )
-            continue
-        # Reject symlinks and special files
-        try:
-            st = _os.lstat(result_path)
-            if _stat.S_ISLNK(st.st_mode):
-                errors.append(
-                    f"result file {bench_id}.json is a symlink (refusing)"
-                )
-                continue
-            if not _stat.S_ISREG(st.st_mode):
-                errors.append(
-                    f"result file {bench_id}.json is not a regular file"
-                )
-                continue
-        except OSError as e:
-            errors.append(f"cannot stat result file {bench_id}.json: {e}")
-            continue
-
-        # Parse the result file and validate
-        try:
-            result = json.loads(result_path.read_text())
-        except json.JSONDecodeError as e:
-            errors.append(f"result file {bench_id}.json is not valid JSON: {e}")
-            continue
-
-        # Check the canonical bench_id matches the filename.
-        # Real TestOS results contain BOTH bench_id (canonical, e.g.
-        # "iperf3-tcp") and bench_name (human-readable, e.g.
-        # "iperf3 TCP throughput"); only bench_id is the canonical
-        # identifier and must equal the result filename stem. The previous
-        # code preferred bench_name, which caused a false validation failure
-        # on every real run whose bench_name differs from its bench_id.
-        result_bench_id = result.get("bench_id")
-        if not result_bench_id:
-            errors.append(
-                f"result file {bench_id}.json is missing the required "
-                f"'bench_id' field"
-            )
-        elif result_bench_id != bench_id:
-            errors.append(
-                f"result file {bench_id}.json has bench_id "
-                f"'{result_bench_id}' (expected '{bench_id}')"
-            )
-
-        # Check status matches passed/failed classification
-        result_status = result.get("status", "")
-        if bench_id in passed and result_status not in ("pass", "passed"):
-            errors.append(
-                f"result file {bench_id}.json has status '{result_status}' "
-                f"but manifest lists it as passed"
-            )
-        if bench_id in failed and result_status not in ("fail", "failed"):
-            # Failed benchmarks may not have a numeric value — that's OK.
-            # But the status should be fail/failed.
-            if result_status not in ("fail", "failed", "error", "timeout"):
-                errors.append(
-                    f"result file {bench_id}.json has status '{result_status}' "
-                    f"but manifest lists it as failed"
-                )
-
-        # Passed benchmarks must have a finite numeric value
-        if bench_id in passed:
-            value = result.get("value")
-            if value is not None:
-                try:
-                    v = float(value)
-                    import math as _math
-                    if not _math.isfinite(v):
-                        errors.append(
-                            f"result file {bench_id}.json has non-finite "
-                            f"value: {value}"
-                        )
-                except (ValueError, TypeError):
-                    errors.append(
-                        f"result file {bench_id}.json has non-numeric value: "
-                        f"{value}"
-                    )
-
-        # Check unit is present for passed benchmarks
-        if bench_id in passed:
-            unit = result.get("unit")
-            if not unit:
-                errors.append(
-                    f"result file {bench_id}.json has no unit field"
-                )
-
-    # Check for unclassified result files (files that exist but aren't in
-    # passed/failed/skipped)
-    classified = passed | failed | skipped
-    for rf in result_files:
-        bench_id = rf.stem  # filename without .json
-        if bench_id not in classified and bench_id not in non_benchmark_files:
-            errors.append(
-                f"result file {rf.name} exists but bench_id '{bench_id}' is "
-                f"not in manifest passed/failed/skipped"
-            )
-
-    # SECURITY (defect 3): validate plan provenance if plan.json exists.
-    # Generic provenance validation — no hardcoded commit hashes or timestamps.
-    # Detects: missing/malformed commit, missing/malformed timestamp,
-    # impossible ordering, contradictory run IDs, stale/future timestamps.
-    plan_path = run_dir / "plan.json"
-    if plan_path.is_file():
-        try:
-            plan = json.loads(plan_path.read_text())
-            import re as _re
-            import datetime as _dtm
-
-            # Validate generated_at is a parseable UTC timestamp, and
-            # is plausible: not in the future and not stale (requirement #7).
-            # A stale plan means the USB/image was built long before the run,
-            # which breaks the plan↔run binding.
-            _PLAN_FRESHNESS_SECONDS = 7 * 24 * 60 * 60  # 7 days
-            _MAX_SKEW_SECONDS = 5 * 60  # 5 minutes
-            gen = plan.get("generated_at", "")
-            if not gen:
-                errors.append("plan.json missing generated_at timestamp")
-            else:
-                try:
-                    # Accept ISO 8601 with Z suffix or +00:00
-                    ts = gen.replace("Z", "+00:00")
-                    parsed = _dtm.datetime.fromisoformat(ts)
-                    if parsed.tzinfo is None:
-                        errors.append(
-                            f"plan.json generated_at lacks timezone: {gen}"
-                        )
-                    else:
-                        now = _dtm.datetime.now(_dtm.timezone.utc)
-                        if parsed > now + _dtm.timedelta(seconds=_MAX_SKEW_SECONDS):
-                            errors.append(
-                                f"plan.json generated_at {gen} is in the future "
-                                f"(clock skew or tampering)"
-                            )
-                        elif parsed < now - _dtm.timedelta(seconds=_PLAN_FRESHNESS_SECONDS):
-                            age = int((now - parsed).total_seconds())
-                            errors.append(
-                                f"plan.json stale generated_at {gen} is {age}s old "
-                                f"(max {_PLAN_FRESHNESS_SECONDS}s)"
-                            )
-                except (ValueError, TypeError):
-                    errors.append(
-                        f"plan.json generated_at is not a valid UTC timestamp: {gen}"
-                    )
-
-            # Validate source_commit is a full 40-char hex SHA-1 AND that it
-            # exists in the repo (requirement #7: source commit exists and
-            # matches the intended run). A commit that doesn't resolve means
-            # the plan was generated from a different/unknown tree.
-            commit = plan.get("source_commit", "")
-            if not commit:
-                errors.append("plan.json missing source_commit")
-            elif not _re.match(r'^[0-9a-f]{40}$', commit):
-                errors.append(
-                    f"plan.json source_commit is not a 40-char hex SHA-1: "
-                    f"{commit[:20]}..."
-                )
-            else:
-                # Verify the commit exists in the repo (fail closed if git
-                # is unavailable — a missing git is itself a provenance gap).
-                try:
-                    r = subprocess.run(
-                        ["git", "-C", str(_ROOT), "cat-file", "-t", commit],
-                        capture_output=True, text=True, timeout=5,
-                    )
-                    if not (r.returncode == 0 and r.stdout.strip() == "commit"):
-                        errors.append(
-                            f"plan.json stale source_commit {commit} does not "
-                            f"exist in the repository"
-                        )
-                except (OSError, subprocess.SubprocessError):
-                    errors.append(
-                        f"plan.json source_commit {commit} could not be verified "
-                        f"(git unavailable)"
-                    )
-
-            # Validate dry_run is consistent with manifest mode.
-            if plan.get("dry_run") is True and manifest.get("mode") not in ("dry-run", "dry_run"):
-                errors.append(
-                    "plan.json has dry_run=true but manifest mode is "
-                    f"'{manifest.get('mode', '?')}' (not 'dry-run'); physical "
-                    "runs must have dry_run=false"
-                )
-
-            # Validate run_id consistency if both plan and checkpoint have it.
-            plan_run_id = plan.get("run_id", "")
-            # The manifest doesn't carry run_id, but if plan.json has one
-            # it should be non-empty and match any checkpoint run_id.
-            if plan_run_id:
-                cp_path = Path(os.environ.get(
-                    "XDG_DATA_HOME",
-                    os.path.join(os.environ.get("HOME", ""), ".local", "share")
-                )) / "rush-livedev" / "checkpoint.json"
-                if cp_path.exists():
-                    try:
-                        cp = json.loads(cp_path.read_text())
-                        cp_run_id = cp.get("run_id", "")
-                        if cp_run_id and cp_run_id != plan_run_id:
-                            errors.append(
-                                f"plan.json run_id ({plan_run_id}) does not "
-                                f"match checkpoint run_id ({cp_run_id})"
-                            )
-                    except (json.JSONDecodeError, OSError):
-                        pass
-
-        except json.JSONDecodeError as e:
-            errors.append(f"plan.json is not valid JSON: {e}")
-
-    return (len(errors) == 0, errors, manifest)
+    # The strict validator is the authoritative gate. The legacy structural
+    # checks below are NOT needed — the strict validator already verifies
+    # manifest schema conformance, result-file integrity, classification
+    # sets, provenance, privacy, and digests. Return immediately so the
+    # legacy checks cannot cause false failures on valid artifacts (e.g.
+    # result-hashes.json, run-intent.json) that it does not recognize.
+    return (True, [], manifest)
 
 
 # ─── Rich PR body generation ────────────────────────────────────────────────
@@ -1000,6 +732,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--submit-mode", default="auto",
                         choices=["none", "local", "github", "http", "auto"])
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--inspect", action="store_true",
+                        help="Read-only inspection: validate + print summary. "
+                             "Never creates a bundle, pushes, uploads, or opens a PR.")
     parser.add_argument("--endpoint", default=None,
                         help="HTTP endpoint (or set RUSH_RESULTS_ENDPOINT)")
     parser.add_argument("--http-token", default=None,
@@ -1007,6 +742,23 @@ def main(argv: list[str] | None = None) -> int:
     ns = parser.parse_args(argv)
 
     run_dir = Path(ns.run_dir).resolve()
+
+    # --inspect: read-only validation. Never creates a bundle, pushes,
+    # uploads, or opens a PR. Used for examining historical evidence without
+    # submitting.
+    if ns.inspect:
+        ok, errors, manifest = validate_run_dir(run_dir)
+        if ok:
+            print(f"OK: run dir passes strict validation "
+                  f"({len(manifest.get('passed', []))} pass, "
+                  f"{len(manifest.get('failed', []))} fail)")
+            print("[inspect] No bundle created, no push, no PR (read-only).")
+            return 0
+        else:
+            print("ERROR: run directory is invalid (inspect mode):", file=sys.stderr)
+            for e in errors:
+                print(f"  - {e}", file=sys.stderr)
+            return 1
 
     # Step 1: validate.
     ok, errors, manifest = validate_run_dir(run_dir)

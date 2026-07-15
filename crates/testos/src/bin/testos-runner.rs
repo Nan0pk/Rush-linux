@@ -415,6 +415,25 @@ fn main() {
         let _ = std::fs::write(results_dir.join("bench-list.toml"), &cat_bytes);
     }
 
+    // Generate result-hashes.json: a deterministic SHA-256 entry for every
+    // benchmark result file. This sidecar is MANDATORY for strict submission —
+    // the evidence validator rejects any bundle without it, and rejects any
+    // missing, extra, or mismatched entry. Written after all results are
+    // finalized so a tampered result is detected on collection.
+    let result_hashes = compute_result_hashes(&results_dir);
+    match serde_json::to_string_pretty(&result_hashes) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(results_dir.join("result-hashes.json"), json) {
+                eprintln!(
+                    "WARNING: failed to write result-hashes.json to {}: {}",
+                    results_dir.display(),
+                    e
+                );
+            }
+        }
+        Err(e) => eprintln!("WARNING: failed to serialize result-hashes.json: {}", e),
+    }
+
     // Capture system-level logs into the results directory for post-mortem
     // analysis. These are invaluable for debugging boot failures, hardware
     // detection issues, and benchmark crashes.
@@ -732,6 +751,39 @@ extern "C" {
 }
 unsafe fn libc_read(fd: i32, buf: *mut u8, count: usize) -> isize {
     read(fd, buf as *mut _, count)
+}
+
+/// Compute SHA-256 for every per-benchmark result file in `results_dir`.
+/// Returns a map of filename → hex SHA-256. Only files matching
+/// `*.json` that are NOT top-level metadata (manifest.json, run-intent.json,
+/// plan.json, result-hashes.json) are hashed.
+fn compute_result_hashes(results_dir: &Path) -> std::collections::BTreeMap<String, String> {
+    let mut hashes = std::collections::BTreeMap::new();
+    let skip = [
+        "manifest.json",
+        "run-intent.json",
+        "plan.json",
+        "result-hashes.json",
+        "expected.json",
+    ];
+    if let Ok(entries) = std::fs::read_dir(results_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = match name.to_str() {
+                Some(s) => s,
+                None => continue,
+            };
+            if !name_str.ends_with(".json") || skip.contains(&name_str) {
+                continue;
+            }
+            // Read the file bytes and hash them.
+            if let Ok(data) = std::fs::read(entry.path()) {
+                let h = testos::run_intent::sha256_hex(&data);
+                hashes.insert(name_str.to_string(), h);
+            }
+        }
+    }
+    hashes
 }
 
 fn iso_utc_now() -> String {

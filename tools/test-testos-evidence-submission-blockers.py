@@ -90,6 +90,10 @@ def _sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+def _sha256_file(p: Path) -> str:
+    return _sha256_bytes(p.read_bytes())
+
+
 # A realistic per-benchmark result in the EXACT shape the Rust TestOS runner
 # emits (crates/testos/src/results.rs::BenchResult). bench_id is canonical
 # and equals the filename stem; bench_name is human-readable and may differ.
@@ -113,27 +117,83 @@ def _rust_runner_result(bench_id: str, bench_name: str, *, status: str = "pass",
     return r
 
 
-def _write_legacy_run_dir(tmp: Path, *, results: dict[str, dict],
-                          passed=None, failed=None, mode: str = "all") -> Path:
-    """Write a legacy-shape run dir (no provenance/run-intent)."""
+def _write_provenance_run_dir(tmp: Path, *, results: dict[str, dict],
+                              passed=None, failed=None, mode: str = "all",
+                              source_commit_override: str | None = None) -> Path:
+    """Write a fully provenance-bound run dir matching the Rust runner output.
+
+    Includes manifest.json with provenance, run-intent.json, plan.json,
+    bench-list.toml, source-sha.txt, and result-hashes.json — the exact
+    shape the strict validator requires for physical TestOS submission.
+    """
     run_dir = tmp / "run"
     run_dir.mkdir(parents=True, exist_ok=True)
+    head = source_commit_override or _git_head()
+    version = _version()
+    catalog = _bench_list_bytes()
+    catalog_sha = _sha256_bytes(catalog)
     ids = [name.removesuffix(".json") for name in results]
+
+    # Valid plan matching the intent.
+    plan = {
+        "schema_version": 1, "plan_kind": "rush-autopilot-plan",
+        "generated_at": _now_iso(), "source_version": version,
+        "source_commit": head, "dry_run": False,
+        "campaign_scope": "comparative", "hardware_slot": "laptop",
+        "slot_confidence": "high", "ambiguities": [],
+        "open_criteria": [], "existing_evidence": [], "steps": [],
+        "repo_root": ".",
+    }
+    plan_raw = json.dumps(plan).encode()
+    plan_sha = _sha256_bytes(plan_raw)
+
+    # Valid run-intent.
+    intent = {
+        "schema_version": 1, "intent_kind": "testos-run-intent",
+        "run_id": "blockers-test-0001", "source_commit": head,
+        "source_version": version, "testos_version": version,
+        "testos_image_digest": f"sha256:{'a' * 64}",
+        "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
+        "generated_at": _now_iso(), "dry_run": False,
+        "checkpoint_nonce": "ckpt-blockers-0001",
+        "campaign_id": "campaign-blockers-001",
+    }
+    intent_raw = json.dumps(intent, indent=2, sort_keys=True).encode()
+    intent_sha = _sha256_bytes(intent_raw)
+
+    passed_list = passed if passed is not None else [i for i, r in results.items() if r.get("status") == "pass"]
+    failed_list = failed if failed is not None else [i for i, r in results.items() if r.get("status") not in ("pass",)]
+
     manifest = {
         "schema_version": 1,
-        "started_at": _now_iso(),
-        "finished_at": _now_iso(),
+        "started_at": _now_iso(), "finished_at": _now_iso(),
         "mode": mode,
         "attempted": ids,
-        "passed": passed if passed is not None else [i for i, r in results.items() if r.get("status") == "pass"],
-        "failed": failed if failed is not None else [i for i, r in results.items() if r.get("status") not in ("pass",)],
-        "skipped": [],
+        "passed": passed_list, "failed": failed_list, "skipped": [],
         "host": {"fingerprint": "test-host-0012"},
-        "testos_version": _version(),
+        "testos_version": version,
+        "provenance": {
+            "run_id": intent["run_id"], "source_commit": head,
+            "source_version": version, "testos_version": version,
+            "testos_image_digest": intent["testos_image_digest"],
+            "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
+            "intent_generated_at": intent["generated_at"],
+            "intent_dry_run": False,
+            "checkpoint_nonce": intent["checkpoint_nonce"],
+            "intent_sha256": intent_sha,
+            "campaign_id": intent["campaign_id"],
+        },
     }
-    (run_dir / "manifest.json").write_text(json.dumps(manifest))
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
     for name, data in results.items():
         (run_dir / name).write_text(json.dumps(data))
+    (run_dir / "run-intent.json").write_bytes(intent_raw)
+    (run_dir / "plan.json").write_bytes(plan_raw)
+    (run_dir / "bench-list.toml").write_bytes(catalog)
+    (run_dir / "source-sha.txt").write_text(head[:12])
+    # Auto-generate result-hashes from the actual result files.
+    auto_hashes = {name: _sha256_file(run_dir / name) for name in results}
+    (run_dir / "result-hashes.json").write_text(json.dumps(auto_hashes))
     return run_dir
 
 
@@ -152,7 +212,7 @@ def test_bug1_bench_id_canonical_not_bench_name():
                 status="pass", value=79.0, unit="Gbit/s",
             ),
         }
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert ok, f"realistic bench_id!=bench_name result rejected: {errors}"
 
@@ -162,14 +222,18 @@ def test_bug1_missing_bench_id_rejected():
     with tempfile.TemporaryDirectory() as tmp:
         results = {
             "iperf3-tcp.json": {
+                "schema_version": 1,
                 "bench_name": "iperf3 TCP throughput",  # no bench_id
                 "status": "pass", "value": 79.0, "unit": "Gbit/s",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.5, "scenario": "server-throughput",
+                "host": {"fingerprint": "test-host-0012"},
             },
         }
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert not ok
-        assert any("missing the required 'bench_id'" in e for e in errors), errors
+        assert any("missing required" in e and "bench_id" in e for e in errors), errors
 
 
 def test_bug1_bench_id_mismatch_rejected():
@@ -181,10 +245,10 @@ def test_bug1_bench_id_mismatch_rejected():
                 status="pass", value=79.0, unit="Gbit/s",
             ),
         }
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert not ok
-        assert any("bench_id" in e and "expected" in e for e in errors), errors
+        assert any("bench_id" in e and "wrong-id" in e for e in errors), errors
 
 
 def test_bug1_bench_name_alone_never_accepted_as_identity():
@@ -193,14 +257,18 @@ def test_bug1_bench_name_alone_never_accepted_as_identity():
     with tempfile.TemporaryDirectory() as tmp:
         results = {
             "iperf3-tcp.json": {
+                "schema_version": 1,
                 "bench_name": "iperf3-tcp",  # equals stem, but wrong field
                 "status": "pass", "value": 79.0, "unit": "Gbit/s",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.5, "scenario": "server-throughput",
+                "host": {"fingerprint": "test-host-0012"},
             },
         }
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert not ok
-        assert any("missing the required 'bench_id'" in e for e in errors), errors
+        assert any("missing required" in e and "bench_id" in e for e in errors), errors
 
 
 # ─── Bug 2: privacy scanner import + positive end-to-end ────────────────────
@@ -246,7 +314,7 @@ def test_bug2_positive_e2e_clean_run_passes_privacy_and_reaches_bundle():
                 status="pass", value=79.0, unit="Gbit/s",
             ),
         }
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         env = dict(os.environ)
         env["HOME"] = tmp  # isolate any checkpoint lookups
         r = subprocess.run(
@@ -275,7 +343,7 @@ def test_bug2_secret_in_clean_shape_is_rejected_by_privacy():
             ),
         }
         results["iperf3-tcp.json"]["stderr"] = f"GITHUB_TOKEN={realistic_token}"
-        run_dir = _write_legacy_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
+        run_dir = _write_provenance_run_dir(Path(tmp), results=results, passed=["iperf3-tcp"])
         r = subprocess.run(
             ["python3", str(TOOLS_DIR / "rush-submit-evidence"),
              str(run_dir), "--submit-mode", "local"],

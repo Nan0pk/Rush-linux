@@ -381,12 +381,41 @@ do_auto() {
     elif [[ "$TEST_SKIP_USB_WRITE" == "1" ]]; then
         ok "[TEST] USB write skipped after plan/checkpoint preparation."
     else
+        local _install_out=""
         if [[ -n "$DEVICE" ]]; then
-            sudo bash testos/install.sh "$DEVICE"
+            _install_out="$(sudo bash testos/install.sh "$DEVICE" 2>&1)" || \
+                { printf '%s\n' "$_install_out"; die "testOS install failed."; }
         else
-            sudo bash testos/install.sh
+            _install_out="$(sudo bash testos/install.sh 2>&1)" || \
+                { printf '%s\n' "$_install_out"; die "testOS install failed."; }
         fi
+        printf '%s\n' "$_install_out"
         ok "USB prepared."
+
+        # Step 3b: Generate and install run-intent.json + plan.json to the
+        # USB ESP so the testOS runner can verify the run contract on boot.
+        # This binds the run to the exact image bytes (SHA-256), the plan,
+        # the benchmark catalog, and the source commit.
+        local _image_path=""
+        _image_path="$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_RAW_IMAGE: //p' | head -1)"
+        local _usb_device="${DEVICE:-$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_USB_DEVICE: //p' | head -1)}"
+        if [[ -z "$_image_path" || -z "$_usb_device" ]]; then
+            warn "Could not extract image path/device from install.sh output."
+            warn "Run-intent.json will NOT be installed. The testOS runner will"
+            warn "refuse to run without it."
+            die "USB write succeeded but image identity not captured."
+        fi
+        echo
+        log "Step 3b: Installing run-intent.json + plan.json to USB."
+        python3 tools/testos_prepare_usb.py \
+            --repo-root "$REPO_DIR" \
+            --plan-path "$PLAN_PATH" \
+            --image-path "$_image_path" \
+            --run-id "$RUN_ID" \
+            --checkpoint-nonce "ckpt-${RUN_ID}" \
+            --device "$_usb_device" \
+            || die "Failed to install run-intent.json to USB."
+        ok "run-intent.json + plan.json installed and verified on USB."
     fi
 
     # Step 4: print exact reboot instructions.

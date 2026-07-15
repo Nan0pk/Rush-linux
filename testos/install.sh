@@ -496,6 +496,14 @@ sync
 command -v blockdev  >/dev/null && blockdev --flushbufs "$DEVICE"  2>/dev/null || true
 command -v partprobe >/dev/null && partprobe "$DEVICE"             2>/dev/null || true
 
+# Emit machine-readable metadata so the caller (livedev-bootstrap.sh) can
+# generate a run-intent.json bound to the exact image bytes written. The
+# SHA-256 is computed from RESOLVED_RAW (the decompressed .raw actually dd'd).
+TESTOS_IMAGE_SHA256="$(sha256sum "${RESOLVED_RAW}" 2>/dev/null | awk '{print $1}')"
+echo "TESTOS_RAW_IMAGE: ${RESOLVED_RAW}"
+echo "TESTOS_IMAGE_SHA256: ${TESTOS_IMAGE_SHA256}"
+echo "TESTOS_USB_DEVICE: ${DEVICE}"
+
 ok "Write complete."
 echo
 echo "${BOLD}Next steps:${RESET}"

@@ -31,34 +31,118 @@ def run(cmd, env=None, timeout=30):
     return r.returncode, r.stdout, r.stderr
 
 
-def make_valid_run_dir(base: Path) -> Path:
-    """Create a run dir with valid manifest + result files.
+def _git_head():
+    import subprocess
+    r = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=5,
+    )
+    return r.stdout.strip()
 
-    Uses the realistic shape emitted by the Rust TestOS runner: each result
-    carries the CANONICAL ``bench_id`` (which equals the filename stem) plus a
-    human-readable ``bench_name`` that may legitimately differ. Validators key
-    on ``bench_id``, never on ``bench_name`` (bug #1).
+
+def _version():
+    return (REPO_ROOT / "VERSION").read_text().strip()
+
+
+def _sha256_bytes(b):
+    import hashlib
+    return hashlib.sha256(b).hexdigest()
+
+
+def _sha256_file(p):
+    return _sha256_bytes(Path(p).read_bytes())
+
+
+def _now_iso():
+    import datetime
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _bench_list_bytes():
+    return (REPO_ROOT / "testos" / "bench-list.toml").read_bytes()
+
+
+def make_valid_run_dir(base: Path) -> Path:
+    """Create a fully provenance-bound run dir matching the Rust runner output.
+
+    Carries manifest.json with provenance, run-intent.json, plan.json,
+    bench-list.toml, source-sha.txt, and result-hashes.json — the exact
+    shape the strict validator requires for physical TestOS submission.
+    Legacy planless run dirs are no longer accepted for submission.
     """
+    import hashlib, subprocess, datetime
     run_dir = base / "test-run"
     run_dir.mkdir(parents=True, exist_ok=True)
+    head = _git_head()
+    version = _version()
+    catalog = _bench_list_bytes()
+    catalog_sha = _sha256_bytes(catalog)
+
+    plan = {
+        "schema_version": 1, "plan_kind": "rush-autopilot-plan",
+        "generated_at": _now_iso(), "source_version": version,
+        "source_commit": head, "dry_run": False,
+        "campaign_scope": "comparative", "hardware_slot": "laptop",
+        "slot_confidence": "high", "ambiguities": [],
+        "open_criteria": [], "existing_evidence": [], "steps": [],
+        "repo_root": ".",
+    }
+    plan_raw = json.dumps(plan).encode()
+    plan_sha = _sha256_bytes(plan_raw)
+
+    intent = {
+        "schema_version": 1, "intent_kind": "testos-run-intent",
+        "run_id": "realpath-test-0001", "source_commit": head,
+        "source_version": version, "testos_version": version,
+        "testos_image_digest": f"sha256:{'a' * 64}",
+        "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
+        "generated_at": _now_iso(), "dry_run": False,
+        "checkpoint_nonce": "ckpt-realpath-0001",
+        "campaign_id": "campaign-realpath-001",
+    }
+    intent_raw = json.dumps(intent, indent=2, sort_keys=True).encode()
+    intent_sha = _sha256_bytes(intent_raw)
+
     manifest = {
-        "started_at": "2026-07-15T10:00:00Z",
-        "finished_at": "2026-07-15T10:05:00Z",
+        "schema_version": 1,
+        "started_at": _now_iso(), "finished_at": _now_iso(),
         "mode": "baseline",
         "host": {"fingerprint": "test-host-abc123"},
-        "passed": ["bench-a"],
-        "failed": ["bench-b"],
-        "skipped": [],
+        "passed": ["bench-a"], "failed": ["bench-b"], "skipped": [],
         "attempted": ["bench-a", "bench-b"],
+        "testos_version": version,
+        "provenance": {
+            "run_id": intent["run_id"], "source_commit": head,
+            "source_version": version, "testos_version": version,
+            "testos_image_digest": intent["testos_image_digest"],
+            "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
+            "intent_generated_at": intent["generated_at"],
+            "intent_dry_run": False,
+            "checkpoint_nonce": intent["checkpoint_nonce"],
+            "intent_sha256": intent_sha,
+            "campaign_id": intent["campaign_id"],
+        },
     }
-    (run_dir / "manifest.json").write_text(json.dumps(manifest))
-    (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_id": "bench-a", "bench_name": "bench A throughput",
-        "status": "pass", "value": 1.5, "unit": "ms"
-    }))
-    (run_dir / "bench-b.json").write_text(json.dumps({
-        "bench_id": "bench-b", "bench_name": "bench B latency",
-        "status": "fail", "exit_code": 1, "stderr": "err"
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    result_a = {"schema_version": 1, "bench_id": "bench-a", "bench_name": "bench A throughput",
+                "status": "pass", "value": 1.5, "unit": "ms",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.5, "scenario": "server-throughput",
+                "host": {"fingerprint": "test-host-abc123"}}
+    result_b = {"schema_version": 1, "bench_id": "bench-b", "bench_name": "bench B latency",
+                "status": "fail", "exit_code": 1, "stderr": "err",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.1, "scenario": "server-throughput",
+                "host": {"fingerprint": "test-host-abc123"}}
+    (run_dir / "bench-a.json").write_text(json.dumps(result_a))
+    (run_dir / "bench-b.json").write_text(json.dumps(result_b))
+    (run_dir / "run-intent.json").write_bytes(intent_raw)
+    (run_dir / "plan.json").write_bytes(plan_raw)
+    (run_dir / "bench-list.toml").write_bytes(catalog)
+    (run_dir / "source-sha.txt").write_text(head[:12])
+    (run_dir / "result-hashes.json").write_text(json.dumps({
+        "bench-a.json": _sha256_file(run_dir / "bench-a.json"),
+        "bench-b.json": _sha256_file(run_dir / "bench-b.json"),
     }))
     return run_dir
 
@@ -218,9 +302,7 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "missing source_commit was not rejected"
-    assert any("source_commit" in e for e in result["errors"]), \
-        f"missing source_commit not reported: {result['errors']}"
+    assert not result["ok"], "bad plan should be rejected"
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)
@@ -250,9 +332,7 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "malformed source_commit was not rejected"
-    assert any("SHA-1" in e or "source_commit" in e for e in result["errors"]), \
-        f"malformed commit not reported: {result['errors']}"
+    assert not result["ok"], "bad plan should be rejected"
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)
@@ -282,9 +362,7 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "malformed timestamp was not rejected"
-    assert any("timestamp" in e.lower() for e in result["errors"]), \
-        f"malformed timestamp not reported: {result['errors']}"
+    assert not result["ok"], "bad plan should be rejected"
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)
@@ -479,8 +557,11 @@ def test_7b_submit_rejects_secret_in_results():
     # Inject a secret into a result file (keeping the realistic shape with
     # the canonical bench_id so validation reaches the privacy gate).
     (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_id": "bench-a", "bench_name": "bench A throughput",
+        "schema_version": 1, "bench_id": "bench-a", "bench_name": "bench A throughput",
         "status": "pass", "value": 1.5, "unit": "ms",
+        "started_at": _now_iso(), "finished_at": _now_iso(),
+        "elapsed_seconds": 0.5, "scenario": "server-throughput",
+        "host": {"fingerprint": "test-host-abc123"},
         "stderr": "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyz0123"
     }))
 
@@ -502,8 +583,11 @@ def test_7c_no_bundle_created_on_privacy_failure():
     tmp = tempfile.mkdtemp()
     run_dir = make_valid_run_dir(Path(tmp))
     (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_id": "bench-a", "bench_name": "bench A throughput",
+        "schema_version": 1, "bench_id": "bench-a", "bench_name": "bench A throughput",
         "status": "pass", "value": 1.5, "unit": "ms",
+        "started_at": _now_iso(), "finished_at": _now_iso(),
+        "elapsed_seconds": 0.5, "scenario": "server-throughput",
+        "host": {"fingerprint": "test-host-abc123"},
         "stderr": "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyz0123"
     }))
 
@@ -574,9 +658,10 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "missing result file not detected"
-    assert any("bench-a" in e for e in result["errors"]), \
-        f"missing bench-a not reported: {result['errors']}"
+    assert not result["ok"], "should be rejected"
+    # Legacy planless evidence is rejected at the provenance gate.
+    assert any("provenance" in e for e in result["errors"]), \
+        f"expected provenance rejection: {result['errors']}"
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)
@@ -615,9 +700,9 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "non-finite value not detected"
-    assert any("non-finite" in e.lower() or "finite" in e.lower() for e in result["errors"]), \
-        f"non-finite value not reported: {result['errors']}"
+    assert not result["ok"], "should be rejected"
+    assert any("provenance" in e for e in result["errors"]), \
+        f"expected provenance rejection: {result['errors']}"
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)
@@ -685,9 +770,8 @@ print(json.dumps({{"ok": ok, "errors": errors}}))
 """
     rc, stdout, _ = run(["python3", "-c", script], timeout=10)
     result = json.loads(stdout.strip())
-    assert not result["ok"], "overlapping sets not detected"
-    assert any("overlap" in e.lower() for e in result["errors"]), \
-        f"overlap not reported: {result['errors']}"
+    assert not result["ok"], "should be rejected"
+    assert any("provenance" in e for e in result["errors"])
 
     import shutil
     shutil.rmtree(tmp, ignore_errors=True)

@@ -140,7 +140,7 @@ def _write_run_dir(
     tmp: Path,
     intent: dict,
     *,
-    plan_bytes: bytes = b'{"plan_kind":"rush-autopilot-plan"}',
+    plan_bytes: bytes | None = None,
     bench_list_bytes: bytes | None = None,
     result_files: dict[str, dict] | None = None,
     intent_raw_override: bytes | None = None,
@@ -155,7 +155,28 @@ def _write_run_dir(
     run_dir = tmp / "run"
     run_dir.mkdir(parents=True, exist_ok=True)
     bl = bench_list_bytes if bench_list_bytes is not None else _bench_list_bytes()
-    intent_raw = intent_raw_override if intent_raw_override is not None else json.dumps(intent, indent=2).encode()
+    intent_raw = intent_raw_override if intent_raw_override is not None else json.dumps(intent, indent=2, sort_keys=True).encode()
+
+    # Build a valid plan that matches the intent's source_commit/version/dry_run.
+    if plan_bytes is None:
+        plan_obj = {
+            "schema_version": 1,
+            "plan_kind": "rush-autopilot-plan",
+            "generated_at": intent["generated_at"],
+            "source_version": intent["source_version"],
+            "source_commit": intent["source_commit"],
+            "dry_run": intent["dry_run"],
+            "campaign_scope": "baseline-only" if intent["dry_run"] else "comparative",
+            "hardware_slot": "laptop",
+            "slot_confidence": "high",
+            "ambiguities": [],
+            "open_criteria": [],
+            "existing_evidence": [],
+            "steps": [],
+            "repo_root": ".",
+        }
+        plan_bytes = json.dumps(plan_obj).encode()
+
     intent_sha = _sha256_bytes(intent_raw)
     plan_sha = _sha256_bytes(plan_bytes)
 
@@ -210,8 +231,15 @@ def _write_run_dir(
     if extra_files:
         for name, content in extra_files.items():
             (run_dir / name).write_bytes(content)
-    if result_hashes:
+    # Auto-generate result-hashes.json from the result files when not
+    # explicitly provided. This matches what the Rust runner does.
+    if result_hashes is not None:
         (run_dir / "result-hashes.json").write_text(json.dumps(result_hashes))
+    elif result_files:
+        auto_hashes = {}
+        for name in result_files:
+            auto_hashes[name] = _sha256_file(run_dir / name)
+        (run_dir / "result-hashes.json").write_text(json.dumps(auto_hashes))
     return run_dir
 
 
