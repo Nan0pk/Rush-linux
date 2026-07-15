@@ -47,9 +47,12 @@ pub enum FailureCategory {
     /// operator should report the failure code and review the private
     /// diagnostics on the USB.
     InternalError,
-    /// ACPI reported a boot-blocking failure (distinct from benign ACPI
-    /// warnings, which do not trigger this category).
-    AcpiBlocking,
+    // NOTE: AcpiBlocking (E101) was removed because there is no reliable
+    // signal to distinguish a boot-blocking ACPI failure from benign
+    // firmware ACPI warnings. Ordinary ACPI warnings must NOT be classified
+    // as failures — they are surfaced via the operator-facing ACPI note in
+    // the TUI. If a future change adds a real ACPI-blocking signal, it can
+    // re-introduce a dedicated category with a reliable detection path.
 }
 
 impl FailureCategory {
@@ -62,7 +65,6 @@ impl FailureCategory {
             FailureCategory::CatalogInvalid => "E005",
             FailureCategory::VersionMismatch => "E006",
             FailureCategory::InternalError => "E099",
-            FailureCategory::AcpiBlocking => "E101",
         }
     }
 
@@ -89,9 +91,6 @@ impl FailureCategory {
             FailureCategory::InternalError => {
                 "The runner hit an internal error while executing the benchmark plan."
             }
-            FailureCategory::AcpiBlocking => {
-                "ACPI reported a boot-blocking failure. (Benign ACPI warnings do not trigger this.)"
-            }
         }
     }
 
@@ -108,9 +107,6 @@ impl FailureCategory {
             }
             FailureCategory::InternalError => {
                 "Review the private diagnostics on the USB (tools/testos-diagnostics.py inspect), then report the failure code."
-            }
-            FailureCategory::AcpiBlocking => {
-                "Photograph the recovery screen, then reboot. If it recurs, report E101 with the hardware details."
             }
         }
     }
@@ -179,7 +175,6 @@ fn category_label(c: FailureCategory) -> &'static str {
         FailureCategory::CatalogInvalid => "catalog unavailable",
         FailureCategory::VersionMismatch => "image version mismatch",
         FailureCategory::InternalError => "runner internal error",
-        FailureCategory::AcpiBlocking => "ACPI blocking",
     }
 }
 
@@ -301,7 +296,6 @@ mod tests {
             FailureCategory::CatalogInvalid,
             FailureCategory::VersionMismatch,
             FailureCategory::InternalError,
-            FailureCategory::AcpiBlocking,
         ] {
             let code = c.code();
             assert!(code.starts_with('E'));
@@ -363,7 +357,6 @@ mod tests {
             FailureCategory::CatalogInvalid,
             FailureCategory::VersionMismatch,
             FailureCategory::InternalError,
-            FailureCategory::AcpiBlocking,
         ] {
             let txt = recovery_screen_text(c, "/PRIVATE-DIAGNOSTICS/run-1");
             let lower = txt.to_lowercase();
@@ -418,7 +411,6 @@ mod tests {
         assert!(FailureCategory::CatalogInvalid.is_usb_side());
         assert!(FailureCategory::VersionMismatch.is_usb_side());
         assert!(!FailureCategory::InternalError.is_usb_side());
-        assert!(!FailureCategory::AcpiBlocking.is_usb_side());
     }
 
     #[test]
@@ -438,20 +430,27 @@ mod tests {
         let p = Palette::colored();
         print_recovery_screen(
             &p,
-            FailureCategory::AcpiBlocking,
+            FailureCategory::InternalError,
             "/PRIVATE-DIAGNOSTICS/run-1",
         );
     }
 
     #[test]
-    fn acpi_blocking_is_distinct_from_benign_warnings() {
-        // The recovery screen only fires E101 when ACPI actually blocks
-        // boot. Benign ACPI warnings (the common HP firmware noise) do NOT
-        // trigger this category — they are surfaced via the operator-facing
-        // ACPI note in the TUI, not via the recovery screen.
-        let txt = recovery_screen_text(FailureCategory::AcpiBlocking, "/PRIVATE-DIAGNOSTICS/run-1");
-        assert!(txt.contains("E101"));
-        assert!(txt.contains("boot-blocking"));
-        assert!(txt.contains("Benign ACPI warnings do not trigger this"));
+    fn no_acpi_blocking_category_exists() {
+        // AcpiBlocking (E101) was removed because there is no reliable
+        // signal to distinguish boot-blocking ACPI from benign firmware
+        // warnings. This test proves it is gone — no variant, no E101 code.
+        // Ordinary ACPI warnings must NOT be classified as failures.
+        for c in [
+            FailureCategory::UsbNotFound,
+            FailureCategory::UsbMountFailed,
+            FailureCategory::IntentInvalid,
+            FailureCategory::PlanInvalid,
+            FailureCategory::CatalogInvalid,
+            FailureCategory::VersionMismatch,
+            FailureCategory::InternalError,
+        ] {
+            assert_ne!(c.code(), "E101");
+        }
     }
 }

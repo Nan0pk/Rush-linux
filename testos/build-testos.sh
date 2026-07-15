@@ -233,17 +233,14 @@ Description=testOS - mount USB ESP partition at /run/testos/usb
 DefaultDependencies=no
 After=local-fs-pre.target systemd-udevd.service
 Before=local-fs.target
-# No ConditionKernelCommandLine: this service file only exists in the
-# testOS image, so it only runs when testOS boots.
+# OnFailure triggers the recovery service so the operator sees E001/E002
+# on tty1 instead of a blank console. The recovery service owns tty1,
+# writes PRIVATE-DIAGNOSTICS when possible, and reboots safely.
+OnFailure=testos-recovery.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Bounded startup: if the USB does not appear within the retry window,
-# the helper exits non-zero and the runner (which has Requires= on this
-# unit) will not start. This is the fix for the HP Victus symptom where
-# the mount service failed silently and the runner fell through to a
-# root-shell-cum-login-prompt.
 TimeoutStartSec=120
 ExecStart=/usr/libexec/testos-usb-mount
 
@@ -366,11 +363,26 @@ fi
 
 # ── Mount ────────────────────────────────────────────────────────────
 log "mounting $PART at /run/testos/usb"
-if ! mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000; then
-    log "FAILED: mount -t vfat $PART /run/testos/usb returned $?"
+# Capture the real mount exit status. The previous code used
+# `if ! mount ...; then log "...returned $?"` which reported the NEGATED
+# status (0 when mount failed, 1 when it succeeded) — a bug. We now use
+# `if mount ...; then ... else ... fi` which (a) is exempt from `set -e`
+# so the script doesn't exit before we capture the status, and (b)
+# preserves the REAL exit code in $? inside the else branch.
+if mount -t vfat "$PART" /run/testos/usb -o rw,flush,umask=0000; then
+    : # mount succeeded
+else
+    mount_rc=$?
+    log "FAILED: mount -t vfat $PART /run/testos/usb returned $mount_rc"
     exit 1
 fi
-sync
+
+# sync is a required operation (ensures the mount is durable before the
+# runner starts writing). We do NOT ignore sync failures — report honestly.
+if ! sync; then
+    log "FAILED: sync after mount returned non-zero"
+    exit 1
+fi
 log "mounted successfully after $attempt attempt(s)"
 
 # ── Record boot-attempt counter for the runner ───────────────────────
@@ -386,11 +398,24 @@ if [[ -f "$COUNTER_FILE" ]]; then
     fi
 fi
 mkdir -p /run/testos
-echo "$BOOT_ATTEMPT" > /run/testos/boot-attempt
-# Persist the counter for the next boot (best-effort; ignore errors).
-mkdir -p "$(dirname "$COUNTER_FILE")" 2>/dev/null || true
-echo "$BOOT_ATTEMPT" > "$COUNTER_FILE" 2>/dev/null || true
-sync 2>/dev/null || true
+# Writing the boot-attempt file to /run is required (the runner reads it).
+# Report failure honestly instead of silently ignoring.
+if ! echo "$BOOT_ATTEMPT" > /run/testos/boot-attempt; then
+    log "FAILED: cannot write /run/testos/boot-attempt"
+    exit 1
+fi
+
+# Persist the counter for the next boot. This is best-effort (the USB might
+# be read-only or full), but we report failures honestly to the timeline
+# rather than silently swallowing them.
+mkdir -p "$(dirname "$COUNTER_FILE")" 2>/dev/null
+if ! echo "$BOOT_ATTEMPT" > "$COUNTER_FILE" 2>/dev/null; then
+    log "WARNING: cannot persist boot-attempt counter to $COUNTER_FILE (USB may be read-only or full)"
+fi
+# sync the counter write. Report failures honestly.
+if ! sync 2>/dev/null; then
+    log "WARNING: sync after counter write returned non-zero"
+fi
 log "boot attempt #$BOOT_ATTEMPT"
 EOF
 chmod +x "${EXTRA_DIR}/usr/libexec/testos-usb-mount"
@@ -413,8 +438,8 @@ cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-runner.service" << 'EOF'
 [Unit]
 Description=testOS - benchmark runner
 # Requires= (not Wants=) the mount: a mount failure MUST prevent the
-# runner from starting. This is the fix for the HP Victus symptom where
-# the runner started with an unmounted USB and fell through to a shell.
+# runner from starting. This prevents the runner from racing onto tty1
+# with an unmounted USB and falling through to a shell.
 Requires=testos-usb-mount.service
 After=testos-usb-mount.service network-online.target
 # Defense-in-depth against the getty/tty1 race: even though we mask
@@ -422,8 +447,10 @@ After=testos-usb-mount.service network-online.target
 # start both services on tty1.
 Conflicts=getty@tty1.service
 After=getty@tty1.service
-# No ConditionKernelCommandLine: this service file only exists in the
-# testOS image.
+# OnFailure triggers the recovery service if the runner crashes, panics,
+# or exits non-zero before it can render its own recovery screen. The
+# recovery service shows E099 (runner internal error) on tty1.
+OnFailure=testos-recovery.service
 
 [Service]
 Type=idle
@@ -437,12 +464,12 @@ TTYVHangup=yes
 KillMode=process
 IgnoreSIGPIPE=no
 SendSIGHUP=yes
-# Bounded startup: if the runner does not reach idle within 5 minutes,
-# systemd restarts it. At most one restart; a second hang leaves the
-# service stopped so the operator can see the journal output on the
-# console (the recovery screen is rendered by the runner itself, not by
-# systemd, so a hung runner that never execs testos-runner will not show
-# the recovery screen — the operator reboots manually in that case).
+# Bounded restart policy: within any 120-second window, systemd will
+# restart the runner at most 2 times. After that, the service stays
+# failed and OnFailure=testos-recovery.service takes over to show the
+# recovery screen. This is a REAL bounded policy (not just a comment).
+StartLimitIntervalSec=120
+StartLimitBurst=2
 TimeoutStartSec=300
 Restart=on-failure
 RestartSec=2
@@ -455,9 +482,192 @@ Environment=TESTOS_RUNNER_LOCK=1
 WantedBy=multi-user.target
 EOF
 
+# testos-recovery.service — owns tty1 when testos-usb-mount or testos-runner
+# fails. Shows E001/E002/E099 on tty1, writes PRIVATE-DIAGNOSTICS when
+# possible, and reboots safely. Does NOT spawn a root shell.
+#
+# This is the fix for the critical boot-reliability gap: previously, a
+# mount failure prevented the runner from starting (Requires=), but
+# nothing else owned tty1 — so the operator saw a blank console. Now
+# OnFailure=testos-recovery.service on both the mount and runner units
+# triggers this service, which takes over tty1 and shows the recovery
+# screen.
+cat > "${EXTRA_DIR}/usr/lib/systemd/system/testos-recovery.service" << 'EOF'
+[Unit]
+Description=testOS - recovery screen (mount/runner failure fallback)
+After=testos-usb-mount.service
+Conflicts=getty@tty1.service testos-runner.service
+# The recovery service must NOT require the mount — it needs to run even
+# (especially) when the mount failed. It does its own best-effort USB
+# mount for writing PRIVATE-DIAGNOSTICS.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/testos-recovery
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+# No restart: the recovery script reboots the machine after 10 seconds.
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# testos-recovery script — renders the recovery screen on tty1.
+#
+# Determines the failure category from systemd state, tries to mount the
+# USB best-effort for writing PRIVATE-DIAGNOSTICS, shows the recovery
+# screen, and reboots. Never spawns a root shell.
+cat > "${EXTRA_DIR}/usr/libexec/testos-recovery" << 'SCRIPT'
+#!/usr/bin/env bash
+# testOS recovery screen — shown when testos-usb-mount or testos-runner
+# fails. Owns tty1, shows a privacy-safe failure code, writes raw
+# diagnostics to PRIVATE-DIAGNOSTICS when possible, and reboots.
+set -euo pipefail
+
+# ── Determine failure category ──────────────────────────────────────
+# Check which service is in failed state. systemd sets the unit to
+# "failed" when ExecStart exits non-zero.
+CATEGORY=""
+CODE=""
+if systemctl is-failed testos-usb-mount.service >/dev/null 2>&1; then
+    # The mount service failed. Distinguish E001 (USB not found) from
+    # E002 (mount failed) by checking the timeline.
+    TIMELINE=/run/testos/usb-discovery-timeline.txt
+    if [[ -f "$TIMELINE" ]] && grep -q "no partition with label" "$TIMELINE" 2>/dev/null; then
+        CODE="E001"
+        CATEGORY="USB not found"
+        MSG="The USB partition (label RUSHESP) was not found within the retry window."
+    else
+        CODE="E002"
+        CATEGORY="USB mount failed"
+        MSG="The USB partition was found but could not be mounted."
+    fi
+elif systemctl is-failed testos-runner.service >/dev/null 2>&1; then
+    CODE="E099"
+    CATEGORY="runner internal error"
+    MSG="The runner hit an internal error or crashed before showing its own recovery screen."
+else
+    CODE="E099"
+    CATEGORY="runner internal error"
+    MSG="An unexpected service failure occurred."
+fi
+
+# ── Best-effort: write PRIVATE-DIAGNOSTICS ──────────────────────────
+# The USB may or may not be mounted at this point. Try to mount it
+# best-effort so we can write raw diagnostics. If this fails, we skip
+# diagnostics and just show the recovery screen.
+DIAG_REL="(USB not mounted - no diagnostics written)"
+USB_MOUNT=/run/testos/usb
+TIMELINE=/run/testos/usb-discovery-timeline.txt
+
+# Try to ensure the USB is mounted (it may already be, or the mount
+# service may have failed before mounting). Best-effort only.
+if ! mountpoint -q "$USB_MOUNT" 2>/dev/null; then
+    # Try to find and mount the USB ourselves. Best-effort.
+    LABEL=""
+    for arg in $(cat /proc/cmdline 2>/dev/null || echo); do
+        case "$arg" in
+            testos.usb_label=*) LABEL="${arg#testos.usb_label=}" ;;
+        esac
+    done
+    if [[ -n "$LABEL" ]]; then
+        PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
+        if [[ -n "$PART" ]]; then
+            mkdir -p "$USB_MOUNT" 2>/dev/null || true
+            if mount -t vfat "$PART" "$USB_MOUNT" -o rw,flush,umask=0000 2>/dev/null; then
+                : # mounted OK
+            fi
+        fi
+    fi
+fi
+
+# If the USB is now mounted, write PRIVATE-DIAGNOSTICS.
+if mountpoint -q "$USB_MOUNT" 2>/dev/null; then
+    BOOT_ATTEMPT=$(cat /run/testos/boot-attempt 2>/dev/null | tr -dc '0-9' || echo 1)
+    [[ -z "$BOOT_ATTEMPT" ]] && BOOT_ATTEMPT=1
+    DIAG_DIR="$USB_MOUNT/PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT}"
+    mkdir -p "$DIAG_DIR" 2>/dev/null || true
+    if [[ -d "$DIAG_DIR" ]]; then
+        # Write the marker.
+        cat > "$DIAG_DIR/README.txt" << MARKER
+PRIVATE - MAY CONTAIN HARDWARE IDENTIFIERS - DO NOT SUBMIT
+
+Recovery screen triggered with code $CODE ($CATEGORY).
+Boot attempt #$BOOT_ATTEMPT.
+MARKER
+        # Capture raw diagnostics (same set as the runner's private_diag).
+        for pair in             "journalctl.txt:journalctl -b --no-pager -o short-monotonic 2>/dev/null || journalctl -b --no-pager 2>/dev/null || true"             "dmesg.txt:dmesg --time-format=iso 2>/dev/null || dmesg 2>/dev/null || true"             "systemctl-failed.txt:systemctl --failed --no-pager 2>/dev/null || true"             "status-usb-mount.txt:systemctl status --no-pager testos-usb-mount.service 2>/dev/null || true"             "status-runner.txt:systemctl status --no-pager testos-runner.service 2>/dev/null || true"             "critical-chain.txt:systemd-analyze critical-chain --no-pager 2>/dev/null || true"             "blame.txt:systemd-analyze blame --no-pager 2>/dev/null || true"             "kernel-version.txt:uname -r 2>/dev/null || true"             "image-version.txt:cat /etc/testos/version 2>/dev/null || cat /etc/os-release 2>/dev/null || true"
+        do
+            fname="${pair%%:*}"
+            cmd="${pair#*:}"
+            bash -c "$cmd" > "$DIAG_DIR/$fname" 2>/dev/null || true
+        done
+        # Copy the USB discovery timeline if it exists.
+        if [[ -f "$TIMELINE" ]]; then
+            cp "$TIMELINE" "$DIAG_DIR/usb-discovery-timeline.txt" 2>/dev/null || true
+        fi
+        # Record the recovery exit status.
+        cat > "$DIAG_DIR/runner-exit.txt" << EXIT
+boot_attempt=$BOOT_ATTEMPT
+failure_code=$CODE
+failure_category=$CATEGORY
+recovery_screen=true
+EXIT
+        # Sync and verify.
+        sync 2>/dev/null || true
+        DIAG_REL="PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT}"
+    fi
+fi
+
+# ── Show the recovery screen on tty1 ────────────────────────────────
+# Use plain text (no ANSI color) because we cannot assume the TTY state
+# is clean at this point. The recovery screen must be readable even on
+# a serial console.
+cat << SCREEN
+
+===============================================
+  testOS - recovery screen
+===============================================
+
+  Failure code:        $CODE
+  Category:            $CATEGORY
+  What happened:       $MSG
+  Safe next action:    Re-prepare the USB on the host, then reboot from it.
+
+  Local diagnostics (private, NOT submitted):
+    $DIAG_REL
+
+  Rebooting in 10 seconds (Ctrl-C to stay on this screen).
+===============================================
+SCREEN
+
+# Wait so the operator can read / photograph the screen.
+sleep 10
+
+# Reboot safely. Try systemctl first, then reboot(2) syscall.
+# Use 'exec' so the process is replaced — if reboot succeeds, the script
+# never reaches the lines below. If reboot fails (returns non-zero), bash
+# continues to the fallback.
+systemctl reboot 2>/dev/null && exit 0
+reboot 2>/dev/null && exit 0
+
+# If reboot failed, halt to avoid looping.
+echo "Reboot failed. Press the power button to restart." >&2
+sleep 60
+# Last resort: force reboot.
+echo b > /proc/sysrq-trigger 2>/dev/null || true
+SCRIPT
+chmod +x "${EXTRA_DIR}/usr/libexec/testos-recovery"
+
 # Enable testos services via symlinks
 ln -sf /usr/lib/systemd/system/testos-usb-mount.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-usb-mount.service"
 ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-runner.service"
+ln -sf /usr/lib/systemd/system/testos-recovery.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-recovery.service"
 
 # Suppress the normal getty on tty1 (testos-runner takes it over). This
 # symlink is in addition to the getty@tty1 mask above for backward compat

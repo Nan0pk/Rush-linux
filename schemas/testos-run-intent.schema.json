@@ -55,6 +55,11 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "description": "SHA-256 digest of the testOS image file the host wrote to the USB, prefixed with 'sha256:'. Binds the run to the exact image bytes."
     },
+    "testos_image_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Optional: the 40-char git commit SHA the testOS image was built from (baked into the image at build time). SEPARATE from source_commit (the host-workflow commit). When present, the runner cross-checks it against /etc/testos/source-sha and the validator verifies it exists in git."
+    },
     "plan_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",

@@ -273,6 +273,72 @@ def clear_checkpoint() -> None:
         print("No checkpoint to clear.")
 
 
+def _phase_order(phase: str) -> int:
+    """Return the ordering index of a phase. Higher = later in the workflow.
+    Used to prevent downgrading (going backwards in the phase progression)."""
+    order = {
+        "preflight": 0,
+        "mock_verified": 1,
+        "plan_ready": 2,
+        "usb_prepared": 3,
+        "booted": 4,
+        "collected": 5,
+        "validated": 6,
+        "submitted": 7,
+    }
+    return order.get(phase, -1)
+
+
+def _refuse_downgrade(new_phase: str, existing: dict | None) -> None:
+    """Refuse to overwrite a submitted checkpoint or downgrade the phase.
+
+    Submitted checkpoints must NEVER be reused or downgraded. Once a run
+    is submitted, the operator must start a fresh run (new run_id, new
+    plan, new nonce, new inventory, new directory) — the prior PR data
+    is preserved on disk and is NOT erased.
+    """
+    if existing is None:
+        return
+    old_phase = existing.get("phase", "")
+    if old_phase == "submitted":
+        raise SystemExit(
+            f"REFUSED: checkpoint is in 'submitted' phase. Submitted "
+            f"checkpoints must never be reused or downgraded. To start a "
+            f"fresh run, first clear the checkpoint pointer (this does NOT "
+            f"erase prior PR data):\n"
+            f"  {Path(__file__).resolve()} clear\n"
+            f"Then start a new run with a new run_id."
+        )
+    old_order = _phase_order(old_phase)
+    new_order = _phase_order(new_phase)
+    if old_order >= 0 and new_order >= 0 and new_order < old_order:
+        raise SystemExit(
+            f"REFUSED: cannot downgrade checkpoint from '{old_phase}' "
+            f"(order={old_order}) to '{new_phase}' (order={new_order}). "
+            f"Phase progression is monotonic. To start a fresh run, clear "
+            f"the checkpoint and use a new run_id."
+        )
+
+
+def _refuse_reuse_of_existing_run_dir(run_id: str) -> None:
+    """Refuse to reuse a run directory that already has data from a prior
+    submitted run. This prevents accidental checkpoint reuse/downgrade.
+
+    Prior PR data is NOT erased — the operator must use a new run_id.
+    """
+    rd = run_dir_for(run_id)
+    # Check for evidence of a prior completed run: a submission-state.json
+    # or a manifest.json in the results directory.
+    submission_state = rd / "submission-state.json"
+    if submission_state.exists():
+        raise SystemExit(
+            f"REFUSED: run directory {rd} already contains a prior "
+            f"submission-state.json. This run_id may have been used for a "
+            f"submitted run. Use a new run_id to start a fresh run. "
+            f"(Prior PR data is preserved on disk and is NOT erased.)"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Persistent resumable state for Rush LiveDev"
@@ -282,6 +348,8 @@ def main():
     p_init = sub.add_parser("init-run", help="Create a persistent run directory")
     p_init.add_argument("--run-id", default="",
                         help="Run ID (auto-generated if empty)")
+    p_init.add_argument("--force", action="store_true",
+                        help="Allow reusing a run_id whose directory already exists (DANGEROUS: may overwrite prior data)")
 
     p_save = sub.add_parser("save", help="Save checkpoint state")
     p_save.add_argument("--run-id", required=True)
@@ -297,7 +365,7 @@ def main():
 
     sub.add_parser("load", help="Load and print checkpoint JSON")
     sub.add_parser("show", help="Show checkpoint summary")
-    sub.add_parser("clear", help="Delete the checkpoint")
+    sub.add_parser("clear", help="Delete the checkpoint pointer (does NOT erase run data)")
     sub.add_parser("resume-command", help="Print the exact resume command")
     sub.add_parser("run-dir", help="Print the persistent run directory for the current checkpoint")
 
@@ -307,11 +375,19 @@ def main():
         run_id = args.run_id
         if not run_id:
             run_id = datetime.now(timezone.utc).strftime("run-%Y%m%d-%H%M%S")
+        # F7: refuse to reuse a run_id whose directory already has a prior
+        # submission. This prevents accidental reuse/downgrade of submitted
+        # checkpoints. --force overrides (for testing only).
+        if not args.force:
+            _refuse_reuse_of_existing_run_dir(run_id)
         rd = run_dir_for(run_id)
         print(str(rd))
         return
 
     if args.command == "save":
+        # F7: refuse to downgrade a submitted checkpoint.
+        existing = load_checkpoint()
+        _refuse_downgrade(args.phase, existing)
         # Ensure the run directory exists (persistent, outside /tmp)
         rd = run_dir_for(args.run_id)
         if args.run_dir:
