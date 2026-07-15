@@ -44,9 +44,11 @@ import importlib.util
 import json
 import os
 import re
+import re
 import subprocess
 import sys
 import tempfile
+from urllib.parse import urlsplit
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -536,18 +538,22 @@ def test_10_draft_pr_payload():
 
 
 def test_11a_no_token_bearing_git_urls():
-    """Scenario 11: no token-bearing Git URLs in the submission source."""
-    src = (TOOLS_DIR / "rush-submit-evidence").read_text()
-    # Look for credential-bearing GitHub HTTPS URLs by parsing URL authority.
+    # Look for any parsed GitHub URL embedding credentials in authority.
     bad = []
     for line in src.splitlines():
-        for m in re.finditer(r"https://[^\s'\"<>]+", line):
-            candidate = m.group(0).rstrip(".,;:)]}")
-            parsed = urlsplit(candidate)
-            if parsed.hostname == "github.com" and (parsed.username or parsed.password):
+        for m in re.finditer(r"https?://[^\s'\"()<>]+", line):
+            candidate = m.group(0).rstrip(".,;")
+            parts = urlsplit(candidate)
+            if parts.scheme not in ("http", "https"):
+                continue
+            if parts.hostname != "github.com":
+                continue
+            if parts.username is not None or parts.password is not None or "@" in parts.netloc:
                 bad.append(line)
                 break
     if bad:
+        print(f"FAIL: token-bearing git URL found: {bad}")
+        return False
         print(f"FAIL: token-bearing git URL found: {bad}")
         return False
     # The clone URL is the bare form.
