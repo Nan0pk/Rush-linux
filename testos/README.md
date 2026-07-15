@@ -151,12 +151,145 @@ The remaining three scenarios (`laptop-battery`, `gaming-frame-time`, `realtime-
 
 ## Safety guarantees
 
-- **Host disk never touched.** testOS boots from USB and runs from RAM. The host's partitions and filesystem are untouched. The only writes are to the USB stick itself (results) and to the test machine's RAM (which clears on reboot).
+- **Host disk never touched.** testOS boots from USB and runs from RAM. The host's partitions and filesystem are untouched. The only writes are to the USB stick itself (results + private diagnostics) and to the test machine's RAM (which clears on reboot).
 - **Crash recovery is automatic.** If testOS hangs or panics, a hard reset reboots the machine. Since the host's bootloader was never modified, the machine boots back into the host OS. No bricked machines.
 - **One-shot boot.** testOS doesn't install a bootloader. You pick the USB from the boot menu manually. Pull the USB, reboot, and you're back in the host OS.
 - **`testos-launcher write` is paranoid.** It refuses to write to a mounted device, refuses to write to anything that looks like the host's root disk, and requires you to type the device name twice to confirm.
 - **Esc-to-abort saves partial results.** If you press Esc mid-run, the runner writes a marker, skips remaining tests, writes what it has, and reboots. No lost work.
+- **No root shell on failure (boot-reliability PR).** The runner used to drop to an interactive root shell on failure. It no longer does. On any uncorrectable failure it shows a privacy-safe recovery screen with a short failure code (E001–E101), a one-sentence description, a safe next action, and a 10-second reboot countdown. Raw diagnostics are written to `PRIVATE-DIAGNOSTICS/<run_id>/` on the USB for local review (see "Private local diagnostics" below).
+- **Baseline purity.** The testOS baseline image does NOT enable `optid`, `optid-apply`, or `optid-boot-assess` as persistent services, and never runs `optid --apply`. The optid binaries and unit files are installed on disk for ad-hoc operator use, but they are not started automatically. A testOS boot measures the hardware as-is, without optid actuation or boot-assessment side effects.
 - **Cloud-safe run-intent contract.** A physical testOS run is cryptographically associated with the host planner that launched it via a `run-intent.json` file (`schemas/testos-run-intent.schema.json`). The runner refuses to run if the intent is missing/malformed/stale/dry-run/inconsistent, and copies every field into `manifest.json` under a `provenance` block. The strict evidence validator (`tools/validate-testos-evidence.py`) re-checks every provenance field before an evidence PR may be opened. See `docs/livedev/OPERATOR_RUNBOOK.md` for the full contract and the remaining Windows-only work.
+
+## Boot reliability (boot-reliability PR)
+
+Previous real-hardware runs on the HP Victus exhibited two symptoms:
+
+1. Early boot displayed ACPI/ACPI-table warnings.
+2. The first boot stopped at something resembling a root shell; only after
+   typing `reboot` did the next boot reach the testOS benchmark screen.
+
+The boot-reliability PR addresses the root causes without hiding the
+symptoms:
+
+- **Bounded USB-discovery retry.** The `testos-usb-mount` helper now retries
+  for a bounded window (default 30 s, clamped to [5, 300] s) using
+  `udevadm settle` between attempts. There is no unbounded sleep. If the
+  USB does not appear within the window, the helper exits non-zero and
+  writes a discovery timeline to `/run/testos/usb-discovery-timeline.txt`
+  (copied into `PRIVATE-DIAGNOSTICS/` for local post-mortem).
+- **Runner Requires= the mount.** `testos-runner.service` now has
+  `Requires=testos-usb-mount.service` (not just `Wants=`). A mount failure
+  prevents the runner from starting, so it cannot race onto tty1 with an
+  unmounted USB and fall through to a login prompt.
+- **Getty race eliminated.** `getty@tty1.service` is masked in the image,
+  and `testos-runner.service` declares `Conflicts=getty@tty1.service` as
+  defense-in-depth. The runner owns tty1 exclusively.
+- **Bounded startup + restart policy.** Both units have bounded
+  `TimeoutStartSec=`. The runner restarts at most once on failure.
+- **ACPI honesty.** testOS does NOT suppress ACPI output or add kernel
+  suppression flags for aesthetics. The runner prints an operator-facing
+  note explaining that firmware ACPI warnings are usually benign if boot
+  continues. A boot-blocking ACPI failure is reported via the recovery
+  screen with failure code `E101` (distinct from benign warnings).
+
+### Recovery screen failure codes
+
+| Code | Category | Meaning |
+|------|----------|---------|
+| E001 | USB not found | The USB partition (label RUSHESP) was not found within the retry window. |
+| E002 | USB mount failed | The USB partition was found but could not be mounted. |
+| E003 | intent unavailable | `run-intent.json` is missing, malformed, stale, or inconsistent. |
+| E004 | plan unavailable | `plan.json` is missing or its hash does not match the intent. |
+| E005 | catalog unavailable | The bench-list catalog is missing or its hash does not match the intent. |
+| E006 | image version mismatch | The running testOS image version does not match the intent's `testos_version`. |
+| E099 | runner internal error | The runner hit an internal error while executing the benchmark plan. |
+| E101 | ACPI blocking | ACPI reported a boot-blocking failure. (Benign ACPI warnings do not trigger this.) |
+
+## Private local diagnostics (boot-reliability PR)
+
+Raw boot diagnostics are written ONLY to:
+
+```
+/run/testos/usb/PRIVATE-DIAGNOSTICS/<run_id>/
+```
+
+They are NEVER placed under `testos-results/`, the persistent evidence run
+directory, or any submission bundle. Every `PRIVATE-DIAGNOSTICS/` directory
+is marked with a `README.txt` containing:
+
+```
+PRIVATE — MAY CONTAIN HARDWARE IDENTIFIERS — DO NOT SUBMIT
+```
+
+What we capture (when available):
+
+- `journalctl.txt` — `journalctl -b` with monotonic timestamps
+- `dmesg.txt` — `dmesg` with monotonic timestamps
+- `systemctl-failed.txt` — `systemctl --failed`
+- `status-usb-mount.txt` / `status-runner.txt` — `systemctl status` for the two testOS units
+- `critical-chain.txt` / `blame.txt` — `systemd-analyze` output
+- `usb-discovery-timeline.txt` — the mount helper's retry timeline
+- `runner-exit.txt` — runner exit status, failure category, boot attempt number
+- `kernel-version.txt` / `image-version.txt` — testOS version, full image commit, kernel version
+
+What we DO NOT capture: firmware tables, disk contents, user data,
+authentication material, network credentials, or file contents unrelated
+to boot diagnosis.
+
+### Reviewing private diagnostics locally
+
+```sh
+# Read-only inspection (default safe action):
+python3 tools/testos-diagnostics.py inspect /run/testos/usb/PRIVATE-DIAGNOSTICS/<run_id>
+
+# Copy raw diagnostics to another location (prints a PRIVACY WARNING, requires --yes):
+python3 tools/testos-diagnostics.py export /run/testos/usb/PRIVATE-DIAGNOSTICS/<run_id> /tmp/diag-copy --yes
+
+# Create a sanitized copy with hardware identifiers redacted (never modifies the original):
+python3 tools/testos-diagnostics.py sanitize /run/testos/usb/PRIVATE-DIAGNOSTICS/<run_id> /tmp/diag-sanitized
+```
+
+`inspect` is read-only by default. `export` requires an explicit destination
+and `--yes`. `sanitize` creates a NEW reviewed copy; the sanitized output
+must still pass the normal privacy scanner
+(`tools/validate-testos-evidence.py`) before it may be included in any
+evidence bundle.
+
+### Privacy boundary enforcement
+
+The strict evidence validator (`tools/validate-testos-evidence.py`) fails
+closed if:
+
+- `PRIVATE-DIAGNOSTICS` appears inside the proposed bundle (at any depth)
+- any raw `dmesg.txt` / `journalctl.txt` / etc. artifact appears inside
+  publishable evidence
+- a symlink inside the bundle tries to reference private diagnostics (or
+  anything outside the bundle — symlinks are forbidden in publishable
+  evidence entirely)
+
+Normal resume/collection leaves `PRIVATE-DIAGNOSTICS/` on the USB.
+
+## What to photograph or transcribe if a boot failure recurs
+
+If the HP Victus (or any other test machine) again stalls at a root prompt
+or shows an ACPI error, capture:
+
+1. **The recovery screen** — photograph the whole screen, especially the
+   `Failure code:` line (E001–E101) and the `Category:` line.
+2. **The boot-attempt number** — printed in the testOS banner as
+   `attempt: N`.
+3. **The source SHA** — printed in the banner as `source: <sha>`. Verify
+   it matches `git rev-parse --short HEAD` in your repo.
+4. **Any ACPI messages visible before the recovery screen** — transcribe
+   the first few lines verbatim (they are not captured automatically
+   unless boot reaches the runner).
+5. **The USB discovery timeline** — after rebooting back to the host OS,
+   run `python3 tools/testos-diagnostics.py inspect <USB>/PRIVATE-DIAGNOSTICS/<run_id>`
+   and transcribe the `usb-discovery-timeline.txt` contents.
+
+Do NOT photograph or transcribe: full dmesg dumps, MAC addresses, serial
+numbers, UUIDs, hostnames, IP addresses, or the kernel command line.
+Those stay in `PRIVATE-DIAGNOSTICS/` for local review only.
 
 ## Prerequisites
 

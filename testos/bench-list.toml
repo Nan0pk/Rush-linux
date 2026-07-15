@@ -23,7 +23,11 @@
 #   command            — the shell command to run (executed via `bash -c`)
 #   estimated_seconds  — wall-clock estimate for one run (used to compute total ETA)
 #   requires_battery   — true means the runner will prompt the user to unplug AC first
-#   notes              — optional free-form notes shown in the menu
+#   notes              — optional free-form "What it measures" text shown in the menu
+#   significance       — optional one-sentence "Why it matters" text shown in the
+#                        menu and per-benchmark progress UI. Backward-compatible:
+#                        older catalogs without it still load. The UI falls back
+#                        to `notes` when `significance` is absent.
 
 version = 1
 
@@ -41,6 +45,7 @@ fio --name=seqread --rw=read --bs=4k --size=256M --numjobs=1 --time_based=0 \
 """
 estimated_seconds = 30
 notes = "Measures cached small-block read speed; useful for spotting CPU/filesystem overhead, not disk limits."
+significance = "A regression here points at the page cache, scheduler, or filesystem read path rather than the storage device itself."
 
 [[benches]]
 id = "fio-seq-write"
@@ -54,6 +59,7 @@ fio --name=seqwrite --rw=write --bs=4k --size=256M --numjobs=1 --time_based=0 \
 """
 estimated_seconds = 30
 notes = "Measures cached small-block write speed; useful for spotting filesystem/write-path overhead, not disk limits."
+significance = "A regression here points at the writeback path, dirty-page throttling, or filesystem journal overhead rather than raw disk bandwidth."
 
 [[benches]]
 id = "iperf3-tcp"
@@ -71,6 +77,7 @@ iperf3 -c 127.0.0.1 -t 10 -J \
 """
 estimated_seconds = 20
 notes = "Measures local TCP stack throughput; useful for catching kernel/network-regression overhead without external LAN noise."
+significance = "Loopback throughput isolates the kernel network stack from NIC and cable issues, so a regression is almost always a software problem."
 
 [[benches]]
 id = "postgres-tps"
@@ -119,6 +126,7 @@ $ASUSER pg_ctl -D "$PGDATA" stop -w -s >/dev/null 2>&1
 """
 estimated_seconds = 60
 notes = "Measures local database transaction throughput; useful for server and scheduler regressions under mixed CPU/IO work."
+significance = "pgbench exercises CPU, memory, filesystem, and process scheduling together, so it is a sensitive detector of whole-system regressions."
 
 [[benches]]
 id = "nginx-rps"
@@ -155,6 +163,7 @@ nginx -c "$NGINX_CONF" -s stop 2>/dev/null
 """
 estimated_seconds = 30
 notes = "Measures local HTTP request throughput; useful for web-serving responsiveness and syscall/network-stack overhead."
+significance = "A regression here means user-facing request latency on real web services would also regress under load."
 
 # ─── Mixed-load responsiveness scenario ────────────────────────────
 
@@ -175,6 +184,7 @@ grep '^some' /proc/pressure/cpu | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -
 '''
 estimated_seconds = 5
 notes = "Measures recent CPU stall pressure; useful for seeing whether workloads are waiting on runnable CPU time."
+significance = "PSI is the kernel's honest signal of resource starvation; a rising avg10 means real users are already waiting, not just that load is high."
 
 [[benches]]
 id = "psi-io-avg10"
@@ -187,6 +197,7 @@ grep '^some' /proc/pressure/io | sed -n 's/.*avg10=\([0-9.]*\).*/\1/p' | head -1
 '''
 estimated_seconds = 5
 notes = "Measures recent IO stall pressure; useful for seeing whether workloads are blocked on storage."
+significance = "IO PSI catches storage contention that throughput metrics miss — a disk can show good IOPS while still starving foreground work."
 
 [[benches]]
 id = "cyclictest-max"
@@ -210,6 +221,7 @@ cyclictest -p 80 -t 1 -l 100000 2>/dev/null \
 """
 estimated_seconds = 30
 notes = "Measures worst-case wakeup latency; useful for real-time audio, input, and jitter-sensitive workloads."
+significance = "The max latency, not the average, is what causes audible dropouts and visible input lag; it must stay bounded for responsive systems."
 
 [[benches]]
 id = "foreground-launch"
@@ -255,6 +267,7 @@ PY
 '''
 estimated_seconds = 10
 notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."
+significance = "Process launch latency is what users perceive as 'the app opened'; small regressions compound across many launches per session."
 
 # ─── Future scenarios (declared, not yet wired) ────────────────────
 # Add laptop-battery, gaming-frame-time, realtime-audio entries here as

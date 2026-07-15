@@ -22,10 +22,16 @@
 
 pub mod catalog;
 pub mod host;
+pub mod private_diag;
+pub mod recovery;
 pub mod results;
 pub mod run_intent;
+pub mod tui;
 
 pub use catalog::{Bench, BenchKind, BenchList};
 pub use host::HostFingerprint;
+pub use private_diag::{private_diag_dir, CaptureResult};
+pub use recovery::FailureCategory;
 pub use results::{BenchResult, RunManifest, RunProvenance, SCHEMA_VERSION};
 pub use run_intent::{RunIntent, RunIntentError, INTENT_FILENAME, INTENT_SCHEMA_VERSION};
+pub use tui::{Palette, RunCounts};

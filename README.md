@@ -498,8 +498,11 @@ python3 -m pytest \
   tools/test-rush-pr.py \
   tools/test-rush-runner.py \
   tools/test-submit-evidence.py \
+  tools/test-testos-boot-reliability.py \
   tools/test-testos-evidence-submission-blockers.py \
   tools/test-testos-plan-units-timing.py \
+  tools/test-testos-private-diagnostics.py \
+  tools/test-testos-production-provenance.py \
   tools/test-testos-real-hardware-defects.py \
   tools/test-testos-real-path-validation.py \
   tools/test-validate-hwtest-evidence.py

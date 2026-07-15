@@ -1,29 +1,38 @@
 //! testos-runner - runs INSIDE testOS after boot.
 //!
 //! Responsibilities:
-//! 1. Show a menu: "Run all" or pick individual benchmarks from the list.
-//! 2. For each selected benchmark: print a banner, run it, capture stdout/stderr/exit,
+//! 1. Show a menu (driven by catalog data — never embed descriptions here).
+//! 2. For each selected benchmark: print a header, run it, capture stdout/stderr/exit,
 //!    write one JSON result file to the results directory on the USB stick.
-//! 3. Show progress with per-test ETA.
-//! 4. Honor Esc (read from /dev/console) to abort the run early - partial results saved.
+//! 3. Show per-benchmark progress with spinner, overall percentage, elapsed, and ETA.
+//!    Percentage is based on completed benchmark count — never fabricated inside
+//!    an opaque running command.
+//! 4. Honor Esc (read from /dev/console) to abort the run early — partial results saved.
 //! 5. Write a top-level RunManifest.json when done (or aborted).
-//! 6. Reboot back to the host OS.
+//! 6. Capture raw boot diagnostics to PRIVATE-DIAGNOSTICS/<run_id>/ on the USB
+//!    (NEVER into testos-results/) and sync.
+//! 7. Reboot back to the host OS.
+//!
+//! Failure behavior: on any uncorrectable failure (USB not found, intent invalid,
+//! etc.) the runner shows a privacy-safe recovery screen with a short failure
+//! code and reboots. It does NOT spawn an interactive root shell.
 //!
 //! Where to find things after boot:
-//! - The USB stick is mounted at /run/testos/usb (mounted by the testOS initrd/init script).
+//! - The USB stick is mounted at /run/testos/usb (mounted by testos-usb-mount.service).
 //! - Bench list TOML is at /run/testos/usb/testos/bench-list.toml (copied at build time).
 //! - Results directory is /run/testos/usb/testos-results/<UTC-timestamp>/.
+//! - Private diagnostics: /run/testos/usb/PRIVATE-DIAGNOSTICS/<run_id>/ (local only).
 //!
 //! The runner itself is installed at /usr/bin/testos-runner inside the testOS image.
 
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use testos::{
-    Bench, BenchKind, BenchList, BenchResult, HostFingerprint, RunIntent, RunManifest,
-    RunProvenance, SCHEMA_VERSION,
+    private_diag, recovery::FailureCategory, tui as testos_tui, Bench, BenchKind, BenchList,
+    BenchResult, HostFingerprint, RunIntent, RunManifest, RunProvenance, SCHEMA_VERSION,
 };
 
 const USB_MOUNT: &str = "/run/testos/usb";
@@ -36,64 +45,56 @@ const BENCH_LIST_REL: &str = "testos/bench-list.toml";
 /// /etc/testos/version by build-testos.sh).
 const TESTOS_VERSION_FALLBACK: &str = "0.7.0-unknown";
 
+/// Read the boot attempt number from /run/testos/boot-attempt. The mount
+/// helper writes this file (1 on first boot, 2 on second, etc.) so the
+/// runner can report it on screen and in the private diagnostics.
+fn read_boot_attempt() -> u32 {
+    std::fs::read_to_string("/run/testos/boot-attempt")
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .unwrap_or(1)
+}
+
 fn main() {
-    println!();
-    println!("════════════════════════════════════════════════════");
-    println!("  testOS - Rush Linux benchmark environment");
-    println!("════════════════════════════════════════════════════");
-    println!();
+    // Pick the palette once. The runner runs on tty1 inside testOS, so
+    // stdout is normally a TTY. When NO_COLOR is set or stdout is piped
+    // (e.g. serial console capture), we degrade to plain text.
+    let is_tty = std::io::IsTerminal::is_terminal(&io::stdout());
+    let no_color = std::env::var_os("NO_COLOR").is_some();
+    let palette = testos_tui::Palette::for_output(is_tty, no_color);
+
+    let boot_attempt = read_boot_attempt();
 
     // Print the source git SHA so the user can verify the USB contains
-    // the code they actually built. If this SHA doesn't match what
-    // `git rev-parse --short HEAD` shows in the repo, the USB is stale
-    // and needs to be re-flashed. This file is written by build-testos.sh.
+    // the code they actually built. This file is written by build-testos.sh.
     let source_sha = std::fs::read_to_string("/etc/testos/source-sha")
         .unwrap_or_else(|_| "unknown".to_string())
         .trim()
         .to_string();
-    println!("  Source SHA: {}", source_sha);
-    println!("  (verify this matches your repo's `git rev-parse --short HEAD`)");
-    println!();
+    let image_version = read_running_testos_version();
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+        .unwrap_or_else(|_| "unknown".to_string())
+        .trim()
+        .to_string();
 
-    // Helper: print an error, dump diagnostics, wait for keypress, then
-    // drop to a shell so the user can diagnose. This prevents the runner
-    // from flashing an error and immediately falling through to a login
-    // prompt where the error is lost.
-    let fail_with_diag = |msg: &str| -> ! {
-        eprintln!();
-        eprintln!("=================================================");
-        eprintln!("  testOS RUNNER FAILED");
-        eprintln!("=================================================");
-        eprintln!("{}", msg);
-        eprintln!();
-        eprintln!("--- Diagnostics ---");
+    testos_tui::print_banner(&palette, &source_sha, &image_version, &kernel, boot_attempt);
+    testos_tui::print_acpi_note(&palette);
 
-        // Print USB mount status
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg("echo '--- /proc/cmdline ---'; cat /proc/cmdline; echo; echo '--- blkid ---'; blkid 2>/dev/null; echo; echo '--- lsblk ---'; lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL 2>/dev/null; echo; echo '--- mount points ---'; mount | grep -E 'testos|run/testos'; echo; echo '--- /run/testos ---'; ls -la /run/testos/ 2>/dev/null || echo '(not found)'; echo; echo '--- dmesg (last 20 lines) ---'; dmesg | tail -20; echo; echo '--- journal (last 20 lines) ---'; journalctl -b --no-pager | tail -20")
-            .status();
-
-        eprintln!();
-        eprintln!("Press Enter to drop to a shell for manual diagnosis...");
-        let mut _input = String::new();
-        let _ = io::stdin().read_line(&mut _input);
-
-        // Drop to a shell
-        eprintln!("Dropping to shell. Type 'reboot' when done.");
-        let _ = Command::new("bash").status();
-        std::process::exit(1);
+    // Helper: write raw diagnostics to PRIVATE-DIAGNOSTICS, show the
+    // privacy-safe recovery screen, wait, and reboot. NEVER drops to a
+    // root shell. `category` is the short failure code shown on screen.
+    //
+    // We clone the palette into the closure so the rest of main can keep
+    // using it for the menu / per-bench progress.
+    let palette_for_fail = palette.clone();
+    let fail_safe = move |category: FailureCategory, run_id_hint: &str| -> ! {
+        fail_safe_impl(&palette_for_fail, boot_attempt, category, run_id_hint);
     };
 
     // 1. Verify USB mount exists.
     let usb = Path::new(USB_MOUNT);
     if !usb.exists() {
-        fail_with_diag(&format!(
-            "ERROR: USB mount point {} does not exist.\n\
-             The testos-usb-mount.service should have created it.\n\
-             The USB ESP partition (label RUSHESP) may not have been found.",
-            USB_MOUNT
-        ));
+        fail_safe(FailureCategory::UsbNotFound, "");
     }
 
     // 1b. Compute the running testOS image version. This is needed both to
@@ -123,69 +124,90 @@ fn main() {
             Err(e) => {
                 // The intent is the cryptographic association between the host
                 // and the runner. Without it, any results we write would be
-                // unverifiable. Fail closed.
-                fail_with_diag(&format!(
-                    "ERROR: run-intent validation failed.\n\
-                 The host planner must write a valid run-intent.json to the\n\
-                 USB before boot. testOS will not run benchmarks without one.\n\
-                 \n\
-                 Reason: {}\n\
-                 \n\
-                 To recover: re-prepare the USB on the host with\n\
-                 `python3 tools/livedev-next --prepare-usb` (or --auto),\n\
-                 then reboot from the freshly-prepared USB.",
-                    e
-                ));
+                // unverifiable. Fail closed — show the recovery screen with
+                // the E003 code, do NOT drop to a shell.
+                eprintln!("run-intent validation failed: {}", e);
+                fail_safe(FailureCategory::IntentInvalid, "");
             }
         };
-    println!("  Run intent: run_id={}", intent.run_id);
-    println!("  Source commit: {}", intent.source_commit);
-    println!("  Source version: {}", intent.source_version);
-    println!("  testOS image digest: {}", intent.testos_image_digest);
-    println!("  Plan SHA-256: {}", intent.plan_sha256);
-    println!("  Catalog SHA-256: {}", intent.benchmark_catalog_sha256);
-    println!("  Checkpoint nonce: {}", intent.checkpoint_nonce);
-    println!();
+    // We now have a valid run_id — use it for private diagnostics.
+    let run_id = intent.run_id.clone();
+    let _ = writeln!(
+        io::stdout(),
+        "{}run_id:{} {}    {}source commit:{} {}",
+        palette.dim,
+        palette.reset,
+        intent.run_id,
+        palette.dim,
+        palette.reset,
+        intent.source_commit,
+    );
+    let _ = writeln!(
+        io::stdout(),
+        "{}image digest:{} {}    {}plan:{} {}    {}catalog:{} {}",
+        palette.dim,
+        palette.reset,
+        intent.testos_image_digest,
+        palette.dim,
+        palette.reset,
+        intent.plan_sha256,
+        palette.dim,
+        palette.reset,
+        intent.benchmark_catalog_sha256,
+    );
+    let _ = writeln!(io::stdout());
 
     // 2. Load bench list from the USB.
     let list = match BenchList::load(&bench_list_path) {
         Ok(l) => l,
         Err(e) => {
-            fail_with_diag(&format!(
-                "ERROR: cannot load bench list from {}: {}",
-                bench_list_path.display(),
-                e
-            ));
+            eprintln!("cannot load bench list: {}", e);
+            fail_safe(FailureCategory::CatalogInvalid, &run_id);
         }
     };
 
-    println!(
-        "Loaded {} benchmarks from catalog v{}.",
+    let _ = writeln!(
+        io::stdout(),
+        "{}Loaded {} benchmarks from catalog v{}.{}",
+        palette.dim,
         list.benches.len(),
-        list.version
+        list.version,
+        palette.reset,
     );
-    println!("USB mounted at: {}", USB_MOUNT);
-    println!();
+    let _ = writeln!(io::stdout());
 
-    // 3. Capture host fingerprint once per run.
+    // 3. Capture host fingerprint once per run. The host fingerprint is
+    // already part of the provenance contract; we keep printing a compact
+    // summary so the operator can confirm the hardware matches expectations
+    // without dumping raw identifiers.
     let host = HostFingerprint::capture();
-    println!("Host fingerprint: {}", host.fingerprint);
-    println!("  CPU:    {}", host.cpu_model);
-    println!("  Board:  {}", host.dmi_board);
-    println!("  Kernel: {}", host.kernel);
-    println!();
+    let _ = writeln!(
+        io::stdout(),
+        "{}host:{} {} ({} / {})",
+        palette.dim,
+        palette.reset,
+        host.fingerprint,
+        host.cpu_model,
+        host.kernel,
+    );
+    let _ = writeln!(io::stdout());
 
     // 4. Show menu.
-    let selection = match show_menu(&list) {
+    let selection = match show_menu(&palette, &list) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Menu error: {}", e);
-            std::process::exit(1);
+            fail_safe(FailureCategory::InternalError, &run_id);
         }
     };
 
     if selection.is_empty() {
-        println!("Nothing selected. Rebooting back to host OS.");
+        let _ = writeln!(
+            io::stdout(),
+            "{}Nothing selected. Rebooting back to host OS.{}",
+            palette.yellow,
+            palette.reset
+        );
         reboot_host();
         return;
     }
@@ -194,12 +216,8 @@ fn main() {
     let started_at = iso_utc_now();
     let results_dir = usb.join(RESULTS_SUBDIR).join(started_at.replace(':', "-"));
     if let Err(e) = std::fs::create_dir_all(&results_dir) {
-        eprintln!(
-            "ERROR: cannot create results dir {}: {}",
-            results_dir.display(),
-            e
-        );
-        std::process::exit(1);
+        eprintln!("cannot create results dir {}: {}", results_dir.display(), e);
+        fail_safe(FailureCategory::InternalError, &run_id);
     }
 
     let mode = if selection.len() == list.benches.len() {
@@ -215,10 +233,18 @@ fn main() {
         )
     };
 
-    println!();
-    println!("Results will be written to: {}", results_dir.display());
-    println!("Mode: {}", mode);
-    println!();
+    let _ = writeln!(io::stdout());
+    let _ = writeln!(
+        io::stdout(),
+        "{}results:{} {}    {}mode:{} {}",
+        palette.dim,
+        palette.reset,
+        results_dir.display(),
+        palette.dim,
+        palette.reset,
+        mode
+    );
+    let _ = writeln!(io::stdout());
 
     // 6. Start the Esc watcher thread.
     let (tx, rx) = std::sync::mpsc::channel::<()>();
@@ -226,56 +252,97 @@ fn main() {
         watch_for_esc(tx);
     });
 
-    // 7. Run each selected benchmark.
+    // 7. Run each selected benchmark. The overall percentage is based on
+    // completed benchmark count — never fabricated from inside an opaque
+    // running command. While one command runs, we show elapsed time and a
+    // spinner and label its duration as estimated.
     let mut attempted = Vec::new();
     let mut passed = Vec::new();
     let mut failed = Vec::new();
     let mut skipped = Vec::new();
 
     let total = selection.len();
+    let total_estimated: u64 = selection.iter().map(|b| b.estimated_seconds).sum();
+    let run_started = Instant::now();
+    let mut aborted = false;
     for (idx, bench) in selection.iter().enumerate() {
         // Check for abort signal.
         if rx.try_recv().is_ok() {
-            println!();
-            println!("!! Aborted by user (Esc pressed). Saving partial results. !!");
+            let _ = writeln!(
+                io::stdout(),
+                "{}!! Aborted by user (Esc pressed). Saving partial results.{}",
+                palette.yellow,
+                palette.reset
+            );
             for remaining in &selection[idx..] {
                 skipped.push(remaining.id.clone());
             }
+            aborted = true;
             break;
         }
 
-        let progress = format!("[{}/{}] ", idx + 1, total);
-        let eta = BenchList::format_duration(bench.estimated_seconds);
-        println!("{}", progress);
-        println!("{}- {} ({})", "  ".to_string() + &progress, bench.name, eta);
+        let completed = idx;
+        let position = testos_tui::progress_position(completed, total);
+        let elapsed_total = run_started.elapsed();
+        let remaining_estimate = total_estimated.saturating_sub(elapsed_total.as_secs());
+        testos_tui::print_bench_header(
+            &palette,
+            bench,
+            &position,
+            elapsed_total,
+            Duration::from_secs(remaining_estimate),
+        );
 
         if bench.requires_battery && host.battery_design_uwh == 0 {
-            println!("   SKIPPED: requires battery but no battery present.");
+            let _ = writeln!(
+                io::stdout(),
+                "  {}SKIPPED: requires battery but no battery present.{}",
+                palette.yellow,
+                palette.reset
+            );
             skipped.push(bench.id.clone());
             attempted.push(bench.id.clone());
             continue;
         }
 
         if bench.requires_battery {
-            println!("   This benchmark requires battery power.");
-            println!("   Please unplug the AC adapter now.");
-            print!("   Press Enter when ready (or 's' to skip): ");
-            io::stdout().flush().unwrap();
+            let _ = writeln!(
+                io::stdout(),
+                "  {}This benchmark requires battery power. Unplug AC now.{}",
+                palette.yellow,
+                palette.reset
+            );
+            let _ = write!(io::stdout(), "  Press Enter when ready (or 's' to skip): ");
+            let _ = io::stdout().flush();
             let mut line = String::new();
             io::stdin().read_line(&mut line).ok();
             if line.trim() == "s" {
-                println!("   Skipped by user.");
+                let _ = writeln!(
+                    io::stdout(),
+                    "  {}Skipped by user.{}",
+                    palette.yellow,
+                    palette.reset
+                );
                 skipped.push(bench.id.clone());
                 attempted.push(bench.id.clone());
                 continue;
             }
         }
 
+        // Spinner lifecycle: start a spinner that proves the process is
+        // alive while the opaque benchmark command runs, and stop it as
+        // soon as the command returns (success, failure, or signal).
+        let mut spinner = testos_tui::Spinner::start("  running...", &palette);
+
         let started = Instant::now();
         let started_iso = iso_utc_now();
         let (status, value, unit, stdout, stderr, exit_code) = run_benchmark(bench, &results_dir);
         let elapsed = started.elapsed().as_secs_f64();
         let finished_iso = iso_utc_now();
+
+        // Stop the spinner BEFORE printing the completion line so the two
+        // do not clobber each other on a TTY.
+        spinner.stop();
 
         let result = BenchResult {
             schema_version: SCHEMA_VERSION,
@@ -309,32 +376,32 @@ fn main() {
         }
 
         attempted.push(bench.id.clone());
-        match status.as_str() {
+        let status_word = match status.as_str() {
             "pass" => {
                 passed.push(bench.id.clone());
-                let val_str = match (&value, &unit) {
-                    (Some(v), Some(u)) => format!(" - {} {}", v, u),
-                    _ => String::new(),
-                };
-                println!(
-                    "   PASS{} ({})",
-                    val_str,
-                    BenchList::format_duration(elapsed as u64)
-                );
+                testos_tui::StatusWord::Pass
             }
             "fail" => {
                 failed.push(bench.id.clone());
-                println!("   FAIL ({})", BenchList::format_duration(elapsed as u64));
+                testos_tui::StatusWord::Fail
             }
             _ => {
                 skipped.push(bench.id.clone());
-                println!(
-                    "   SKIPPED ({})",
-                    BenchList::format_duration(elapsed as u64)
-                );
+                testos_tui::StatusWord::Skipped
             }
-        }
-        println!();
+        };
+        let _ = writeln!(
+            io::stdout(),
+            "  {} {}{} ({})",
+            status_word.render(&palette),
+            match (&value, &unit) {
+                (Some(v), Some(u)) => format!(" — {} {} ", v, u),
+                _ => String::new(),
+            },
+            palette.reset,
+            testos_tui::format_elapsed(Duration::from_secs_f64(elapsed))
+        );
+        let _ = writeln!(io::stdout());
         // Sync the USB filesystem so we don't lose results on a sudden reboot.
         let _ = Command::new("sync").status();
     }
@@ -347,6 +414,13 @@ fn main() {
     // historical defect where the release asset v0.7.0-beta.4 wrote manifest
     // testos_version=0.7.0-beta.1 because a stale fallback constant was used.
     let testos_version = running_testos_version.clone();
+
+    // Capture counts before moving the Vecs into the manifest — the
+    // post-run summary needs them, and we move the Vecs into `RunManifest`.
+    let attempted_count = attempted.len();
+    let passed_count = passed.len();
+    let failed_count = failed.len();
+    let skipped_count = skipped.len();
 
     // Build the provenance block from the validated run-intent. Every field
     // is copied from the intent (or recomputed, for `intent_sha256`) so the
@@ -434,110 +508,104 @@ fn main() {
         Err(e) => eprintln!("WARNING: failed to serialize result-hashes.json: {}", e),
     }
 
-    // Capture system-level logs into the results directory for post-mortem
-    // analysis. These are invaluable for debugging boot failures, hardware
-    // detection issues, and benchmark crashes.
+    // Capture raw boot diagnostics into PRIVATE-DIAGNOSTICS/<run_id>/ on the
+    // USB — NEVER into the publishable results directory. This is the hard
+    // privacy boundary: the strict evidence validator rejects any bundle
+    // that contains PRIVATE-DIAGNOSTICS, any raw dmesg/journal artifact,
+    // or any symlink that references this directory.
     //
-    // PRIVACY: raw dmesg and journal output can contain MAC addresses,
-    // serial numbers, UUIDs, and other machine-unique identifiers. We
-    // redact these patterns before writing the logs. The redaction is
-    // applied via a sed filter that replaces:
-    //   - MAC addresses (xx:xx:xx:xx:xx:xx) with <MAC>
-    //   - Serial numbers (SerialNumber=xxx, serial=xxx) with <SERIAL>
-    //   - UUIDs (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) with <UUID>
-    //   - IPv4 addresses with <IPV4>
-    // This ensures the privacy scanner passes without weakening it, while
-    // still preserving the diagnostic value of the logs (driver errors,
-    // boot messages, service failures).
-    println!("  Capturing system logs (privacy-redacted)...");
-    let logs_dir = results_dir.join("system-logs");
-    let _ = std::fs::create_dir_all(&logs_dir);
+    // We capture AFTER the run completes (or aborts) and BEFORE the reboot,
+    // so the diagnostics reflect the full boot + run state. The directory
+    // is marked with a README.txt containing
+    // "PRIVATE — MAY CONTAIN HARDWARE IDENTIFIERS — DO NOT SUBMIT".
+    let _ = writeln!(
+        io::stdout(),
+        "{}Capturing private diagnostics to PRIVATE-DIAGNOSTICS/{}/...{}",
+        palette.dim,
+        run_id,
+        palette.reset
+    );
+    let diag_dir = match private_diag::ensure_dir(usb, &run_id, None) {
+        Ok(d) => {
+            let results = private_diag::capture_all(&d, boot_attempt, None);
+            // Copy through the USB discovery timeline if the mount helper
+            // wrote one — this is invaluable for diagnosing the
+            // delayed-USB-discovery class of boot failures.
+            let timeline_src = Path::new("/run/testos/usb-discovery-timeline.txt");
+            if timeline_src.exists() {
+                let _ = std::fs::copy(timeline_src, d.join(private_diag::USB_TIMELINE_FILENAME));
+            }
+            let problems = private_diag::verify_captures(&d, &results);
+            if !problems.is_empty() {
+                let body = problems.join("\n") + "\n";
+                let _ = std::fs::write(d.join("verify-problems.txt"), body);
+                eprintln!(
+                    "WARNING: {} private-diag capture problems recorded",
+                    problems.len()
+                );
+            }
+            Some(d)
+        }
+        Err(e) => {
+            eprintln!("WARNING: could not write private diagnostics: {}", e);
+            None
+        }
+    };
 
-    // Privacy redaction filter applied to all captured logs.
-    // Uses sed -re (extended regex) so {} don't need escaping.
-    // Order matters: UUIDs before MAC addresses (UUIDs contain colons).
-    let privacy_filter = r#"sed -re \
-      -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/<UUID>/g' \
-      -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<MAC>/g' \
-      -e 's/[Ss]erial[Nn]umber=[^ ]*/<SERIAL>/g' \
-      -e 's/serial=[0-9a-fA-F]{6,}/<SERIAL>/g' \
-      -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<IPV4>/g' \
-      2>/dev/null || cat"#;
+    // Sync the USB filesystem so results + diagnostics are durable before
+    // reboot. Report sync failures honestly on the summary screen.
+    let sync_ok = match private_diag::sync_usb() {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("WARNING: USB sync failed: {}", e);
+            false
+        }
+    };
 
-    let captures: [(&str, &str); 9] = [
-        ("dmesg.txt", "dmesg"),
-        ("journal.txt", "journalctl -b --no-pager -o cat"),
-        ("uname.txt", "uname -a"),
-        ("cpuinfo.txt", "cat /proc/cpuinfo"),
-        ("meminfo.txt", "cat /proc/meminfo"),
-        ("cmdline.txt", "cat /proc/cmdline"),
-        (
-            "lsblk.txt",
-            "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL",
-        ),
-        (
-            "lspci.txt",
-            "lspci -nn 2>/dev/null || echo 'lspci not installed'",
-        ),
-        (
-            "lsusb.txt",
-            "lsusb 2>/dev/null || echo 'lsusb not installed'",
-        ),
-    ];
-    for (filename, cmd) in captures.iter() {
-        // Pipe the command through the privacy filter.
-        let full_cmd = format!("{} | {}", cmd, privacy_filter);
-        let content = match Command::new("bash").arg("-c").arg(&full_cmd).output() {
-            Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
-            Err(e) => format!("(capture failed: {})", e),
-        };
-        let _ = std::fs::write(logs_dir.join(filename), content);
+    // Post-run summary. Honest about failures and skips, states sync
+    // status, gives the next action (reboot countdown), and explicitly
+    // labels the results as baseline evidence — not proof of optid
+    // improvement.
+    testos_tui::print_summary(
+        &palette,
+        testos_tui::RunCounts {
+            attempted: attempted_count,
+            passed: passed_count,
+            failed: failed_count,
+            skipped: skipped_count,
+        },
+        &results_dir.display().to_string(),
+        sync_ok,
+        aborted,
+    );
+    if let Some(d) = &diag_dir {
+        let rel = d.strip_prefix(usb).unwrap_or(d);
+        let _ = writeln!(
+            io::stdout(),
+            "  {}private diag:{} /{} (stays on USB — do NOT submit)",
+            palette.dim,
+            palette.reset,
+            rel.to_string_lossy()
+        );
     }
 
-    let _ = Command::new("sync").status();
-
-    println!("════════════════════════════════════════════════════");
-    println!("  Run complete");
-    println!(
-        "  Passed: {}   Failed: {}   Skipped: {}",
-        manifest.passed.len(),
-        manifest.failed.len(),
-        manifest.skipped.len()
-    );
-    println!("  Results: {}", results_dir.display());
-    println!();
-    println!("  Syncing USB... ");
-    let _ = Command::new("sync").status();
-    println!("  Done. Unplug the USB if you like.");
-    println!();
-    println!("  Rebooting back to host OS in 5 seconds...");
-    println!("  (Ctrl-C to stay in testOS shell)");
-    println!("════════════════════════════════════════════════════");
-
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    std::thread::sleep(Duration::from_secs(5));
     reboot_host();
 }
 
-/// Show the menu and return the list of selected benchmarks.
-fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
-    let total_eta = BenchList::format_duration(list.total_estimated_seconds());
-    println!("Available benchmarks:");
-    println!("  [0] Run all (estimated {})", total_eta);
-    for (i, b) in list.benches.iter().enumerate() {
-        let eta = BenchList::format_duration(b.estimated_seconds);
-        let bat = if b.requires_battery { " [battery]" } else { "" };
-        println!("  [{}] {} ({}){}", i + 1, b.name, eta, bat);
-        if let Some(notes) = &b.notes {
-            if !notes.trim().is_empty() {
-                println!("      {}", notes.trim());
-            }
-        }
-    }
-    println!();
-
+/// Show the menu and return the list of selected benchmarks. Uses the TUI
+/// module so the menu is driven by catalog data (notes + significance),
+/// never hard-coded descriptions in this binary.
+fn show_menu(palette: &testos_tui::Palette, list: &BenchList) -> Result<Vec<Bench>, String> {
+    testos_tui::print_menu(palette, list);
     loop {
-        print!("Select (comma-separated numbers, or 0 for all, or 'q' to quit): ");
-        io::stdout().flush().map_err(|e| e.to_string())?;
+        let _ = write!(
+            io::stdout(),
+            "{}Select{} (comma-separated numbers, or 0 for all, or 'q' to quit): ",
+            palette.bold,
+            palette.reset
+        );
+        let _ = io::stdout().flush();
         let mut line = String::new();
         io::stdin()
             .read_line(&mut line)
@@ -568,7 +636,13 @@ fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
                 }
                 _ => {
                     bad = true;
-                    println!("  '{}' is not a valid selection.", tok);
+                    let _ = writeln!(
+                        io::stdout(),
+                        "  {}'{}' is not a valid selection.{}",
+                        palette.yellow,
+                        tok,
+                        palette.reset
+                    );
                     break;
                 }
             }
@@ -577,7 +651,12 @@ fn show_menu(list: &BenchList) -> Result<Vec<Bench>, String> {
             return Ok(picked);
         }
         if !bad && picked.is_empty() {
-            println!("  No valid selections. Try again.");
+            let _ = writeln!(
+                io::stdout(),
+                "  {}No valid selections. Try again.{}",
+                palette.yellow,
+                palette.reset
+            );
         }
     }
 }
@@ -876,6 +955,71 @@ extern "C" {
 }
 unsafe fn libc_reboot(cmd: i32) -> i32 {
     reboot(0xfee1deadu32 as i32, 672274793, cmd, std::ptr::null_mut())
+}
+
+/// Implementation of the `fail_safe` closure, extracted as a standalone
+/// function so it can return `!` cleanly. Writes raw diagnostics to
+/// PRIVATE-DIAGNOSTICS, shows the privacy-safe recovery screen, waits,
+/// and reboots. NEVER drops to a root shell.
+fn fail_safe_impl(
+    palette: &testos_tui::Palette,
+    boot_attempt: u32,
+    category: FailureCategory,
+    run_id_hint: &str,
+) -> ! {
+    // Write raw diagnostics to PRIVATE-DIAGNOSTICS/<run_id_hint>/.
+    // Use "boot-<attempt>" as a fallback run_id when we don't have
+    // the intent's run_id yet (early failures).
+    let diag_run_id = if run_id_hint.is_empty() {
+        format!("boot-{}", boot_attempt)
+    } else {
+        run_id_hint.to_string()
+    };
+    let usb = Path::new(USB_MOUNT);
+    let diag_rel = if usb.exists() {
+        match private_diag::ensure_dir(usb, &diag_run_id, Some(category.code())) {
+            Ok(dir) => {
+                let results = private_diag::capture_all(&dir, boot_attempt, Some(category.code()));
+                let timeline_src = Path::new("/run/testos/usb-discovery-timeline.txt");
+                if timeline_src.exists() {
+                    let _ =
+                        std::fs::copy(timeline_src, dir.join(private_diag::USB_TIMELINE_FILENAME));
+                }
+                let problems = private_diag::verify_captures(&dir, &results);
+                if !problems.is_empty() {
+                    let body = problems.join("\n") + "\n";
+                    let _ = std::fs::write(dir.join("verify-problems.txt"), body);
+                }
+                let sync_status = match private_diag::sync_usb() {
+                    Ok(()) => "sync ok",
+                    Err(e) => {
+                        let _ = std::fs::write(dir.join("sync-failure.txt"), &e);
+                        "sync FAILED"
+                    }
+                };
+                let _ = std::fs::write(dir.join("sync-status.txt"), sync_status);
+                let rel = dir.strip_prefix(usb).unwrap_or(&dir);
+                format!("/{}", rel.to_string_lossy())
+            }
+            Err(e) => {
+                eprintln!("WARNING: could not write private diagnostics: {}", e);
+                format!("/PRIVATE-DIAGNOSTICS/{} (write failed)", diag_run_id)
+            }
+        }
+    } else {
+        "/PRIVATE-DIAGNOSTICS/ (USB not mounted — no diagnostics written)".to_string()
+    };
+
+    testos::recovery::print_recovery_screen(palette, category, &diag_rel);
+
+    // Wait so the operator can read the screen / photograph it. Then
+    // reboot. Ctrl-C lets them stay on the screen for longer review.
+    std::thread::sleep(Duration::from_secs(10));
+    reboot_host();
+    // reboot_host() always returns () but is followed by an exit() in its
+    // own body; if it somehow falls through, exit here so this function
+    // truly diverges (its return type is `!`).
+    std::process::exit(1);
 }
 
 // Unused imports kept out of the binary - removed to avoid trait-call errors.

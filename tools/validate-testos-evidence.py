@@ -97,7 +97,24 @@ _ALLOWED_RESULT_FILES = {  # exact names that are NOT per-bench results
 _FIXTURE_CONTROL_FILES = {"expected.json"}
 # Any JSON file matching one of these names is NOT a per-benchmark result.
 _NON_RESULT_FILES = _ALLOWED_RESULT_FILES | _FIXTURE_CONTROL_FILES | {"result-hashes.json"}
-_ALLOWED_DIRS = {"system-logs"}
+# The boot-reliability PR removed the `system-logs/` directory from
+# testos-results/ — raw diagnostics now live ONLY in PRIVATE-DIAGNOSTICS/
+# on the USB. An empty allow-list means no subdirectories are accepted in
+# a publishable bundle (every file must be at the top level of the run dir).
+_ALLOWED_DIRS: set[str] = set()
+# Filenames that are raw diagnostics and must NEVER appear in publishable
+# evidence, regardless of path. Finding any of these in a bundle is a
+# privacy-boundary violation (they belong in PRIVATE-DIAGNOSTICS/, which
+# is local-only and never submitted).
+_RAW_DIAGNOSTIC_FILENAMES = {
+    "dmesg.txt", "journalctl.txt", "journal.txt",
+    "systemctl-failed.txt", "status-usb-mount.txt", "status-runner.txt",
+    "critical-chain.txt", "blame.txt",
+    "kernel-version.txt", "image-version.txt", "runner-exit.txt",
+    "usb-discovery-timeline.txt",
+    "uname.txt", "cpuinfo.txt", "meminfo.txt", "cmdline.txt",
+    "lsblk.txt", "lspci.txt", "lsusb.txt",
+}
 # Placeholder strings that must never appear in provenance fields.
 _PLACEHOLDERS = {
     "unknown",
@@ -284,6 +301,7 @@ class TestosBundleValidator:
         self._check_run_id_checkpoint_consistency()
         self._check_mode_not_dry_run()
         self._check_no_unexpected_files()
+        self._check_private_diagnostics_boundary()
         return (len(self.errors) == 0, self.errors, self.warnings)
 
     # ─── Individual checks ───────────────────────────────────────────────
@@ -769,6 +787,8 @@ class TestosBundleValidator:
                     self.err(f"unexpected directory in evidence bundle: {p.name!r}")
                 continue
             if not p.is_file():
+                # Symlinks and other non-regular files are forbidden — the
+                # bundle must be regular files only (privacy boundary).
                 self.err(f"unexpected non-regular file in evidence bundle: {p.name!r}")
                 continue
             name = p.name
@@ -779,6 +799,51 @@ class TestosBundleValidator:
             if name == "result-hashes.json":
                 continue  # optional sidecar
             self.err(f"unexpected file in evidence bundle: {name!r}")
+
+    def _check_private_diagnostics_boundary(self) -> None:
+        """Check 18 (boot-reliability PR): hard privacy boundary.
+
+        Evidence submission fails closed if:
+          - PRIVATE-DIAGNOSTICS appears inside the proposed bundle (at any depth)
+          - any raw journal/dmesg artifact appears inside publishable evidence
+          - a symlink tries to reference private diagnostics (or anything
+            outside the bundle)
+        """
+        import os as _os
+        for p in self.run_dir.rglob("*"):
+            if p.is_dir() and p.name == "PRIVATE-DIAGNOSTICS":
+                self.err(
+                    f"PRIVACY BOUNDARY VIOLATION: PRIVATE-DIAGNOSTICS directory "
+                    f"found inside evidence bundle at {p.relative_to(self.run_dir)}"
+                )
+            if p.is_file() and p.name in _RAW_DIAGNOSTIC_FILENAMES:
+                self.err(
+                    f"PRIVACY BOUNDARY VIOLATION: raw diagnostic file "
+                    f"{p.name!r} found inside evidence bundle at "
+                    f"{p.relative_to(self.run_dir)} (belongs in "
+                    f"PRIVATE-DIAGNOSTICS/, never in publishable evidence)"
+                )
+            if p.is_symlink():
+                # Any symlink inside a publishable bundle is forbidden —
+                # the bundle must be regular files only. This is defense
+                # against path-traversal / boundary-crossing attacks.
+                target = _os.readlink(p)
+                self.err(
+                    f"PRIVACY BOUNDARY VIOLATION: symlink "
+                    f"{p.relative_to(self.run_dir)} -> {target} found inside "
+                    f"evidence bundle (symlinks are forbidden in publishable "
+                    f"evidence)"
+                )
+                try:
+                    resolved = p.resolve(strict=False)
+                except (OSError, RuntimeError):
+                    continue
+                if "PRIVATE-DIAGNOSTICS" in resolved.parts:
+                    self.err(
+                        f"PRIVACY BOUNDARY VIOLATION: symlink "
+                        f"{p.relative_to(self.run_dir)} resolves into "
+                        f"PRIVATE-DIAGNOSTICS at {resolved}"
+                    )
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
