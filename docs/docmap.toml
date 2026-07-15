@@ -765,9 +765,45 @@ validator = "optional_file"
 purpose = "testOS — real-hardware benchmark environment for Rush Linux: bootable USB image, single-shot appliance, results-to-USB workflow. Canonical record of what testOS is and is not; LiveDev (ADR 0018) does not modify testOS's role."
 owner_area = "area:release"
 covers_code = ["crates/testos/", "testos/", ".github/workflows/release-testos.yml"]
-deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md"]
+deps = ["docs/agent-protocol.md", "docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/livedev/OPERATOR_RUNBOOK.md"]
 freshens = ["README.md", "release/evidence/README.md"]
-last_verified = "2026-07-04"
+last_verified = "2026-07-15"
+validator = "optional_file"
+
+[docs."docs/livedev/OPERATOR_RUNBOOK.md"]
+purpose = "LiveDev operator runbook: --run-vm deterministic QEMU path and --auto/--resume USB path; cloud-safe run-intent contract, strict testOS evidence validator, unified submission safety, hardened shared path safety, and the remaining Windows-only work."
+owner_area = "area:release"
+covers_code = ["tools/livedev-next", "tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/rush-submit-evidence", "tools/validate-testos-evidence.py", "tools/rush_path_safety.py", "crates/testos/src/bin/testos-runner.rs", "schemas/testos-run-intent.schema.json", "schemas/testos-manifest.schema.json"]
+deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md", "docs/automation-human-interface.md", "testos/README.md", "AGENTS.md"]
+freshens = ["testos/README.md", "docs/IMPLEMENTATION_STATUS.md"]
+last_verified = "2026-07-15"
+validator = "optional_file"
+
+[docs."schemas/testos-run-intent.schema.json"]
+purpose = "Versioned (schema_version=1) run-intent contract: cryptographically associates the host planner with the testOS runner via run_id, source_commit, source_version, testos_version, testos_image_digest, plan_sha256, benchmark_catalog_sha256, generated_at, dry_run, checkpoint_nonce. Frozen; runner refuses mismatched versions."
+owner_area = "area:release"
+covers_code = ["crates/testos/src/run_intent.rs", "crates/testos/src/bin/testos-runner.rs", "tools/validate-testos-evidence.py"]
+deps = ["docs/livedev/OPERATOR_RUNBOOK.md"]
+freshens = []
+last_verified = "2026-07-15"
+validator = "optional_file"
+
+[docs."schemas/testos-manifest.schema.json"]
+purpose = "Versioned (schema_version=1) testOS run manifest schema: extends the original manifest with a required provenance block binding the run to the run-intent, plan, catalog, image, source commit, and run_id. The strict validator rejects manifests without provenance or with placeholder values."
+owner_area = "area:release"
+covers_code = ["crates/testos/src/results.rs", "crates/testos/src/bin/testos-runner.rs", "tools/validate-testos-evidence.py"]
+deps = ["schemas/testos-run-intent.schema.json", "docs/livedev/OPERATOR_RUNBOOK.md"]
+freshens = []
+last_verified = "2026-07-15"
+validator = "optional_file"
+
+[docs."schemas/testos-result.schema.json"]
+purpose = "Versioned (schema_version=1) testOS per-benchmark result schema: pins the canonical bench_id (must equal the result filename stem) and the human-readable bench_name (may differ); passing numeric results must carry a finite value and unit. The strict validator keys on bench_id, never bench_name."
+owner_area = "area:release"
+covers_code = ["crates/testos/src/results.rs", "crates/testos/src/bin/testos-runner.rs", "tools/validate-testos-evidence.py", "tools/rush-submit-evidence"]
+deps = ["schemas/testos-manifest.schema.json", "docs/livedev/OPERATOR_RUNBOOK.md"]
+freshens = []
+last_verified = "2026-07-15"
 validator = "optional_file"
 
 [docs."AGENTS.md"]

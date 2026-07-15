@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nan0pk/Rush-linux/raw/main/schemas/testos-run-intent.schema.json",
+  "title": "testOS Run Intent",
+  "description": "Cryptographic association contract between the host planner and the testOS runner. The host writes run-intent.json to the USB before boot; testOS reads it on boot, refuses to run if it is missing/malformed/stale/dry-run/inconsistent, and copies every field into manifest.json so the evidence validator can re-bind the run to the plan, catalog, image, source commit, and run_id. Schema version is frozen at 1; future versions must bump and the runner must refuse mismatched versions.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "intent_kind",
+    "run_id",
+    "source_commit",
+    "source_version",
+    "testos_version",
+    "testos_image_digest",
+    "plan_sha256",
+    "benchmark_catalog_sha256",
+    "generated_at",
+    "dry_run",
+    "checkpoint_nonce"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Frozen at 1; future versions must bump and the runner must refuse mismatched versions."
+    },
+    "intent_kind": {
+      "type": "string",
+      "const": "testos-run-intent",
+      "description": "Discriminator field so the runner can confirm it is reading the right file type."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{4,128}$",
+      "description": "Stable run identifier shared by the host checkpoint and the testOS manifest. Must not be empty, must not contain path separators or whitespace, 4-128 chars."
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The 40-character git commit SHA the testOS image was built from. The runner records this in manifest.json (not merely prints it) and the validator re-checks it against the repo."
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+      "description": "The Rush Linux project version this evidence certifies (e.g. '0.7.0-beta.4'). Must match the VERSION file."
+    },
+    "testos_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+      "description": "The testOS image version (from /etc/testos/version inside the image). The runner cross-checks this against the running image and refuses on mismatch."
+    },
+    "testos_image_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 digest of the testOS image file the host wrote to the USB, prefixed with 'sha256:'. Binds the run to the exact image bytes."
+    },
+    "plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the plan.json bytes the host generated. The runner records the plan alongside the results and the validator re-hashes it."
+    },
+    "benchmark_catalog_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the bench-list.toml bytes baked into the image. Binds the run to the exact benchmark catalog."
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 UTC timestamp when the host generated this intent. The runner rejects intents older than the freshness window (default 24h) to prevent stale-USB replays."
+    },
+    "dry_run": {
+      "type": "boolean",
+      "description": "If true, this is a dry-run intent. The runner refuses to execute a physical benchmark run when dry_run=true; only --dry-run planning paths may set this."
+    },
+    "checkpoint_nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Campaign identity / checkpoint nonce. The host persists this in its checkpoint under LOCALAPPDATA (Windows) or ~/.rush (Linux); the runner copies it into manifest.json so the resume step can confirm the USB matches the checkpoint that launched it."
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{4,128}$",
+      "description": "Optional campaign identity grouping several runs. If absent, checkpoint_nonce is the sole campaign identity."
+    },
+    "freshness_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 604800,
+      "description": "Optional maximum age in seconds for generated_at to be considered fresh. Defaults to 86400 (24h) if absent."
+    },
+    "operator": {
+      "type": "string",
+      "description": "Optional: name or handle of the operator who launched the run."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional: free-text notes."
+    }
+  }
+}

@@ -156,6 +156,7 @@ The remaining three scenarios (`laptop-battery`, `gaming-frame-time`, `realtime-
 - **One-shot boot.** testOS doesn't install a bootloader. You pick the USB from the boot menu manually. Pull the USB, reboot, and you're back in the host OS.
 - **`testos-launcher write` is paranoid.** It refuses to write to a mounted device, refuses to write to anything that looks like the host's root disk, and requires you to type the device name twice to confirm.
 - **Esc-to-abort saves partial results.** If you press Esc mid-run, the runner writes a marker, skips remaining tests, writes what it has, and reboots. No lost work.
+- **Cloud-safe run-intent contract.** A physical testOS run is cryptographically associated with the host planner that launched it via a `run-intent.json` file (`schemas/testos-run-intent.schema.json`). The runner refuses to run if the intent is missing/malformed/stale/dry-run/inconsistent, and copies every field into `manifest.json` under a `provenance` block. The strict evidence validator (`tools/validate-testos-evidence.py`) re-checks every provenance field before an evidence PR may be opened. See `docs/livedev/OPERATOR_RUNBOOK.md` for the full contract and the remaining Windows-only work.
 
 ## Prerequisites
 

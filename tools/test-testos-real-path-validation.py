@@ -32,7 +32,13 @@ def run(cmd, env=None, timeout=30):
 
 
 def make_valid_run_dir(base: Path) -> Path:
-    """Create a run dir with valid manifest + result files."""
+    """Create a run dir with valid manifest + result files.
+
+    Uses the realistic shape emitted by the Rust TestOS runner: each result
+    carries the CANONICAL ``bench_id`` (which equals the filename stem) plus a
+    human-readable ``bench_name`` that may legitimately differ. Validators key
+    on ``bench_id``, never on ``bench_name`` (bug #1).
+    """
     run_dir = base / "test-run"
     run_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
@@ -47,10 +53,12 @@ def make_valid_run_dir(base: Path) -> Path:
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest))
     (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_name": "bench-a", "status": "pass", "value": 1.5, "unit": "ms"
+        "bench_id": "bench-a", "bench_name": "bench A throughput",
+        "status": "pass", "value": 1.5, "unit": "ms"
     }))
     (run_dir / "bench-b.json").write_text(json.dumps({
-        "bench_name": "bench-b", "status": "fail", "exit_code": 1, "stderr": "err"
+        "bench_id": "bench-b", "bench_name": "bench B latency",
+        "status": "fail", "exit_code": 1, "stderr": "err"
     }))
     return run_dir
 
@@ -298,10 +306,16 @@ def test_4a_foreground_launch_no_python_dependency():
     exec_lines = [l for l in fg_cmd.split('\n')
                   if l.strip() and not l.strip().startswith('#')]
     exec_text = ' '.join(exec_lines)
-    assert "python3" not in exec_text, \
-        "foreground-launch depends on python3 in executable code"
-    assert "/usr/bin/time -f" not in exec_text or "EPOCHREALTIME" in exec_text, \
-        "foreground-launch uses /usr/bin/time without EPOCHREALTIME fallback"
+    # Timing bug #9: foreground-launch must NOT use bash $EPOCHREALTIME as a
+    # timing source — it is wall-clock (CLOCK_REALTIME), not monotonic, and
+    # must not call it "monotonic". It must instead use a genuinely monotonic
+    # high-resolution source (time.perf_counter_ns = CLOCK_MONOTONIC).
+    assert "EPOCHREALTIME" not in exec_text, \
+        "foreground-launch uses wall-clock EPOCHREALTIME as a timing source"
+    assert "perf_counter_ns" in exec_text, \
+        "foreground-launch does not use a genuinely monotonic clock"
+    assert "/usr/bin/time -f" not in exec_text, \
+        "foreground-launch uses low-resolution /usr/bin/time"
 
 
 def test_4b_foreground_launch_produces_nonzero():
@@ -462,10 +476,12 @@ def test_7b_submit_rejects_secret_in_results():
     """rush-submit-evidence must reject unredacted secrets before bundle."""
     tmp = tempfile.mkdtemp()
     run_dir = make_valid_run_dir(Path(tmp))
-    # Inject a secret into a result file
+    # Inject a secret into a result file (keeping the realistic shape with
+    # the canonical bench_id so validation reaches the privacy gate).
     (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_name": "bench-a", "status": "pass", "value": 1.5, "unit": "ms",
-        "stderr": "GITHUB_TOKEN=ghp_1234567890abcdef"
+        "bench_id": "bench-a", "bench_name": "bench A throughput",
+        "status": "pass", "value": 1.5, "unit": "ms",
+        "stderr": "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyz0123"
     }))
 
     rc, stdout, stderr = run(
@@ -486,8 +502,9 @@ def test_7c_no_bundle_created_on_privacy_failure():
     tmp = tempfile.mkdtemp()
     run_dir = make_valid_run_dir(Path(tmp))
     (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_name": "bench-a", "status": "pass", "value": 1.5, "unit": "ms",
-        "stderr": "GITHUB_TOKEN=ghp_1234567890abcdef"
+        "bench_id": "bench-a", "bench_name": "bench A throughput",
+        "status": "pass", "value": 1.5, "unit": "ms",
+        "stderr": "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyz0123"
     }))
 
     run(["python3", str(REPO_ROOT / "tools" / "rush-submit-evidence"),

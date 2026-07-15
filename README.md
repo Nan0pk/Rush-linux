@@ -482,6 +482,7 @@ Run the test suite locally:
 python3 -m pytest \
   tools/test-builder.py \
   tools/test-checkpoint-resume.py \
+  tools/test-cloud-safe-livedev.py \
   tools/test-frontpage-sync.py \
   tools/test-livedev-hardening.py \
   tools/test-livedev-image.py \
@@ -497,6 +498,7 @@ python3 -m pytest \
   tools/test-rush-pr.py \
   tools/test-rush-runner.py \
   tools/test-submit-evidence.py \
+  tools/test-testos-evidence-submission-blockers.py \
   tools/test-testos-plan-units-timing.py \
   tools/test-testos-real-hardware-defects.py \
   tools/test-testos-real-path-validation.py \

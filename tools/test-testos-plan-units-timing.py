@@ -104,14 +104,17 @@ def test_6c_stale_plan_detected_by_validator():
             "mode": "baseline",
         }
         (run_dir / "manifest.json").write_text(json.dumps(manifest))
-        # Write a result file
-        (run_dir / "test-bench.json").write_text('{"value": 1.0, "unit": "ms"}')
+        # Write a result file (realistic shape: canonical bench_id + status)
+        (run_dir / "test-bench.json").write_text(
+            '{"bench_id": "test-bench", "status": "pass", "value": 1.0, "unit": "ms"}')
 
-        # Write a stale plan.json (hardcoded timestamp + dry_run=true)
+        # Write a stale plan.json (hardcoded timestamp + dry_run=true +
+        # a source_commit that does NOT exist in this repo, representing a
+        # plan built from a foreign/unknown tree).
         stale_plan = {
             "generated_at": "2026-07-04T12:00:00Z",
             "dry_run": True,
-            "source_commit": "f9eb991eac3c1d1d8d01a9e17e5a5892aa051fd6",
+            "source_commit": "f9eb991eac3c1d1d8d01a9e17e5a5892aa051faa",
         }
         (run_dir / "plan.json").write_text(json.dumps(stale_plan))
 
@@ -294,7 +297,7 @@ def test_8a_foreground_launch_uses_high_res_timing():
 def test_8b_foreground_launch_rejects_zero():
     """Defect 8: foreground-launch must reject zero/non-finite results."""
     bench_list = read_bench_list()
-    fg_section = re.search(r'id = "foreground-launch".*?command = """(.*?)"""', bench_list, re.DOTALL)
+    fg_section = re.search(r'id = "foreground-launch".*?command = (?:\'\'\'|""")(.*?)(?:\'\'\'|""")', bench_list, re.DOTALL)
     if not fg_section:
         print("FAIL: foreground-launch not found")
         return False
@@ -313,7 +316,7 @@ def test_8b_foreground_launch_rejects_zero():
 def test_8c_foreground_launch_produces_nonzero():
     """Defect 8: foreground-launch command actually produces a non-zero result."""
     bench_list = read_bench_list()
-    fg_section = re.search(r'id = "foreground-launch".*?command = """(.*?)"""', bench_list, re.DOTALL)
+    fg_section = re.search(r'id = "foreground-launch".*?command = (?:\'\'\'|""")(.*?)(?:\'\'\'|""")', bench_list, re.DOTALL)
     if not fg_section:
         print("FAIL: foreground-launch not found")
         return False

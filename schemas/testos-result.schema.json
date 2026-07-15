@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nan0pk/Rush-linux/raw/main/schemas/testos-result.schema.json",
+  "title": "testOS Benchmark Result",
+  "description": "Per-benchmark result written by the testOS guest runner (one <bench-id>.json file per benchmark). The canonical identifier is bench_id; it MUST equal the result file's name stem. bench_name is a human-readable label that may legitimately differ from bench_id (e.g. bench_id='iperf3-tcp', bench_name='iperf3 TCP throughput'); validators must therefore key on bench_id, never on bench_name. Schema version is frozen at 1; future versions must bump schema_version and the validator must refuse mismatched versions.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "bench_id",
+    "bench_name",
+    "scenario",
+    "status",
+    "started_at",
+    "finished_at",
+    "elapsed_seconds",
+    "host"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "bench_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+      "description": "Canonical benchmark id from the catalog. MUST equal the result file's name stem (e.g. iperf3-tcp.json -> bench_id='iperf3-tcp')."
+    },
+    "bench_name": {
+      "type": "string",
+      "description": "Human-readable benchmark name. May differ from bench_id; not used as an identity key."
+    },
+    "scenario": {
+      "type": "string",
+      "description": "Manifest scenario this benchmark contributes to (e.g. 'server-throughput')."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail", "aborted", "skipped", "passed", "failed", "error", "timeout"]
+    },
+    "started_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "finished_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "elapsed_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "value": {
+      "type": ["number", "null"],
+      "description": "Primary numeric result (e.g. IOPS, TPS, latency p95 in ms). Required and finite for passing numeric benchmarks; null/absent for pass/fail or failed benchmarks."
+    },
+    "unit": {
+      "type": ["string", "null"],
+      "description": "Unit of value (e.g. 'iops', 'tps', 'ms', 'gbps'). Required for passing numeric benchmarks."
+    },
+    "stdout": {
+      "type": ["string", "null"]
+    },
+    "stderr": {
+      "type": ["string", "null"]
+    },
+    "exit_code": {
+      "type": ["integer", "null"]
+    },
+    "host": {
+      "type": "object",
+      "required": ["fingerprint"],
+      "additionalProperties": true,
+      "properties": {
+        "fingerprint": { "type": "string" }
+      }
+    }
+  }
+}

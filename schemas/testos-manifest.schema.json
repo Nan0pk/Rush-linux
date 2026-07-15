@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nan0pk/Rush-linux/raw/main/schemas/testos-manifest.schema.json",
+  "title": "testOS Run Manifest",
+  "description": "Top-level manifest written by the testOS runner to the USB results directory. Extends the original schema_version=1 manifest with a required provenance block that cryptographically binds the run to the run-intent, plan, benchmark catalog, testOS image, source commit, and run_id. The strict evidence validator (tools/validate-testos-evidence.py) re-checks every provenance field. Schema version remains 1; the provenance block is required for physical runs and is rejected if it contains placeholder values.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "started_at",
+    "finished_at",
+    "mode",
+    "attempted",
+    "passed",
+    "failed",
+    "skipped",
+    "host",
+    "testos_version",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Frozen at 1."
+    },
+    "started_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 UTC timestamp when the run started."
+    },
+    "finished_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 UTC timestamp when the run finished (or was aborted). Must be >= started_at."
+    },
+    "mode": {
+      "type": "string",
+      "description": "'all' | 'selection:<comma-separated-ids>' | 'aborted'. Must NOT be 'dry-run' for a physical run."
+    },
+    "attempted": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The ids of benchmarks that were attempted (regardless of pass/fail)."
+    },
+    "passed": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The ids of benchmarks that passed."
+    },
+    "failed": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The ids of benchmarks that failed."
+    },
+    "skipped": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The ids of benchmarks that were skipped."
+    },
+    "host": {
+      "type": "object",
+      "description": "Host fingerprint (same as in each BenchResult; denormalized for convenience).",
+      "required": ["fingerprint"]
+    },
+    "testos_version": {
+      "type": "string",
+      "description": "testOS image version (from /etc/testos/version). Must match provenance.testos_version from the run intent."
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "source_commit",
+        "source_version",
+        "testos_version",
+        "testos_image_digest",
+        "plan_sha256",
+        "benchmark_catalog_sha256",
+        "intent_generated_at",
+        "intent_dry_run",
+        "checkpoint_nonce",
+        "intent_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{4,128}$",
+          "description": "Run identifier copied from the run intent. Must match the host checkpoint."
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "40-character git commit SHA copied from the run intent. Recorded in evidence, not merely printed."
+        },
+        "source_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+          "description": "Rush Linux version copied from the run intent. Must match the VERSION file."
+        },
+        "testos_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+          "description": "testOS image version copied from the run intent. Must match the top-level testos_version and the running image."
+        },
+        "testos_image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "SHA-256 of the testOS image bytes, copied from the run intent."
+        },
+        "plan_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of plan.json bytes, copied from the run intent. The validator re-hashes the plan file bundled with the results."
+        },
+        "benchmark_catalog_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of bench-list.toml bytes, copied from the run intent. The validator re-hashes the catalog bundled with the image."
+        },
+        "intent_generated_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "generated_at copied from the run intent. The validator checks freshness against the run's started_at."
+        },
+        "intent_dry_run": {
+          "type": "boolean",
+          "description": "dry_run copied from the run intent. Must be false for a physical run."
+        },
+        "checkpoint_nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+          "description": "Checkpoint nonce / campaign identity copied from the run intent. The resume step confirms it matches the host checkpoint."
+        },
+        "intent_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the run-intent.json bytes the runner read from the USB. Binds the manifest to the exact intent file."
+        },
+        "campaign_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{4,128}$",
+          "description": "Optional campaign identity copied from the run intent."
+        }
+      }
+    }
+  }
+}
