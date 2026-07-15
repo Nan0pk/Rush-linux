@@ -482,6 +482,7 @@ Run the test suite locally:
 python3 -m pytest \
   tools/test-builder.py \
   tools/test-checkpoint-resume.py \
+  tools/test-cloud-safe-livedev.py \
   tools/test-frontpage-sync.py \
   tools/test-livedev-hardening.py \
   tools/test-livedev-image.py \

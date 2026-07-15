@@ -1,0 +1,10 @@
+# Generated testOS cloud-safe fixtures are NOT committed because they embed
+# the current commit SHA and a generated_at timestamp that go stale on every
+# commit. The 'good' fixture is regenerated on demand by generate-fixtures.py
+# for manual `validate-testos-evidence.py --fixtures` runs.
+#
+# The authoritative cloud-safe regression suite is
+# tools/test-cloud-safe-livedev.py, which builds fixtures dynamically in temp
+# directories using the real repo commit/VERSION/hashes. That file is what CI
+# runs (via `python3 -m pytest tools/test-*.py -q`).
+good/

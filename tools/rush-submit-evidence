@@ -42,8 +42,10 @@ import argparse
 import base64
 import datetime
 import hashlib
+import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -59,8 +61,105 @@ _ROOT = _HERE.parent
 # ─── Validation ─────────────────────────────────────────────────────────────
 
 
+# Token-bearing-URL detection. Used by `assert_no_token_argv` to reject any
+# argv element that embeds a GitHub token (or any credential) in a git URL or
+# an Authorization header. Tokens must be passed via the environment
+# (GH_TOKEN / GITHUB_TOKEN) or the gh CLI, never on the command line where
+# they land in shell history, process listings, and logs.
+_TOKEN_URL_PATTERNS = [
+    re.compile(r"https?://[^/@\s]+:[^/@\s]+@"),           # https://user:pass@host
+    re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}"),            # ghp_/gho_/ghs_/ghu_/ghr_
+    re.compile(r"github_pat_[A-Za-z0-9_]{82}"),           # github_pat_
+    re.compile(r"(?i)authorization\s*[:=]\s*bearer\s+",   # Authorization: Bearer ...
+              re.IGNORECASE),
+    re.compile(r"(?i)x-auth-token\s*[:=]\s*"),            # X-Auth-Token: ...
+]
+
+
+def assert_no_token_argv(argv: list[str]) -> None:
+    """Reject any argv element that embeds a token/credential.
+
+    Tokens must be passed via the environment or the gh CLI, never on the
+    command line. This is a fail-closed check: the function raises
+    SystemExit(1) if any argv element matches a token-bearing-URL pattern.
+    """
+    offending: list[str] = []
+    for i, arg in enumerate(argv):
+        for pat in _TOKEN_URL_PATTERNS:
+            if pat.search(arg):
+                offending.append(f"argv[{i}]={arg!r} matched {pat.pattern!r}")
+                break
+    if offending:
+        print("ERROR: token-bearing argument rejected (AGENTS.md §13):", file=sys.stderr)
+        for o in offending:
+            print(f"  - {o}", file=sys.stderr)
+        print("Tokens must be passed via GH_TOKEN/GITHUB_TOKEN env vars or `gh auth`,", file=sys.stderr)
+        print("never on the command line.", file=sys.stderr)
+        raise SystemExit(1)
+
+
+# No-merge / no-milestone-verification invariant (AGENTS.md §13, ADR 0018 §6.2).
+# This tool MUST NEVER call the GitHub PR-merge endpoint nor modify
+# `release/milestones.toml`. The forbidden-path list below is checked before
+# every API call so a future edit cannot silently reintroduce a merge call.
+_FORBIDDEN_API_PATHS = [
+    re.compile(r"pulls/\d+/merge"),
+    re.compile(r"milestones"),
+    re.compile(r"releases"),
+]
+
+
+def assert_safe_api_path(path: str, method: str) -> None:
+    """Reject any GitHub API path that would merge a PR or edit release truth.
+
+    Called before every `_gh_api` invocation. Fails closed with SystemExit(1)
+    if the path matches a forbidden pattern. This is defense-in-depth: the
+    code never constructs such paths today, but this guard catches future
+    regressions.
+    """
+    for pat in _FORBIDDEN_API_PATHS:
+        if pat.search(path):
+            print(
+                f"ERROR: forbidden GitHub API path rejected: {method} {path} "
+                f"(AGENTS.md §13: no merge, no milestone verification, no release edits)",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+
+def _run_strict_testos_validator(run_dir: Path) -> tuple[bool, list[str]]:
+    """Delegate to the strict testOS cloud-safe validator.
+
+    Returns (ok, errors). If the strict validator module cannot be imported
+    (e.g. rush_capture_lib missing), returns (False, [import error]) so the
+    caller fails closed.
+    """
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "validate_testos_evidence",
+            str(_HERE / "validate-testos-evidence.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        ok, errors, _warnings = mod.validate_run_dir(run_dir, _ROOT)
+        return (ok, errors)
+    except Exception as e:
+        return (False, [f"strict validator import/execution failed: {e}"])
+
+
 def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
-    """Validate the run directory. Returns (ok, errors, manifest)."""
+    """Validate the run directory. Returns (ok, errors, manifest).
+
+    A run directory is treated as a testOS cloud-safe run when its manifest
+    contains a `provenance` block or a `run-intent.json` sidecar exists. In
+    that case the strict validator (`tools/validate-testos-evidence.py`) is
+    the authoritative gate — it re-checks every provenance field, freshness,
+    dry_run, plan/catalog/image digests, run_id/checkpoint consistency,
+    result-file hashes, and privacy. The legacy checks below are retained as
+    a defense-in-depth backstop for older manifests without provenance, but
+    physical-run evidence MUST pass the strict gate before submission.
+    """
     errors: list[str] = []
     manifest: dict[str, Any] = {}
 
@@ -69,20 +168,47 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
 
     manifest_path = run_dir / "manifest.json"
     if not manifest_path.is_file():
-        errors.append(f"missing manifest.json in {run_dir}")
+        return (False, [f"missing manifest.json in {run_dir}"], {})
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except json.JSONDecodeError as e:
+        return (False, [f"manifest.json is not valid JSON: {e}"], {})
+
+    has_provenance = isinstance(manifest.get("provenance"), dict)
+    has_intent = (run_dir / "run-intent.json").is_file()
+
+    # STRICT GATE: testOS cloud-safe runs must pass the full validator.
+    if has_provenance or has_intent:
+        ok, strict_errors = _run_strict_testos_validator(run_dir)
+        if not ok:
+            # Fail closed: do not fall through to the lenient legacy checks.
+            return (False, strict_errors, manifest)
+        # Strict gate passed. Still run the legacy structural checks below
+        # so older downstream code (PR body generation) has the fields it
+        # expects; any error here is additive.
     else:
-        try:
-            manifest = json.loads(manifest_path.read_text())
-        except json.JSONDecodeError as e:
-            errors.append(f"manifest.json is not valid JSON: {e}")
-        else:
-            # Required fields.
-            for field in ("started_at", "host", "passed", "failed"):
-                if field not in manifest:
-                    errors.append(f"manifest.json missing field: {field}")
-            host = manifest.get("host", {})
-            if not isinstance(host, dict) or "fingerprint" not in host:
-                errors.append("manifest.json missing host.fingerprint")
+        # No provenance and no intent: this is a legacy/old-shape run dir
+        # (e.g. a synthetic test fixture, or a pre-cloud-safe run). The
+        # strict gate does not apply; the legacy structural checks below
+        # remain the path for these. Real testOS cloud-safe runs produced
+        # by the current runner always carry a provenance block + run-intent
+        # and therefore always go through the strict gate. Print an
+        # informational note (not an error) so the operator knows the run
+        # lacks cloud-safe provenance.
+        print(
+            "NOTE: run directory has no provenance block and no run-intent.json; "
+            "this is a legacy-shape run. Real testOS cloud-safe runs carry a "
+            "provenance block and are gated by the strict validator.",
+            file=sys.stderr,
+        )
+
+    # Required fields (legacy structural check).
+    for field in ("started_at", "host", "passed", "failed"):
+        if field not in manifest:
+            errors.append(f"manifest.json missing field: {field}")
+    host = manifest.get("host", {})
+    if not isinstance(host, dict) or "fingerprint" not in host:
+        errors.append("manifest.json missing host.fingerprint")
 
     # Must have at least one result file.
     result_files = list(run_dir.glob("*.json"))
@@ -353,6 +479,8 @@ def _get_token() -> str | None:
 def _gh_api(method: str, path: str, token: str,
             body: dict | None = None) -> tuple[int, dict]:
     """Call the GitHub API. Returns (status_code, response_json)."""
+    # Fail closed: reject any path that would merge a PR or edit release truth.
+    assert_safe_api_path(path, method)
     url = f"https://api.github.com/repos/Nan0pk/Rush-linux/{path}"
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(url, data=data, method=method, headers={
@@ -398,10 +526,16 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
     # Stage results in a temp clone.
     with tempfile.TemporaryDirectory(prefix="rush-submit-") as tmp:
         tmp_path = Path(tmp)
-        # Shallow clone.
+        # Shallow clone. The clone URL MUST NOT carry a token — assert it
+        # before spawning git so a future bug (or a hostile env var) cannot
+        # leak the token into the process table or git's own logs. The token
+        # is used only for the GitHub API calls below, via the Authorization
+        # header set in-code (never on the argv).
+        clone_argv = ["git", "clone", "--depth", "1",
+                      "https://github.com/Nan0pk/Rush-linux.git", str(tmp_path)]
+        assert_no_token_argv(clone_argv)
         r = subprocess.run(
-            ["git", "clone", "--depth", "1",
-             "https://github.com/Nan0pk/Rush-linux.git", str(tmp_path)],
+            clone_argv,
             capture_output=True, text=True, timeout=60,
         )
         if r.returncode != 0:
@@ -466,9 +600,16 @@ def submit_to_github(run_dir: Path, manifest: dict[str, Any],
         if r.returncode != 0:
             return ("error", f"git commit failed: {r.stderr.strip()}")
 
-        # Push.
+        # Push. The push argv MUST NOT carry a token — assert it. The token
+        # is used only via the GitHub API (Authorization header in `_gh_api`),
+        # never via a credential-embedded push URL. For git push to authenticate
+        # without a token URL, the caller must have `gh auth` configured or a
+        # credential helper; if neither is present, push fails closed here
+        # rather than silently embedding the token in the remote URL.
+        push_argv = ["git", "push", "origin", f"{branch}:{branch}"]
+        assert_no_token_argv(push_argv)
         r = subprocess.run(
-            ["git", "push", "origin", f"{branch}:{branch}"],
+            push_argv,
             cwd=str(tmp_path), capture_output=True, text=True, timeout=60,
         )
         if r.returncode != 0:

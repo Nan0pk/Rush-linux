@@ -22,7 +22,8 @@ use std::process::Command;
 use std::time::Instant;
 
 use testos::{
-    Bench, BenchKind, BenchList, BenchResult, HostFingerprint, RunManifest, SCHEMA_VERSION,
+    Bench, BenchKind, BenchList, BenchResult, HostFingerprint, RunIntent, RunManifest,
+    RunProvenance, SCHEMA_VERSION,
 };
 
 const USB_MOUNT: &str = "/run/testos/usb";
@@ -95,8 +96,61 @@ fn main() {
         ));
     }
 
-    // 2. Load bench list from the USB.
+    // 1b. Compute the running testOS image version. This is needed both to
+    // validate the run-intent (the intent's `testos_version` must match the
+    // running image) and to fill `manifest.json.testos_version`. The
+    // canonical source is /etc/testos/version (written by build-testos.sh
+    // from the repo VERSION file); /etc/os-release VERSION= is the fallback.
+    let running_testos_version = read_running_testos_version();
+
+    // 1c. Load and fully validate the run-intent from the USB.
+    //
+    // The host planner writes run-intent.json to the USB before boot. The
+    // runner reads it here, refuses to run if it is missing/malformed/stale/
+    // dry-run/inconsistent, and copies every field into manifest.json so the
+    // strict evidence validator can re-bind the run to the plan, catalog,
+    // image, source commit, and run_id.
+    //
+    // This is fail-closed: a missing or invalid intent never falls through to
+    // an unsigned/default run. The operator must re-prepare the USB from a
+    // host that has a valid plan + checkpoint.
     let bench_list_path = usb.join(BENCH_LIST_REL);
+    let intent_raw_bytes: Vec<u8> = std::fs::read(usb.join(testos::run_intent::INTENT_FILENAME))
+        .unwrap_or_else(|_| Vec::new());
+    let intent: RunIntent = match RunIntent::load_and_validate(
+        usb,
+        &running_testos_version,
+        &bench_list_path,
+    ) {
+        Ok(i) => i,
+        Err(e) => {
+            // The intent is the cryptographic association between the host
+            // and the runner. Without it, any results we write would be
+            // unverifiable. Fail closed.
+            fail_with_diag(&format!(
+                "ERROR: run-intent validation failed.\n\
+                 The host planner must write a valid run-intent.json to the\n\
+                 USB before boot. testOS will not run benchmarks without one.\n\
+                 \n\
+                 Reason: {}\n\
+                 \n\
+                 To recover: re-prepare the USB on the host with\n\
+                 `python3 tools/livedev-next --prepare-usb` (or --auto),\n\
+                 then reboot from the freshly-prepared USB.",
+                e
+            ));
+        }
+    };
+    println!("  Run intent: run_id={}", intent.run_id);
+    println!("  Source commit: {}", intent.source_commit);
+    println!("  Source version: {}", intent.source_version);
+    println!("  testOS image digest: {}", intent.testos_image_digest);
+    println!("  Plan SHA-256: {}", intent.plan_sha256);
+    println!("  Catalog SHA-256: {}", intent.benchmark_catalog_sha256);
+    println!("  Checkpoint nonce: {}", intent.checkpoint_nonce);
+    println!();
+
+    // 2. Load bench list from the USB.
     let list = match BenchList::load(&bench_list_path) {
         Ok(l) => l,
         Err(e) => {
@@ -290,31 +344,18 @@ fn main() {
 
     // 8. Write the top-level manifest.
     let finished_at = iso_utc_now();
-    // Derive testos_version from the canonical source: /etc/testos/version
-    // (written by build-testos.sh from the repo's VERSION file). Fall back
-    // to /etc/os-release VERSION=, then to the hardcoded fallback.
-    // This fixes the defect where the release asset v0.7.0-beta.4 wrote
-    // manifest testos_version=0.7.0-beta.1 because the fallback constant
-    // was stale.
-    let testos_version = std::fs::read_to_string("/etc/testos/version")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            std::fs::read_to_string("/etc/os-release")
-                .ok()
-                .and_then(|t| {
-                    t.lines()
-                        .find(|l| l.starts_with("VERSION="))
-                        .and_then(|l| {
-                            l.split('=')
-                                .nth(1)
-                                .map(|s| s.trim().trim_matches('"').to_string())
-                        })
-                        .filter(|s| !s.is_empty())
-                })
-        })
-        .unwrap_or_else(|| TESTOS_VERSION_FALLBACK.to_string());
+    // `running_testos_version` was computed early (step 1b) and already
+    // cross-checked against the run-intent's `testos_version`. Reuse it here
+    // so the manifest is guaranteed to match the intent. This also fixes the
+    // historical defect where the release asset v0.7.0-beta.4 wrote manifest
+    // testos_version=0.7.0-beta.1 because a stale fallback constant was used.
+    let testos_version = running_testos_version.clone();
+
+    // Build the provenance block from the validated run-intent. Every field
+    // is copied from the intent (or recomputed, for `intent_sha256`) so the
+    // strict evidence validator can re-bind the run to the plan, catalog,
+    // image, source commit, and run_id without trusting the runner.
+    let provenance = RunProvenance::from_intent(&intent, &intent_raw_bytes);
 
     let manifest = RunManifest {
         schema_version: SCHEMA_VERSION,
@@ -327,6 +368,7 @@ fn main() {
         skipped,
         host: host.clone(),
         testos_version,
+        provenance: Some(provenance),
     };
 
     let manifest_path = results_dir.join("manifest.json");
@@ -341,6 +383,42 @@ fn main() {
             }
         }
         Err(e) => eprintln!("WARNING: failed to serialize manifest: {}", e),
+    }
+
+    // Record the source git SHA as evidence (not merely printed to the
+    // console). The provenance block already carries the 40-char source_commit
+    // from the run-intent; this file is the operator-facing short SHA from
+    // /etc/testos/source-sha so a reviewer can eyeball it against
+    // `git rev-parse --short HEAD` without recomputing the full hash.
+    let _ = std::fs::write(results_dir.join("source-sha.txt"), &source_sha);
+
+    // Copy the run-intent.json and plan.json into the results directory so
+    // the strict evidence validator can re-bind the manifest to the exact
+    // intent and plan the host launched. The validator recomputes
+    // intent_sha256 and plan_sha256 and compares them to the manifest's
+    // provenance block. Without these files the validator fails closed.
+    let intent_dest = results_dir.join("run-intent.json");
+    if !intent_raw_bytes.is_empty() {
+        if let Err(e) = std::fs::write(&intent_dest, &intent_raw_bytes) {
+            eprintln!(
+                "WARNING: failed to write run-intent.json to results: {}",
+                e
+            );
+        }
+    }
+    // The host planner writes plan.json alongside run-intent.json at the USB
+    // root. Copy it through if present (it is required for the validator to
+    // recompute plan_sha256).
+    let plan_src = usb.join("plan.json");
+    if plan_src.exists() {
+        if let Ok(plan_bytes) = std::fs::read(&plan_src) {
+            let _ = std::fs::write(results_dir.join("plan.json"), &plan_bytes);
+        }
+    }
+    // Copy the bench-list.toml so the validator can recompute
+    // benchmark_catalog_sha256 without relying on the image.
+    if let Ok(cat_bytes) = std::fs::read(&bench_list_path) {
+        let _ = std::fs::write(results_dir.join("bench-list.toml"), &cat_bytes);
     }
 
     // Capture system-level logs into the results directory for post-mortem
@@ -672,6 +750,34 @@ fn iso_utc_now() -> String {
     // Simple ISO 8601 from epoch seconds, no chrono dependency needed in this binary.
     // Format: YYYY-MM-DDTHH:MM:SSZ
     iso_from_epoch(secs)
+}
+
+/// Read the running testOS image version from the canonical source
+/// (`/etc/testos/version`, written by build-testos.sh from the repo VERSION
+/// file), falling back to `/etc/os-release` `VERSION=`, then to the hardcoded
+/// `TESTOS_VERSION_FALLBACK`. Extracted into a helper so the same value is
+/// used for run-intent validation (step 1c) and for the manifest (step 8),
+/// guaranteeing they agree.
+fn read_running_testos_version() -> String {
+    std::fs::read_to_string("/etc/testos/version")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/os-release")
+                .ok()
+                .and_then(|t| {
+                    t.lines()
+                        .find(|l| l.starts_with("VERSION="))
+                        .and_then(|l| {
+                            l.split('=')
+                                .nth(1)
+                                .map(|s| s.trim().trim_matches('"').to_string())
+                        })
+                        .filter(|s| !s.is_empty())
+                })
+        })
+        .unwrap_or_else(|| TESTOS_VERSION_FALLBACK.to_string())
 }
 
 fn iso_from_epoch(epoch: u64) -> String {

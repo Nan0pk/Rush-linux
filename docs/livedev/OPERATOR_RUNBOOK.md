@@ -301,6 +301,167 @@ python3 tools/livedev-next --help
 - **Real hardware evidence** — no transcripts submitted. v0.6 criteria remain `verified = false`.
 - **LiveDev image boot** — mkosi profile exists, not built on hardware. testOS is the current boot backend.
 - **Milestone close** — separate from evidence PRs, requires maintainer approval.
+- **Windows-only cloud-safe work** — PowerShell persistent checkpoint under
+  `LOCALAPPDATA`, CIM hardware inventory, reparse-point/junction rejection,
+  installer confirmation before `Clear-Disk`, fail-closed release checksum
+  verification, and native Windows USB tests are NOT yet implemented. See
+  "Remaining Windows-only work" below.
+
+## Cloud-safe run-intent contract (Linux + testOS foundation)
+
+A physical testOS run is now cryptographically associated with the host
+planner that launched it via a **run-intent** file
+(`schemas/testos-run-intent.schema.json`, schema version 1). The host
+writes `run-intent.json` to the USB before boot; testOS reads it on boot,
+refuses to run if it is missing/malformed/stale/dry-run/inconsistent, and
+copies every field into `manifest.json` under a `provenance` block
+(`schemas/testos-manifest.schema.json`). The strict evidence validator
+(`tools/validate-testos-evidence.py`) re-checks every provenance field
+before an evidence PR may be opened.
+
+### Run-intent fields (required)
+
+| field | shape | meaning |
+|---|---|---|
+| `schema_version` | `1` | Frozen; runner refuses mismatched versions. |
+| `intent_kind` | `"testos-run-intent"` | Discriminator. |
+| `run_id` | `^[A-Za-z0-9_.:-]{4,128}$` | Stable run identifier shared by host checkpoint and manifest. |
+| `source_commit` | `^[0-9a-f]{40}$` | 40-char git SHA the testOS image was built from. |
+| `source_version` | semver | Must match the `VERSION` file. |
+| `testos_version` | semver | Must match the running image's `/etc/testos/version`. |
+| `testos_image_digest` | `sha256:<64 hex>` | SHA-256 of the testOS image bytes written to the USB. |
+| `plan_sha256` | `<64 hex>` | SHA-256 of `plan.json` bytes the host generated. |
+| `benchmark_catalog_sha256` | `<64 hex>` | SHA-256 of `bench-list.toml` bytes baked into the image. |
+| `generated_at` | ISO 8601 UTC | When the host generated the intent; rejected if stale (>24h) or future. |
+| `dry_run` | `false` | Physical runs require `false`; `true` is rejected. |
+| `checkpoint_nonce` | `^[A-Za-z0-9_.:-]{8,128}$` | Campaign identity / checkpoint nonce. |
+
+### testOS runner behavior (fail-closed)
+
+The runner (`crates/testos/src/bin/testos-runner.rs`) now:
+
+1. Computes the running testOS version from `/etc/testos/version` early.
+2. Loads `run-intent.json` from the USB and fully validates it:
+   - schema_version + intent_kind discriminator
+   - all required-field patterns
+   - `dry_run == false`
+   - `generated_at` freshness (default 24h, overridable via
+     `freshness_seconds` clamped to [60s, 7d])
+   - `testos_version` matches the running image
+   - `benchmark_catalog_sha256` matches the SHA-256 of the USB's
+     `bench-list.toml`
+3. Refuses to run (drops to a diagnostic shell) if any check fails. A
+   missing or invalid intent never falls through to an unsigned run.
+4. Records `source_sha` as evidence (`source-sha.txt`) in addition to
+   printing it.
+5. Copies `run-intent.json`, `plan.json`, and `bench-list.toml` into the
+   results directory so the validator can re-bind them.
+6. Writes a `provenance` block into `manifest.json` containing every
+   intent field plus `intent_sha256` (SHA-256 of the run-intent.json
+   bytes the runner read).
+
+### Strict evidence validator
+
+`tools/validate-testos-evidence.py` is the single strict gate every
+testOS evidence bundle must pass on BOTH Linux and Windows (stdlib-only,
+no external deps). It runs 17 checks:
+
+1. required evidence files exist (manifest, run-intent, plan,
+   bench-list, source-sha, at least one result)
+2. manifest conforms to `testos-manifest.schema.json`
+3. run-intent conforms to `testos-run-intent.schema.json`
+4. `manifest.provenance` present and complete (no placeholder values)
+5. `source_commit` exists in git (full 40-char SHA, shallow-clone aware)
+6. `source_version` matches the `VERSION` file
+7. `testos_version` consistency (manifest == provenance == intent)
+8. `intent_dry_run` is `false`
+9. `intent_generated_at` fresh, not future, and ordered vs `started_at`
+10. `plan_sha256` matches the bundled `plan.json` bytes
+11. `benchmark_catalog_sha256` matches the bundled `bench-list.toml` bytes
+12. `intent_sha256` matches the bundled `run-intent.json` bytes
+13. result files parse and match `attempted`; changed-after-manifest
+    detection via `result-hashes.json` sidecar
+14. privacy scan (reuses `rush_capture_lib.redact`) — secrets absent
+15. `run_id` / `checkpoint_nonce` consistency (manifest == intent)
+16. `mode` is not `"dry-run"`
+17. no unexpected evidence files (allow-list enforced)
+
+The validator never treats placeholder metadata (`unknown`, `TODO`,
+`0000...0000`, etc.) as valid. It is the authoritative gate for
+`rush-submit-evidence`: a run directory with a `provenance` block or a
+`run-intent.json` sidecar MUST pass this validator before submission;
+failure fails closed (no fallback to the lenient legacy checks).
+
+### Submission safety (unified)
+
+`tools/rush-submit-evidence` now:
+
+- routes testOS evidence through the strict validator + privacy scan
+  (fail-closed on either)
+- enforces `draft: True` on every evidence PR creation
+- rejects token-bearing Git URLs / Authorization headers in argv
+  (`assert_no_token_argv`) before every `git clone` / `git push`
+- rejects merge / milestone / release API paths
+  (`assert_safe_api_path`) before every GitHub API call
+- never calls the merge endpoint, never edits release truth
+
+### Shared path safety (hardened)
+
+`tools/rush_path_safety.py` now provides:
+
+- `prove_containment(child, parent)` — fail-closed canonicalized
+  containment proof (raises on escape)
+- `reject_non_regular(root)` — scans for device nodes, FIFOs, sockets,
+  and (on Windows) reparse points
+- `safe_copy_tree(src_root, dst_root)` — copies a tree with full
+  source + destination containment proof and symlink/non-regular
+  rejection
+- `is_windows_reparse_point(p)` / `windows_reparse_point_safety_verified()`
+  — documented extension points for Windows junction safety; the hook
+  is a no-op stub on non-Windows and **must not be relied on as safe**
+  until a real Windows agent implements and tests it
+
+### Cloud-safe regression tests
+
+`tools/test-cloud-safe-livedev.py` is the authoritative cloud-safe
+regression suite (20 tests, all pass in the cloud environment). It
+covers the 11 required scenarios plus schema, placeholder, containment,
+and submission-safety checks. Fixtures are built dynamically in temp
+directories using the real repo commit/VERSION/hashes so they never go
+stale. The test clearly separates environment-dependent tests (symlink
+escape skips when `os.symlink` is unavailable; Rust fmt/test/clippy are
+unavailable where `cargo` is absent and run in CI).
+
+## Remaining Windows-only work
+
+The cloud-safe Linux/testOS/shared-code foundation is complete. The
+following work requires a real Windows agent and is NOT covered by this
+PR:
+
+- **PowerShell persistent checkpoint under `LOCALAPPDATA`** — the host
+  checkpoint that records the `run_id` / `checkpoint_nonce` so the resume
+  step can confirm the USB matches the run that launched it. Linux uses
+  `~/.rush`; Windows needs `%LOCALAPPDATA%\Rush\livedev-checkpoint.json`.
+- **CIM hardware inventory** — `Win32_ComputerSystem`, `Win32_Battery`,
+  `Win32_Processor` queries to fill the host fingerprint on Windows.
+- **Reparse-point / junction rejection** — implement
+  `rush_path_safety._is_windows_reparse_point` via
+  `GetFileAttributesW` + `FILE_ATTRIBUTE_REPARSE_POINT` and add a native
+  Windows test. Flip `windows_reparse_point_safety_verified()` to `True`
+  only after that test passes. No code path may claim junction safety
+  until then.
+- **Installer confirmation before `Clear-Disk`** — `testos/install.ps1`
+  must require interactive confirmation before any `Clear-Disk` / disk
+  write, mirroring `testos/install.sh`'s `yes` prompt.
+- **Fail-closed release checksum verification** — `testos/install.ps1`
+  must verify `SHA256SUMS` against the GitHub release assets and refuse
+  to write the USB on mismatch.
+- **Native Windows USB tests** — end-to-end USB prepare / boot / resume
+  on a real Windows host, exercising the checkpoint, junction rejection,
+  and installer confirmation.
+
+Until that work lands, Windows LiveDev runs are NOT cloud-safe and must
+not be claimed as such.
 
 ## What is never automatic
 
