@@ -115,20 +115,17 @@ fn main() {
     // an unsigned/default run. The operator must re-prepare the USB from a
     // host that has a valid plan + checkpoint.
     let bench_list_path = usb.join(BENCH_LIST_REL);
-    let intent_raw_bytes: Vec<u8> = std::fs::read(usb.join(testos::run_intent::INTENT_FILENAME))
-        .unwrap_or_else(|_| Vec::new());
-    let intent: RunIntent = match RunIntent::load_and_validate(
-        usb,
-        &running_testos_version,
-        &bench_list_path,
-    ) {
-        Ok(i) => i,
-        Err(e) => {
-            // The intent is the cryptographic association between the host
-            // and the runner. Without it, any results we write would be
-            // unverifiable. Fail closed.
-            fail_with_diag(&format!(
-                "ERROR: run-intent validation failed.\n\
+    let intent_raw_bytes: Vec<u8> =
+        std::fs::read(usb.join(testos::run_intent::INTENT_FILENAME)).unwrap_or_else(|_| Vec::new());
+    let intent: RunIntent =
+        match RunIntent::load_and_validate(usb, &running_testos_version, &bench_list_path) {
+            Ok(i) => i,
+            Err(e) => {
+                // The intent is the cryptographic association between the host
+                // and the runner. Without it, any results we write would be
+                // unverifiable. Fail closed.
+                fail_with_diag(&format!(
+                    "ERROR: run-intent validation failed.\n\
                  The host planner must write a valid run-intent.json to the\n\
                  USB before boot. testOS will not run benchmarks without one.\n\
                  \n\
@@ -137,10 +134,10 @@ fn main() {
                  To recover: re-prepare the USB on the host with\n\
                  `python3 tools/livedev-next --prepare-usb` (or --auto),\n\
                  then reboot from the freshly-prepared USB.",
-                e
-            ));
-        }
-    };
+                    e
+                ));
+            }
+        };
     println!("  Run intent: run_id={}", intent.run_id);
     println!("  Source commit: {}", intent.source_commit);
     println!("  Source version: {}", intent.source_version);
@@ -400,10 +397,7 @@ fn main() {
     let intent_dest = results_dir.join("run-intent.json");
     if !intent_raw_bytes.is_empty() {
         if let Err(e) = std::fs::write(&intent_dest, &intent_raw_bytes) {
-            eprintln!(
-                "WARNING: failed to write run-intent.json to results: {}",
-                e
-            );
+            eprintln!("WARNING: failed to write run-intent.json to results: {}", e);
         }
     }
     // The host planner writes plan.json alongside run-intent.json at the USB
@@ -419,6 +413,25 @@ fn main() {
     // benchmark_catalog_sha256 without relying on the image.
     if let Ok(cat_bytes) = std::fs::read(&bench_list_path) {
         let _ = std::fs::write(results_dir.join("bench-list.toml"), &cat_bytes);
+    }
+
+    // Generate result-hashes.json: a deterministic SHA-256 entry for every
+    // benchmark result file. This sidecar is MANDATORY for strict submission —
+    // the evidence validator rejects any bundle without it, and rejects any
+    // missing, extra, or mismatched entry. Written after all results are
+    // finalized so a tampered result is detected on collection.
+    let result_hashes = compute_result_hashes(&results_dir);
+    match serde_json::to_string_pretty(&result_hashes) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(results_dir.join("result-hashes.json"), json) {
+                eprintln!(
+                    "WARNING: failed to write result-hashes.json to {}: {}",
+                    results_dir.display(),
+                    e
+                );
+            }
+        }
+        Err(e) => eprintln!("WARNING: failed to serialize result-hashes.json: {}", e),
     }
 
     // Capture system-level logs into the results directory for post-mortem
@@ -738,6 +751,39 @@ extern "C" {
 }
 unsafe fn libc_read(fd: i32, buf: *mut u8, count: usize) -> isize {
     read(fd, buf as *mut _, count)
+}
+
+/// Compute SHA-256 for every per-benchmark result file in `results_dir`.
+/// Returns a map of filename → hex SHA-256. Only files matching
+/// `*.json` that are NOT top-level metadata (manifest.json, run-intent.json,
+/// plan.json, result-hashes.json) are hashed.
+fn compute_result_hashes(results_dir: &Path) -> std::collections::BTreeMap<String, String> {
+    let mut hashes = std::collections::BTreeMap::new();
+    let skip = [
+        "manifest.json",
+        "run-intent.json",
+        "plan.json",
+        "result-hashes.json",
+        "expected.json",
+    ];
+    if let Ok(entries) = std::fs::read_dir(results_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = match name.to_str() {
+                Some(s) => s,
+                None => continue,
+            };
+            if !name_str.ends_with(".json") || skip.contains(&name_str) {
+                continue;
+            }
+            // Read the file bytes and hash them.
+            if let Ok(data) = std::fs::read(entry.path()) {
+                let h = testos::run_intent::sha256_hex(&data);
+                hashes.insert(name_str.to_string(), h);
+            }
+        }
+    }
+    hashes
 }
 
 fn iso_utc_now() -> String {

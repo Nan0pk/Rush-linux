@@ -136,6 +136,7 @@ SCHEMAS = {
     "manifest": _load_schema("testos-manifest.schema.json"),
     "intent": _load_schema("testos-run-intent.schema.json"),
     "result": _load_schema("testos-result.schema.json"),
+    "plan": _load_schema("testos-plan.schema.json"),
 }
 
 
@@ -274,6 +275,7 @@ class TestosBundleValidator:
         self._check_dry_run_false()
         self._check_freshness_and_ordering()
         self._check_plan_hash()
+        self._check_plan_content()
         self._check_catalog_hash()
         self._check_intent_hash()
         self._check_classification_sets()
@@ -298,7 +300,8 @@ class TestosBundleValidator:
         except (OSError, json.JSONDecodeError) as e:
             self.err(f"manifest.json: cannot parse: {e}")
             return
-        for required in ("run-intent.json", "plan.json", "bench-list.toml", "source-sha.txt"):
+        for required in ("run-intent.json", "plan.json", "bench-list.toml",
+                         "source-sha.txt", "result-hashes.json"):
             if not (self.run_dir / required).exists():
                 self.err(f"missing required file: {required}")
         # At least one per-benchmark result file (*.json, excluding the
@@ -401,8 +404,8 @@ class TestosBundleValidator:
                     f"provenance.source_commit {commit!r} does not exist in git "
                     f"(not in local store and fetch failed: {fetch_r.stderr.strip()[:200]})"
                 )
-        except (OSError, subprocess.TimeoutExpired) as e:
-            self.warn(f"could not verify provenance.source_commit in git: {e}")
+        except (OSError, subprocess.TimeoutExpired):
+            self.err(f"provenance.source_commit {commit!r} could not be verified in git (git failed)")
 
     def _check_source_version(self) -> None:
         """Check 6: provenance.source_version matches the VERSION file."""
@@ -502,6 +505,48 @@ class TestosBundleValidator:
         actual = _sha256_file(plan_path)
         if actual != expected:
             self.err(f"plan_sha256 mismatch: provenance has {expected}, plan.json hashes to {actual}")
+
+    def _check_plan_content(self) -> None:
+        """Check 10b: parse and validate plan.json against its versioned
+        schema, and cross-check its internal fields against the run-intent.
+
+        A correctly-hashed plan whose internal source_commit or run_id
+        disagrees with the intent is REJECTED — a matching SHA-256 only
+        proves the bytes were not tampered with, not that they agree with
+        the run contract.
+        """
+        if self.intent is None:
+            return
+        plan_path = self.run_dir / "plan.json"
+        if not plan_path.exists():
+            return  # already reported by _check_required_files
+        try:
+            plan = json.loads(plan_path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            self.err(f"plan.json: cannot parse: {e}")
+            return
+        # Schema conformance.
+        for se in validate_against_schema(plan, SCHEMAS["plan"], "$.plan.json"):
+            self.err(f"plan.json: schema: {se}")
+        # Cross-check fields against the run-intent.
+        for field, _pat in (
+            ("source_commit", None),
+            ("source_version", None),
+            ("dry_run", None),
+        ):
+            pval = plan.get(field)
+            ival = self.intent.get(field)
+            if pval is not None and ival is not None and pval != ival:
+                self.err(
+                    f"plan.json {field} {pval!r} != run-intent {field} {ival!r}"
+                )
+        # run_id (optional in plan; if present must match intent).
+        plan_run_id = plan.get("run_id")
+        if plan_run_id is not None and plan_run_id != self.intent.get("run_id"):
+            self.err(
+                f"plan.json run_id {plan_run_id!r} != run-intent run_id "
+                f"{self.intent.get('run_id')!r}"
+            )
 
     def _check_catalog_hash(self) -> None:
         """Check 11: benchmark_catalog_sha256 matches the bundled bench-list.toml bytes."""
@@ -643,33 +688,34 @@ class TestosBundleValidator:
         for m in sorted(missing):
             self.err(f"manifest.attempted lists {m!r} but no result file found for it")
 
-        # Per-file SHA-256 binding (when the runner emits result-hashes.json).
+        # Per-file SHA-256 binding (mandatory — result-hashes.json is required).
         # This binds each result artifact to a recorded digest so a changed
-        # file is detected; every recorded digest must match the artifact.
+        # file is detected; every recorded digest must match the artifact,
+        # and there must be no missing or extra entries.
         sidecar = self.run_dir / "result-hashes.json"
-        if sidecar.exists():
-            try:
-                hashes = json.loads(sidecar.read_text())
-            except (OSError, json.JSONDecodeError) as e:
-                self.err(f"result-hashes.json: cannot parse: {e}")
-                return
-            for rf in result_files:
-                recorded = hashes.get(rf.name)
-                if recorded is None:
-                    self.err(f"result-hashes.json has no entry for {rf.name}")
-                    continue
-                actual = _sha256_file(rf)
-                if actual != recorded:
-                    self.err(
-                        f"result file {rf.name} was changed after result-hashes.json "
-                        f"was written: recorded digest {recorded}, actual {actual}"
-                    )
-            # No stale/extra entries either.
-            known = {p.name for p in result_files}
-            for extra in set(hashes) - known:
-                self.err(f"result-hashes.json records unknown file {extra!r}")
-        elif self.strict:
-            self.warn("result-hashes.json sidecar absent; per-file tamper detection skipped")
+        if not sidecar.exists():
+            self.err("result-hashes.json is missing; per-result binding is mandatory")
+            return
+        try:
+            hashes = json.loads(sidecar.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            self.err(f"result-hashes.json: cannot parse: {e}")
+            return
+        for rf in result_files:
+            recorded = hashes.get(rf.name)
+            if recorded is None:
+                self.err(f"result-hashes.json has no entry for {rf.name}")
+                continue
+            actual = _sha256_file(rf)
+            if actual != recorded:
+                self.err(
+                    f"result file {rf.name} was changed after result-hashes.json "
+                    f"was written: recorded digest {recorded}, actual {actual}"
+                )
+        # No stale/extra entries either.
+        known = {p.name for p in result_files}
+        for extra in set(hashes) - known:
+            self.err(f"result-hashes.json records unknown file {extra!r}")
 
 
     def _check_privacy_scan(self) -> None:
@@ -754,8 +800,8 @@ def validate_fixtures(strict: bool = False) -> int:
     print("=" * 60)
     fixtures = sorted(d for d in FIXTURES_DIR.iterdir() if d.is_dir())
     if not fixtures:
-        print("  (no fixtures found)")
-        return 0
+        print("ERROR: no fixtures discovered; the fixture directory is empty.", file=sys.stderr)
+        return 1
     total = passed = failed = mismatches = 0
     for fixture in fixtures:
         expected_path = fixture / "expected.json"

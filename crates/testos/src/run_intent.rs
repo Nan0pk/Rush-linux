@@ -92,9 +92,16 @@ pub enum RunIntentError {
     /// `dry_run == true` on a physical boot.
     DryRun,
     /// `generated_at` is older than the freshness window.
-    Stale { generated_at: String, age_seconds: u64, max_seconds: u64 },
+    Stale {
+        generated_at: String,
+        age_seconds: u64,
+        max_seconds: u64,
+    },
     /// `generated_at` is in the future (clock skew / tampering).
-    Future { generated_at: String, skew_seconds: u64 },
+    Future {
+        generated_at: String,
+        skew_seconds: u64,
+    },
     /// A digest field does not match its expected format.
     BadDigest(String, String),
     /// The running testOS image version does not match `testos_version`.
@@ -146,8 +153,8 @@ impl RunIntent {
         }
         let text = std::fs::read_to_string(&intent_path)
             .map_err(|e| RunIntentError::ReadError(e.to_string()))?;
-        let intent: RunIntent = serde_json::from_str(&text)
-            .map_err(|e| RunIntentError::ParseError(e.to_string()))?;
+        let intent: RunIntent =
+            serde_json::from_str(&text).map_err(|e| RunIntentError::ParseError(e.to_string()))?;
 
         intent.validate(running_testos_version, catalog_path)?;
         Ok(intent)
@@ -331,7 +338,11 @@ fn is_semver(s: &str) -> bool {
         None => (s, None),
     };
     let parts: Vec<&str> = core.split('.').collect();
-    if parts.len() != 3 || !parts.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())) {
+    if parts.len() != 3
+        || !parts
+            .iter()
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    {
         return false;
     }
     match pre {
@@ -392,7 +403,8 @@ fn parse_iso8601_to_epoch(s: &str) -> Option<u64> {
     let y = if month <= 2 { year - 1 } else { year };
     let era = if y >= 0 { y / 400 } else { (y - 399) / 400 };
     let yoe = (y - era * 400) as u64; // [0, 399]
-    let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) as u64 + 2) / 5 + (day - 1) as u64;
+    let doy =
+        (153 * (if month > 2 { month - 3 } else { month + 9 }) as u64 + 2) / 5 + (day - 1) as u64;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
     let days_since_epoch = era as i64 * 146097 + doe as i64 - 719468;
     if days_since_epoch < 0 {
@@ -448,17 +460,20 @@ fn rust_sha256_hex(data: &[u8]) -> String {
 
 fn sha256_raw(data: &[u8]) -> [u8; 32] {
     const K: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
     ];
     let mut hh: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
     let bitlen = (data.len() as u64).wrapping_mul(8);
     let mut padded = data.to_vec();
@@ -490,7 +505,11 @@ fn sha256_raw(data: &[u8]) -> [u8; 32] {
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ (!e & g);
-            let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let t1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let t2 = s0.wrapping_add(maj);
@@ -539,8 +558,13 @@ mod tests {
 
     #[test]
     fn parse_iso8601_roundtrip() {
-        // 2026-07-15T00:00:00Z = 1784448000
-        assert_eq!(parse_iso8601_to_epoch("2026-07-15T00:00:00Z"), Some(1784448000));
+        // 2026-07-15T00:00:00Z = 1784073600 (verified: 56 years * 365.25 +
+        // leap-day accounting; matches `date -u -d 2026-07-15 +%s`).
+        // The previous hardcoded value (1784448000) was off by 4.33 days.
+        assert_eq!(
+            parse_iso8601_to_epoch("2026-07-15T00:00:00Z"),
+            Some(1784073600)
+        );
         assert_eq!(parse_iso8601_to_epoch("not-a-date"), None);
     }
 

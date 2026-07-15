@@ -797,6 +797,15 @@ freshens = []
 last_verified = "2026-07-15"
 validator = "optional_file"
 
+[docs."schemas/testos-plan.schema.json"]
+purpose = "Versioned (schema_version=1) benchmark plan schema: validates plan structure and cross-checks source_commit, source_version, dry_run, and run_id against the run-intent. The strict validator rejects a plan whose internal fields disagree with the intent even if its SHA-256 matches."
+owner_area = "area:release"
+covers_code = ["tools/rush-autopilot", "tools/validate-testos-evidence.py", "tools/testos_prepare_usb.py"]
+deps = ["schemas/testos-run-intent.schema.json", "docs/livedev/OPERATOR_RUNBOOK.md"]
+freshens = []
+last_verified = "2026-07-15"
+validator = "optional_file"
+
 [docs."schemas/testos-result.schema.json"]
 purpose = "Versioned (schema_version=1) testOS per-benchmark result schema: pins the canonical bench_id (must equal the result filename stem) and the human-readable bench_name (may differ); passing numeric results must carry a finite value and unit. The strict validator keys on bench_id, never bench_name."
 owner_area = "area:release"

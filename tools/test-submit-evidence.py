@@ -21,6 +21,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -45,14 +46,78 @@ rse = _load_module("rush_submit_evidence", _TOOLS_DIR / "rush-submit-evidence")
 # ─── Fixtures ───────────────────────────────────────────────────────────────
 
 
+def _git_head():
+    r = subprocess.run(
+        ["git", "-C", str(_ROOT), "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=5,
+    )
+    return r.stdout.strip()
+
+
+def _version():
+    return (_ROOT / "VERSION").read_text().strip()
+
+
+def _sha256_bytes(b: bytes) -> str:
+    import hashlib
+    return hashlib.sha256(b).hexdigest()
+
+
+def _sha256_file(p: Path) -> str:
+    return _sha256_bytes(p.read_bytes())
+
+
+def _now_iso():
+    import datetime as dt
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _make_valid_run_dir(tmp: Path) -> Path:
-    """Create a valid run dir with manifest + 2 results."""
+    """Create a fully provenance-bound run dir matching the Rust runner output.
+
+    This now carries a provenance block, run-intent.json, plan.json,
+    bench-list.toml, source-sha.txt, and result-hashes.json — the exact
+    shape the strict validator requires for physical TestOS submission.
+    Legacy planless run dirs are no longer accepted for submission.
+    """
     run_dir = tmp / "run"
     run_dir.mkdir()
+    head = _git_head()
+    version = _version()
+    catalog = (_ROOT / "testos" / "bench-list.toml").read_bytes()
+    catalog_sha = _sha256_bytes(catalog)
+
+    # Valid plan matching the intent.
+    plan = {
+        "schema_version": 1, "plan_kind": "rush-autopilot-plan",
+        "generated_at": _now_iso(), "source_version": version,
+        "source_commit": head, "dry_run": False,
+        "campaign_scope": "comparative", "hardware_slot": "laptop",
+        "slot_confidence": "high", "ambiguities": [],
+        "open_criteria": [], "existing_evidence": [], "steps": [],
+        "repo_root": ".",
+    }
+    plan_raw = json.dumps(plan).encode()
+    plan_sha = _sha256_bytes(plan_raw)
+
+    # Valid run-intent.
+    intent = {
+        "schema_version": 1, "intent_kind": "testos-run-intent",
+        "run_id": "submit-test-0001", "source_commit": head,
+        "source_version": version, "testos_version": version,
+        "testos_image_digest": f"sha256:{'a' * 64}",
+        "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
+        "generated_at": _now_iso(), "dry_run": False,
+        "checkpoint_nonce": "ckpt-submit-test-001",
+        "campaign_id": "campaign-test-001",
+    }
+    intent_raw = json.dumps(intent, indent=2, sort_keys=True).encode()
+    intent_sha = _sha256_bytes(intent_raw)
+
     manifest = {
         "schema_version": 1,
-        "started_at": "2026-07-06T12:00:00Z",
-        "finished_at": "2026-07-06T12:02:00Z",
+        "started_at": _now_iso(),
+        "finished_at": _now_iso(),
         "mode": "all",
         "attempted": ["bench-a", "bench-b"],
         "passed": ["bench-a"],
@@ -65,14 +130,42 @@ def _make_valid_run_dir(tmp: Path) -> Path:
             "dmi_board": "TestBoard",
             "battery_design_uwh": 50000000,
         },
-        "testos_version": "0.7.0-beta.1",
+        "testos_version": version,
+        "provenance": {
+            "run_id": intent["run_id"],
+            "source_commit": head,
+            "source_version": version,
+            "testos_version": version,
+            "testos_image_digest": intent["testos_image_digest"],
+            "plan_sha256": plan_sha,
+            "benchmark_catalog_sha256": catalog_sha,
+            "intent_generated_at": intent["generated_at"],
+            "intent_dry_run": False,
+            "checkpoint_nonce": intent["checkpoint_nonce"],
+            "intent_sha256": intent_sha,
+            "campaign_id": intent["campaign_id"],
+        },
     }
-    (run_dir / "manifest.json").write_text(json.dumps(manifest))
-    (run_dir / "bench-a.json").write_text(json.dumps({
-        "bench_id": "bench-a", "status": "pass", "value": 1234.5, "unit": "tps",
-    }))
-    (run_dir / "bench-b.json").write_text(json.dumps({
-        "bench_id": "bench-b", "status": "fail", "stderr": "command not found",
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    result_a = {"schema_version": 1, "bench_id": "bench-a", "bench_name": "bench A",
+                "status": "pass", "value": 1234.5, "unit": "tps",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.5, "scenario": "server-throughput",
+                "host": {"fingerprint": "abc123def456"}}
+    result_b = {"schema_version": 1, "bench_id": "bench-b", "bench_name": "bench B",
+                "status": "fail", "stderr": "command not found",
+                "started_at": _now_iso(), "finished_at": _now_iso(),
+                "elapsed_seconds": 0.1, "scenario": "server-throughput",
+                "host": {"fingerprint": "abc123def456"}}
+    (run_dir / "bench-a.json").write_text(json.dumps(result_a))
+    (run_dir / "bench-b.json").write_text(json.dumps(result_b))
+    (run_dir / "run-intent.json").write_bytes(intent_raw)
+    (run_dir / "plan.json").write_bytes(plan_raw)
+    (run_dir / "bench-list.toml").write_bytes(catalog)
+    (run_dir / "source-sha.txt").write_text(head[:12])
+    (run_dir / "result-hashes.json").write_text(json.dumps({
+        "bench-a.json": _sha256_file(run_dir / "bench-a.json"),
+        "bench-b.json": _sha256_file(run_dir / "bench-b.json"),
     }))
     return run_dir
 
@@ -100,6 +193,7 @@ def test_validate_missing_manifest():
 
 
 def test_validate_missing_host_fingerprint():
+    """A legacy run dir without provenance is rejected by the strict gate."""
     with tempfile.TemporaryDirectory() as tmp:
         run_dir = Path(tmp) / "run"
         run_dir.mkdir()
@@ -108,10 +202,12 @@ def test_validate_missing_host_fingerprint():
         (run_dir / "bench.json").write_text("{}")
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert not ok
-        assert any("fingerprint" in e for e in errors)
+        # Legacy planless evidence is rejected at the provenance gate.
+        assert any("provenance" in e or "run-intent" in e for e in errors)
 
 
 def test_validate_no_results():
+    """A legacy run dir without provenance is rejected."""
     with tempfile.TemporaryDirectory() as tmp:
         run_dir = Path(tmp) / "run"
         run_dir.mkdir()
@@ -122,7 +218,28 @@ def test_validate_no_results():
         (run_dir / "manifest.json").write_text(json.dumps(manifest))
         ok, errors, _ = rse.validate_run_dir(run_dir)
         assert not ok
-        assert any("no benchmark" in e for e in errors)
+        assert any("provenance" in e or "run-intent" in e for e in errors)
+
+
+def test_planless_legacy_rejected_for_submission():
+    """A fully-formed but planless legacy run dir must be rejected."""
+    with tempfile.TemporaryDirectory() as tmp:
+        run_dir = Path(tmp) / "run"
+        run_dir.mkdir()
+        manifest = {
+            "schema_version": 1,
+            "started_at": "2026-07-06T12:00:00Z",
+            "host": {"fingerprint": "abc"},
+            "passed": ["bench-a"], "failed": [], "skipped": [],
+            "attempted": ["bench-a"],
+        }
+        (run_dir / "manifest.json").write_text(json.dumps(manifest))
+        (run_dir / "bench-a.json").write_text(json.dumps({
+            "bench_id": "bench-a", "status": "pass", "value": 1.0, "unit": "ms",
+        }))
+        ok, errors, _ = rse.validate_run_dir(run_dir)
+        assert not ok
+        assert any("provenance" in e for e in errors), errors
 
 
 def test_validate_nonexistent_dir():
