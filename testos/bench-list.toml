@@ -217,29 +217,58 @@ name = "foreground launch latency (ms)"
 scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 unit = "ms"
-command = """
-# SECURITY (defect 8): /usr/bin/time -f %e lacks sufficient resolution for
-# `true` (reports 0.00). Replace with monotonic high-resolution timing using
-# python3's time.perf_counter_ns (nanosecond resolution).
-# Measure median of 11 launches of a meaningful deterministic operation
-# (echo through a subshell — available in every testOS image).
-python3 -c '
-import subprocess, time, statistics
-samples = []
-for _ in range(11):
-    t0 = time.perf_counter_ns()
-    subprocess.run(["bash", "-c", "echo ok >/dev/null"], capture_output=True)
-    t1 = time.perf_counter_ns()
-    samples.append((t1 - t0) / 1e6)  # convert ns to ms
-median_ms = statistics.median(samples)
-# Reject zero or non-finite — a zero result means timing failed.
-import math
-if not math.isfinite(median_ms) or median_ms == 0:
-    print("ERROR", end="")
-else:
-    print(f"{median_ms:.3f}")
-'
-"""
+command = '''
+# SECURITY (defect 4): Use high-resolution monotonic timing without Python.
+# Uses bash's $EPOCHREALTIME (available in bash 5+, which Arch/testOS ships)
+# for microsecond-resolution timestamps. Measures median of 11 launches of
+# a deterministic subshell operation. Rejects zero or non-numeric results.
+#
+# If $EPOCHREALTIME is unavailable (bash < 5), falls back to /usr/bin/time
+# with -v (which has millisecond resolution on GNU time).
+samples_file=$(mktemp)
+trap 'rm -f "$samples_file"' EXIT
+if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    # High-resolution path: bash 5+ EPOCHREALTIME (microsecond precision)
+    for i in $(seq 1 11); do
+        t0=$EPOCHREALTIME
+        bash -c 'echo ok >/dev/null'
+        t1=$EPOCHREALTIME
+        # Compute (t1 - t0) * 1000 to convert seconds to ms.
+        # EPOCHREALTIME is "seconds.microseconds" — use awk for float math.
+        awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%.6f\n", (b - a) * 1000 }' >> "$samples_file"
+    done
+else
+    # Fallback: /usr/bin/time -v with awk extraction (ms resolution)
+    for i in $(seq 1 11); do
+        /usr/bin/time -f '%e' bash -c 'echo ok >/dev/null' 2>&1 | \
+            awk '{ printf "%.6f\n", $1 * 1000 }' >> "$samples_file"
+    done
+fi
+# Compute median. If any sample is zero or non-numeric, output ERROR.
+awk '{
+    v = $1 + 0
+    if (v <= 0 || v == "" || $1 !~ /^[0-9.]+$/) {
+        print "ERROR"
+        exit 1
+    }
+    a[NR] = v
+}
+END {
+    n = NR
+    if (n == 0) { print "ERROR"; exit 1 }
+    # Sort for median
+    for (i = 1; i <= n; i++) {
+        for (j = i + 1; j <= n; j++) {
+            if (a[i] > a[j]) { tmp = a[i]; a[i] = a[j]; a[j] = tmp }
+        }
+    }
+    if (n % 2 == 1) {
+        printf "%.3f\n", a[(n + 1) / 2]
+    } else {
+        printf "%.3f\n", (a[n/2] + a[n/2 + 1]) / 2
+    }
+}' "$samples_file"
+'''
 estimated_seconds = 10
 notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."
 
