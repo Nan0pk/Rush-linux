@@ -58,6 +58,40 @@ from typing import Any
 _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parent
 
+# Make sibling tool modules importable both when this file is run as a
+# script and when it is imported directly by tests. This MUST live at module
+# scope so that validate_run_dir() (which delegates to the strict validator)
+# works even when invoked without going through main().
+sys.path.insert(0, str(_HERE))
+
+
+def _load_sibling_module(name: str, filename: str):
+    """Import a sibling tools/ module by filename.
+
+    Used for tool modules whose filename is not a valid Python identifier
+    (e.g. ``validate-testos-evidence.py``). The module is registered in
+    ``sys.modules`` BEFORE it is executed so that ``@dataclass`` decorators —
+    which internally do ``sys.modules.get(cls.__module__).__dict__`` — work
+    correctly. Omitting that registration raises::
+
+        AttributeError: 'NoneType' object has no attribute '__dict__'
+
+    which is exactly the "privacy scanner failed to load" failure seen on
+    real submissions. For modules with valid-identifier names (e.g.
+    ``rush_pr_lib``) a plain ``import`` is preferred.
+    """
+    path = _HERE / filename
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, str(path))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot create import spec for {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # register BEFORE exec — fixes dataclass loading
+    spec.loader.exec_module(mod)
+    return mod
+
+
 # ─── Validation ─────────────────────────────────────────────────────────────
 
 
@@ -135,13 +169,11 @@ def _run_strict_testos_validator(run_dir: Path) -> tuple[bool, list[str]]:
     caller fails closed.
     """
     try:
-        spec = importlib.util.spec_from_file_location(
-            "validate_testos_evidence",
-            str(_HERE / "validate-testos-evidence.py"),
+        # Register the module in sys.modules before executing it so that any
+        # @dataclass usage inside it (or its imports) decorates correctly.
+        mod = _load_sibling_module(
+            "validate_testos_evidence", "validate-testos-evidence.py"
         )
-        mod = importlib.util.module_from_spec(spec)
-        assert spec.loader is not None
-        spec.loader.exec_module(mod)
         ok, errors, _warnings = mod.validate_run_dir(run_dir, _ROOT)
         return (ok, errors)
     except Exception as e:
@@ -287,9 +319,20 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
             errors.append(f"result file {bench_id}.json is not valid JSON: {e}")
             continue
 
-        # Check bench_id matches
-        result_bench_id = result.get("bench_name", result.get("bench_id", ""))
-        if result_bench_id and result_bench_id != bench_id:
+        # Check the canonical bench_id matches the filename.
+        # Real TestOS results contain BOTH bench_id (canonical, e.g.
+        # "iperf3-tcp") and bench_name (human-readable, e.g.
+        # "iperf3 TCP throughput"); only bench_id is the canonical
+        # identifier and must equal the result filename stem. The previous
+        # code preferred bench_name, which caused a false validation failure
+        # on every real run whose bench_name differs from its bench_id.
+        result_bench_id = result.get("bench_id")
+        if not result_bench_id:
+            errors.append(
+                f"result file {bench_id}.json is missing the required "
+                f"'bench_id' field"
+            )
+        elif result_bench_id != bench_id:
             errors.append(
                 f"result file {bench_id}.json has bench_id "
                 f"'{result_bench_id}' (expected '{bench_id}')"
@@ -357,9 +400,14 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
         try:
             plan = json.loads(plan_path.read_text())
             import re as _re
-            from datetime import datetime as _dt, timezone as _tz
+            import datetime as _dtm
 
-            # Validate generated_at is a parseable UTC timestamp.
+            # Validate generated_at is a parseable UTC timestamp, and
+            # is plausible: not in the future and not stale (requirement #7).
+            # A stale plan means the USB/image was built long before the run,
+            # which breaks the plan↔run binding.
+            _PLAN_FRESHNESS_SECONDS = 7 * 24 * 60 * 60  # 7 days
+            _MAX_SKEW_SECONDS = 5 * 60  # 5 minutes
             gen = plan.get("generated_at", "")
             if not gen:
                 errors.append("plan.json missing generated_at timestamp")
@@ -367,17 +415,33 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
                 try:
                     # Accept ISO 8601 with Z suffix or +00:00
                     ts = gen.replace("Z", "+00:00")
-                    parsed = _dt.fromisoformat(ts)
+                    parsed = _dtm.datetime.fromisoformat(ts)
                     if parsed.tzinfo is None:
                         errors.append(
                             f"plan.json generated_at lacks timezone: {gen}"
                         )
+                    else:
+                        now = _dtm.datetime.now(_dtm.timezone.utc)
+                        if parsed > now + _dtm.timedelta(seconds=_MAX_SKEW_SECONDS):
+                            errors.append(
+                                f"plan.json generated_at {gen} is in the future "
+                                f"(clock skew or tampering)"
+                            )
+                        elif parsed < now - _dtm.timedelta(seconds=_PLAN_FRESHNESS_SECONDS):
+                            age = int((now - parsed).total_seconds())
+                            errors.append(
+                                f"plan.json stale generated_at {gen} is {age}s old "
+                                f"(max {_PLAN_FRESHNESS_SECONDS}s)"
+                            )
                 except (ValueError, TypeError):
                     errors.append(
                         f"plan.json generated_at is not a valid UTC timestamp: {gen}"
                     )
 
-            # Validate source_commit is a full 40-char hex SHA-1.
+            # Validate source_commit is a full 40-char hex SHA-1 AND that it
+            # exists in the repo (requirement #7: source commit exists and
+            # matches the intended run). A commit that doesn't resolve means
+            # the plan was generated from a different/unknown tree.
             commit = plan.get("source_commit", "")
             if not commit:
                 errors.append("plan.json missing source_commit")
@@ -386,6 +450,24 @@ def validate_run_dir(run_dir: Path) -> tuple[bool, list[str], dict[str, Any]]:
                     f"plan.json source_commit is not a 40-char hex SHA-1: "
                     f"{commit[:20]}..."
                 )
+            else:
+                # Verify the commit exists in the repo (fail closed if git
+                # is unavailable — a missing git is itself a provenance gap).
+                try:
+                    r = subprocess.run(
+                        ["git", "-C", str(_ROOT), "cat-file", "-t", commit],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if not (r.returncode == 0 and r.stdout.strip() == "commit"):
+                        errors.append(
+                            f"plan.json stale source_commit {commit} does not "
+                            f"exist in the repository"
+                        )
+                except (OSError, subprocess.SubprocessError):
+                    errors.append(
+                        f"plan.json source_commit {commit} could not be verified "
+                        f"(git unavailable)"
+                    )
 
             # Validate dry_run is consistent with manifest mode.
             if plan.get("dry_run") is True and manifest.get("mode") not in ("dry-run", "dry_run"):
@@ -963,19 +1045,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {sl}", file=sys.stderr)
         return 1
 
-    # Run the canonical privacy scanner.
+    # Run the canonical privacy scanner. A plain import is used (not a
+    # hand-rolled importlib dance) so rush_pr_lib's @dataclass types load
+    # correctly. The previous dynamic import via module_from_spec +
+    # exec_module did NOT register the module in sys.modules, which made
+    # the @dataclass decorator fail with "'NoneType' object has no
+    # attribute '__dict__'" and blocked every submission.
     try:
-        import importlib.util, importlib.machinery
-        spec = importlib.util.spec_from_file_location(
-            "rush_pr_lib",
-            str(Path(__file__).resolve().parent / "rush_pr_lib.py"),
-            loader=importlib.machinery.SourceFileLoader(
-                "rush_pr_lib",
-                str(Path(__file__).resolve().parent / "rush_pr_lib.py")
-            )
-        )
-        rush_pr_lib = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(rush_pr_lib)
+        import rush_pr_lib
         priv_ok, priv_errors = rush_pr_lib.privacy_scan(run_dir)
     except Exception as e:
         print(f"ERROR: privacy scanner failed to load — refusing to submit "

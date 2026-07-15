@@ -264,6 +264,23 @@ Write-OK "Cloned. Token was passed via http.extraheader (not in URL, not in .git
 $DestResults = Join-Path $WorkDir "benchmarks\results"
 if (-not (Test-Path $DestResults)) { New-Item -ItemType Directory -Path $DestResults -Force | Out-Null }
 
+# SECURITY (Windows audit): reject reparse points / junctions in the results
+# tree before copying. A hostile or buggy USB could contain a junction that
+# redirects outside the results dir (e.g. to C:\Users\...\_ssh or another
+# drive); Copy-Item would follow it and leak external data into the evidence
+# bundle, exactly like a symlink escape on Linux. Reparse points include
+# junctions, symbolic links, and mount points; we refuse all of them.
+#
+# NOTE: This static guard is implemented but NOT verified on real Windows in
+# this environment (no Windows CI). A Windows agent must confirm it rejects a
+# real junction before claiming junction safety. tools/rush_path_safety.py
+# exposes windows_reparse_point_safety_verified() (currently False) for that.
+$ReparseFound = Get-ChildItem $ResultsRoot -Recurse -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint }
+if ($ReparseFound) {
+    Write-Err "Refusing to copy: $($ReparseFound.Count) reparse point(s)/junction(s) found in results tree (possible escape): $($ReparseFound.FullName -join ', ')"
+}
+
 $CopiedFiles = 0
 Get-ChildItem $ResultsRoot -Recurse -File | ForEach-Object {
     $Rel = $_.FullName.Substring($ResultsRoot.Length)
@@ -349,6 +366,10 @@ $PrPayload = @{
     head = $BranchName
     base = "main"
     body = $PrBody
+    # Draft-only: automation opens drafts for human review and never merges
+    # (AGENTS.md §13, ADR 0018 §6.2). A maintainer must convert to ready
+    # and merge manually.
+    draft = $true
 } | ConvertTo-Json -Depth 5
 
 $PrResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/pulls" -Method Post -Headers @{ "Authorization" = "Bearer $GitHubToken"; "Accept" = "application/vnd.github+json" } -Body $PrPayload -ErrorAction Stop

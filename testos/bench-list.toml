@@ -218,56 +218,40 @@ scenario = "mixed-load-responsiveness"
 kind = "shell-numeric"
 unit = "ms"
 command = '''
-# SECURITY (defect 4): Use high-resolution monotonic timing without Python.
-# Uses bash's $EPOCHREALTIME (available in bash 5+, which Arch/testOS ships)
-# for microsecond-resolution timestamps. Measures median of 11 launches of
-# a deterministic subshell operation. Rejects zero or non-numeric results.
+# SECURITY (defect 4 + timing bug #9): Use a GENUINELY MONOTONIC,
+# high-resolution clock to measure process-launch latency.
 #
-# If $EPOCHREALTIME is unavailable (bash < 5), falls back to /usr/bin/time
-# with -v (which has millisecond resolution on GNU time).
-samples_file=$(mktemp)
-trap 'rm -f "$samples_file"' EXIT
-if [[ -n "${EPOCHREALTIME:-}" ]]; then
-    # High-resolution path: bash 5+ EPOCHREALTIME (microsecond precision)
-    for i in $(seq 1 11); do
-        t0=$EPOCHREALTIME
-        bash -c 'echo ok >/dev/null'
-        t1=$EPOCHREALTIME
-        # Compute (t1 - t0) * 1000 to convert seconds to ms.
-        # EPOCHREALTIME is "seconds.microseconds" — use awk for float math.
-        awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%.6f\n", (b - a) * 1000 }' >> "$samples_file"
-    done
-else
-    # Fallback: /usr/bin/time -v with awk extraction (ms resolution)
-    for i in $(seq 1 11); do
-        /usr/bin/time -f '%e' bash -c 'echo ok >/dev/null' 2>&1 | \
-            awk '{ printf "%.6f\n", $1 * 1000 }' >> "$samples_file"
-    done
-fi
-# Compute median. If any sample is zero or non-numeric, output ERROR.
-awk '{
-    v = $1 + 0
-    if (v <= 0 || v == "" || $1 !~ /^[0-9.]+$/) {
-        print "ERROR"
-        exit 1
-    }
-    a[NR] = v
-}
-END {
-    n = NR
-    if (n == 0) { print "ERROR"; exit 1 }
-    # Sort for median
-    for (i = 1; i <= n; i++) {
-        for (j = i + 1; j <= n; j++) {
-            if (a[i] > a[j]) { tmp = a[i]; a[i] = a[j]; a[j] = tmp }
-        }
-    }
-    if (n % 2 == 1) {
-        printf "%.3f\n", a[(n + 1) / 2]
-    } else {
-        printf "%.3f\n", (a[n/2] + a[n/2 + 1]) / 2
-    }
-}' "$samples_file"
+# Bash's $EPOCHREALTIME is wall-clock time (CLOCK_REALTIME), NOT monotonic:
+# it is subject to NTP slews, step corrections, and settimeofday jumps, so a
+# delta can go negative or be wildly wrong. The previous version called it
+# "monotonic", which was incorrect. We instead use Python's
+# time.perf_counter_ns(), which is backed by clock_gettime(CLOCK_MONOTONIC)
+# on Linux — genuinely monotonic, never moves backwards, nanosecond
+# resolution. Python is now part of the testOS image (see mkosi.profiles/
+# testos/mkosi.conf) precisely so this benchmark has access to a true
+# monotonic clock without shipping a custom C binary.
+#
+# Measures the median of 11 launches of a deterministic subshell operation,
+# in milliseconds. Rejects zero or non-finite results (defect 8).
+python3 - <<'PY'
+import math
+import statistics
+import subprocess
+import time
+
+samples = []
+for _ in range(11):
+    t0 = time.perf_counter_ns()
+    subprocess.run(["bash", "-c", "echo ok >/dev/null"], check=False)
+    t1 = time.perf_counter_ns()
+    samples.append((t1 - t0) / 1_000_000.0)  # nanoseconds -> milliseconds
+
+median_ms = statistics.median(samples)
+if median_ms == 0 or not math.isfinite(median_ms):
+    print("ERROR")
+    raise SystemExit(1)
+print(f"{median_ms:.3f}")
+PY
 '''
 estimated_seconds = 10
 notes = "Measures tiny foreground process launch latency; useful as a quick proxy for interactive snappiness."

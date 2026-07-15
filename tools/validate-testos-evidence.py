@@ -90,6 +90,13 @@ _ALLOWED_RESULT_FILES = {  # exact names that are NOT per-bench results
     "bench-list.toml",
     "source-sha.txt",
 }
+# Fixture-control files that live inside a fixture run directory but are NOT
+# part of a real testOS run. They are excluded from result-file processing and
+# from the unexpected-file check so the fixture harness can store its own
+# expected-pass/expected-errors metadata next to the bundle under test.
+_FIXTURE_CONTROL_FILES = {"expected.json"}
+# Any JSON file matching one of these names is NOT a per-benchmark result.
+_NON_RESULT_FILES = _ALLOWED_RESULT_FILES | _FIXTURE_CONTROL_FILES | {"result-hashes.json"}
 _ALLOWED_DIRS = {"system-logs"}
 # Placeholder strings that must never appear in provenance fields.
 _PLACEHOLDERS = {
@@ -128,6 +135,7 @@ def _load_schema(name: str) -> dict:
 SCHEMAS = {
     "manifest": _load_schema("testos-manifest.schema.json"),
     "intent": _load_schema("testos-run-intent.schema.json"),
+    "result": _load_schema("testos-result.schema.json"),
 }
 
 
@@ -268,7 +276,8 @@ class TestosBundleValidator:
         self._check_plan_hash()
         self._check_catalog_hash()
         self._check_intent_hash()
-        self._check_result_files_hashed()
+        self._check_classification_sets()
+        self._check_result_files()
         self._check_privacy_scan()
         self._check_run_id_checkpoint_consistency()
         self._check_mode_not_dry_run()
@@ -294,10 +303,9 @@ class TestosBundleValidator:
                 self.err(f"missing required file: {required}")
         # At least one per-benchmark result file (*.json, excluding the
         # top-level manifest/intent/plan).
-        top_level = _ALLOWED_RESULT_FILES
         result_files = [
             p for p in self.run_dir.glob("*.json")
-            if p.name not in top_level
+            if p.name not in _NON_RESULT_FILES
         ]
         if not result_files:
             self.err("no per-benchmark result files (*.json) in run_dir")
@@ -527,39 +535,117 @@ class TestosBundleValidator:
                 f"run-intent.json hashes to {actual}"
             )
 
-    def _check_result_files_hashed(self) -> None:
-        """Check 13: result files are present and parse; detect tampering.
-
-        We verify each per-benchmark result file parses as JSON and that its
-        bench_id is listed in manifest.attempted. A changed-after-manifest
-        result file is detected by the per-file SHA recorded in a
-        `result-hashes.json` sidecar if the runner produced one; if absent
-        we record a warning (the manifest-level provenance already binds the
-        run, and the result-file hash sidecar is a forward-compatible
-        strengthening, not a hard requirement today).
+    def _check_classification_sets(self) -> None:
+        """Check (sets): attempted == passed | failed | skipped, the three
+        terminal sets are pairwise disjoint, and every result file present on
+        disk is classified. This must hold even when sets are empty (e.g. a
+        run that only skipped), so a missing/empty `attempted` is only valid
+        when the union is also empty.
         """
         if self.manifest is None:
             return
+        passed = set(self.manifest.get("passed", []))
+        failed = set(self.manifest.get("failed", []))
+        skipped = set(self.manifest.get("skipped", []))
+        attempted = set(self.manifest.get("attempted", []))
+        union = passed | failed | skipped
+        for a, b, la, lb in (
+            (passed, failed, "passed", "failed"),
+            (passed, skipped, "passed", "skipped"),
+            (failed, skipped, "failed", "skipped"),
+        ):
+            overlap = a & b
+            if overlap:
+                self.err(
+                    f"manifest {la}/{lb} sets overlap: {sorted(overlap)}"
+                )
+        if attempted != union:
+            self.err(
+                f"manifest attempted set does not equal passed|failed|skipped: "
+                f"attempted={sorted(attempted)}, union={sorted(union)}"
+            )
+        # Every result file on disk must be classified (defense-in-depth: the
+        # per-result check below also keys each file to its bench_id).
+        result_files = [
+            p for p in self.run_dir.glob("*.json")
+            if p.name not in _NON_RESULT_FILES
+        ]
+        unclassified = {
+            p.stem for p in result_files
+        } - union
+        for u in sorted(unclassified):
+            self.err(
+                f"result file {u}.json exists but is not in manifest "
+                f"attempted/passed/failed/skipped"
+            )
+
+    def _check_result_files(self) -> None:
+        """Check (results): each per-benchmark result file conforms to the
+        result schema, its canonical ``bench_id`` is present and matches the
+        filename stem (never keyed on bench_name), passing numeric benchmarks
+        carry a finite value and a unit, and per-file SHA-256 digests recorded
+        in ``result-hashes.json`` (when the runner emits them) match the
+        artifact bytes.
+        """
+        if self.manifest is None:
+            return
+        passed = set(self.manifest.get("passed", []))
         attempted = set(self.manifest.get("attempted", []))
         result_files = [
             p for p in self.run_dir.glob("*.json")
-            if p.name not in _ALLOWED_RESULT_FILES
+            if p.name not in _NON_RESULT_FILES
         ]
         seen_ids: set[str] = set()
+        import math as _math
         for rf in result_files:
             try:
                 data = json.loads(rf.read_text())
             except (OSError, json.JSONDecodeError) as e:
                 self.err(f"result file {rf.name}: cannot parse: {e}")
                 continue
-            bid = data.get("bench_id", rf.stem)
+            # Schema conformance.
+            schema_errs = validate_against_schema(data, SCHEMAS["result"], f"$.{rf.name}")
+            for se in schema_errs:
+                self.err(f"result file {rf.name}: schema: {se}")
+            # Canonical identity: bench_id MUST be present and match the
+            # filename stem. Real results carry both bench_id and bench_name;
+            # only bench_id is canonical. Keying on bench_name (the prior
+            # defect) caused false failures whenever they differ.
+            bid = data.get("bench_id")
+            if not bid:
+                self.err(f"result file {rf.name}: missing required 'bench_id' field")
+                continue
+            if bid != rf.stem:
+                self.err(
+                    f"result file {rf.name}: bench_id {bid!r} != filename stem {rf.stem!r}"
+                )
             seen_ids.add(bid)
-        # Every attempted bench must have a result file (by id or filename).
+            # Passing benchmarks: a numeric result must be finite and carry a
+            # unit. Pure pass/fail benchmarks legitimately have value=None
+            # (and no unit), so the numeric requirement only applies when a
+            # value is actually present. A value without a unit, or a
+            # value without a unit, or a non-finite value, is rejected.
+            status = str(data.get("status", "")).lower()
+            if bid in passed and status in ("pass", "passed"):
+                value = data.get("value")
+                unit = data.get("unit")
+                if value is not None:
+                    try:
+                        v = float(value)
+                        if not _math.isfinite(v):
+                            self.err(f"result file {rf.name}: non-finite value: {value}")
+                    except (TypeError, ValueError):
+                        self.err(f"result file {rf.name}: non-numeric value: {value}")
+                    if not unit:
+                        self.err(f"result file {rf.name}: numeric result has no unit")
+        # Every attempted bench must have a result file.
         missing = attempted - seen_ids
         for m in sorted(missing):
             self.err(f"manifest.attempted lists {m!r} but no result file found for it")
 
-        # Sidecar hash verification (forward-compatible).
+        # Per-file SHA-256 binding (when the runner emits result-hashes.json).
+        # This binds each result artifact to a recorded digest so a changed
+        # file is detected; every recorded digest must match the artifact.
         sidecar = self.run_dir / "result-hashes.json"
         if sidecar.exists():
             try:
@@ -575,11 +661,16 @@ class TestosBundleValidator:
                 actual = _sha256_file(rf)
                 if actual != recorded:
                     self.err(
-                        f"result file {rf.name} was changed after manifest creation: "
-                        f"recorded hash {recorded}, actual {actual}"
+                        f"result file {rf.name} was changed after result-hashes.json "
+                        f"was written: recorded digest {recorded}, actual {actual}"
                     )
+            # No stale/extra entries either.
+            known = {p.name for p in result_files}
+            for extra in set(hashes) - known:
+                self.err(f"result-hashes.json records unknown file {extra!r}")
         elif self.strict:
             self.warn("result-hashes.json sidecar absent; per-file tamper detection skipped")
+
 
     def _check_privacy_scan(self) -> None:
         """Check 14: obvious secrets absent from every file in the bundle."""
@@ -635,7 +726,7 @@ class TestosBundleValidator:
                 self.err(f"unexpected non-regular file in evidence bundle: {p.name!r}")
                 continue
             name = p.name
-            if name in _ALLOWED_RESULT_FILES:
+            if name in _NON_RESULT_FILES:
                 continue
             if name.endswith(".json") and name not in ("manifest.json", "run-intent.json", "plan.json"):
                 continue  # per-benchmark result file

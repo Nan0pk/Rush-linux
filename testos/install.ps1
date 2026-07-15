@@ -523,57 +523,17 @@ try {
         Write-Err "Refusing to write to a non-USB disk. If you really mean to do this (e.g. writing to an internal test disk), re-run with -Force. Otherwise, find your USB with 'Get-Disk' and try again."
     }
 
-    # --- Safety check 3: auto-clear mounted volumes on USB disks ---
+    # --- Safety check 3: detect mounted volumes on the USB disk (NON-destructive) ---
     # Windows auto-mounts any USB stick you plug in and assigns it a drive
-    # letter. This means a fresh USB will ALWAYS have mounted volumes.
-    # Telling the user to re-run with -Force is hostile - every real user
-    # hits this on every real USB. Instead, we auto-clear the disk:
-    #   1. Lock and dismount each volume (releases Windows' handle)
-    #   2. Clear the partition table (Clear-Disk -RemoveData -RemoveOEM)
-    # This is exactly what -Force would do, just without making the user
-    # re-type the command. The actual safety (refusing system disk, refusing
-    # non-USB bus types) is in checks 1 and 2 above - those stay on.
+    # letter, so a fresh USB almost always has mounted volumes. We DETECT and
+    # REPORT them here (read-only), but the actual destructive clear
+    # (Remove-PartitionAccessPath + Clear-Disk) is deferred to AFTER the user
+    # types 'yes' below, so no data is destroyed before confirmation.
     $MountedParts = Get-Partition -DiskNumber $DiskNum -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter }
     if ($MountedParts) {
         Write-Info "Disk $DiskNum has mounted volumes (expected - Windows auto-mounts USB sticks):"
         $MountedParts | ForEach-Object { Write-Info "  $($_.DriveLetter):" }
-        Write-Info "Auto-clearing the disk (removes existing partitions so we can write the new image)..."
-
-        # Remove each partition's drive letter first (frees the mount point).
-        foreach ($part in $MountedParts) {
-            try {
-                $accessPath = "$($part.DriveLetter):\"
-                Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
-                Write-Info "  Removed drive letter $($part.DriveLetter):"
-            } catch {
-                # If Remove-PartitionAccessPath fails (e.g. file handles open),
-                # fall back to Clear-Disk which forcefully clears everything.
-                Write-Warn "  Could not remove drive letter $($part.DriveLetter): - will clear disk anyway."
-                break
-            }
-        }
-
-        # Clear the disk's partition table. This is the same operation as
-        # `diskpart > clean`. It removes all partitions and the MBR/GPT
-        # signature, leaving a blank disk ready for the image write.
-        try {
-            Clear-Disk -Number $DiskNum -RemoveData -RemoveOEM -Confirm:$false -ErrorAction Stop
-            Write-OK "Disk $DiskNum cleared. Ready for image write."
-
-            # After Clear-Disk, Windows' storage stack is in a transitional
-            # state: PnP re-enumerates the disk, the partition manager
-            # updates, and antivirus/Windows Search may briefly grab the
-            # raw device. If we open the device for writing immediately,
-            # CreateFile succeeds but WriteFile fails with ERROR_ACCESS_DENIED
-            # (Win32 error 5) at offset 0. Give Windows 3 seconds to settle
-            # and refresh the storage cache so the device is fully released.
-            Write-Info "Waiting for Windows to settle after disk clear..."
-            Start-Sleep -Seconds 3
-            try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-        } catch {
-            Write-Err "Could not clear disk $DiskNum automatically. The error was: $($_.Exception.Message). Try closing any Explorer windows showing the USB, then re-run. As a last resort: open 'diskpart' as admin, run 'select disk $DiskNum' then 'clean', then re-run this script."
-        }
+        Write-Info "These will be cleared after you confirm below."
     }
 
     # --- Safety check 4: size sanity ----------------------------
@@ -615,6 +575,35 @@ try {
         $Confirm = Read-Host "Is this your USB stick? Type 'yes' to confirm (anything else aborts)"
         if ($Confirm -ne 'yes') {
             Write-Err "Confirmation was not 'yes'. Aborting."
+        }
+    }
+
+    # --- Clear mounted volumes (DESTRUCTIVE — after confirmation) ----------
+    # Clear-Disk destroys ALL data on the disk, so it MUST run only AFTER the
+    # operator has typed 'yes' above (or passed -Force). The detection above
+    # is read-only; the actual clearing happens here.
+    if ($MountedParts) {
+        Write-Info "Clearing the disk (removes existing partitions so we can write the new image)..."
+        # Remove each partition's drive letter first (frees the mount point).
+        foreach ($part in $MountedParts) {
+            try {
+                $accessPath = "$($part.DriveLetter):\"
+                Remove-PartitionAccessPath -DiskNumber $DiskNum -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
+                Write-Info "  Removed drive letter $($part.DriveLetter):"
+            } catch {
+                Write-Warn "  Could not remove drive letter $($part.DriveLetter): - will clear disk anyway."
+                break
+            }
+        }
+        try {
+            Clear-Disk -Number $DiskNum -RemoveData -RemoveOEM -Confirm:$false -ErrorAction Stop
+            Write-OK "Disk $DiskNum cleared. Ready for image write."
+            Write-Info "Waiting for Windows to settle after disk clear..."
+            Start-Sleep -Seconds 3
+            try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Seconds 1
+        } catch {
+            Write-Err "Could not clear disk $DiskNum automatically. The error was: $($_.Exception.Message). Try closing any Explorer windows showing the USB, then re-run. As a last resort: open 'diskpart' as admin, run 'select disk $DiskNum' then 'clean', then re-run this script."
         }
     }
 

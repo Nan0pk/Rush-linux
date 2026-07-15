@@ -539,6 +539,7 @@ def test_10_draft_pr_payload():
 
 def test_11a_no_token_bearing_git_urls():
     # Look for any parsed GitHub URL embedding credentials in authority.
+    src = (TOOLS_DIR / "rush-submit-evidence").read_text()
     bad = []
     for line in src.splitlines():
         for m in re.finditer(r"https?://[^\s'\"()<>]+", line):
@@ -549,11 +550,9 @@ def test_11a_no_token_bearing_git_urls():
             if parts.hostname != "github.com":
                 continue
             if parts.username is not None or parts.password is not None or "@" in parts.netloc:
-                bad.append(line)
+                bad.append(line.strip())
                 break
     if bad:
-        print(f"FAIL: token-bearing git URL found: {bad}")
-        return False
         print(f"FAIL: token-bearing git URL found: {bad}")
         return False
     # The clone URL is the bare form.

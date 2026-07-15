@@ -379,12 +379,20 @@ no external deps). It runs 17 checks:
 10. `plan_sha256` matches the bundled `plan.json` bytes
 11. `benchmark_catalog_sha256` matches the bundled `bench-list.toml` bytes
 12. `intent_sha256` matches the bundled `run-intent.json` bytes
-13. result files parse and match `attempted`; changed-after-manifest
-    detection via `result-hashes.json` sidecar
+13. result files conform to `testos-result.schema.json`; the canonical
+    `bench_id` is present and equals the filename stem (the validator keys on
+    `bench_id`, **never** on the human-readable `bench_name`, which may
+    legitimately differ — e.g. `bench_id="iperf3-tcp"`,
+    `bench_name="iperf3 TCP throughput"`); passing numeric results carry a
+    finite value and a unit; every digest recorded in `result-hashes.json`
+    matches its artifact bytes
 14. privacy scan (reuses `rush_capture_lib.redact`) — secrets absent
 15. `run_id` / `checkpoint_nonce` consistency (manifest == intent)
 16. `mode` is not `"dry-run"`
 17. no unexpected evidence files (allow-list enforced)
+18. classification sets: `attempted == passed | failed | skipped`, pairwise
+    disjoint, and every result file on disk is classified (holds even when
+    sets are empty)
 
 The validator never treats placeholder metadata (`unknown`, `TODO`,
 `0000...0000`, etc.) as valid. It is the authoritative gate for
@@ -436,7 +444,9 @@ unavailable where `cargo` is absent and run in CI).
 
 The cloud-safe Linux/testOS/shared-code foundation is complete. The
 following work requires a real Windows agent and is NOT covered by this
-PR:
+PR (the static guards are implemented and covered by platform-neutral
+source checks in `tools/test-testos-evidence-submission-blockers.py`, but
+their runtime behavior is not verified without a Windows host):
 
 - **PowerShell persistent checkpoint under `LOCALAPPDATA`** — the host
   checkpoint that records the `run_id` / `checkpoint_nonce` so the resume
@@ -444,15 +454,20 @@ PR:
   `~/.rush`; Windows needs `%LOCALAPPDATA%\Rush\livedev-checkpoint.json`.
 - **CIM hardware inventory** — `Win32_ComputerSystem`, `Win32_Battery`,
   `Win32_Processor` queries to fill the host fingerprint on Windows.
-- **Reparse-point / junction rejection** — implement
-  `rush_path_safety._is_windows_reparse_point` via
-  `GetFileAttributesW` + `FILE_ATTRIBUTE_REPARSE_POINT` and add a native
-  Windows test. Flip `windows_reparse_point_safety_verified()` to `True`
-  only after that test passes. No code path may claim junction safety
+- **Reparse-point / junction rejection** — `testos/collect-results.ps1`
+  now rejects entries whose `Attributes` include `ReparsePoint` before
+  copying (static guard verified), but the deeper
+  `rush_path_safety._is_windows_reparse_point` hook via
+  `GetFileAttributesW` + `FILE_ATTRIBUTE_REPARSE_POINT` still needs a
+  native Windows test. Flip `windows_reparse_point_safety_verified()` to
+  `True` only after that test passes. No code path claims junction safety
   until then.
 - **Installer confirmation before `Clear-Disk`** — `testos/install.ps1`
-  must require interactive confirmation before any `Clear-Disk` / disk
-  write, mirroring `testos/install.sh`'s `yes` prompt.
+  now defers the destructive `Clear-Disk` to AFTER the interactive `'yes'`
+  confirmation (ordering verified statically), but this must be confirmed
+  on a real Windows host.
+- **Draft-only PR** — `testos/collect-results.ps1` now opens a draft PR
+  (`draft = $true`); verified statically. Must be confirmed on Windows.
 - **Fail-closed release checksum verification** — `testos/install.ps1`
   must verify `SHA256SUMS` against the GitHub release assets and refuse
   to write the USB on mismatch.
