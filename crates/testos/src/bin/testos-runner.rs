@@ -426,7 +426,41 @@ fn main() {
     // is copied from the intent (or recomputed, for `intent_sha256`) so the
     // strict evidence validator can re-bind the run to the plan, catalog,
     // image, source commit, and run_id without trusting the runner.
-    let provenance = RunProvenance::from_intent(&intent, &intent_raw_bytes);
+    let mut provenance = RunProvenance::from_intent(&intent, &intent_raw_bytes);
+
+    // F8: separate host_workflow_commit vs testos_image_commit.
+    // `source_commit` in the intent is the host-workflow commit (the
+    // commit the host-side tools were built from). The testOS image was
+    // built from a potentially different commit, baked into the image at
+    // build time as /etc/testos/source-sha. If the intent carries
+    // `testos_image_commit`, we cross-check it against the running image.
+    // If the intent does NOT carry it, we fill it from /etc/testos/source-sha
+    // so the manifest records which image actually ran.
+    let image_source_sha = std::fs::read_to_string("/etc/testos/source-sha")
+        .unwrap_or_else(|_| "unknown".to_string())
+        .trim()
+        .to_string();
+    if image_source_sha.len() == 40 && image_source_sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+        // Valid 40-char hex SHA from the image.
+        match &provenance.testos_image_commit {
+            None => {
+                // Intent didn't carry it; fill from the running image.
+                provenance.testos_image_commit = Some(image_source_sha.clone());
+            }
+            Some(intent_sha) => {
+                // Intent carried it; cross-check against the running image.
+                if intent_sha != &image_source_sha {
+                    eprintln!(
+                        "WARNING: testos_image_commit mismatch: intent={} image={}",
+                        intent_sha, image_source_sha
+                    );
+                    // Do NOT overwrite — the intent's value is authoritative
+                    // for provenance binding. The validator will catch the
+                    // mismatch.
+                }
+            }
+        }
+    }
 
     let manifest = RunManifest {
         schema_version: SCHEMA_VERSION,
