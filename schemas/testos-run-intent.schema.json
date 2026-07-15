@@ -12,6 +12,7 @@
     "source_version",
     "testos_version",
     "testos_image_digest",
+    "testos_image_commit",
     "plan_sha256",
     "benchmark_catalog_sha256",
     "generated_at",
@@ -58,7 +59,7 @@
     "testos_image_commit": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$",
-      "description": "Optional: the 40-char git commit SHA the testOS image was built from (baked into the image at build time). SEPARATE from source_commit (the host-workflow commit). When present, the runner cross-checks it against /etc/testos/source-sha and the validator verifies it exists in git."
+      "description": "REQUIRED (corrective-2 F4): the full 40-char git commit SHA the testOS image was built from (baked into the image at build time as /etc/testos/source-sha). SEPARATE from source_commit (the host-workflow commit). The runner cross-checks this against /etc/testos/source-sha and fails closed on mismatch. The validator verifies it exists in git."
     },
     "plan_sha256": {
       "type": "string",

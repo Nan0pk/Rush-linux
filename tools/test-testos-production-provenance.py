@@ -90,6 +90,7 @@ def _make_intent(**overrides) -> dict:
         "run_id": "prod-test-0001", "source_commit": head,
         "source_version": version, "testos_version": version,
         "testos_image_digest": f"sha256:{'a' * 64}",
+        "testos_image_commit": head,  # F4: required
         "plan_sha256": "b" * 64,
         "benchmark_catalog_sha256": _sha256_bytes(_bench_list_bytes()),
         "generated_at": _now_iso(), "dry_run": False,
@@ -147,6 +148,7 @@ def _write_bundle(tmp: Path, intent: dict, *, plan_bytes: bytes | None = None,
         "source_version": intent["source_version"],
         "testos_version": intent["testos_version"],
         "testos_image_digest": intent["testos_image_digest"],
+        "testos_image_commit": intent["testos_image_commit"],  # F4: required
         "plan_sha256": plan_sha,
         "benchmark_catalog_sha256": intent["benchmark_catalog_sha256"],
         "intent_generated_at": intent["generated_at"],
