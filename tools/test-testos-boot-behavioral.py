@@ -807,6 +807,16 @@ def test_build_script_embeds_full_40_char_sha():
     )
 
 
+def test_container_git_provenance_uses_scoped_safe_directory():
+    """The container trusts only its checkout and requires exact provenance."""
+    build = (REPO_ROOT / "testos" / "build-testos.sh").read_text()
+    assert 'git -c safe.directory="${REPO_ROOT}" -C "${REPO_ROOT}" "$@"' in build
+    assert 'SOURCE_GIT_SHA_FULL="$(git_repo rev-parse HEAD)"' in build
+    assert 'SOURCE_GIT_DIRTY="$(git_repo status --porcelain)"' in build
+    assert "|| echo 'unknown'" not in build
+    assert "source Git commit is not one full 40-character SHA" in build
+
+
 def test_intent_schema_requires_testos_image_commit():
     """F4 (corrective-2): The run-intent schema must require
     testos_image_commit."""
