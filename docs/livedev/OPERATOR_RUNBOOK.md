@@ -448,6 +448,8 @@ The Windows path now implements the cloud-safe contract:
 - destructive installer confirmation before `Clear-Disk`
 - fail-closed `SHA256SUMS` verification
 - checksummed `testos-image-commit.txt` release metadata
+- checksummed `testos-version.txt` canonical image-version metadata, kept
+  separate from a corrected build's GitHub release tag
 - USB installation/readback of run intent, plan, and benchmark catalog
 - strict validation and unified draft-only submission
 
@@ -455,9 +457,10 @@ Two physical proofs still remain and must not be claimed from Linux CI:
 
 1. Run `tools/test-windows-livedev-parity.py` on native Windows so the real
    junction test and PowerShell parser/runtime execute there.
-2. Publish a new testOS release from the corrected commit, then perform one
+2. Publish a corrected testOS build from the corrected commit, then perform one
    prepare/boot/resume dry-run on the HP Windows laptop. Existing releases
-   without `testos-image-commit.txt` are intentionally refused.
+   without `testos-image-commit.txt` and `testos-version.txt` are intentionally
+   refused.
 
 ## What is never automatic
 
