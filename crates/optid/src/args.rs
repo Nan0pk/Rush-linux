@@ -28,6 +28,7 @@ pub(crate) struct Args {
     pub(crate) apply: bool,
     pub(crate) once: bool,
     pub(crate) help: bool,
+    pub(crate) version: bool,
     pub(crate) interval_sec: u64,
     pub(crate) state_dir: PathBuf,
     pub(crate) config_path: PathBuf,
@@ -38,6 +39,8 @@ pub(crate) struct Args {
     pub(crate) foreground: ForegroundMode,
 }
 
+pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 impl Args {
     pub(crate) fn parse<I>(iter: I) -> Result<Self, String>
     where
@@ -47,6 +50,7 @@ impl Args {
             apply: false,
             once: false,
             help: false,
+            version: false,
             interval_sec: DEFAULT_INTERVAL_SEC,
             state_dir: PathBuf::from(DEFAULT_STATE_DIR),
             config_path: PathBuf::from(DEFAULT_CONFIG_PATH),
@@ -62,6 +66,7 @@ impl Args {
                 "--apply" => args.apply = true,
                 "--once" => args.once = true,
                 "-h" | "--help" => args.help = true,
+                "-V" | "--version" => args.version = true,
                 "--allowlist" => args.allowlist = true,
                 "--allowlist=enabled" => args.allowlist = true,
                 "--allowlist=disabled" => args.allowlist = false,
@@ -133,15 +138,20 @@ pub(crate) fn print_usage() {
     println!(
         "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
          \x20            [--allowlist[=enabled|disabled]] [--no-allowlist]\n\
-         \x20            [--foreground=off|auto]\n\
+         \x20            [--foreground=off|auto] [-V|--version] [-h|--help]\n\
          \n\
          Default mode is dry-run. Use --apply only on Rush Linux or a test host.\n\
          The WP-N4 hardware allowlist gate is ENABLED by default (v0.6 Phase A3).\n\
          --no-allowlist is an experimental escape hatch accepted only with\n\
          --once, so the gate cannot remain disabled indefinitely.\n\
          --foreground=auto enables foreground-app detection (v0.6 stub — real\n\
-         compositor integration lands in v0.7). Default is off."
+         compositor integration lands in v0.7). Default is off.\n\
+         -V, --version prints version and exits."
     );
+}
+
+pub(crate) fn print_version() {
+    println!("optid {}", VERSION);
 }
 
 #[cfg(test)]
@@ -246,6 +256,17 @@ mod tests {
             err.contains("requires a value"),
             "error should explain: {err}"
         );
+    }
+
+    #[test]
+    fn version_flag_is_recognized() {
+        // Fixes the Dragnet-001 defect where the Victus meta.txt captured
+        // `optid --help` output into optid_version= because --version did not
+        // exist. Regression-pinned here.
+        let args = Args::parse(["--version".to_string()]).unwrap();
+        assert!(args.version, "--version must set args.version");
+        let args = Args::parse(["-V".to_string()]).unwrap();
+        assert!(args.version, "-V must set args.version");
     }
 
     #[test]

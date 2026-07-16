@@ -64,6 +64,40 @@ The menu is context-dependent: `resume` appears only when a USB with results is 
 
 **Note:** the USB path requires `sudo` for writing the USB device. The script will prompt for your password when it reaches that step.
 
+---
+
+## Want to test optid RIGHT NOW on your existing Linux machine?
+
+**No USB. No QEMU. No reboot. No installing Rush as your distro.** One command
+builds optid, runs a baseline measurement under your current distro defaults,
+runs optid in `--apply` mode for the same measurement, compares the two, and
+(if you have `gh` authenticated) submits an evidence PR.
+
+**Run from a TTY** (Ctrl+Alt+F3, *not* a GNOME/KDE terminal) and quit Chrome /
+Discord / IDEs first — those skew the numbers.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/rush-host-bench.sh | sudo bash
+```
+
+To auto-submit results as an evidence PR after the run (needs `gh auth login`
+or `GH_TOKEN` set):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/rush-host-bench.sh | sudo bash -s -- --submit
+```
+
+What it measures (×5 iterations per leg, ~12 minutes total):
+- **Cyclictest max wakeup latency** (responsiveness floor)
+- **PSI cpu + io avg10** (kernel pressure-stall stats)
+- **Idle power draw** via Intel RAPL / AMD energy / battery drain
+
+It stops `tuned` and `power-profiles-daemon` for the duration and restarts
+them when it exits; optid's built-in revert journal restores every knob it
+touched. Nothing is permanently changed on your system.
+
+For details, see [`benchmarks/host-runs/README.md`](benchmarks/host-runs/README.md).
+
 The script automatically:
 - Collects a **privacy-safe hardware inventory** (CPU, GPU, RAM, battery, kernel, DMI board vendor/model — no serials, MACs, UUIDs, or hostnames) before any benchmarks run
 - Saves a **persistent checkpoint** so you can resume with one command after reboot
@@ -384,6 +418,7 @@ Additional tools:
 | `rush-builder.py` | `tools/rush-builder.py` |
 | `rush-capture` | `tools/rush-capture` |
 | `rush-exec` | `tools/rush-exec` |
+| `rush-host-bench.sh` | `tools/rush-host-bench.sh` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
 | `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
@@ -455,6 +490,7 @@ Additional tools:
 | `rush-builder.py` | `tools/rush-builder.py` |
 | `rush-capture` | `tools/rush-capture` |
 | `rush-exec` | `tools/rush-exec` |
+| `rush-host-bench.sh` | `tools/rush-host-bench.sh` |
 | `rush-install.sh` | `tools/rush-install.sh` |
 | `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
 | `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |

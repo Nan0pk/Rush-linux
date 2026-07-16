@@ -38,7 +38,8 @@ mod workload;
 
 use actuator::Actuator;
 use args::{
-    parse_from_env, print_usage, Args, DEFAULT_DWELL_WINDOW_SEC, DEFAULT_MODE_DWELL_WINDOW_SEC,
+    Args, DEFAULT_DWELL_WINDOW_SEC, DEFAULT_MODE_DWELL_WINDOW_SEC, parse_from_env, print_usage,
+    print_version,
 };
 use contracts::Contracts;
 use dbus::OptidServer;
@@ -66,6 +67,11 @@ fn main() {
 
     if args.help {
         print_usage();
+        return;
+    }
+
+    if args.version {
+        print_version();
         return;
     }
 
