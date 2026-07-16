@@ -165,11 +165,9 @@ ln -sf /usr/lib/systemd/system/systemd-resolved.service "${EXTRA_DIR}/etc/system
 ln -sf /usr/lib/systemd/system/systemd-oomd.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/systemd-oomd.service"
 ln -sf /usr/lib/systemd/system/nftables.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/nftables.service"
 
-# Disable the default getty on tty1 so testos-runner owns tty1 exclusively.
-# This prevents the tty/getty/service ordering race observed on the HP Victus
-# where getty@tty1.service and testos-runner.service both tried to grab tty1.
-# We override getty@tty1 by masking it (the testos-runner unit takes over).
-ln -sf /dev/null "${EXTRA_DIR}/etc/systemd/system/getty@tty1.service"
+# mkosi.finalize masks getty@tty1 after systemctl preset-all. Placing the
+# canonical mask in the extra tree makes current systemd fail preset-all.
+# testos-runner.service also retains Conflicts= as defense in depth.
 
 # Default target — multi-user (headless, no desktop)
 ln -sf /usr/lib/systemd/system/multi-user.target "${EXTRA_DIR}/etc/systemd/system/default.target"
