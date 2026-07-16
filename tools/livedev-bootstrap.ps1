@@ -46,7 +46,11 @@ $WorkDirName = "Rush-linux"
 # RUSH_LIVEDEV_TEST_STUB:    real repo resolution still runs, but USB write,
 #                            reboot instructions requiring action, PR
 #                            submission, and real hardware are skipped.
+# RUSH_LIVEDEV_TEST_STOP_BEFORE_USB: test-only fail-safe used by native
+#                            regression tests after checkpoint/plan handling.
+#                            It can only remove the destructive USB step.
 $TestStub = $env:RUSH_LIVEDEV_TEST_STUB
+$TestStopBeforeUsb = $env:RUSH_LIVEDEV_TEST_STOP_BEFORE_USB
 $SourceRepo = $env:RUSH_LIVEDEV_SOURCE_REPO
 $RepoDirOverride = $env:RUSH_LIVEDEV_REPO_DIR
 
@@ -457,6 +461,11 @@ function Do-Auto {
         }
         Save-Checkpoint $runId "plan_ready" $persistentRunDir $inventoryPath $planPath
         Write-OK "Persistent plan: $planPath"
+    }
+
+    if ($TestStopBeforeUsb -eq "1") {
+        Write-OK "[TEST] plan_ready resume completed; stopping before USB access."
+        return
     }
 
     Write-Host ""

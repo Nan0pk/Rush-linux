@@ -75,7 +75,10 @@ def _banner(title: str) -> None:
 
 
 def _step(name: str, status: str = "OK") -> None:
-    symbol = "✅" if status == "OK" else "❌" if status == "FAIL" else "⏭️"
+    # Windows PowerShell 5.1 commonly gives child processes a CP1252 stdout
+    # stream.  Keep mock diagnostics ASCII so status reporting cannot crash
+    # before it exposes the real scenario result.
+    symbol = "[OK]" if status == "OK" else "[FAIL]" if status == "FAIL" else "[SKIP]"
     print(f"  {symbol} {name}")
 
 
@@ -241,7 +244,7 @@ def run_success_scenario() -> int:
         print(f"  Validation:     {'PASS' if pr_plan.validation_ok else 'FAIL'}")
         print(f"  Privacy scan:   {'PASS' if pr_plan.privacy_ok else 'FAIL'}")
         print(f"  PR title:       {pr_plan.pr_title}")
-        print(f"  All steps:      ✅ completed")
+        print("  All steps:      [OK] completed")
 
     return 0
 
@@ -299,7 +302,7 @@ def run_failure_no_ai_scenario() -> int:
         print(f"  Branch name:    {pr_plan.branch_name}")
         print(f"  PR title:       {pr_plan.pr_title}")
         print(f"  Evidence path:  {pr_plan.evidence_path}")
-        print(f"  All steps:      ✅ completed (failure correctly detected)")
+        print("  All steps:      [OK] completed (failure correctly detected)")
 
     return 0
 
@@ -385,10 +388,10 @@ def run_failure_with_ai_fix_scenario() -> int:
         print(f"  Plan status:      {result['status']}")
         print(f"  dev-if-fail:      {dev_record['status']}")
         print(f"  Attempts:         {len(dev_record['attempts'])}")
-        print(f"  Context redacted: ✅")
-        print(f"  Patch validated:  ✅ (no forbidden paths)")
+        print("  Context redacted: [OK]")
+        print("  Patch validated:  [OK] (no forbidden paths)")
         print(f"  Code PR branch:   {code_plan.branch_name}")
-        print(f"  All steps:        ✅ completed (AI fix correctly applied)")
+        print("  All steps:        [OK] completed (AI fix correctly applied)")
 
     return 0
 
