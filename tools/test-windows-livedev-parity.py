@@ -49,6 +49,11 @@ def test_windows_bootstrap_uses_shared_strict_pipeline():
     assert "Submit-TestosResults" not in source
     assert "x-access-token:" not in source
     assert "rush-livedev-resume-" not in source
+    assert "Get-CheckpointDataIfPresent" in source
+    assert "Reusing checkpoint inventory" in source
+    assert "Reusing checkpoint plan" in source
+    assert "preserving it without another disk write" in source
+    assert "refusing to downgrade or replace the run" in source
 
 
 def test_checkpoint_save_uses_cross_platform_atomic_replace(
