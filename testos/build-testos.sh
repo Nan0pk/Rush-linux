@@ -56,9 +56,20 @@ VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.7.0-beta.1")"
 # hex chars; the short form (12 chars) was rejected by the validator.
 # We still compute a short form for human-readable display (PRETTY_NAME,
 # banner), but /etc/testos/source-sha now carries the full SHA.
-SOURCE_GIT_SHA_FULL="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo 'unknown')"
-SOURCE_GIT_SHA_SHORT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
-SOURCE_GIT_DIRTY="$(git -C "${REPO_ROOT}" status --porcelain 2>/dev/null | head -1)"
+# GitHub Actions runs this script inside an Arch container with the checkout
+# bind-mounted from the host. Trust only this checkout for these invocations;
+# a global safe.directory entry would broaden trust beyond the build input.
+git_repo() {
+    git -c safe.directory="${REPO_ROOT}" -C "${REPO_ROOT}" "$@"
+}
+
+SOURCE_GIT_SHA_FULL="$(git_repo rev-parse HEAD)"
+SOURCE_GIT_SHA_SHORT="$(git_repo rev-parse --short HEAD)"
+SOURCE_GIT_DIRTY="$(git_repo status --porcelain)"
+if [[ ! "${SOURCE_GIT_SHA_FULL}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "ERROR: source Git commit is not one full 40-character SHA: ${SOURCE_GIT_SHA_FULL}" >&2
+    exit 1
+fi
 if [[ -n "${SOURCE_GIT_DIRTY}" ]]; then
     SOURCE_GIT_SHA_FULL="${SOURCE_GIT_SHA_FULL}-dirty"
     SOURCE_GIT_SHA_SHORT="${SOURCE_GIT_SHA_SHORT}-dirty"
