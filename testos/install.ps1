@@ -325,6 +325,24 @@ try {
         Write-Err "testos-image-commit.txt must contain one full 40-character commit SHA."
     }
 
+    # A corrected image may use a distinct release build tag while retaining
+    # the canonical VERSION embedded in the image. Bind the run intent to the
+    # checksummed canonical value, never infer it from the release tag.
+    $TestosVersionAsset = $Assets | Where-Object { $_.name -eq "testos-version.txt" } | Select-Object -First 1
+    if (-not $TestosVersionAsset) {
+        Write-Err "Release $Version predates testos-version.txt. Refusing an ambiguous image version."
+    }
+    $TestosVersionFile = Join-Path $WorkDir "testos-version.txt"
+    Download-File $TestosVersionAsset.browser_download_url $TestosVersionFile
+    if (-not $SkipVerification) {
+        $versionOk = Test-Sha256 $TestosVersionFile $SumsContent
+        if (-not $versionOk) { Write-Err "testos-version.txt is missing from SHA256SUMS." }
+    }
+    $TestosVersion = (Get-Content $TestosVersionFile -Raw).Trim()
+    if ($TestosVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+        Write-Err "testos-version.txt must contain one canonical semantic version."
+    }
+
     # Paths we'll resolve to:
     $ZstCachePath = Join-Path $CacheDir $ImageAsset.name                                              # e.g. cache      estos-0.7.0-beta.2.raw.zst
     $RawName      = [System.IO.Path]::GetFileNameWithoutExtension($ImageAsset.name)                   # testos-0.7.0-beta.2.raw  (strips .zst)
@@ -734,7 +752,7 @@ try {
     Write-Host "TESTOS_RAW_IMAGE: $ImageFile"
     Write-Host "TESTOS_USB_DEVICE: $Device"
     Write-Host "TESTOS_IMAGE_COMMIT: $TestosImageCommit"
-    Write-Host "TESTOS_VERSION: $($Version.TrimStart('v'))"
+    Write-Host "TESTOS_VERSION: $TestosVersion"
 
     # --- Next steps -----------------------------------------------
     Write-Host ""

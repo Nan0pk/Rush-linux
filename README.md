@@ -70,8 +70,9 @@ The script automatically:
 - Never auto-merges, never marks milestones verified, never edits release truth
 
 The USB installer fails closed if the published release lacks checksummed
-image-commit metadata. That intentionally blocks stale pre-contract images
-instead of producing evidence whose image commit cannot be proven.
+image-commit or canonical-version metadata. This blocks stale pre-contract
+images and lets a corrected image use a distinct build tag without pretending
+the project version changed.
 
 ### After reboot — one command to resume
 

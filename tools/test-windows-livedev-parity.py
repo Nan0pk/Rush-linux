@@ -90,8 +90,10 @@ def test_mock_scenarios_use_cross_platform_commands_and_show_stderr():
 def test_release_publishes_checksummed_image_commit_metadata():
     workflow = (ROOT / ".github/workflows/release-testos.yml").read_text()
     assert 'git rev-parse HEAD > "$STAGE/testos-image-commit.txt"' in workflow
+    assert 'cp VERSION "$STAGE/testos-version.txt"' in workflow
     # The metadata is created before the existing wildcard SHA256SUMS command.
     assert workflow.index("testos-image-commit.txt") < workflow.index("sha256sum * > SHA256SUMS")
+    assert workflow.index("testos-version.txt") < workflow.index("sha256sum * > SHA256SUMS")
 
 
 def test_release_smoke_boot_injects_verified_run_intent_first():
@@ -109,13 +111,21 @@ def test_installers_fail_closed_and_emit_identity_markers():
     for path in (ROOT / "testos/install.sh", ROOT / "testos/install.ps1"):
         source = path.read_text()
         assert "testos-image-commit.txt" in source
+        assert "testos-version.txt" in source
         assert "TESTOS_RAW_IMAGE:" in source
         assert "TESTOS_USB_DEVICE:" in source
         assert "TESTOS_IMAGE_COMMIT:" in source
         assert "TESTOS_VERSION:" in source
         assert "Refusing" in source or "refusing" in source
+        assert "TESTOS_VERSION:" in source
 
+    shell_installer = (ROOT / "testos/install.sh").read_text()
     windows_installer = (ROOT / "testos/install.ps1").read_text()
+    assert 'TESTOS_VERSION: ${TESTOS_VERSION}' in shell_installer
+    assert 'TESTOS_VERSION: $TestosVersion' in windows_installer
+    assert 'TESTOS_VERSION: ${VERSION#v}' not in shell_installer
+    assert "TESTOS_VERSION: $($Version.TrimStart('v'))" not in windows_installer
+
     assert "Administrator privileges are required. Refusing disk access" in windows_installer
     assert "Continuing anyway" not in windows_installer
 

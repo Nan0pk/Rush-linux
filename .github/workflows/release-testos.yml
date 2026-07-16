@@ -159,6 +159,9 @@ jobs:
           # Host installers cannot safely infer the commit embedded inside a
           # compressed raw image. Publish it as checksummed release metadata.
           git rev-parse HEAD > "$STAGE/testos-image-commit.txt"
+          # The GitHub release tag may carry a build suffix for a corrected
+          # image. Keep the canonical version embedded in the image explicit.
+          cp VERSION "$STAGE/testos-version.txt"
 
           # Generate checksums.
           cd "$STAGE"
