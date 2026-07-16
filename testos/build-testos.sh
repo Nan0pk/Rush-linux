@@ -50,11 +50,22 @@ VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.7.0-beta.1")"
 # you verify on boot that the USB actually contains the code you think
 # it does — the runner prints this SHA on tty1. If the SHA doesn't match
 # what you built, you're running a stale cached image.
-SOURCE_GIT_SHA="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+#
+# F4 (corrective-2): embed the FULL 40-character SHA, not the short form.
+# The provenance contract requires testos_image_commit to be exactly 40
+# hex chars; the short form (12 chars) was rejected by the validator.
+# We still compute a short form for human-readable display (PRETTY_NAME,
+# banner), but /etc/testos/source-sha now carries the full SHA.
+SOURCE_GIT_SHA_FULL="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo 'unknown')"
+SOURCE_GIT_SHA_SHORT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 SOURCE_GIT_DIRTY="$(git -C "${REPO_ROOT}" status --porcelain 2>/dev/null | head -1)"
 if [[ -n "${SOURCE_GIT_DIRTY}" ]]; then
-    SOURCE_GIT_SHA="${SOURCE_GIT_SHA}-dirty"
+    SOURCE_GIT_SHA_FULL="${SOURCE_GIT_SHA_FULL}-dirty"
+    SOURCE_GIT_SHA_SHORT="${SOURCE_GIT_SHA_SHORT}-dirty"
 fi
+# SOURCE_GIT_SHA is kept for backward compat with the rest of the script
+# (display purposes). It is the short form.
+SOURCE_GIT_SHA="${SOURCE_GIT_SHA_SHORT}"
 
 echo "════════════════════════════════════════════════════"
 echo "  testOS Builder"
@@ -168,9 +179,18 @@ echo "testos" > "${EXTRA_DIR}/etc/hostname"
 # you verify at boot time that the USB actually contains the code you
 # built — if the SHA doesn't match, you're running a stale cached image.
 # The runner reads this file and prints it in its startup banner.
+#
+# F4 (corrective-2): /etc/testos/source-sha now carries the FULL 40-char
+# SHA. The runner uses this to populate manifest.provenance.testos_image_commit
+# (which the validator requires to be exactly 40 hex chars). The short
+# form is written to /etc/testos/source-sha-short for human-readable
+# display only.
 mkdir -p "${EXTRA_DIR}/etc/testos"
 cat > "${EXTRA_DIR}/etc/testos/source-sha" << EOF
-${SOURCE_GIT_SHA}
+${SOURCE_GIT_SHA_FULL}
+EOF
+cat > "${EXTRA_DIR}/etc/testos/source-sha-short" << EOF
+${SOURCE_GIT_SHA_SHORT}
 EOF
 
 # Write the canonical version (from the repo VERSION file) to
@@ -513,8 +533,13 @@ TTYVHangup=yes
 # No restart: the recovery script reboots the machine after 10 seconds.
 TimeoutStartSec=120
 
-[Install]
-WantedBy=multi-user.target
+# NO [Install] section. This unit must ONLY activate through OnFailure=
+# on testos-usb-mount.service and testos-runner.service. It is NOT
+# enabled via multi-user.target.wants or any preset. If it were normally
+# enabled, systemd would start it on every boot, racing with the runner
+# for tty1. The build script deliberately does NOT symlink it into
+# multi-user.target.wants and there is no [Install] section so
+# `systemctl enable testos-recovery.service` is a no-op.
 EOF
 
 # testos-recovery script — renders the recovery screen on tty1.
@@ -559,16 +584,33 @@ fi
 
 # ── Best-effort: write PRIVATE-DIAGNOSTICS ──────────────────────────
 # The USB may or may not be mounted at this point. Try to mount it
-# best-effort so we can write raw diagnostics. If this fails, we skip
-# diagnostics and just show the recovery screen.
+# best-effort so we can write raw diagnostics. We track every failure
+# honestly and report it on the recovery screen — we do NOT silently
+# claim diagnostics survived when they did not.
 DIAG_REL="(USB not mounted - no diagnostics written)"
+DIAG_STATUS="not-attempted"
+DIAG_FAILURES=""
 USB_MOUNT=/run/testos/usb
 TIMELINE=/run/testos/usb-discovery-timeline.txt
 
+# Helper: record a diagnostic failure.
+record_diag_failure() {
+    local what="$1"
+    local detail="$2"
+    if [[ -z "$DIAG_FAILURES" ]]; then
+        DIAG_FAILURES="$what: $detail"
+    else
+        DIAG_FAILURES="$DIAG_FAILURES; $what: $detail"
+    fi
+}
+
 # Try to ensure the USB is mounted (it may already be, or the mount
-# service may have failed before mounting). Best-effort only.
-if ! mountpoint -q "$USB_MOUNT" 2>/dev/null; then
-    # Try to find and mount the USB ourselves. Best-effort.
+# service may have failed before mounting). We track the mount attempt
+# honestly.
+DIAG_USB_MOUNTED=false
+if mountpoint -q "$USB_MOUNT" 2>/dev/null; then
+    DIAG_USB_MOUNTED=true
+else
     LABEL=""
     for arg in $(cat /proc/cmdline 2>/dev/null || echo); do
         case "$arg" in
@@ -578,56 +620,114 @@ if ! mountpoint -q "$USB_MOUNT" 2>/dev/null; then
     if [[ -n "$LABEL" ]]; then
         PART=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | head -1 || true)
         if [[ -n "$PART" ]]; then
-            mkdir -p "$USB_MOUNT" 2>/dev/null || true
-            if mount -t vfat "$PART" "$USB_MOUNT" -o rw,flush,umask=0000 2>/dev/null; then
-                : # mounted OK
+            if mkdir -p "$USB_MOUNT" 2>/dev/null; then
+                if mount -t vfat "$PART" "$USB_MOUNT" -o rw,flush,umask=0000 2>/dev/null; then
+                    DIAG_USB_MOUNTED=true
+                else
+                    record_diag_failure "usb-mount" "mount failed (rc=$?)"
+                fi
+            else
+                record_diag_failure "usb-mkdir" "mkdir -p $USB_MOUNT failed"
             fi
+        else
+            record_diag_failure "blkid" "no partition with label '$LABEL'"
         fi
+    else
+        record_diag_failure "cmdline" "no testos.usb_label= on cmdline"
     fi
 fi
 
-# If the USB is now mounted, write PRIVATE-DIAGNOSTICS.
-if mountpoint -q "$USB_MOUNT" 2>/dev/null; then
+# If the USB is now mounted, write PRIVATE-DIAGNOSTICS. Track every
+# write/sync failure honestly.
+if $DIAG_USB_MOUNTED; then
     BOOT_ATTEMPT=$(cat /run/testos/boot-attempt 2>/dev/null | tr -dc '0-9' || echo 1)
     [[ -z "$BOOT_ATTEMPT" ]] && BOOT_ATTEMPT=1
     DIAG_DIR="$USB_MOUNT/PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT}"
-    mkdir -p "$DIAG_DIR" 2>/dev/null || true
-    if [[ -d "$DIAG_DIR" ]]; then
-        # Write the marker.
-        cat > "$DIAG_DIR/README.txt" << MARKER
+    if mkdir -p "$DIAG_DIR" 2>/dev/null; then
+        # Write the marker. Report failure honestly.
+        if ! cat > "$DIAG_DIR/README.txt" << MARKER
 PRIVATE - MAY CONTAIN HARDWARE IDENTIFIERS - DO NOT SUBMIT
 
 Recovery screen triggered with code $CODE ($CATEGORY).
 Boot attempt #$BOOT_ATTEMPT.
 MARKER
-        # Capture raw diagnostics (same set as the runner's private_diag).
-        for pair in             "journalctl.txt:journalctl -b --no-pager -o short-monotonic 2>/dev/null || journalctl -b --no-pager 2>/dev/null || true"             "dmesg.txt:dmesg --time-format=iso 2>/dev/null || dmesg 2>/dev/null || true"             "systemctl-failed.txt:systemctl --failed --no-pager 2>/dev/null || true"             "status-usb-mount.txt:systemctl status --no-pager testos-usb-mount.service 2>/dev/null || true"             "status-runner.txt:systemctl status --no-pager testos-runner.service 2>/dev/null || true"             "critical-chain.txt:systemd-analyze critical-chain --no-pager 2>/dev/null || true"             "blame.txt:systemd-analyze blame --no-pager 2>/dev/null || true"             "kernel-version.txt:uname -r 2>/dev/null || true"             "image-version.txt:cat /etc/testos/version 2>/dev/null || cat /etc/os-release 2>/dev/null || true"
+        then
+            record_diag_failure "marker-write" "cannot write README.txt"
+        fi
+
+        # Capture raw diagnostics. Track per-file success/failure.
+        DIAG_CAPTURED=0
+        DIAG_FAILED=0
+        for pair in             "journalctl.txt:journalctl -b --no-pager -o short-monotonic 2>/dev/null || journalctl -b --no-pager 2>/dev/null"             "dmesg.txt:dmesg --time-format=iso 2>/dev/null || dmesg 2>/dev/null"             "systemctl-failed.txt:systemctl --failed --no-pager 2>/dev/null"             "status-usb-mount.txt:systemctl status --no-pager testos-usb-mount.service 2>/dev/null"             "status-runner.txt:systemctl status --no-pager testos-runner.service 2>/dev/null"             "critical-chain.txt:systemd-analyze critical-chain --no-pager 2>/dev/null"             "blame.txt:systemd-analyze blame --no-pager 2>/dev/null"             "kernel-version.txt:uname -r"             "image-version.txt:cat /etc/testos/version 2>/dev/null || cat /etc/os-release 2>/dev/null"
         do
             fname="${pair%%:*}"
             cmd="${pair#*:}"
-            bash -c "$cmd" > "$DIAG_DIR/$fname" 2>/dev/null || true
+            if bash -c "$cmd" > "$DIAG_DIR/$fname" 2>/dev/null; then
+                DIAG_CAPTURED=$((DIAG_CAPTURED + 1))
+            else
+                DIAG_FAILED=$((DIAG_FAILED + 1))
+                record_diag_failure "capture:$fname" "command failed (rc=$?)"
+            fi
         done
-        # Copy the USB discovery timeline if it exists.
+
+        # Copy the USB discovery timeline if it exists. Report failure.
         if [[ -f "$TIMELINE" ]]; then
-            cp "$TIMELINE" "$DIAG_DIR/usb-discovery-timeline.txt" 2>/dev/null || true
+            if ! cp "$TIMELINE" "$DIAG_DIR/usb-discovery-timeline.txt" 2>/dev/null; then
+                record_diag_failure "timeline-copy" "cp failed (rc=$?)"
+            fi
         fi
-        # Record the recovery exit status.
-        cat > "$DIAG_DIR/runner-exit.txt" << EXIT
+
+        # Record the recovery exit status. Report write failure.
+        if ! cat > "$DIAG_DIR/runner-exit.txt" << EXIT
 boot_attempt=$BOOT_ATTEMPT
 failure_code=$CODE
 failure_category=$CATEGORY
 recovery_screen=true
+diagnostics_captured=$DIAG_CAPTURED
+diagnostics_failed=$DIAG_FAILED
 EXIT
-        # Sync and verify.
-        sync 2>/dev/null || true
-        DIAG_REL="PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT}"
+        then
+            record_diag_failure "exit-write" "cannot write runner-exit.txt"
+        fi
+
+        # Sync. This is REQUIRED for diagnostics to be durable. Report
+        # failure honestly — do NOT claim diagnostics survived if sync
+        # failed.
+        if sync 2>/dev/null; then
+            if [[ -z "$DIAG_FAILURES" ]]; then
+                DIAG_STATUS="ok"
+                DIAG_REL="PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT} (${DIAG_CAPTURED} files, sync ok)"
+            else
+                DIAG_STATUS="partial"
+                DIAG_REL="PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT} (PARTIAL: ${DIAG_CAPTURED} ok, ${DIAG_FAILED} failed; sync ok)"
+            fi
+        else
+            DIAG_STATUS="sync-failed"
+            DIAG_REL="PRIVATE-DIAGNOSTICS/boot-${BOOT_ATTEMPT} (sync FAILED - diagnostics may NOT have survived)"
+            record_diag_failure "sync" "sync returned non-zero"
+        fi
+    else
+        record_diag_failure "diag-mkdir" "mkdir -p $DIAG_DIR failed"
+        DIAG_STATUS="dir-failed"
+        DIAG_REL="(could not create $DIAG_DIR)"
     fi
+else
+    DIAG_STATUS="usb-not-mounted"
 fi
 
 # ── Show the recovery screen on tty1 ────────────────────────────────
 # Use plain text (no ANSI color) because we cannot assume the TTY state
 # is clean at this point. The recovery screen must be readable even on
 # a serial console.
+#
+# F5: Show honest diagnostic status. Do NOT claim diagnostics survived
+# when sync failed or when captures failed. The operator must be able to
+# trust the recovery screen.
+if [[ -n "$DIAG_FAILURES" ]]; then
+    DIAG_DETAIL="  Diagnostic failures:  $DIAG_FAILURES"
+else
+    DIAG_DETAIL=""
+fi
 cat << SCREEN
 
 ===============================================
@@ -641,7 +741,8 @@ cat << SCREEN
 
   Local diagnostics (private, NOT submitted):
     $DIAG_REL
-
+  Diagnostic status:   $DIAG_STATUS
+$DIAG_DETAIL
   Rebooting in 10 seconds (Ctrl-C to stay on this screen).
 ===============================================
 SCREEN
@@ -664,10 +765,16 @@ echo b > /proc/sysrq-trigger 2>/dev/null || true
 SCRIPT
 chmod +x "${EXTRA_DIR}/usr/libexec/testos-recovery"
 
-# Enable testos services via symlinks
+# Enable testos services via symlinks.
+#
+# NOTE: testos-recovery.service is deliberately NOT symlinked into
+# multi-user.target.wants. It must only activate through OnFailure= on
+# testos-usb-mount.service and testos-runner.service. If it were also
+# WantedBy=multi-user.target, systemd would start it on every boot,
+# racing with the runner for tty1 — exactly the bug we fixed.
 ln -sf /usr/lib/systemd/system/testos-usb-mount.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-usb-mount.service"
 ln -sf /usr/lib/systemd/system/testos-runner.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-runner.service"
-ln -sf /usr/lib/systemd/system/testos-recovery.service "${EXTRA_DIR}/etc/systemd/system/multi-user.target.wants/testos-recovery.service"
+# No symlink for testos-recovery.service here — see comment above.
 
 # Suppress the normal getty on tty1 (testos-runner takes it over). This
 # symlink is in addition to the getty@tty1 mask above for backward compat

@@ -106,6 +106,7 @@ def _make_valid_run_dir(tmp: Path) -> Path:
         "run_id": "submit-test-0001", "source_commit": head,
         "source_version": version, "testos_version": version,
         "testos_image_digest": f"sha256:{'a' * 64}",
+        "testos_image_commit": head,  # F4: required, full 40-char SHA
         "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
         "generated_at": _now_iso(), "dry_run": False,
         "checkpoint_nonce": "ckpt-submit-test-001",
@@ -137,6 +138,7 @@ def _make_valid_run_dir(tmp: Path) -> Path:
             "source_version": version,
             "testos_version": version,
             "testos_image_digest": intent["testos_image_digest"],
+            "testos_image_commit": head,  # F4: required, matches intent
             "plan_sha256": plan_sha,
             "benchmark_catalog_sha256": catalog_sha,
             "intent_generated_at": intent["generated_at"],

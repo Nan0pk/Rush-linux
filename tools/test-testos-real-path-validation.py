@@ -95,6 +95,7 @@ def make_valid_run_dir(base: Path) -> Path:
         "run_id": "realpath-test-0001", "source_commit": head,
         "source_version": version, "testos_version": version,
         "testos_image_digest": f"sha256:{'a' * 64}",
+        "testos_image_commit": head,  # F4: required
         "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
         "generated_at": _now_iso(), "dry_run": False,
         "checkpoint_nonce": "ckpt-realpath-0001",
@@ -115,6 +116,7 @@ def make_valid_run_dir(base: Path) -> Path:
             "run_id": intent["run_id"], "source_commit": head,
             "source_version": version, "testos_version": version,
             "testos_image_digest": intent["testos_image_digest"],
+            "testos_image_commit": intent["testos_image_commit"],  # F4: required
             "plan_sha256": plan_sha, "benchmark_catalog_sha256": catalog_sha,
             "intent_generated_at": intent["generated_at"],
             "intent_dry_run": False,

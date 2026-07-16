@@ -426,40 +426,40 @@ fn main() {
     // is copied from the intent (or recomputed, for `intent_sha256`) so the
     // strict evidence validator can re-bind the run to the plan, catalog,
     // image, source commit, and run_id without trusting the runner.
-    let mut provenance = RunProvenance::from_intent(&intent, &intent_raw_bytes);
+    let provenance = RunProvenance::from_intent(&intent, &intent_raw_bytes);
 
-    // F8: separate host_workflow_commit vs testos_image_commit.
+    // F4/F8 (corrective-2): host_workflow_commit vs testos_image_commit.
     // `source_commit` in the intent is the host-workflow commit (the
-    // commit the host-side tools were built from). The testOS image was
-    // built from a potentially different commit, baked into the image at
-    // build time as /etc/testos/source-sha. If the intent carries
-    // `testos_image_commit`, we cross-check it against the running image.
-    // If the intent does NOT carry it, we fill it from /etc/testos/source-sha
-    // so the manifest records which image actually ran.
+    // commit the host-side tools were built from). `testos_image_commit`
+    // is now REQUIRED in the intent and is the commit the testOS image
+    // was built from. We cross-check it against /etc/testos/source-sha
+    // (the full 40-char SHA baked into the image at build time). On
+    // mismatch we fail closed — the run is rejected because the USB was
+    // prepared against a different image than the one that actually
+    // booted.
     let image_source_sha = std::fs::read_to_string("/etc/testos/source-sha")
         .unwrap_or_else(|_| "unknown".to_string())
         .trim()
         .to_string();
     if image_source_sha.len() == 40 && image_source_sha.bytes().all(|b| b.is_ascii_hexdigit()) {
-        // Valid 40-char hex SHA from the image.
-        match &provenance.testos_image_commit {
-            None => {
-                // Intent didn't carry it; fill from the running image.
-                provenance.testos_image_commit = Some(image_source_sha.clone());
-            }
-            Some(intent_sha) => {
-                // Intent carried it; cross-check against the running image.
-                if intent_sha != &image_source_sha {
-                    eprintln!(
-                        "WARNING: testos_image_commit mismatch: intent={} image={}",
-                        intent_sha, image_source_sha
-                    );
-                    // Do NOT overwrite — the intent's value is authoritative
-                    // for provenance binding. The validator will catch the
-                    // mismatch.
-                }
-            }
+        // Valid 40-char hex SHA from the image. Cross-check against the
+        // intent's testos_image_commit. Fail closed on mismatch.
+        if provenance.testos_image_commit != image_source_sha {
+            eprintln!(
+                "testos_image_commit mismatch: intent={} image={}",
+                provenance.testos_image_commit, image_source_sha
+            );
+            fail_safe(FailureCategory::VersionMismatch, &run_id);
         }
+    } else {
+        // /etc/testos/source-sha is missing or not a valid 40-char SHA.
+        // This means the image was built without the F4 fix, or the file
+        // is corrupted. Fail closed.
+        eprintln!(
+            "/etc/testos/source-sha is not a valid 40-char SHA: {:?}",
+            image_source_sha
+        );
+        fail_safe(FailureCategory::VersionMismatch, &run_id);
     }
 
     let manifest = RunManifest {

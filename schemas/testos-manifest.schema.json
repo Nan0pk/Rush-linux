@@ -75,6 +75,7 @@
         "source_version",
         "testos_version",
         "testos_image_digest",
+        "testos_image_commit",
         "plan_sha256",
         "benchmark_catalog_sha256",
         "intent_generated_at",
@@ -141,7 +142,7 @@
         "testos_image_commit": {
           "type": "string",
           "pattern": "^[0-9a-f]{40}$",
-          "description": "Optional: the 40-char git commit SHA the testOS image was built from. SEPARATE from source_commit (the host-workflow commit). Filled by the runner from /etc/testos/source-sha when the intent does not carry it. The validator verifies it exists in git when present."
+          "description": "REQUIRED (corrective-2 F4): the full 40-char git commit SHA the testOS image was built from. SEPARATE from source_commit (the host-workflow commit). Copied from the run intent's testos_image_commit and cross-checked by the runner against /etc/testos/source-sha. The validator verifies it exists in git and matches the intent's value."
         },
         "campaign_id": {
           "type": "string",

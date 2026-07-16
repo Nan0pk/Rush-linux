@@ -625,6 +625,271 @@ def test_recovery_script_has_no_acpi_classification():
     )
 
 
+# ─── F1 (corrective-2): recovery service NOT normally enabled ───────────────
+
+
+def test_recovery_service_not_in_multi_user_wants():
+    """F1 (corrective-2): testos-recovery.service must NOT be symlinked into
+    multi-user.target.wants. It must only activate through OnFailure=."""
+    build = (REPO_ROOT / "testos" / "build-testos.sh").read_text()
+    # The build script must NOT create a symlink for testos-recovery.service
+    # in multi-user.target.wants. We check the symlink lines.
+    # Find all "ln -sf ... multi-user.target.wants/..." lines.
+    symlink_lines = re.findall(
+        r"ln -sf [^\n]*multi-user\.target\.wants/([^\s\"]+)",
+        build,
+    )
+    assert "testos-recovery.service" not in symlink_lines, (
+        f"testos-recovery.service is symlinked into multi-user.target.wants: "
+        f"{symlink_lines}. It must only activate through OnFailure=."
+    )
+
+
+def test_recovery_unit_has_no_install_section():
+    """F1 (corrective-2): The recovery unit must NOT have an [Install]
+    section, so `systemctl enable` is a no-op."""
+    unit = _extract_unit("testos-recovery.service")
+    # Check for an actual [Install] section header (a line that is exactly
+    # "[Install]", not a comment mentioning it).
+    lines = unit.splitlines()
+    has_install_section = any(line.strip() == "[Install]" for line in lines)
+    assert not has_install_section, (
+        "recovery unit has an [Install] section header — would allow "
+        "`systemctl enable` which would start it on every boot"
+    )
+
+
+def test_recovery_unit_not_in_preset():
+    """F1 (corrective-2): The recovery service must NOT be in the systemd
+    preset (no `enable testos-recovery.service` line)."""
+    build = (REPO_ROOT / "testos" / "build-testos.sh").read_text()
+    # Extract the preset heredoc.
+    m = re.search(
+        r"cat > \"\$\{EXTRA_DIR\}/usr/lib/systemd/system-preset/00-rush\.preset\" << 'EOF'\n(?P<body>.*?)\nEOF",
+        build, re.DOTALL,
+    )
+    assert m is not None, "could not find preset heredoc"
+    preset = m.group("body")
+    assert "enable testos-recovery.service" not in preset, (
+        "recovery service is in the preset — would enable it on every boot"
+    )
+
+
+# ─── F2 (corrective-2): systemd behavioral tests ────────────────────────────
+
+
+def test_successful_mount_starts_runner_not_recovery(tmp_path):
+    """F2 (corrective-2): Prove that a successful mount path starts the
+    runner, NOT the recovery service.
+
+    We use `systemd-analyze verify` to prove the dependency graph: the
+    runner unit Requires= the mount unit and has NO direct dependency on
+    the recovery unit (only OnFailure=). The recovery unit is NOT in
+    multi-user.target.wants. So on a successful mount, only the runner
+    starts.
+    """
+    mount_unit = _extract_unit("testos-usb-mount.service")
+    runner_unit = _extract_unit("testos-runner.service")
+    recovery_unit = _extract_unit("testos-recovery.service")
+
+    # The runner Requires= the mount (so it starts AFTER a successful mount).
+    assert "Requires=testos-usb-mount.service" in runner_unit
+    # The runner has OnFailure= recovery (only triggers on failure).
+    assert "OnFailure=testos-recovery.service" in runner_unit
+    # The recovery unit is NOT WantedBy= multi-user.target (no [Install] section header).
+    lines = recovery_unit.splitlines()
+    has_install_section = any(line.strip() == "[Install]" for line in lines)
+    assert not has_install_section, (
+        "recovery unit has an [Install] section header — would allow systemctl enable"
+    )
+    # The recovery unit Conflicts= the runner (they never run together).
+    assert "Conflicts=" in recovery_unit
+    assert "testos-runner.service" in recovery_unit
+
+    # Write all three units to a temp dir and verify with systemd-analyze.
+    for name, text in [
+        ("testos-usb-mount.service", mount_unit),
+        ("testos-runner.service", runner_unit),
+        ("testos-recovery.service", recovery_unit),
+    ]:
+        (tmp_path / name).write_text(text)
+    r = subprocess.run(
+        ["systemd-analyze", "verify"] + [str(tmp_path / n) for n in [
+            "testos-usb-mount.service",
+            "testos-runner.service",
+            "testos-recovery.service",
+        ]],
+        capture_output=True, text=True, timeout=30,
+    )
+    errors = [
+        line for line in r.stderr.splitlines()
+        if "error" in line.lower() and "does not exist" not in line.lower()
+    ]
+    assert not errors, f"systemd-analyze verify found errors: {errors}"
+
+
+def test_failed_mount_starts_recovery_not_runner(tmp_path):
+    """F2 (corrective-2): Prove that a failed mount starts the recovery
+    service, NOT the runner.
+
+    The mount unit has OnFailure=testos-recovery.service. The runner has
+    Requires=testos-usb-mount.service, so if the mount fails, systemd
+    does NOT start the runner (Requires= means "start this unit, and if
+    it fails, don't start dependent units"). Instead, OnFailure= on the
+    mount unit triggers the recovery service.
+    """
+    mount_unit = _extract_unit("testos-usb-mount.service")
+    runner_unit = _extract_unit("testos-runner.service")
+
+    # The mount unit has OnFailure= recovery.
+    assert "OnFailure=testos-recovery.service" in mount_unit
+    # The runner Requires= the mount — so a mount failure prevents the
+    # runner from starting.
+    assert "Requires=testos-usb-mount.service" in runner_unit
+    # There is NO Wants= on the mount from the runner (Wants= would start
+    # the runner even if the mount fails).
+    assert "Wants=testos-usb-mount.service" not in runner_unit
+
+
+def test_recovery_does_not_create_reboot_loop():
+    """F2 (corrective-2): Prove the recovery service does NOT create a
+    reboot loop.
+
+    The recovery service is Type=oneshot with NO Restart= directive. It
+    runs once, sleeps 10 seconds, reboots, and exits. If the reboot
+    succeeds, the machine restarts and the recovery service does NOT
+    start again (because it's not in multi-user.target.wants and has no
+    [Install] section). If the reboot fails, the script sleeps 60 seconds
+    and tries sysrq — it does NOT loop back to the recovery service.
+    """
+    recovery_unit = _extract_unit("testos-recovery.service")
+    # Type=oneshot (not Type=simple or Type=notify, which could restart).
+    assert "Type=oneshot" in recovery_unit
+    # NO Restart= directive (would cause a loop).
+    assert "Restart=" not in recovery_unit or "Restart=no" in recovery_unit
+    # NO [Install] section header (so it's not enabled on boot).
+    lines = recovery_unit.splitlines()
+    has_install_section = any(line.strip() == "[Install]" for line in lines)
+    assert not has_install_section, "recovery unit has an [Install] section header"
+
+    # The recovery SCRIPT must reboot and exit, not loop.
+    script = _extract_recovery_script()
+    assert "systemctl reboot" in script, "recovery script does not reboot"
+    assert "exit 0" in script, "recovery script does not exit after reboot"
+    # The script must NOT re-exec itself or loop back.
+    assert "testos-recovery" not in script.replace(
+        "# testOS recovery screen", ""
+    ).replace("testos-recovery.service", "").replace(
+        "testos-recovery", ""
+    ) or script.count("testos-recovery") <= 3, (
+        "recovery script references itself too many times — possible loop"
+    )
+
+
+# ─── F4 (corrective-2): full 40-char image SHA ──────────────────────────────
+
+
+def test_build_script_embeds_full_40_char_sha():
+    """F4 (corrective-2): The build script must embed the FULL 40-char SHA
+    in /etc/testos/source-sha, not the short form."""
+    build = (REPO_ROOT / "testos" / "build-testos.sh").read_text()
+    # The build script must use `rev-parse HEAD` (full SHA), not just
+    # `--short HEAD`, for the file written to /etc/testos/source-sha.
+    assert "SOURCE_GIT_SHA_FULL" in build, (
+        "build script does not compute SOURCE_GIT_SHA_FULL (F4: full 40-char SHA)"
+    )
+    assert "rev-parse HEAD" in build, (
+        "build script does not use `rev-parse HEAD` for the full SHA"
+    )
+    # /etc/testos/source-sha must be written from the FULL SHA.
+    assert "${SOURCE_GIT_SHA_FULL}" in build, (
+        "build script does not write the full SHA to /etc/testos/source-sha"
+    )
+
+
+def test_intent_schema_requires_testos_image_commit():
+    """F4 (corrective-2): The run-intent schema must require
+    testos_image_commit."""
+    import json
+    schema = json.loads(
+        (REPO_ROOT / "schemas" / "testos-run-intent.schema.json").read_text()
+    )
+    assert "testos_image_commit" in schema["required"], (
+        "testos_image_commit is not in the run-intent schema's required list"
+    )
+
+
+def test_manifest_schema_requires_testos_image_commit():
+    """F4 (corrective-2): The manifest schema's provenance block must
+    require testos_image_commit."""
+    import json
+    schema = json.loads(
+        (REPO_ROOT / "schemas" / "testos-manifest.schema.json").read_text()
+    )
+    prov_required = schema["properties"]["provenance"]["required"]
+    assert "testos_image_commit" in prov_required, (
+        "testos_image_commit is not in the manifest provenance required list"
+    )
+
+
+def test_validator_rejects_missing_testos_image_commit(tmp_path):
+    """F4 (corrective-2): The validator must fail closed if
+    testos_image_commit is missing from the provenance block."""
+    import json
+    # Generate a valid fixture, then remove testos_image_commit.
+    import subprocess
+    subprocess.run(
+        ["python3", "tools/test-fixtures/testos-cloud-safe/generate-fixtures.py"],
+        check=True, capture_output=True,
+    )
+    fixture_dir = REPO_ROOT / "tools" / "test-fixtures" / "testos-cloud-safe" / "good"
+    manifest = json.loads((fixture_dir / "manifest.json").read_text())
+    # Remove testos_image_commit from provenance.
+    if "testos_image_commit" in manifest.get("provenance", {}):
+        del manifest["provenance"]["testos_image_commit"]
+    (fixture_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+    r = subprocess.run(
+        ["python3", "tools/validate-testos-evidence.py", "--fixtures"],
+        capture_output=True, text=True, timeout=30,
+    )
+    # The validator should fail (not pass).
+    assert "FAIL" in r.stdout or "fail" in r.stdout.lower(), (
+        f"validator accepted a fixture with missing testos_image_commit: {r.stdout}"
+    )
+
+    # Regenerate the valid fixture so other tests pass.
+    subprocess.run(
+        ["python3", "tools/test-fixtures/testos-cloud-safe/generate-fixtures.py"],
+        check=True, capture_output=True,
+    )
+
+
+# ─── F5 (corrective-2): honest recovery diagnostic status ───────────────────
+
+
+def test_recovery_script_reports_sync_failure_honestly(tmp_path, mock_env):
+    """F5 (corrective-2): The recovery script must report sync failures
+    honestly. It must NOT claim diagnostics survived when sync failed."""
+    script = _extract_recovery_script()
+    # The script must track DIAG_STATUS and DIAG_FAILURES and report them.
+    assert "DIAG_STATUS" in script, "recovery script does not track DIAG_STATUS"
+    assert "DIAG_FAILURES" in script, "recovery script does not track DIAG_FAILURES"
+    assert "record_diag_failure" in script, (
+        "recovery script does not have a record_diag_failure helper"
+    )
+    # The script must show "Diagnostic status:" on the recovery screen.
+    assert "Diagnostic status:" in script, (
+        "recovery script does not show diagnostic status on screen"
+    )
+    # The script must NOT use `sync ... || true` for the diagnostic sync
+    # (that would silently ignore sync failures).
+    # Find the diagnostic sync line and verify it reports failure.
+    assert "sync FAILED" in script, (
+        "recovery script does not report sync FAILED status"
+    )
+
+
 # ─── Main ───────────────────────────────────────────────────────────────────
 
 

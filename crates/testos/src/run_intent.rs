@@ -51,18 +51,18 @@ pub struct RunIntent {
     pub testos_version: String,
     /// `sha256:<64 hex>`.
     pub testos_image_digest: String,
-    /// Optional: the 40-char git commit SHA the testOS image was built
-    /// from (baked into the image at build time via
+    /// REQUIRED (corrective-2 F4): the 40-char git commit SHA the testOS
+    /// image was built from (baked into the image at build time via
     /// `/etc/testos/source-sha`). This is SEPARATE from `source_commit`
     /// (which is the host-workflow commit — the commit the host-side
-    /// tools were built from). In practice they are often the same, but
-    /// they CAN differ: an operator may build an image from commit A,
-    /// then update the host tools to commit B, and run the host tools
-    /// against the image from commit A. When present, the runner
-    /// cross-checks this against `/etc/testos/source-sha` and the
-    /// validator verifies it exists in git.
-    #[serde(default)]
-    pub testos_image_commit: Option<String>,
+    /// tools were built from). They CAN differ in practice: an operator
+    /// may build an image from commit A, then update the host tools to
+    /// commit B, and run the host tools against the image from commit A.
+    /// The runner cross-checks this against `/etc/testos/source-sha` and
+    /// the validator verifies it exists in git. The field is now REQUIRED
+    /// (no longer `Option`/`#[serde(default)]`); the validator fails
+    /// closed on absence or mismatch.
+    pub testos_image_commit: String,
     /// 64 hex chars (no prefix).
     pub plan_sha256: String,
     /// 64 hex chars (no prefix).
@@ -225,13 +225,15 @@ impl RunIntent {
         if let Some(c) = &self.campaign_id {
             require_pattern(c, "campaign_id", r"^[A-Za-z0-9_.:-]{4,128}$")?;
         }
-        // Optional testos_image_commit: if present, must be a 40-char hex SHA.
-        // The runner cross-checks this against /etc/testos/source-sha (the
-        // commit baked into the image at build time). This is SEPARATE from
-        // source_commit (the host-workflow commit).
-        if let Some(img_commit) = &self.testos_image_commit {
-            require_pattern(img_commit, "testos_image_commit", r"^[0-9a-f]{40}$")?;
-        }
+        // F4 (corrective-2): testos_image_commit is now REQUIRED and must be
+        // a 40-char hex SHA. This is SEPARATE from source_commit (the
+        // host-workflow commit). The runner cross-checks this against
+        // /etc/testos/source-sha (the commit baked into the image).
+        require_pattern(
+            &self.testos_image_commit,
+            "testos_image_commit",
+            r"^[0-9a-f]{40}$",
+        )?;
 
         // dry_run must be false for a physical run.
         if self.dry_run {

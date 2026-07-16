@@ -287,6 +287,7 @@ class TestosBundleValidator:
 
         self._check_no_placeholders()
         self._check_source_commit()
+        self._check_testos_image_commit()
         self._check_source_version()
         self._check_testos_version_consistency()
         self._check_dry_run_false()
@@ -368,7 +369,8 @@ class TestosBundleValidator:
         self.provenance = prov
         required = [
             "run_id", "source_commit", "source_version", "testos_version",
-            "testos_image_digest", "plan_sha256", "benchmark_catalog_sha256",
+            "testos_image_digest", "testos_image_commit",
+            "plan_sha256", "benchmark_catalog_sha256",
             "intent_generated_at", "intent_dry_run", "checkpoint_nonce",
             "intent_sha256",
         ]
@@ -424,6 +426,52 @@ class TestosBundleValidator:
                 )
         except (OSError, subprocess.TimeoutExpired):
             self.err(f"provenance.source_commit {commit!r} could not be verified in git (git failed)")
+
+    def _check_testos_image_commit(self) -> None:
+        """Check 5b (corrective-2 F4): provenance.testos_image_commit is
+        required, must be a 40-char hex SHA, must exist in git, and must
+        match the run-intent's testos_image_commit. This is SEPARATE from
+        source_commit (the host-workflow commit).
+        """
+        if self.provenance is None:
+            return
+        img_commit = self.provenance.get("testos_image_commit", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", img_commit):
+            self.err(
+                f"provenance.testos_image_commit {img_commit!r} is not a 40-char hex SHA "
+                f"(F4: required, full SHA)"
+            )
+            return
+        # Verify it exists in git (same logic as source_commit).
+        try:
+            r = subprocess.run(
+                ["git", "-C", str(self.repo_root), "cat-file", "-t", img_commit],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode != 0 or r.stdout.strip() != "commit":
+                fetch_r = subprocess.run(
+                    ["git", "-C", str(self.repo_root), "fetch", "--depth=1", "origin", img_commit],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if fetch_r.returncode == 0:
+                    r2 = subprocess.run(
+                        ["git", "-C", str(self.repo_root), "cat-file", "-t", img_commit],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if r2.returncode != 0 or r2.stdout.strip() != "commit":
+                        self.err(f"provenance.testos_image_commit {img_commit!r} fetched but not resolvable")
+                else:
+                    self.err(f"provenance.testos_image_commit {img_commit!r} does not exist in git")
+        except (OSError, subprocess.TimeoutExpired):
+            self.err(f"provenance.testos_image_commit {img_commit!r} could not be verified in git")
+        # Cross-check against the run-intent's testos_image_commit.
+        if self.intent is not None:
+            intent_img_commit = self.intent.get("testos_image_commit", "")
+            if intent_img_commit != img_commit:
+                self.err(
+                    f"provenance.testos_image_commit {img_commit!r} != "
+                    f"run-intent.testos_image_commit {intent_img_commit!r} (F4: must match)"
+                )
 
     def _check_source_version(self) -> None:
         """Check 6: provenance.source_version matches the VERSION file."""

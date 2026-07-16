@@ -339,6 +339,63 @@ def _refuse_reuse_of_existing_run_dir(run_id: str) -> None:
         )
 
 
+def _generate_nonce() -> str:
+    """Generate a random checkpoint nonce (16 hex chars + timestamp)."""
+    import secrets
+    return secrets.token_hex(8) + "-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+
+
+def ensure_fresh_run(force: bool = False) -> str:
+    """F3 (corrective-2): Detect a terminal checkpoint BEFORE any inventory
+    collection or write. If the current checkpoint is terminal (submitted),
+    automatically preserve it and start a fresh run with a new run_id,
+    random nonce, directory, inventory, and plan. Do NOT require manual
+    `clear`. Prior PR data is preserved on disk.
+
+    Returns the new run_id (or the existing run_id if the checkpoint is
+    not terminal).
+    """
+    existing = load_checkpoint()
+    if existing is None:
+        # No checkpoint — start fresh.
+        run_id = datetime.now(timezone.utc).strftime("run-%Y%m%d-%H%M%S")
+        rd = run_dir_for(run_id)
+        print(f"[ensure-fresh] No existing checkpoint. Starting fresh run: {run_id}")
+        print(f"[ensure-fresh] Run directory: {rd}")
+        return run_id
+
+    phase = existing.get("phase", "")
+    if phase != "submitted":
+        # Not terminal — resume the existing run.
+        run_id = existing.get("run_id", "")
+        print(f"[ensure-fresh] Checkpoint is in phase '{phase}' (not terminal). Resuming run: {run_id}")
+        return run_id
+
+    # Terminal checkpoint detected. Preserve it and start fresh.
+    old_run_id = existing.get("run_id", "")
+    old_pr_url = existing.get("pr_url", "")
+    print(f"[ensure-fresh] Terminal checkpoint detected (phase='submitted').")
+    print(f"[ensure-fresh] Preserving prior run: {old_run_id} (PR: {old_pr_url})")
+    print(f"[ensure-fresh] Prior data is NOT erased — it remains on disk.")
+    print(f"[ensure-fresh] Starting a fresh run with a new run_id, nonce, and directory.")
+
+    # Clear the checkpoint pointer (does NOT erase run data).
+    cp = checkpoint_path()
+    if cp.exists():
+        cp.unlink()
+
+    # Generate a fresh run_id with a suffix to distinguish it from the
+    # prior run (avoids collisions if the operator runs two submissions
+    # in the same second).
+    import secrets
+    suffix = secrets.token_hex(4)
+    run_id = datetime.now(timezone.utc).strftime(f"run-%Y%m%d-%H%M%S-{suffix}")
+    rd = run_dir_for(run_id)
+    print(f"[ensure-fresh] New run_id: {run_id}")
+    print(f"[ensure-fresh] New run directory: {rd}")
+    return run_id
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Persistent resumable state for Rush LiveDev"
@@ -369,7 +426,19 @@ def main():
     sub.add_parser("resume-command", help="Print the exact resume command")
     sub.add_parser("run-dir", help="Print the persistent run directory for the current checkpoint")
 
+    p_fresh = sub.add_parser(
+        "ensure-fresh",
+        help="Detect terminal checkpoint; auto-preserve + start fresh run_id/nonce/dir",
+    )
+    p_fresh.add_argument("--force", action="store_true",
+                         help="Force a fresh run even if the checkpoint is not terminal")
+
     args = parser.parse_args()
+
+    if args.command == "ensure-fresh":
+        run_id = ensure_fresh_run(force=args.force)
+        print(run_id)
+        return
 
     if args.command == "init-run":
         run_id = args.run_id

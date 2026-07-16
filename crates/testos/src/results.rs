@@ -111,13 +111,13 @@ pub struct RunProvenance {
     pub checkpoint_nonce: String,
     /// SHA-256 of the run-intent.json bytes the runner read from the USB.
     pub intent_sha256: String,
-    /// Optional: the 40-char git commit SHA the testOS image was built
-    /// from (from `/etc/testos/source-sha` inside the image, or from the
-    /// intent's `testos_image_commit` field). This is SEPARATE from
-    /// `source_commit` (which is the host-workflow commit). When present,
-    /// the validator verifies it exists in git.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub testos_image_commit: Option<String>,
+    /// REQUIRED (corrective-2 F4): the 40-char git commit SHA the testOS
+    /// image was built from (from `/etc/testos/source-sha` inside the
+    /// image, cross-checked against the intent's `testos_image_commit`).
+    /// This is SEPARATE from `source_commit` (which is the host-workflow
+    /// commit). The validator verifies it exists in git and that it
+    /// matches the intent's value.
+    pub testos_image_commit: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub campaign_id: Option<String>,
 }
@@ -132,13 +132,13 @@ impl RunProvenance {
             source_version: intent.source_version.clone(),
             testos_version: intent.testos_version.clone(),
             testos_image_digest: intent.testos_image_digest.clone(),
+            testos_image_commit: intent.testos_image_commit.clone(),
             plan_sha256: intent.plan_sha256.clone(),
             benchmark_catalog_sha256: intent.benchmark_catalog_sha256.clone(),
             intent_generated_at: intent.generated_at.clone(),
             intent_dry_run: intent.dry_run,
             checkpoint_nonce: intent.checkpoint_nonce.clone(),
             intent_sha256: crate::run_intent::RunIntent::intent_sha256(intent, raw_bytes),
-            testos_image_commit: intent.testos_image_commit.clone(),
             campaign_id: intent.campaign_id.clone(),
         }
     }
