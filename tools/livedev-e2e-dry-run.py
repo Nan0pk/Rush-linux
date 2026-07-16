@@ -161,7 +161,7 @@ def _make_success_plan(repo_root: Path) -> dict:
 
 
 def _make_failing_plan(repo_root: Path) -> dict:
-    """Create a plan that will fail (step 1 runs 'false')."""
+    """Create a plan that fails through the current Python interpreter."""
     import subprocess
     head = subprocess.check_output(["git", "-C", str(_ROOT), "rev-parse", "HEAD"]).decode().strip()
     version = (_ROOT / "VERSION").read_text().strip()
@@ -176,7 +176,8 @@ def _make_failing_plan(repo_root: Path) -> dict:
             {"seq": 0, "kind": "command", "default": "proceed", "reason": "start",
              "rollback": "finish", "argv": ["rush-capture", "start", "--run-dir", "<run-dir>"]},
             {"seq": 1, "kind": "command", "default": "proceed", "reason": "will fail",
-             "rollback": "finish", "argv": ["false"]},
+             "rollback": "finish",
+             "argv": [sys.executable, "-c", "raise SystemExit(1)"]},
         ],
     }
 
@@ -214,7 +215,7 @@ def run_success_scenario() -> int:
         # 3. Validate evidence.
         _step("Validating evidence bundle")
         val_r = subprocess.run(
-            ["python3", str(_TOOLS_DIR / "validate-hwtest-evidence.py"), "--bundle", str(run_dir)],
+            [sys.executable, str(_TOOLS_DIR / "validate-hwtest-evidence.py"), "--bundle", str(run_dir)],
             capture_output=True, text=True, timeout=30, cwd=str(_ROOT),
         )
         if val_r.returncode != 0:

@@ -73,6 +73,15 @@ def test_checkpoint_save_uses_cross_platform_atomic_replace(
     assert all(destination == checkpoint for _, destination in replacements)
 
 
+def test_mock_scenarios_use_cross_platform_commands_and_show_stderr():
+    scenarios = (TOOLS / "livedev-e2e-dry-run.py").read_text()
+    entrypoint = (TOOLS / "livedev-next").read_text()
+    assert '["python3", str(_TOOLS_DIR / "validate-hwtest-evidence.py")' not in scenarios
+    assert '"argv": ["false"]' not in scenarios
+    assert '[sys.executable, "-c", "raise SystemExit(1)"]' in scenarios
+    assert "_print_result(label, rc, stdout, stderr)" in entrypoint
+
+
 def test_release_publishes_checksummed_image_commit_metadata():
     workflow = (ROOT / ".github/workflows/release-testos.yml").read_text()
     assert 'git rev-parse HEAD > "$STAGE/testos-image-commit.txt"' in workflow
