@@ -36,14 +36,17 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livede
 
 **Windows PowerShell:**
 
+Open PowerShell **as Administrator** first; raw USB writing and temporary ESP
+mounting require elevation.
+
 ```powershell
-curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
+curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
 That's it. The script auto-detects what to do:
 
 - **USB with `testos-results/` plugged in** → resume: copy results, validate, submit evidence PR
-- **QEMU installed, no USB results** → run deterministic VM test cycle (no USB, no reboot)
+- **Linux/macOS with QEMU installed, no USB results** → run deterministic VM test cycle (no USB, no reboot)
 - **No QEMU, no USB results** → prepare USB via testOS, print boot instructions
 
 In interactive mode (terminal attached), it shows a context-dependent menu:
@@ -65,6 +68,10 @@ The script automatically:
 - Collects a **privacy-safe hardware inventory** (CPU, GPU, RAM, battery, kernel, DMI board vendor/model — no serials, MACs, UUIDs, or hostnames) before any benchmarks run
 - Saves a **persistent checkpoint** so you can resume with one command after reboot
 - Never auto-merges, never marks milestones verified, never edits release truth
+
+The USB installer fails closed if the published release lacks checksummed
+image-commit metadata. That intentionally blocks stale pre-contract images
+instead of producing evidence whose image commit cannot be proven.
 
 ### After reboot — one command to resume
 
@@ -381,6 +388,7 @@ Additional tools:
 | `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
+| `rush-safe-copy-tree.py` | `tools/rush-safe-copy-tree.py` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
 </details>
@@ -451,6 +459,7 @@ Additional tools:
 | `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
 | `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
 | `rush-livedev-runner` | `tools/rush-livedev-runner` |
+| `rush-safe-copy-tree.py` | `tools/rush-safe-copy-tree.py` |
 | `rush-submit-evidence` | `tools/rush-submit-evidence` |
 
 </details>
@@ -507,7 +516,8 @@ python3 -m pytest \
   tools/test-testos-production-provenance.py \
   tools/test-testos-real-hardware-defects.py \
   tools/test-testos-real-path-validation.py \
-  tools/test-validate-hwtest-evidence.py
+  tools/test-validate-hwtest-evidence.py \
+  tools/test-windows-livedev-parity.py
 ```
 
 </details>

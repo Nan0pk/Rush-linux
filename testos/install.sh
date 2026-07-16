@@ -205,6 +205,7 @@ IS_ZST=false
 RAW_BASENAME="${IMAGE_BASENAME%.zst}"
 
 SUMS_URL="$(echo "$ASSET_URLS" | grep -E 'SHA256SUMS$' | head -1 || true)"
+IMAGE_COMMIT_URL="$(echo "$ASSET_URLS" | grep -E 'testos-image-commit\.txt$' | head -1 || true)"
 
 # --- Working directory ------------------------------------------------------
 WORK_DIR="$(mktemp -d -t testos-install.XXXXXX)"
@@ -243,11 +244,28 @@ check_sha256() {
 
 # --- Fetch SHA256SUMS (always fresh, it's tiny) ----------------------------
 SUMS_CONTENT=""
+if [[ -z "$SUMS_URL" ]] && ! $SKIP_VERIFY; then
+    die "Release ${VERSION} has no SHA256SUMS asset. Refusing an unverified USB write."
+fi
 if [[ -n "$SUMS_URL" ]] && ! $SKIP_VERIFY; then
     log "Downloading SHA256SUMS..."
     curl -fsSL --progress-bar -o "${WORK_DIR}/SHA256SUMS" "$SUMS_URL" || die "Failed to download SHA256SUMS."
     SUMS_CONTENT="$(cat "${WORK_DIR}/SHA256SUMS")"
 fi
+
+# Host-readable identity of the exact commit embedded in the image. Older
+# releases do not have this sidecar and are intentionally blocked.
+[[ -n "$IMAGE_COMMIT_URL" ]] || \
+    die "Release ${VERSION} predates testos-image-commit.txt. Publish a corrected release first."
+curl -fsSL --progress-bar -o "${WORK_DIR}/testos-image-commit.txt" "$IMAGE_COMMIT_URL" || \
+    die "Failed to download testos-image-commit.txt."
+if ! $SKIP_VERIFY; then
+    check_sha256 "${WORK_DIR}/testos-image-commit.txt" "$SUMS_CONTENT" || \
+        die "testos-image-commit.txt is missing from SHA256SUMS."
+fi
+TESTOS_IMAGE_COMMIT="$(tr -d '[:space:]' < "${WORK_DIR}/testos-image-commit.txt" | tr '[:upper:]' '[:lower:]')"
+[[ "$TESTOS_IMAGE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || \
+    die "testos-image-commit.txt must contain one full 40-character commit SHA."
 
 # --- Cache paths -----------------------------------------------------------
 ZST_CACHE="${CACHE_DIR}/${IMAGE_BASENAME}"    # e.g. cache/testos-0.7.0-beta.4.raw.zst
@@ -319,7 +337,7 @@ else
 
         if ! $SKIP_VERIFY && [[ -n "$SUMS_CONTENT" ]]; then
             check_sha256 "${DOWNLOAD_DEST}" "$SUMS_CONTENT" || \
-                warn "Image filename not found in SHA256SUMS - skipping verification."
+                die "Image filename not found in SHA256SUMS. Refusing USB write."
         fi
 
         log "Caching downloaded image to ${ZST_CACHE} ..."
@@ -502,6 +520,8 @@ command -v partprobe >/dev/null && partprobe "$DEVICE"             2>/dev/null |
 TESTOS_IMAGE_SHA256="$(sha256sum "${RESOLVED_RAW}" 2>/dev/null | awk '{print $1}')"
 echo "TESTOS_RAW_IMAGE: ${RESOLVED_RAW}"
 echo "TESTOS_IMAGE_SHA256: ${TESTOS_IMAGE_SHA256}"
+echo "TESTOS_IMAGE_COMMIT: ${TESTOS_IMAGE_COMMIT}"
+echo "TESTOS_VERSION: ${VERSION#v}"
 echo "TESTOS_USB_DEVICE: ${DEVICE}"
 
 ok "Write complete."

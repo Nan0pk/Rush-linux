@@ -398,8 +398,12 @@ do_auto() {
         # the benchmark catalog, and the source commit.
         local _image_path=""
         _image_path="$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_RAW_IMAGE: //p' | head -1)"
+        local _image_commit=""
+        _image_commit="$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_IMAGE_COMMIT: //p' | head -1)"
+        local _testos_version=""
+        _testos_version="$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_VERSION: //p' | head -1)"
         local _usb_device="${DEVICE:-$(printf '%s\n' "$_install_out" | sed -n 's/^TESTOS_USB_DEVICE: //p' | head -1)}"
-        if [[ -z "$_image_path" || -z "$_usb_device" ]]; then
+        if [[ -z "$_image_path" || -z "$_image_commit" || -z "$_testos_version" || -z "$_usb_device" ]]; then
             warn "Could not extract image path/device from install.sh output."
             warn "Run-intent.json will NOT be installed. The testOS runner will"
             warn "refuse to run without it."
@@ -413,6 +417,8 @@ do_auto() {
             --image-path "$_image_path" \
             --run-id "$RUN_ID" \
             --checkpoint-nonce "ckpt-${RUN_ID}" \
+            --testos-image-commit "$_image_commit" \
+            --testos-version "$_testos_version" \
             --device "$_usb_device" \
             || die "Failed to install run-intent.json to USB."
         ok "run-intent.json + plan.json installed and verified on USB."

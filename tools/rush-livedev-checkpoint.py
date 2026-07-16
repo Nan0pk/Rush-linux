@@ -4,9 +4,11 @@ rush-livedev-checkpoint.py — persistent resumable state for the LiveDev
 hardware-evidence workflow.
 
 State is stored OUTSIDE /tmp (which is cleared on reboot) so the workflow
-can resume after a reboot. The default location is
-${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/ which persists across
-reboots but is user-scoped and not system-wide.
+can resume after a reboot. On Linux the default location is
+${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/. On Windows it is
+%LOCALAPPDATA%\\Rush\\livedev-checkpoint.json with run data under
+%LOCALAPPDATA%\\Rush\\livedev-runs\\. Both locations are user-scoped and
+survive reboot.
 
 Layout:
     ${XDG_DATA_HOME:-$HOME/.local/share}/rush-livedev/
@@ -62,22 +64,33 @@ def _xdg_data_home() -> Path:
     return Path(home) / ".local" / "share"
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 def checkpoint_dir() -> Path:
     """Return the persistent checkpoint directory (survives reboot)."""
-    cp_dir = _xdg_data_home() / "rush-livedev"
+    if _is_windows():
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if not local_app_data:
+            raise RuntimeError("LOCALAPPDATA is required for Windows LiveDev checkpoints")
+        cp_dir = Path(local_app_data) / "Rush"
+    else:
+        cp_dir = _xdg_data_home() / "rush-livedev"
     cp_dir.mkdir(parents=True, exist_ok=True)
     return cp_dir
 
 
 def runs_dir() -> Path:
     """Return the persistent runs directory (survives reboot)."""
-    rd = checkpoint_dir() / "runs"
+    rd = checkpoint_dir() / ("livedev-runs" if _is_windows() else "runs")
     rd.mkdir(parents=True, exist_ok=True)
     return rd
 
 
 def checkpoint_path() -> Path:
-    return checkpoint_dir() / "checkpoint.json"
+    name = "livedev-checkpoint.json" if _is_windows() else "checkpoint.json"
+    return checkpoint_dir() / name
 
 
 def safe_run_id(raw: str) -> str:
@@ -213,24 +226,38 @@ def resume_command() -> None:
     run_dir = cp.get("run_dir", "")
     repo = _repo_root()
     livedev_next = repo / "tools" / "livedev-next"
-    bootstrap = repo / "tools" / "livedev-bootstrap.sh"
+    bootstrap = repo / "tools" / (
+        "livedev-bootstrap.ps1" if _is_windows() else "livedev-bootstrap.sh"
+    )
+    if _is_windows():
+        python_prefix = f'"{sys.executable}"'
+        auto_command = (
+            f'powershell -ExecutionPolicy Bypass -File "{bootstrap}" -Auto'
+        )
+        resume_command_text = (
+            f'powershell -ExecutionPolicy Bypass -File "{bootstrap}" -Resume'
+        )
+    else:
+        python_prefix = "python3"
+        auto_command = f"bash {bootstrap} --auto"
+        resume_command_text = f"{python_prefix} {livedev_next} --resume"
 
     # All commands use absolute paths so they work from any CWD.
     # For --submit, use the run_dir from the checkpoint (which is absolute
     # and persistent under XDG_DATA_HOME, not /tmp).
     commands = {
-        "preflight":     f"bash {bootstrap} --auto",
-        "mock_verified":  f"bash {bootstrap} --auto",
-        "plan_ready":     f"bash {bootstrap} --auto",
-        "usb_prepared":   f"python3 {livedev_next} --resume",
-        "booted":         f"python3 {livedev_next} --resume",
+        "preflight":      auto_command,
+        "mock_verified":  auto_command,
+        "plan_ready":     auto_command,
+        "usb_prepared":   resume_command_text,
+        "booted":         resume_command_text,
         "collected":      (
-            f"python3 {livedev_next} --submit {run_dir} --dry-run"
-            if run_dir else f"python3 {livedev_next} --resume"
+            f'{python_prefix} "{livedev_next}" --submit "{run_dir}" --dry-run'
+            if run_dir else resume_command_text
         ),
         "validated":      (
-            f"python3 {livedev_next} --submit {run_dir} --dry-run"
-            if run_dir else f"python3 {livedev_next} --resume"
+            f'{python_prefix} "{livedev_next}" --submit "{run_dir}" --dry-run'
+            if run_dir else resume_command_text
         ),
     }
 
@@ -259,7 +286,7 @@ def resume_command() -> None:
         print("# Resume: validate and submit the collected results.")
         if run_dir:
             print(f"# For real submission (opens a PR, no auto-merge):")
-            print(f"python3 {livedev_next} --submit {run_dir}")
+            print(f'{python_prefix} "{livedev_next}" --submit "{run_dir}"')
 
     print(cmd)
 

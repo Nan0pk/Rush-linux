@@ -20,9 +20,12 @@ Exit codes:
 
 import json
 import os
+import base64
+import platform
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Fields that are NEVER collected. If any of these appear in a command's
@@ -304,6 +307,121 @@ def collect_power_profile() -> dict:
     return {"available": bool(current), "current": current or "unknown"}
 
 
+def _windows_inventory_from_payload(payload: dict) -> dict:
+    """Map an allow-listed CIM payload into the cross-platform inventory shape."""
+    cs = payload.get("computer_system") or {}
+    cpu = payload.get("processor") or {}
+    os_info = payload.get("operating_system") or {}
+    battery = payload.get("battery") or {}
+    design = payload.get("battery_design_capacity") or 0
+    full = payload.get("battery_full_capacity") or 0
+    try:
+        design = int(design)
+    except (TypeError, ValueError):
+        design = 0
+    try:
+        full = int(full)
+    except (TypeError, ValueError):
+        full = 0
+    return {
+        "schema": "rush-hardware-inventory-v1",
+        "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "cpu": {
+            "model": cpu.get("Name", "unknown"),
+            "online_cpus": cpu.get("NumberOfLogicalProcessors", "unknown"),
+            "physical_cores": cpu.get("NumberOfCores", "unknown"),
+            "sockets": 1,
+            "threads_per_core": (
+                round(cpu.get("NumberOfLogicalProcessors", 0) / cpu.get("NumberOfCores", 1), 1)
+                if cpu.get("NumberOfCores") else "unknown"
+            ),
+        },
+        "gpu": [
+            {"model": item.get("Name", "unknown"), "adapter_ram_bytes": item.get("AdapterRAM", 0)}
+            for item in (payload.get("video_controllers") or [])
+        ],
+        "ram": {
+            "total_gb": round(int(cs.get("TotalPhysicalMemory", 0)) / 1024**3, 1)
+            if cs.get("TotalPhysicalMemory") else "unknown"
+        },
+        "kernel_os": {
+            "kernel": os_info.get("Version", "unknown"),
+            "os_name": os_info.get("Caption", "unknown"),
+            "os_version": os_info.get("Version", "unknown"),
+            "os_pretty": os_info.get("Caption", "unknown"),
+            "architecture": os_info.get("OSArchitecture", "unknown"),
+        },
+        "dmi": {
+            "sys_vendor": cs.get("Manufacturer", "unknown"),
+            "product_name": cs.get("Model", "unknown"),
+            "board_vendor": "not-collected-on-windows",
+            "board_name": "not-collected-on-windows",
+            "board_version": "not-collected-on-windows",
+        },
+        "battery": {
+            "present": bool(battery),
+            "status_code": battery.get("BatteryStatus", "unknown"),
+            "charge_percent": battery.get("EstimatedChargeRemaining", "unknown"),
+            "design_capacity_mwh": design,
+            "full_capacity_mwh": full,
+            "health_pct": round(full / design * 100, 1) if design and full else 0,
+        },
+        "platform_profile": {"supported": False},
+        "rapl": {"available": False},
+        "storage": {
+            "devices": [
+                {
+                    "media_type": item.get("MediaType", "unknown"),
+                    "interface_type": item.get("InterfaceType", "unknown"),
+                    "size_bytes": item.get("Size", 0),
+                }
+                for item in (payload.get("disk_drives") or [])
+            ]
+        },
+        "pci_modaliases": [],
+        "pm_owners": {},
+        "power_profile": {"available": False, "current": "unknown"},
+        "initial_thermal": {"available": False, "sensor_count": 0, "maximum_celsius": None},
+    }
+
+
+def collect_windows_inventory() -> dict:
+    """Collect only explicitly allow-listed, non-identifying CIM properties."""
+    script = r'''
+$ErrorActionPreference = 'Stop'
+$cs = Get-CimInstance Win32_ComputerSystem | Select-Object Manufacturer,Model,TotalPhysicalMemory
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1 Name,NumberOfCores,NumberOfLogicalProcessors
+$gpu = @(Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM)
+$disk = @(Get-CimInstance Win32_DiskDrive | Select-Object MediaType,InterfaceType,Size)
+$os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture
+$battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1 BatteryStatus,EstimatedChargeRemaining
+$design = 0
+$full = 0
+try { $design = (Get-CimInstance -Namespace root\wmi -ClassName BatteryStaticData -ErrorAction Stop | Select-Object -First 1 -ExpandProperty DesignedCapacity) } catch {}
+try { $full = (Get-CimInstance -Namespace root\wmi -ClassName BatteryFullChargedCapacity -ErrorAction Stop | Select-Object -First 1 -ExpandProperty FullChargedCapacity) } catch {}
+[ordered]@{
+  computer_system = $cs
+  processor = $cpu
+  video_controllers = $gpu
+  disk_drives = $disk
+  operating_system = $os
+  battery = $battery
+  battery_design_capacity = $design
+  battery_full_capacity = $full
+} | ConvertTo-Json -Depth 6 -Compress
+'''
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    powershell = "powershell.exe" if platform.system().lower() == "windows" else "powershell"
+    raw = run_cmd([powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], timeout=30)
+    if not raw:
+        raise RuntimeError("allow-listed Windows CIM inventory query failed")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Windows CIM inventory returned invalid JSON") from exc
+    return _windows_inventory_from_payload(payload)
+
+
 def collect_thermal() -> dict:
     """Collect a coarse initial temperature summary, without device IDs."""
     temperatures = []
@@ -336,23 +454,30 @@ def main():
     print("UUIDs, hostnames, usernames, IP addresses, SSIDs, or home paths.")
     print()
 
-    inventory = {
-        "schema": "rush-hardware-inventory-v1",
-        "collected_at": subprocess.check_output(["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"]).decode().strip(),
-        "cpu": collect_cpu(),
-        "gpu": collect_gpu(),
-        "ram": collect_ram(),
-        "kernel_os": collect_kernel_os(),
-        "dmi": collect_dmi(),
-        "battery": collect_battery(),
-        "platform_profile": collect_platform_profile(),
-        "rapl": collect_rapl(),
-        "storage": collect_storage(),
-        "pci_modaliases": collect_pci_modaliases(),
-        "pm_owners": collect_pm_owners(),
-        "power_profile": collect_power_profile(),
-        "initial_thermal": collect_thermal(),
-    }
+    if platform.system().lower() == "windows":
+        try:
+            inventory = collect_windows_inventory()
+        except RuntimeError as exc:
+            print(f"Inventory collection failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        inventory = {
+            "schema": "rush-hardware-inventory-v1",
+            "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "cpu": collect_cpu(),
+            "gpu": collect_gpu(),
+            "ram": collect_ram(),
+            "kernel_os": collect_kernel_os(),
+            "dmi": collect_dmi(),
+            "battery": collect_battery(),
+            "platform_profile": collect_platform_profile(),
+            "rapl": collect_rapl(),
+            "storage": collect_storage(),
+            "pci_modaliases": collect_pci_modaliases(),
+            "pm_owners": collect_pm_owners(),
+            "power_profile": collect_power_profile(),
+            "initial_thermal": collect_thermal(),
+        }
 
     # Privacy scan: check the entire JSON for redactable patterns
     inventory_str = json.dumps(inventory, indent=2)

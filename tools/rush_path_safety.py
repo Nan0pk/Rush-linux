@@ -31,12 +31,13 @@ Windows reparse-point / junction safety:
     and require a Windows-specific check (``Path.is_symlink()`` returns True
     for junctions in Python 3.12+, but older runtimes need
     ``ctypes.GetFileAttributesW`` + ``FILE_ATTRIBUTE_REPARSE_POINT``).
-    The ``is_windows_reparse_point`` hook below is the intended extension
-    point; it is a no-op on non-Windows and MUST be implemented and tested
-    on a real Windows agent before any code claims junction safety. Until
-    that test exists, no code path may claim Windows junction safety.
+    The ``is_windows_reparse_point`` hook below uses the Win32 attribute API
+    and fails closed if that API cannot inspect a path. Native Windows tests
+    remain the evidence required before marking the separate verification
+    status true.
 """
 
+import ctypes
 import os
 import shutil
 import stat
@@ -234,8 +235,16 @@ def safe_copy_tree(src_root: Path, dst_root: Path) -> list[Path]:
     containment (every file under src_root), rejects symlinks/non-regular
     files, and proves destination containment (every dst under dst_root).
     """
+    if src_root.is_symlink() or (
+        sys.platform.startswith("win") and _is_windows_reparse_point(src_root)
+    ):
+        raise ValueError(f"refusing reparse-point/symlink source root: {src_root}")
     src_root = prove_containment(src_root, src_root)
     dst_root.mkdir(parents=True, exist_ok=True)
+    if dst_root.is_symlink() or (
+        sys.platform.startswith("win") and _is_windows_reparse_point(dst_root)
+    ):
+        raise ValueError(f"refusing reparse-point/symlink destination root: {dst_root}")
     dst_root = dst_root.resolve()
     # Pre-scan: reject symlinks and non-regular files up front so we never
     # partially copy a hostile tree.
@@ -285,42 +294,44 @@ def safe_copy_tree(src_root: Path, dst_root: Path) -> list[Path]:
 
 # ─── Windows reparse-point / junction extension point ────────────────────────
 #
-# This hook is the intended extension point for Windows junction safety. On
-# non-Windows platforms it is a no-op (returns False). On Windows it MUST be
-# implemented to detect reparse points via ``ctypes`` (GetFileAttributesW +
-# FILE_ATTRIBUTE_REPARSE_POINT) or via ``os.lstat`` with ``stat.FILE_ATTRIBUTE_REPARSE_POINT``
-# where available.
-#
-# IMPORTANT: This hook is NOT covered by a Windows test in this PR. No code
-# path may claim Windows junction safety until a real Windows agent
-# implements and tests this hook. The function exists so the API surface is
-# ready, and so non-Windows callers get a clear no-op.
+# This hook is a no-op on non-Windows platforms. On Windows it uses
+# GetFileAttributesW + FILE_ATTRIBUTE_REPARSE_POINT and treats API failure as
+# unsafe. A native junction regression test provides the remaining proof.
+
+
+def _get_windows_file_attributes(p: Path) -> int:
+    """Return GetFileAttributesW flags, or -1 when Windows rejects the path."""
+    get_attrs = ctypes.windll.kernel32.GetFileAttributesW
+    get_attrs.argtypes = [ctypes.c_wchar_p]
+    get_attrs.restype = ctypes.c_uint32
+    return int(get_attrs(str(p)))
 
 
 def _is_windows_reparse_point(p: Path) -> bool:
     """Return True if ``p`` is a Windows reparse point/junction.
 
-    On non-Windows platforms this always returns False. On Windows, this
-    stub returns False and MUST be replaced with a real implementation
-    (GetFileAttributesW + FILE_ATTRIBUTE_REPARSE_POINT) and covered by a
-    native Windows test before any caller claims junction safety. Until
-    that test exists, callers on Windows must treat junction safety as
-    UNVERIFIED.
+    On non-Windows platforms this always returns False. On Windows it uses
+    GetFileAttributesW so junctions, mount points, and symbolic links are
+    rejected even on Python versions where Path.is_symlink() is incomplete.
     """
     if not sys.platform.startswith("win"):
         return False
-    # Windows implementation is intentionally a stub. See the module docstring
-    # and the "Remaining Windows-only work" section of the cloud-safe PR.
-    # Returning False here does NOT mean "safe"; it means "unchecked".
-    return False
+    try:
+        attrs = _get_windows_file_attributes(p)
+    except (AttributeError, OSError):
+        # Fail closed: an unavailable Win32 attribute check is unsafe.
+        return True
+    invalid_file_attributes = 0xFFFFFFFF
+    file_attribute_reparse_point = 0x0400
+    if attrs == invalid_file_attributes:
+        return True
+    return bool(attrs & file_attribute_reparse_point)
 
 
 def windows_reparse_point_safety_verified() -> bool:
     """Return True only if the Windows reparse-point check is implemented and tested.
 
-    Always returns False in this PR. A future Windows agent MUST flip this to
-    True after implementing ``_is_windows_reparse_point`` and adding a native
-    Windows test. Callers may use this to decide whether to allow operations
-    that depend on junction safety.
+    The implementation is present, but this remains False until the native
+    Windows junction regression test has actually passed on real Windows.
     """
     return False

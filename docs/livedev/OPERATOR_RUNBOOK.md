@@ -90,8 +90,11 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livede
 
 #### Windows PowerShell
 
+Open PowerShell **as Administrator** first. The physical path writes a raw USB
+device and temporarily mounts its ESP to install and verify the run contract.
+
 ```powershell
-curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
+curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1 -Auto
 ```
 
 You only approve USB erase, boot from USB, physical AC/battery prompts, and GitHub auth. The script never auto-merges, never marks milestones verified, and never edits release truth.
@@ -102,16 +105,16 @@ If `./Rush-linux` already exists, the bootstrap reuses it when it is a git repo.
 
 1. **Clone/fetch repo.** If invoked inside a Rush-linux checkout, uses the current checkout and pulls latest `main`. If `./Rush-linux` already exists and is a git repo, reuses it. If `./Rush-linux` exists but is not a git repo, clones into a timestamped `Rush-linux-livedev-*` alternate directory. Otherwise clones into `./Rush-linux`.
 2. **Mock verification.** Runs `python3 tools/livedev-next --mock` (skip with `--skip-mock`). This executes the three end-to-end dry-run scenarios plus the evidence fixture validator. No hardware, no network, ~10 seconds.
-3. **Generate and preserve plan.** Runs `python3 tools/livedev-next --plan --baseline-only`. This plan records no private repository path, contains no optid actuation, and makes no milestone claim. The planner writes `/tmp/rush-livedev-plan.json`; the bootstrap then verifies it is a regular non-symlink file, copies it to the persistent run as `plan.json`, and records its absolute path in the checkpoint before USB preparation.
+3. **Generate and preserve plan.** Runs `python3 tools/livedev-next --plan --baseline-only`. This plan records no private repository path, contains no optid actuation, and makes no milestone claim. The planner writes `rush-livedev-plan.json` under the platform temporary directory; the bootstrap then verifies it is a regular non-link file, copies it to the persistent run as `plan.json`, and records its absolute path in the checkpoint before USB preparation.
 4. **Prepare USB.** Invokes the testOS installer (`testos/install.sh` on Linux/macOS, `testos/install.ps1` on Windows). The script prints `Using testOS as the current LiveDev boot backend.` because the LiveDev image is not yet wired as a separate boot backend. In `--dry-run` mode, prints the exact command but does not write the USB.
 5. **Print reboot instructions.** Exact boot-menu keys, Secure Boot note, testOS menu controls, and the next command to run after reboot (`bash livedev-bootstrap.sh --resume` or `.\livedev-bootstrap.ps1 -Resume`).
 
 After the test machine reboots back to its host OS:
 
-6. **Resume collection** (`--resume`): validates every checkpoint path beneath the persistent Rush run root, scans for a removable USB disk, mounts its ESP read-only, and copies `testos-results/<latest>/` into that same persistent run. The pre-reboot inventory and plan are copied into the final bundle.
-7. **Validate results.** Runs a basic manifest schema check (parses, has host fingerprint, has passed/failed/skipped counts). If the bundle has a LiveDev `run-record.json`, runs the full 14-check `validate-hwtest-evidence.py` validator.
-8. **Submit dry-run** (default): runs `python3 tools/livedev-next --submit <RUN_DIR> --dry-run`. No push, no PR, no merge.
-9. **Submit real** (`--submit`): pushes a branch and opens an evidence PR via the GitHub API. No merge API call is made. A maintainer reviews and merges.
+6. **Resume collection** (`--resume`): validates every checkpoint path beneath the persistent Rush run root, scans USB partitions, and copies only the result whose `run_id` and checkpoint nonce match the pre-reboot checkpoint. The pre-reboot inventory is copied into the final bundle and the USB plan must hash-match the persistent plan.
+7. **Validate results.** Runs the strict testOS validator: schema, provenance, image/plan/catalog/result hashes, path safety, privacy, and unexpected-file allow-list. Any failure blocks submission.
+8. **Submit dry-run** (default): runs `tools/rush-submit-evidence` in dry-run mode. No push, no PR, no merge.
+9. **Submit real** (`--submit`): uses the same unified tool to open a draft evidence PR. No merge API call is made. A maintainer reviews and merges.
 
 ## USB creation
 
@@ -157,24 +160,21 @@ bash livedev-bootstrap.sh --resume              # Linux/macOS
 
 The script:
 
-- Scans for a removable USB disk.
-- Mounts its ESP partition read-only.
-- Copies `testos-results/<latest>/` into a temp run directory.
-- Unmounts the USB.
-- Validates the manifest.
+- Loads the persistent checkpoint (`%LOCALAPPDATA%\Rush\livedev-checkpoint.json`
+  on Windows).
+- Scans every partition on USB disks, including ESPs without drive letters.
+- Selects only the result whose run ID and checkpoint nonce match.
+- Rejects symlinks, junctions, reparse points, and non-regular files.
+- Copies into the same persistent run directory and validates strictly.
 
 If `--dry-run` is passed, prints every step without touching the USB.
 
 ## Result validation
 
-The resume step runs these checks:
-
-- `manifest.json` parses as JSON.
-- `host.fingerprint` is present.
-- `passed`, `failed`, `skipped` arrays are present.
-- Counts are printed for human review.
-
-If the run directory also contains a LiveDev `run-record.json` (e.g. when the bundle came from the LiveDev runner rather than testOS), the full `validate-hwtest-evidence.py` validator is invoked. That validator runs 14 semantic checks: required files, manifest parses, source version/commit exist, hardware slot valid, laptop battery, battery/AC runs match, baseline/optid paired, sample count, results parse, privacy report, secrets absent, AI not evidence, event chain intact.
+The resume step runs `tools/validate-testos-evidence.py --strict`. It verifies
+the manifest and intent schemas, full provenance, source/image commits,
+image/plan/catalog/result hashes, checkpoint association, result
+classification, privacy, regular-file boundaries, and the evidence allow-list.
 
 Validation failures do not destroy the run dir. The script keeps it on disk for inspection and tells you to inspect it before submitting.
 
@@ -201,12 +201,11 @@ The script:
    ```
    [TOKEN NEEDED]
    ```
-2. Clones the repo shallowly into a temp directory.
-3. Copies the run directory into `benchmarks/results/<date>/<host-fingerprint>/`.
-4. Commits on a new branch with message `evidence(bench): testOS run <date> host=<fp>`.
-5. Pushes the branch using the token (token is never stored in git config).
-6. Opens a PR via the GitHub API (`POST /repos/.../pulls`).
-7. Prints the PR URL.
+2. Calls the unified `tools/rush-submit-evidence` tool.
+3. Re-runs strict validation and the privacy scanner before bundling.
+4. Copies with the shared path-safety helpers.
+5. Pushes without putting tokens in URLs or process arguments.
+6. Opens a draft PR and prints its URL.
 
 No merge API call is made. The PR is opened for maintainer review.
 
@@ -301,11 +300,10 @@ python3 tools/livedev-next --help
 - **Real hardware evidence** — no transcripts submitted. v0.6 criteria remain `verified = false`.
 - **LiveDev image boot** — mkosi profile exists, not built on hardware. testOS is the current boot backend.
 - **Milestone close** — separate from evidence PRs, requires maintainer approval.
-- **Windows-only cloud-safe work** — PowerShell persistent checkpoint under
-  `LOCALAPPDATA`, CIM hardware inventory, reparse-point/junction rejection,
-  installer confirmation before `Clear-Disk`, fail-closed release checksum
-  verification, and native Windows USB tests are NOT yet implemented. See
-  "Remaining Windows-only work" below.
+- **Native Windows physical proof** — the PowerShell implementation exists,
+  but the real junction/runtime test and one prepare/boot/resume cycle still
+  require the Windows laptop. See "Windows implementation and remaining
+  physical proof" below.
 
 ## Cloud-safe run-intent contract (Linux + testOS foundation)
 
@@ -425,9 +423,9 @@ failure fails closed (no fallback to the lenient legacy checks).
   source + destination containment proof and symlink/non-regular
   rejection
 - `is_windows_reparse_point(p)` / `windows_reparse_point_safety_verified()`
-  — documented extension points for Windows junction safety; the hook
-  is a no-op stub on non-Windows and **must not be relied on as safe**
-  until a real Windows agent implements and tests it
+  — `GetFileAttributesW`-based Windows junction/reparse detection. The
+  implementation fails closed when attributes cannot be read; the separate
+  verification flag remains false until the native Windows test runs
 
 ### Cloud-safe regression tests
 
@@ -440,43 +438,26 @@ stale. The test clearly separates environment-dependent tests (symlink
 escape skips when `os.symlink` is unavailable; Rust fmt/test/clippy are
 unavailable where `cargo` is absent and run in CI).
 
-## Remaining Windows-only work
+## Windows implementation and remaining physical proof
 
-The cloud-safe Linux/testOS/shared-code foundation is complete. The
-following work requires a real Windows agent and is NOT covered by this
-PR (the static guards are implemented and covered by platform-neutral
-source checks in `tools/test-testos-evidence-submission-blockers.py`, but
-their runtime behavior is not verified without a Windows host):
+The Windows path now implements the cloud-safe contract:
 
-- **PowerShell persistent checkpoint under `LOCALAPPDATA`** — the host
-  checkpoint that records the `run_id` / `checkpoint_nonce` so the resume
-  step can confirm the USB matches the run that launched it. Linux uses
-  `~/.rush`; Windows needs `%LOCALAPPDATA%\Rush\livedev-checkpoint.json`.
-- **CIM hardware inventory** — `Win32_ComputerSystem`, `Win32_Battery`,
-  `Win32_Processor` queries to fill the host fingerprint on Windows.
-- **Reparse-point / junction rejection** — `testos/collect-results.ps1`
-  now rejects entries whose `Attributes` include `ReparsePoint` before
-  copying (static guard verified), but the deeper
-  `rush_path_safety._is_windows_reparse_point` hook via
-  `GetFileAttributesW` + `FILE_ATTRIBUTE_REPARSE_POINT` still needs a
-  native Windows test. Flip `windows_reparse_point_safety_verified()` to
-  `True` only after that test passes. No code path claims junction safety
-  until then.
-- **Installer confirmation before `Clear-Disk`** — `testos/install.ps1`
-  now defers the destructive `Clear-Disk` to AFTER the interactive `'yes'`
-  confirmation (ordering verified statically), but this must be confirmed
-  on a real Windows host.
-- **Draft-only PR** — `testos/collect-results.ps1` now opens a draft PR
-  (`draft = $true`); verified statically. Must be confirmed on Windows.
-- **Fail-closed release checksum verification** — `testos/install.ps1`
-  must verify `SHA256SUMS` against the GitHub release assets and refuse
-  to write the USB on mismatch.
-- **Native Windows USB tests** — end-to-end USB prepare / boot / resume
-  on a real Windows host, exercising the checkpoint, junction rejection,
-  and installer confirmation.
+- persistent checkpoint and runs under `%LOCALAPPDATA%\Rush`
+- privacy-scanned, allow-listed CIM inventory
+- `GetFileAttributesW` reparse/junction detection plus path-safe copy
+- destructive installer confirmation before `Clear-Disk`
+- fail-closed `SHA256SUMS` verification
+- checksummed `testos-image-commit.txt` release metadata
+- USB installation/readback of run intent, plan, and benchmark catalog
+- strict validation and unified draft-only submission
 
-Until that work lands, Windows LiveDev runs are NOT cloud-safe and must
-not be claimed as such.
+Two physical proofs still remain and must not be claimed from Linux CI:
+
+1. Run `tools/test-windows-livedev-parity.py` on native Windows so the real
+   junction test and PowerShell parser/runtime execute there.
+2. Publish a new testOS release from the corrected commit, then perform one
+   prepare/boot/resume dry-run on the HP Windows laptop. Existing releases
+   without `testos-image-commit.txt` are intentionally refused.
 
 ## What is never automatic
 

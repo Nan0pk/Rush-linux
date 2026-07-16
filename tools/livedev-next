@@ -27,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -50,7 +51,7 @@ def _checkpoint_save(run_id: str, phase: str, run_dir: str = "",
     if not _CHECKPOINT_TOOL.exists():
         return
     cmd = [
-        "python3", str(_CHECKPOINT_TOOL), "save",
+        PYTHON, str(_CHECKPOINT_TOOL), "save",
         "--run-id", run_id,
         "--phase", phase,
     ]
@@ -76,7 +77,7 @@ def _checkpoint_load() -> dict | None:
         return None
     try:
         r = subprocess.run(
-            ["python3", str(_CHECKPOINT_TOOL), "load"],
+            [PYTHON, str(_CHECKPOINT_TOOL), "load"],
             capture_output=True, text=True, timeout=5
         )
         if r.returncode == 0 and r.stdout.strip() != "null":
@@ -103,7 +104,7 @@ def _collect_hardware_inventory(run_dir: str) -> str:
     inventory_path = str(Path(run_dir) / "hardware-inventory.json")
     try:
         r = subprocess.run(
-            ["python3", str(_INVENTORY_TOOL), "--output", inventory_path],
+            [PYTHON, str(_INVENTORY_TOOL), "--output", inventory_path],
             capture_output=True, text=True, timeout=30
         )
         if r.returncode == 0 and Path(inventory_path).exists():
@@ -130,14 +131,16 @@ REQUIRED_TOOLS = [
 
 BOOTSTRAP_URL_SH = "https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh"
 BOOTSTRAP_URL_PS1 = "https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1"
+PYTHON = sys.executable
 
 LINUX_MACOS_CMD = (
     f"curl -fsSL {BOOTSTRAP_URL_SH} -o livedev-bootstrap.sh "
     "&& bash livedev-bootstrap.sh --auto"
 )
 WINDOWS_CMD = (
-    f"curl.exe -L -o livedev-bootstrap.ps1 {BOOTSTRAP_URL_PS1}; "
-    "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1 -Auto"
+    f"curl.exe -fL -o livedev-bootstrap.ps1 {BOOTSTRAP_URL_PS1}; "
+    "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; "
+    "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1"
 )
 
 USER_PATH_DESCRIPTION = (
@@ -332,7 +335,7 @@ def cmd_auto(dry_run: bool = False) -> int:
     # Step 1: Plan.
     print("  Step 1/4: Generating plan...")
     cmd = [
-        "python3", "tools/rush-autopilot", "plan",
+        PYTHON, "tools/rush-autopilot", "plan",
         "--dry-run", "--slot", "laptop", "--output", plan_path,
     ]
     if dry_run:
@@ -354,7 +357,7 @@ def cmd_auto(dry_run: bool = False) -> int:
     # Step 2: Run (fake mode - safe, no hardware).
     print("  Step 2/4: Executing plan (fake mode)...")
     cmd = [
-        "python3", "tools/rush-autopilot", "run",
+        PYTHON, "tools/rush-autopilot", "run",
         "--plan", plan_path, "--run-dir", run_dir, "--fake",
     ]
     if dry_run:
@@ -373,7 +376,7 @@ def cmd_auto(dry_run: bool = False) -> int:
 
     # Step 3: Validate.
     print("  Step 3/4: Validating evidence...")
-    cmd = ["python3", "tools/validate-hwtest-evidence.py", "--bundle", run_dir]
+    cmd = [PYTHON, "tools/validate-hwtest-evidence.py", "--bundle", run_dir]
     if dry_run:
         print(f"    [dry-run] {' '.join(cmd)}")
         rc = 0
@@ -437,10 +440,10 @@ def cmd_mock() -> int:
     print()
 
     commands = [
-        (["python3", "tools/livedev-e2e-dry-run.py", "--success"], "E2E: success scenario"),
-        (["python3", "tools/livedev-e2e-dry-run.py", "--failure-no-ai"], "E2E: failure (no AI)"),
-        (["python3", "tools/livedev-e2e-dry-run.py", "--failure-with-ai-fix"], "E2E: failure (with AI fix)"),
-        (["python3", "tools/validate-hwtest-evidence.py", "--fixtures"], "Evidence fixtures"),
+        ([PYTHON, "tools/livedev-e2e-dry-run.py", "--success"], "E2E: success scenario"),
+        ([PYTHON, "tools/livedev-e2e-dry-run.py", "--failure-no-ai"], "E2E: failure (no AI)"),
+        ([PYTHON, "tools/livedev-e2e-dry-run.py", "--failure-with-ai-fix"], "E2E: failure (with AI fix)"),
+        ([PYTHON, "tools/validate-hwtest-evidence.py", "--fixtures"], "Evidence fixtures"),
     ]
 
     all_passed = True
@@ -479,8 +482,8 @@ def cmd_plan(baseline_only: bool = False, dry_run: bool = True) -> int:
     print("=" * 60)
     print()
 
-    plan_path = "/tmp/rush-livedev-plan.json"
-    cmd = ["python3", "tools/rush-autopilot", "plan", "--slot", "laptop", "--output", plan_path]
+    plan_path = str(Path(tempfile.gettempdir()) / "rush-livedev-plan.json")
+    cmd = [PYTHON, "tools/rush-autopilot", "plan", "--slot", "laptop", "--output", plan_path]
     if dry_run:
         cmd.append("--dry-run")
     else:
@@ -531,7 +534,7 @@ def cmd_run(plan_path: str) -> int:
 
     run_dir = tempfile.mkdtemp(prefix="rush-livedev-run-")
     cmd = [
-        "python3", "tools/rush-autopilot", "run",
+        PYTHON, "tools/rush-autopilot", "run",
         "--plan", plan_path, "--run-dir", run_dir, "--fake",
     ]
     print(f"  Plan:    {plan_path}")
@@ -572,8 +575,8 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
 
     if dry_run:
         cmd = [
-            "python3", "tools/rush-autopilot", "submit-evidence",
-            "--run-dir", run_dir, "--dry-run",
+            PYTHON, "tools/rush-submit-evidence", run_dir,
+            "--submit-mode", "auto", "--dry-run",
         ]
         print(f"  Mode: dry-run (no push, no PR, no merge)")
         print()
@@ -594,14 +597,20 @@ def cmd_submit(run_dir: str, dry_run: bool) -> int:
         return rc
     else:
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        if not token:
+        gh_ready = False
+        if not token and shutil.which("gh"):
+            gh_status = subprocess.run(
+                ["gh", "auth", "status"], capture_output=True, text=True, timeout=10
+            )
+            gh_ready = gh_status.returncode == 0
+        if not token and not gh_ready:
             print("[TOKEN NEEDED]")
-            print("Export GH_TOKEN, then rerun the submit command.")
+            print("Authenticate with 'gh auth login' (recommended), or export GH_TOKEN.")
             return 2
 
         cmd = [
-            "python3", "tools/rush-autopilot", "submit-evidence",
-            "--run-dir", run_dir,
+            PYTHON, "tools/rush-submit-evidence", run_dir,
+            "--submit-mode", "auto",
         ]
         print(f"  Mode: real (will push branch + open PR for maintainer review)")
         print(f"  No auto-merge. A maintainer reviews and merges.")
