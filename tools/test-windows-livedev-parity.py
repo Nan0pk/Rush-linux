@@ -8,6 +8,8 @@ import json
 import os
 import subprocess
 import sys
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -81,10 +83,95 @@ def test_checkpoint_save_uses_cross_platform_atomic_replace(
 def test_mock_scenarios_use_cross_platform_commands_and_show_stderr():
     scenarios = (TOOLS / "livedev-e2e-dry-run.py").read_text()
     entrypoint = (TOOLS / "livedev-next").read_text()
+    pr_lib = (TOOLS / "rush_pr_lib.py").read_text()
     assert '["python3", str(_TOOLS_DIR / "validate-hwtest-evidence.py")' not in scenarios
+    assert '["python3", str(validator_path), "--bundle", str(run_dir)]' not in pr_lib
     assert '"argv": ["false"]' not in scenarios
     assert '[sys.executable, "-c", "raise SystemExit(1)"]' in scenarios
     assert "_print_result(label, rc, stdout, stderr)" in entrypoint
+
+
+def test_mock_status_output_is_cp1252_safe():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import importlib.util, pathlib, sys; "
+                "sys.stdout.reconfigure(encoding='cp1252', errors='strict'); "
+                "p=pathlib.Path('tools/livedev-e2e-dry-run.py'); "
+                "s=importlib.util.spec_from_file_location('livedev_cp1252', p); "
+                "m=importlib.util.module_from_spec(s); sys.modules[s.name]=m; "
+                "s.loader.exec_module(m); m._step('native Windows output')"
+            ),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "[OK] native Windows output" in result.stdout
+
+
+def test_repository_checks_select_a_working_python_on_windows():
+    checks = (TOOLS / "checks.sh").read_text()
+    assert "for candidate in python3 python" in checks
+    assert 'PYTHON=("$candidate")' in checks
+    assert "export PYTHONUTF8=1" in checks
+    assert '"${PYTHON[@]}" tools/check-workflow-safety.py' in checks
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native Windows PowerShell resume test")
+def test_native_plan_ready_resume_preserves_contract(tmp_path: Path):
+    local_app_data = tmp_path / "LocalAppData"
+    run_id = "run-windows-resume-0001"
+    run_dir = local_app_data / "Rush" / "livedev-runs" / run_id
+    run_dir.mkdir(parents=True)
+    inventory = run_dir / "hardware-inventory.json"
+    plan = run_dir / "plan.json"
+    inventory.write_text('{"schema":"rush-hardware-inventory-v1"}\n')
+    plan.write_text('{"plan_kind":"rush-autopilot-plan","schema_version":1}\n')
+    checkpoint = local_app_data / "Rush" / "livedev-checkpoint.json"
+    checkpoint.write_text(json.dumps({
+        "run_id": run_id,
+        "phase": "plan_ready",
+        "run_dir": str(run_dir),
+        "plan_path": str(plan),
+        "inventory_path": str(inventory),
+        "branch": "",
+        "pr_url": "",
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }, indent=2))
+    before = {
+        path: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (inventory, plan)
+    }
+    env = os.environ.copy()
+    env["LOCALAPPDATA"] = str(local_app_data)
+    env["RUSH_LIVEDEV_REPO_DIR"] = str(ROOT)
+    env["RUSH_LIVEDEV_TEST_STOP_BEFORE_USB"] = "1"
+    result = subprocess.run(
+        [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(TOOLS / "livedev-bootstrap.ps1"), "-Auto",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"Reusing checkpoint inventory: {inventory}" in result.stdout
+    assert f"Reusing checkpoint plan: {plan}" in result.stdout
+    assert "Mock verification passed." in result.stdout
+    assert "stopping before USB access" in result.stdout
+    assert "collect-hardware-inventory.py" not in result.stdout
+    assert "Plan generation failed" not in result.stdout
+    assert json.loads(checkpoint.read_text())["phase"] == "plan_ready"
+    assert json.loads(checkpoint.read_text())["run_id"] == run_id
+    for path, digest in before.items():
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
 
 
 def test_release_publishes_checksummed_image_commit_metadata():

@@ -60,12 +60,30 @@ need() {
 FAILURES=0
 attempt() { "$@" || FAILURES=$((FAILURES + 1)); }
 
+PYTHON=()
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+       "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+        PYTHON=("$candidate")
+        break
+    fi
+done
+if (( ${#PYTHON[@]} == 0 )); then
+    echo "BLOCKED: a working Python 3.11+ interpreter is required for repository checks." >&2
+    exit 1
+fi
+# Python otherwise inherits the legacy Windows console code page under Git
+# Bash, and validators with Unicode headings can crash before checking files.
+case "${OSTYPE:-}" in
+    msys*|cygwin*) export PYTHONUTF8=1 ;;
+esac
+
 attempt run "R4/R8 — unapproved direction and stale project truth" \
-    python3 tools/check-workflow-safety.py
+    "${PYTHON[@]}" tools/check-workflow-safety.py
 attempt run "R8 — public docs and versions contradict the repository" \
-    python3 tools/validate-versions.py
+    "${PYTHON[@]}" tools/validate-versions.py
 attempt run "R8 — documentation is missing or points at stale sources" \
-    python3 tools/validate-doc-sync.py
+    "${PYTHON[@]}" tools/validate-doc-sync.py
 
 if need pwsh "repository policy"; then
     attempt run "R4/R8 — an unratified decision or core project invariant slipped in" \
@@ -111,9 +129,9 @@ if matches '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'; then
 fi
 
 if matches '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev-)'; then
-    if python3 -c 'import pytest' >/dev/null 2>&1; then
+    if "${PYTHON[@]}" -c 'import pytest' >/dev/null 2>&1; then
         attempt run "R5/R6 — test and evidence tooling regressed" \
-            python3 -m pytest tools/test-*.py -q
+            "${PYTHON[@]}" -m pytest tools/test-*.py -q
     elif $STRICT; then
         echo "BLOCKED: pytest is required for Python/tooling changes in CI." >&2
         FAILURES=$((FAILURES + 1))
@@ -121,17 +139,17 @@ if matches '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev
         echo "SKIP locally: pytest is unavailable; CI will run the Python tests."
     fi
     attempt run "R1/R6 — hardware evidence is incomplete or unsafe to publish" \
-        python3 tools/validate-hwtest-evidence.py --fixtures
+        "${PYTHON[@]}" tools/validate-hwtest-evidence.py --fixtures
 fi
 
 if matches '^(release/evidence/|release/milestones\.toml|release/test-tiers\.toml|tools/validate-evidence\.py)'; then
     attempt run "R1 — a verified or release claim lacks matching proof" \
-        python3 tools/validate-evidence.py
+        "${PYTHON[@]}" tools/validate-evidence.py
 fi
 
 if matches '^(README\.md|docs/frontpage/|docs/frontpage/project\.yml|tools/render-frontpage\.py)'; then
     attempt run "R8 — the generated public front page is stale" \
-        python3 tools/render-frontpage.py --check
+        "${PYTHON[@]}" tools/render-frontpage.py --check
 fi
 
 echo

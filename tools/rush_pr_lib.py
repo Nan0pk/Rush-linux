@@ -154,7 +154,7 @@ def validate_evidence(run_dir: Path, repo_root: Path) -> tuple[bool, list[str]]:
 
     try:
         r = subprocess.run(
-            ["python3", str(validator_path), "--bundle", str(run_dir)],
+            [sys.executable, str(validator_path), "--bundle", str(run_dir)],
             capture_output=True,
             text=True,
             timeout=60,
