@@ -306,6 +306,17 @@ function Get-CheckpointData {
     try { return ($raw | ConvertFrom-Json) } catch { Write-Err "Checkpoint JSON is invalid: $_" }
 }
 
+function Get-CheckpointDataIfPresent {
+    $py = Get-Python
+    if ($py -eq "py -3") {
+        $raw = & py -3 tools\rush-livedev-checkpoint.py load 2>$null
+    } else {
+        $raw = & $py tools\rush-livedev-checkpoint.py load 2>$null
+    }
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
+    try { return (($raw -join "`n") | ConvertFrom-Json) } catch { return $null }
+}
+
 function Test-ReparsePoint {
     param([string]$Path)
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
@@ -371,6 +382,7 @@ function Do-Auto {
     $persistentRunDir = ""
     $inventoryPath = ""
     $planPath = ""
+    $existingCp = $null
 
     Write-Host ""
     Write-Info "Step 0/4: Create persistent run and collect privacy-safe hardware inventory."
@@ -383,12 +395,26 @@ function Do-Auto {
         if ($runId -notmatch '^[A-Za-z0-9_.-]{4,128}$') { Write-Err "Checkpoint returned unsafe run_id: $runId" }
         $persistentRunDir = (Invoke-PythonCapture tools\rush-livedev-checkpoint.py init-run --run-id $runId).Trim()
         if (Test-ReparsePoint $persistentRunDir) { Write-Err "Persistent run directory is a reparse point." }
-        $inventoryPath = Join-Path $persistentRunDir "hardware-inventory.json"
-        Invoke-Python tools\collect-hardware-inventory.py --output $inventoryPath
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $inventoryPath -PathType Leaf)) {
-            Write-Err "Privacy-safe Windows hardware inventory collection failed."
+        $existingCp = Get-CheckpointDataIfPresent
+        if ($existingCp -and "$($existingCp.run_id)" -eq $runId) {
+            if ($existingCp.phase -in @("usb_prepared", "booted")) {
+                Write-OK "USB is already prepared for run $runId; preserving it without another disk write."
+                Print-BootInstructions
+                return
+            }
+            $inventoryPath = "$($existingCp.inventory_path)"
+            if (-not $inventoryPath -or -not (Test-Path $inventoryPath -PathType Leaf) -or (Test-ReparsePoint $inventoryPath)) {
+                Write-Err "Existing checkpoint inventory is missing or unsafe; refusing to downgrade or replace the run."
+            }
+            Write-OK "Reusing checkpoint inventory: $inventoryPath"
+        } else {
+            $inventoryPath = Join-Path $persistentRunDir "hardware-inventory.json"
+            Invoke-Python tools\collect-hardware-inventory.py --output $inventoryPath
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $inventoryPath -PathType Leaf)) {
+                Write-Err "Privacy-safe Windows hardware inventory collection failed."
+            }
+            Save-Checkpoint $runId "preflight" $persistentRunDir $inventoryPath
         }
-        Save-Checkpoint $runId "preflight" $persistentRunDir $inventoryPath
         Write-OK "Persistent run dir: $persistentRunDir"
     }
 
@@ -408,6 +434,12 @@ function Do-Auto {
     Write-Info "Step 2/4: Generate and preserve a real baseline-only plan."
     if ($DryRun) {
         Write-Host "    [dry-run] python tools/livedev-next --plan --baseline-only"
+    } elseif ($existingCp -and $existingCp.phase -eq "plan_ready") {
+        $planPath = "$($existingCp.plan_path)"
+        if (-not $planPath -or -not (Test-Path $planPath -PathType Leaf) -or (Test-ReparsePoint $planPath)) {
+            Write-Err "Existing checkpoint plan is missing or unsafe; refusing to regenerate a different run contract."
+        }
+        Write-OK "Reusing checkpoint plan: $planPath"
     } else {
         Invoke-Python tools\livedev-next --plan --baseline-only
         if ($LASTEXITCODE -ne 0) { Write-Err "Plan generation failed." }

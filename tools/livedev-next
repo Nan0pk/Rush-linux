@@ -164,9 +164,12 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 180) -> tuple[i
         return 127, "", f"command not found: {cmd[0]}"
 
 
-def _print_result(label: str, rc: int, stdout: str) -> None:
+def _print_result(label: str, rc: int, stdout: str, stderr: str = "") -> None:
     symbol = "[OK]" if rc == 0 else "[FAIL]"
-    last_lines = stdout.strip().splitlines()[-3:] if stdout.strip() else []
+    diagnostic = stdout
+    if rc != 0 and stderr.strip():
+        diagnostic = f"{stdout.rstrip()}\n{stderr.rstrip()}"
+    last_lines = diagnostic.strip().splitlines()[-6:] if diagnostic.strip() else []
     print(f"  {symbol} {label} (exit {rc})")
     for line in last_lines:
         print(f"       {line}")
@@ -450,7 +453,7 @@ def cmd_mock() -> int:
     for cmd, label in commands:
         print(f"  > {label}...")
         rc, stdout, stderr = _run(cmd, cwd=_REPO_ROOT, timeout=180)
-        _print_result(label, rc, stdout)
+        _print_result(label, rc, stdout, stderr)
         if rc != 0:
             all_passed = False
         print()

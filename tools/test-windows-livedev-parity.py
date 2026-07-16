@@ -49,6 +49,11 @@ def test_windows_bootstrap_uses_shared_strict_pipeline():
     assert "Submit-TestosResults" not in source
     assert "x-access-token:" not in source
     assert "rush-livedev-resume-" not in source
+    assert "Get-CheckpointDataIfPresent" in source
+    assert "Reusing checkpoint inventory" in source
+    assert "Reusing checkpoint plan" in source
+    assert "preserving it without another disk write" in source
+    assert "refusing to downgrade or replace the run" in source
 
 
 def test_checkpoint_save_uses_cross_platform_atomic_replace(
@@ -71,6 +76,15 @@ def test_checkpoint_save_uses_cross_platform_atomic_replace(
     assert json.loads(checkpoint.read_text())["phase"] == "plan_ready"
     assert len(replacements) == 2
     assert all(destination == checkpoint for _, destination in replacements)
+
+
+def test_mock_scenarios_use_cross_platform_commands_and_show_stderr():
+    scenarios = (TOOLS / "livedev-e2e-dry-run.py").read_text()
+    entrypoint = (TOOLS / "livedev-next").read_text()
+    assert '["python3", str(_TOOLS_DIR / "validate-hwtest-evidence.py")' not in scenarios
+    assert '"argv": ["false"]' not in scenarios
+    assert '[sys.executable, "-c", "raise SystemExit(1)"]' in scenarios
+    assert "_print_result(label, rc, stdout, stderr)" in entrypoint
 
 
 def test_release_publishes_checksummed_image_commit_metadata():
