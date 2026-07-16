@@ -206,6 +206,7 @@ RAW_BASENAME="${IMAGE_BASENAME%.zst}"
 
 SUMS_URL="$(echo "$ASSET_URLS" | grep -E 'SHA256SUMS$' | head -1 || true)"
 IMAGE_COMMIT_URL="$(echo "$ASSET_URLS" | grep -E 'testos-image-commit\.txt$' | head -1 || true)"
+TESTOS_VERSION_URL="$(echo "$ASSET_URLS" | grep -E 'testos-version\.txt$' | head -1 || true)"
 
 # --- Working directory ------------------------------------------------------
 WORK_DIR="$(mktemp -d -t testos-install.XXXXXX)"
@@ -266,6 +267,21 @@ fi
 TESTOS_IMAGE_COMMIT="$(tr -d '[:space:]' < "${WORK_DIR}/testos-image-commit.txt" | tr '[:upper:]' '[:lower:]')"
 [[ "$TESTOS_IMAGE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || \
     die "testos-image-commit.txt must contain one full 40-character commit SHA."
+
+# A corrected image may use a distinct release build tag while retaining the
+# canonical VERSION embedded in the image. Require that value as checksummed
+# metadata instead of inferring it from the GitHub release tag.
+[[ -n "$TESTOS_VERSION_URL" ]] || \
+    die "Release ${VERSION} predates testos-version.txt. Refusing an ambiguous image version."
+curl -fsSL --progress-bar -o "${WORK_DIR}/testos-version.txt" "$TESTOS_VERSION_URL" || \
+    die "Failed to download testos-version.txt."
+if ! $SKIP_VERIFY; then
+    check_sha256 "${WORK_DIR}/testos-version.txt" "$SUMS_CONTENT" || \
+        die "testos-version.txt is missing from SHA256SUMS."
+fi
+TESTOS_VERSION="$(tr -d '[:space:]' < "${WORK_DIR}/testos-version.txt")"
+[[ "$TESTOS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || \
+    die "testos-version.txt must contain one canonical semantic version."
 
 # --- Cache paths -----------------------------------------------------------
 ZST_CACHE="${CACHE_DIR}/${IMAGE_BASENAME}"    # e.g. cache/testos-0.7.0-beta.4.raw.zst
@@ -521,7 +537,7 @@ TESTOS_IMAGE_SHA256="$(sha256sum "${RESOLVED_RAW}" 2>/dev/null | awk '{print $1}
 echo "TESTOS_RAW_IMAGE: ${RESOLVED_RAW}"
 echo "TESTOS_IMAGE_SHA256: ${TESTOS_IMAGE_SHA256}"
 echo "TESTOS_IMAGE_COMMIT: ${TESTOS_IMAGE_COMMIT}"
-echo "TESTOS_VERSION: ${VERSION#v}"
+echo "TESTOS_VERSION: ${TESTOS_VERSION}"
 echo "TESTOS_USB_DEVICE: ${DEVICE}"
 
 ok "Write complete."
