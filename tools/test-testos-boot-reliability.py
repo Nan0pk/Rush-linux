@@ -34,6 +34,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = REPO_ROOT / "testos" / "build-testos.sh"
+FINALIZE_SCRIPT = REPO_ROOT / "mkosi" / "mkosi.finalize"
 RUNNER_SRC = REPO_ROOT / "crates" / "testos" / "src" / "bin" / "testos-runner.rs"
 TUI_SRC = REPO_ROOT / "crates" / "testos" / "src" / "tui.rs"
 RECOVERY_SRC = REPO_ROOT / "crates" / "testos" / "src" / "recovery.rs"
@@ -219,11 +220,18 @@ def test_mount_unit_has_bounded_timeout():
 
 
 def test_getty_tty1_is_masked():
-    """The image must mask getty@tty1 so the runner owns tty1 exclusively."""
+    """The image must mask getty@tty1 after presets complete."""
     build = _read(BUILD_SCRIPT)
-    # The mask is a symlink to /dev/null.
-    assert "getty@tty1.service" in build, "no getty@tty1 reference in build script"
-    assert "/dev/null" in build, "no /dev/null mask for getty@tty1"
+    finalize = _read(FINALIZE_SCRIPT)
+    early_mask = (
+        'ln -sf /dev/null '
+        '"${EXTRA_DIR}/etc/systemd/system/getty@tty1.service"'
+    )
+    assert early_mask not in build, "canonical getty mask is applied before preset-all"
+    assert '*,testos,*)' in finalize, "getty mask is not scoped to testOS"
+    assert "${BUILDROOT}/etc/systemd/system/getty@tty1.service" in finalize
+    assert "ln -sfn /dev/null" in finalize, "finalize does not mask getty@tty1"
+    assert "readlink" in finalize, "final getty mask is not verified"
 
 
 # ─── No root shell on failure ───────────────────────────────────────────────

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Final image changes that must happen after systemctl preset-all.
+set -euo pipefail
+
+case ",${PROFILES:-}," in
+    *,testos,*)
+        # testos-runner owns tty1. Applying the canonical mask here avoids
+        # making mkosi's earlier preset-all fail on a deliberately masked unit.
+        install -d -m0755 "${BUILDROOT}/etc/systemd/system"
+        ln -sfn /dev/null "${BUILDROOT}/etc/systemd/system/getty@tty1.service"
+        if [[ "$(readlink "${BUILDROOT}/etc/systemd/system/getty@tty1.service")" != /dev/null ]]; then
+            echo "ERROR: failed to finalize the testOS tty1 getty mask" >&2
+            exit 1
+        fi
+        ;;
+esac
