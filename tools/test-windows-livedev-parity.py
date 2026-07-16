@@ -51,6 +51,28 @@ def test_windows_bootstrap_uses_shared_strict_pipeline():
     assert "rush-livedev-resume-" not in source
 
 
+def test_checkpoint_save_uses_cross_platform_atomic_replace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    module = _load("checkpoint_windows_replace_test", TOOLS / "rush-livedev-checkpoint.py")
+    checkpoint = tmp_path / "livedev-checkpoint.json"
+    monkeypatch.setattr(module, "checkpoint_path", lambda: checkpoint)
+    real_replace = os.replace
+    replacements: list[tuple[Path, Path]] = []
+
+    def replace(source, destination):
+        replacements.append((Path(source), Path(destination)))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(module.os, "replace", replace)
+    module.save_checkpoint({"run_id": "windows-run-1", "phase": "preflight"})
+    module.save_checkpoint({"run_id": "windows-run-1", "phase": "plan_ready"})
+
+    assert json.loads(checkpoint.read_text())["phase"] == "plan_ready"
+    assert len(replacements) == 2
+    assert all(destination == checkpoint for _, destination in replacements)
+
+
 def test_release_publishes_checksummed_image_commit_metadata():
     workflow = (ROOT / ".github/workflows/release-testos.yml").read_text()
     assert 'git rev-parse HEAD > "$STAGE/testos-image-commit.txt"' in workflow

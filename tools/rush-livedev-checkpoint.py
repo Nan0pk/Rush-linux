@@ -124,12 +124,15 @@ def run_dir_for(run_id: str) -> Path:
 
 
 def save_checkpoint(data: dict) -> None:
-    """Atomically save the checkpoint (write to temp, then rename)."""
+    """Atomically save or replace the checkpoint on POSIX and Windows."""
     cp = checkpoint_path()
     tmp = cp.with_suffix(".tmp")
     data["saved_at"] = datetime.now(timezone.utc).isoformat()
     tmp.write_text(json.dumps(data, indent=2))
-    tmp.rename(cp)  # atomic on POSIX
+    # Path.rename cannot replace an existing destination on Windows
+    # (WinError 183). os.replace has the required overwrite semantics and is
+    # atomic when source and destination are on the same filesystem.
+    os.replace(tmp, cp)
 
 
 def load_checkpoint() -> dict | None:
