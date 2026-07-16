@@ -156,6 +156,9 @@ jobs:
           cp target/release/testos-ingest   "$STAGE/testos-ingest-${VERSION}-linux-x86_64"
           cp testos/install.sh              "$STAGE/install.sh"
           cp testos/bench-list.toml         "$STAGE/bench-list.toml"
+          # Host installers cannot safely infer the commit embedded inside a
+          # compressed raw image. Publish it as checksummed release metadata.
+          git rev-parse HEAD > "$STAGE/testos-image-commit.txt"
 
           # Generate checksums.
           cd "$STAGE"
@@ -189,6 +192,8 @@ jobs:
     # Skip the smoke test for mock builds (1 MB placeholder, not bootable)
     if: github.event.inputs.mock != 'true'
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check KVM availability
         run: |
           # Check if /dev/kvm exists AND we can actually access it.
@@ -238,6 +243,42 @@ jobs:
           echo "Decompressing..."
           zstd -d "$IMAGE_ZST" -o testos.raw --force
           echo "Image size: $(du -h testos.raw | cut -f1)"
+
+      - name: Inject verified smoke-test run intent
+        run: |
+          set -euo pipefail
+
+          IMAGE_COMMIT=$(tr -d '\r\n' < release/testos-image-commit.txt)
+          TESTOS_VERSION=$(tr -d '\r\n' < VERSION)
+          RUN_ID="qemu-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          CHECKPOINT_NONCE="qemu-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          PLAN_PATH=/tmp/testos-smoke-plan.json
+
+          python3 tools/rush-autopilot plan \
+            --auto \
+            --baseline-only \
+            --slot laptop \
+            --output "$PLAN_PATH"
+
+          LOOP_DEVICE=$(sudo losetup --find --show --partscan testos.raw)
+          cleanup() {
+            sudo losetup --detach "$LOOP_DEVICE" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          sudo udevadm settle
+          sudo python3 tools/testos_prepare_usb.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --plan-path "$PLAN_PATH" \
+            --image-path "$GITHUB_WORKSPACE/testos.raw" \
+            --testos-image-commit "$IMAGE_COMMIT" \
+            --testos-version "$TESTOS_VERSION" \
+            --run-id "$RUN_ID" \
+            --checkpoint-nonce "$CHECKPOINT_NONCE" \
+            --device "$LOOP_DEVICE"
+          sync
+          cleanup
+          trap - EXIT
 
       - name: Boot in QEMU and wait for testOS menu
         run: |

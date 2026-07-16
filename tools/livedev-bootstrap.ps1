@@ -93,7 +93,20 @@ function Invoke-Python {
     } else {
         & $py @Args
     }
-    return $LASTEXITCODE
+}
+
+function Invoke-PythonCapture {
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
+    $py = Get-Python
+    if ($py -eq "py -3") {
+        $output = & py -3 @Args 2>&1
+    } else {
+        $output = & $py @Args 2>&1
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Python command failed: $($Args -join ' ')`n$($output -join "`n")"
+    }
+    return ($output -join "`n")
 }
 
 if ($Help) {
@@ -200,19 +213,9 @@ function Sync-ExistingRepo {
     }
     $current = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null
     if ($current -ne "main") {
-        $dirty = git -C $RepoDir status --porcelain 2>$null
-        if (-not $dirty) {
-            $hasMain = git -C $RepoDir rev-parse --verify main 2>$null
-            if ($hasMain) {
-                git -C $RepoDir checkout main --quiet 2>$null
-                if ($LASTEXITCODE -ne 0) { Write-Warn "Could not switch to main. Staying on '$current'." }
-            } else {
-                Write-Warn "Branch 'main' does not exist in $RepoDir. Staying on '$current'."
-            }
-        } else {
-            Write-Warn "Working tree is dirty on branch '$current'. Staying on this branch."
-            Write-Warn "Your local work is preserved."
-        }
+        Write-Warn "Repo is on branch '$current'; preserving the explicit branch."
+        Write-Warn "Only a checkout already on main is fast-forwarded automatically."
+        return
     }
     git -C $RepoDir pull --ff-only origin main --quiet 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -281,106 +284,177 @@ function Ensure-Repo {
     Set-Location $RepoDir
 }
 
+# --- Persistent checkpoint + path-safe helpers ------------------------------
+function Save-Checkpoint {
+    param(
+        [string]$RunId,
+        [string]$Phase,
+        [string]$RunDir,
+        [string]$InventoryPath = "",
+        [string]$PlanPath = ""
+    )
+    $cpArgs = @("tools\rush-livedev-checkpoint.py", "save", "--run-id", $RunId,
+                "--phase", $Phase, "--run-dir", $RunDir)
+    if ($InventoryPath) { $cpArgs += @("--inventory-path", $InventoryPath) }
+    if ($PlanPath) { $cpArgs += @("--plan-path", $PlanPath) }
+    Invoke-Python @cpArgs
+    if ($LASTEXITCODE -ne 0) { Write-Err "Failed to save LiveDev checkpoint." }
+}
+
+function Get-CheckpointData {
+    $raw = Invoke-PythonCapture tools\rush-livedev-checkpoint.py load
+    try { return ($raw | ConvertFrom-Json) } catch { Write-Err "Checkpoint JSON is invalid: $_" }
+}
+
+function Test-ReparsePoint {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    return [bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+}
+
+function Install-RunIntentOnUsb {
+    param(
+        [string]$UsbDevice,
+        [string]$ImagePath,
+        [string]$ImageCommit,
+        [string]$TestosVersion,
+        [string]$PlanPath,
+        [string]$RunId
+    )
+    if ($UsbDevice -notmatch '^\\\\\.\\PhysicalDrive(\d+)$') {
+        Write-Err "Installer returned unsafe USB device path: $UsbDevice"
+    }
+    $diskNumber = [int]$Matches[1]
+    $partitions = @()
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        try { Update-HostStorageCache -ErrorAction SilentlyContinue } catch {}
+        $partitions = @(Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue)
+        if ($partitions.Count -gt 0) { break }
+        Start-Sleep -Milliseconds 500
+    }
+    if ($partitions.Count -eq 0) { Write-Err "No partitions appeared after writing $UsbDevice." }
+    $espGuid = "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}"
+    $part = $partitions | Where-Object { $_.GptType -eq $espGuid } | Select-Object -First 1
+    if (-not $part) { $part = $partitions | Sort-Object PartitionNumber | Select-Object -First 1 }
+
+    $mount = Join-Path $env:TEMP "rush-livedev-intent-$RunId"
+    if (Test-Path $mount) {
+        if (Test-ReparsePoint $mount) { Write-Err "Refusing reparse-point mount path: $mount" }
+    } else {
+        New-Item -ItemType Directory -Path $mount -Force | Out-Null
+    }
+    $accessPath = $mount.TrimEnd('\') + '\'
+    try {
+        Add-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
+        Invoke-Python tools\testos_prepare_usb.py --repo-root $RepoDir --plan-path $PlanPath `
+            --image-path $ImagePath --testos-image-commit $ImageCommit --run-id $RunId `
+            --testos-version $TestosVersion --checkpoint-nonce "ckpt-$RunId" --source-dir $mount
+        if ($LASTEXITCODE -ne 0) { Write-Err "Failed to install run-intent.json on USB." }
+    } finally {
+        Remove-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $mount -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # --- AUTO MODE ---------------------------------------------------
 function Do-Auto {
     Write-Info "=== Rush LiveDev - one-command USB workflow (-Auto) ==="
-    Write-Host ""
-    Write-Host "This writes a USB, boots the test environment, runs tests, reboots,"
-    Write-Host "resumes collection, validates results, and opens an evidence PR for"
-    Write-Host "maintainer review."
-    Write-Host ""
-    Write-Host "You only approve USB erase, boot from USB, physical AC/battery"
-    Write-Host "prompts, and GitHub auth."
-    if ($TestStub) {
-        Write-Host ""
-        Write-Warn "RUSH_LIVEDEV_TEST_STUB=1: USB write, reboot, PR, and hardware are skipped."
-        Write-Warn "Repo resolution still runs for real."
-    }
-
-    # Repo resolution ALWAYS runs (real), even in TEST_STUB mode.
     Ensure-Repo
 
-    # In TEST_STUB mode: skip mock/plan/USB/boot — we only needed to prove
-    # repo resolution worked end-to-end without USB/network/PR side effects.
     if ($TestStub) {
-        Write-Host ""
         Write-OK "[TEST_STUB] Repo resolution succeeded. Skipping USB/reboot/PR."
         Write-Host "[TEST_STUB] REPO_DIR=$RepoDir"
         return
     }
 
-    # Step 1: mock verification.
+    $runId = ""
+    $persistentRunDir = ""
+    $inventoryPath = ""
+    $planPath = ""
+
+    Write-Host ""
+    Write-Info "Step 0/4: Create persistent run and collect privacy-safe hardware inventory."
+    if ($DryRun) {
+        Write-Host "    [dry-run] Would use %LOCALAPPDATA%\Rush\livedev-runs\<run-id>."
+        Write-Host "    [dry-run] Would collect allow-listed CIM hardware fields only."
+    } else {
+        $freshOutput = Invoke-PythonCapture tools\rush-livedev-checkpoint.py ensure-fresh
+        $runId = (($freshOutput -split "`r?`n") | Where-Object { $_.Trim() } | Select-Object -Last 1).Trim()
+        if ($runId -notmatch '^[A-Za-z0-9_.-]{4,128}$') { Write-Err "Checkpoint returned unsafe run_id: $runId" }
+        $persistentRunDir = (Invoke-PythonCapture tools\rush-livedev-checkpoint.py init-run --run-id $runId).Trim()
+        if (Test-ReparsePoint $persistentRunDir) { Write-Err "Persistent run directory is a reparse point." }
+        $inventoryPath = Join-Path $persistentRunDir "hardware-inventory.json"
+        Invoke-Python tools\collect-hardware-inventory.py --output $inventoryPath
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $inventoryPath -PathType Leaf)) {
+            Write-Err "Privacy-safe Windows hardware inventory collection failed."
+        }
+        Save-Checkpoint $runId "preflight" $persistentRunDir $inventoryPath
+        Write-OK "Persistent run dir: $persistentRunDir"
+    }
+
     if (-not $SkipMock) {
         Write-Host ""
         Write-Info "Step 1/4: Mock verification (no hardware, no network)."
         if ($DryRun) {
-            Write-Host "    [dry-run] python3 tools/livedev-next --mock"
+            Write-Host "    [dry-run] python tools/livedev-next --mock"
         } else {
-            $ok = $false
-            try {
-                Invoke-Python tools/livedev-next --mock
-                if ($LASTEXITCODE -eq 0) { $ok = $true }
-            } catch {}
-            if (-not $ok) {
-                Write-Err "Mock verification failed. Fix before proceeding (or use -SkipMock)."
-            }
+            Invoke-Python tools\livedev-next --mock
+            if ($LASTEXITCODE -ne 0) { Write-Err "Mock verification failed (or use -SkipMock)." }
             Write-OK "Mock verification passed."
         }
-    } else {
-        Write-Warn "Skipping mock verification (-SkipMock)."
-    }
+    } else { Write-Warn "Skipping mock verification (-SkipMock)." }
 
-    # Step 2: generate plan.
     Write-Host ""
-    Write-Info "Step 2/4: Generate benchmark plan."
+    Write-Info "Step 2/4: Generate and preserve a real baseline-only plan."
     if ($DryRun) {
-        Write-Host "    [dry-run] python3 tools/livedev-next --plan"
+        Write-Host "    [dry-run] python tools/livedev-next --plan --baseline-only"
     } else {
-        $ok = $false
-        try {
-            Invoke-Python tools/livedev-next --plan
-            if ($LASTEXITCODE -eq 0) { $ok = $true }
-        } catch {}
-        if (-not $ok) { Write-Err "Plan generation failed." }
-        Write-OK "Plan generated: /tmp/rush-livedev-plan.json (or %TEMP%\rush-livedev-plan.json)"
+        Invoke-Python tools\livedev-next --plan --baseline-only
+        if ($LASTEXITCODE -ne 0) { Write-Err "Plan generation failed." }
+        $generatedPlan = Join-Path $env:TEMP "rush-livedev-plan.json"
+        if (-not (Test-Path $generatedPlan -PathType Leaf) -or (Test-ReparsePoint $generatedPlan)) {
+            Write-Err "Generated plan is missing, non-regular, or a reparse point: $generatedPlan"
+        }
+        $planPath = Join-Path $persistentRunDir "plan.json"
+        if (Test-Path $planPath) {
+            if ((Get-FileHash $planPath -Algorithm SHA256).Hash -ne (Get-FileHash $generatedPlan -Algorithm SHA256).Hash) {
+                Write-Err "Existing persistent plan differs from the newly generated plan. Start a fresh run."
+            }
+        } else {
+            Copy-Item -LiteralPath $generatedPlan -Destination $planPath
+        }
+        Save-Checkpoint $runId "plan_ready" $persistentRunDir $inventoryPath $planPath
+        Write-OK "Persistent plan: $planPath"
     }
 
-    # Step 3: prepare USB.
     Write-Host ""
-    Write-Info "Step 3/4: Prepare USB test environment."
+    Write-Info "Step 3/4: Prepare USB and install cryptographic run intent."
     Write-Host "Using testOS as the current LiveDev boot backend."
     if ($DryRun) {
-        Write-Host "    [dry-run] Would run:"
-        if ($Device) {
-            Write-Host "      powershell -ExecutionPolicy Bypass -File testos\install.ps1 -Device $Device"
-        } else {
-            Write-Host "      powershell -ExecutionPolicy Bypass -File testos\install.ps1"
-        }
-        Write-Host "    [dry-run] Not writing USB."
+        Write-Host "    [dry-run] Would run testos\install.ps1, but would not write USB."
     } else {
-        $args = @()
-        if ($Device) { $args += @("-Device", $Device) }
-        & powershell -ExecutionPolicy Bypass -File testos\install.ps1 @args
-        if ($LASTEXITCODE -ne 0) { Write-Err "testOS installer failed." }
-        Write-OK "USB prepared."
+        $installArgs = @()
+        if ($Device) { $installArgs += @("-Device", $Device) }
+        $installOutput = & powershell -ExecutionPolicy Bypass -File testos\install.ps1 @installArgs 2>&1
+        $installExit = $LASTEXITCODE
+        $installLines = @($installOutput | ForEach-Object { "$_" })
+        $installLines | ForEach-Object { Write-Host $_ }
+        if ($installExit -ne 0) { Write-Err "testOS installer failed." }
+        $imagePath = ([string]($installLines | Where-Object { $_ -like 'TESTOS_RAW_IMAGE: *' } | Select-Object -First 1) -replace '^TESTOS_RAW_IMAGE:\s*','').Trim()
+        $usbDevice = ([string]($installLines | Where-Object { $_ -like 'TESTOS_USB_DEVICE: *' } | Select-Object -First 1) -replace '^TESTOS_USB_DEVICE:\s*','').Trim()
+        $imageCommit = ([string]($installLines | Where-Object { $_ -like 'TESTOS_IMAGE_COMMIT: *' } | Select-Object -First 1) -replace '^TESTOS_IMAGE_COMMIT:\s*','').Trim()
+        $testosVersion = ([string]($installLines | Where-Object { $_ -like 'TESTOS_VERSION: *' } | Select-Object -First 1) -replace '^TESTOS_VERSION:\s*','').Trim()
+        if (-not $imagePath -or -not $usbDevice -or $imageCommit -notmatch '^[0-9a-f]{40}$' -or -not $testosVersion) {
+            Write-Err "USB was written but verified image identity markers were missing. Refusing to boot it."
+        }
+        Install-RunIntentOnUsb $usbDevice $imagePath $imageCommit $testosVersion $planPath $runId
+        Save-Checkpoint $runId "usb_prepared" $persistentRunDir $inventoryPath $planPath
+        Write-OK "USB, run-intent.json, plan.json, and catalog verified by readback."
     }
 
-    # Step 4: reboot instructions.
     Write-Host ""
     Write-Info "Step 4/4: Boot the USB and run tests."
     Print-BootInstructions
-
-    Write-Host ""
-    Write-Info "After testOS reboots the test machine back to its host OS, plug the USB"
-    Write-Info "back into this workstation and run:"
-    Write-Host ""
-    Write-Host "    .\livedev-bootstrap.ps1 -Resume"
-    Write-Host ""
-    Write-Info "That will copy results, validate them, and run a submit dry-run."
-    Write-Info "To open a real evidence PR for maintainer review (no auto-merge):"
-    Write-Host ""
-    Write-Host "    .\livedev-bootstrap.ps1 -Resume -Submit"
-    Write-Host ""
 }
 
 function Print-BootInstructions {
@@ -418,292 +492,158 @@ function Print-BootInstructions {
 }
 
 # --- RESUME MODE -------------------------------------------------
-function Do-Resume {
-    Write-Info "=== Rush LiveDev - resume after reboot (-Resume) ==="
-
-    Ensure-Repo
-
-    # Step 1: locate USB and copy results.
-    Write-Host ""
-    Write-Info "Step 1/3: Locate USB and copy results."
-    $RunDir = New-Item -ItemType Directory -Path "$env:TEMP\rush-livedev-resume-$(Get-Date -Format yyyyMMddHHmmss)" -Force
-    if ($DryRun) {
-        Write-Host "    [dry-run] Would scan for USB, mount its ESP read-only,"
-        Write-Host "    [dry-run]   and copy testos-results\<latest>\ into: $($RunDir.FullName)"
-    } else {
-        Copy-ResultsIntoRunDir $RunDir.FullName
-        if ((Get-ChildItem -Path $RunDir.FullName -Force | Measure-Object).Count -eq 0) {
-            Write-Warn "No results copied (USB may not be plugged in, or no testos-results\ on it)."
-            Write-Warn "Run dir kept for inspection: $($RunDir.FullName)"
-        } else {
-            Write-OK "Results copied to: $($RunDir.FullName)"
-        }
-    }
-
-    # Step 2: validate.
-    Write-Host ""
-    Write-Info "Step 2/3: Validate results."
-    if ($DryRun) {
-        Write-Host "    [dry-run] Would validate testOS manifest.json (parses, has passed/failed counts)."
-        Write-Host "    [dry-run] Would run: python3 tools\validate-hwtest-evidence.py --bundle <run_dir> (if applicable)"
-    } else {
-        Validate-Results $RunDir.FullName
-    }
-
-    # Step 3: submit.
-    Write-Host ""
-    Write-Info "Step 3/3: Submit evidence."
-    if ($Submit) {
-        Do-RealSubmit $RunDir.FullName
-    } else {
-        Do-DryRunSubmit $RunDir.FullName
-    }
-}
-
-function Copy-ResultsIntoRunDir {
-    param([string]$OutDir)
-
-    # Find first USB disk.
+function Copy-MatchingResultsIntoRunDir {
+    param([string]$OutDir, [string]$ExpectedRunId, [string]$ExpectedNonce)
     $usbDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'USB' })
-    if ($usbDisks.Count -eq 0) {
-        Write-Warn "No USB disks detected."
-        return
-    }
-    $disk = $usbDisks[0]
-
-    # Find first FAT partition on the USB.
-    $parts = @(Get-Partition -DiskNumber $disk.Number -ErrorAction SilentlyContinue | Where-Object { $_.Type -match 'FAT|ESP|EFI' })
-    if ($parts.Count -eq 0) {
-        # Fallback: try Get-Volume and look for FAT.
-        $vols = @(Get-Volume | Where-Object { $_.DriveType -eq 'Removable' -and $_.FileSystem -match 'FAT' })
-        if ($vols.Count -eq 0) {
-            Write-Warn "No FAT partition found on USB disk $($disk.Number)."
-            return
-        }
-        $drive = "$($vols[0].DriveLetter):"
-        if (-not $drive -or $drive -eq ":") {
-            Write-Warn "USB volume has no drive letter. Mount it in Disk Management and rerun."
-            return
-        }
-        $resultsRoot = Join-Path $drive "testos-results"
-        if (-not (Test-Path $resultsRoot)) {
-            Write-Warn "No testos-results\ on $drive."
-            return
-        }
-        $latest = Get-ChildItem -Path $resultsRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
-        if ($latest) {
-            Copy-Item -Path (Join-Path $latest.FullName "*") -Destination $OutDir -Recurse -Force
-            Write-OK "Copied testOS run: $($latest.Name)"
-        }
-        return
-    }
-
-    # Mount the ESP partition temporarily if it has no drive letter.
-    $part = $parts[0]
-    $drive = "$($part.DriveLetter):"
-    $assignedDrive = $false
-    if (-not $part.DriveLetter -or $part.DriveLetter -eq 0) {
-        # Add an access path instead of a drive letter to avoid conflicts.
-        $mount = Join-Path $env:TEMP "rush-livedev-mount-$(Get-Random)"
-        New-Item -ItemType Directory -Path $mount -Force | Out-Null
-        Add-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $mount
-        $drive = $mount
-        $assignedDrive = $true
-    }
-
-    try {
-        $resultsRoot = Join-Path $drive "testos-results"
-        if (Test-Path $resultsRoot) {
-            $latest = Get-ChildItem -Path $resultsRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
-            if ($latest) {
-                Copy-Item -Path (Join-Path $latest.FullName "*") -Destination $OutDir -Recurse -Force
-                Write-OK "Copied testOS run: $($latest.Name)"
+    foreach ($disk in $usbDisks) {
+        foreach ($part in @(Get-Partition -DiskNumber $disk.Number -ErrorAction SilentlyContinue)) {
+            $mountedByUs = $false
+            $accessPath = ""
+            $root = ""
+            try {
+                if ($part.DriveLetter) {
+                    $root = "$($part.DriveLetter):\"
+                } else {
+                    $mount = Join-Path $env:TEMP "rush-livedev-read-$($disk.Number)-$($part.PartitionNumber)"
+                    New-Item -ItemType Directory -Path $mount -Force | Out-Null
+                    $accessPath = $mount.TrimEnd('\') + '\'
+                    Add-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
+                    $root = $mount
+                    $mountedByUs = $true
+                }
+                $resultsRoot = Join-Path $root "testos-results"
+                if (-not (Test-Path $resultsRoot -PathType Container)) { continue }
+                foreach ($candidate in @(Get-ChildItem -LiteralPath $resultsRoot -Directory -Force)) {
+                    if (Test-ReparsePoint $candidate.FullName) { continue }
+                    $intentPath = Join-Path $candidate.FullName "run-intent.json"
+                    if (-not (Test-Path $intentPath -PathType Leaf) -or (Test-ReparsePoint $intentPath)) { continue }
+                    try { $intent = Get-Content -LiteralPath $intentPath -Raw | ConvertFrom-Json } catch { continue }
+                    if ($intent.run_id -ne $ExpectedRunId -or $intent.checkpoint_nonce -ne $ExpectedNonce) { continue }
+                    Invoke-Python tools\rush-safe-copy-tree.py $candidate.FullName $OutDir
+                    if ($LASTEXITCODE -ne 0) { Write-Err "Path-safe USB result copy failed." }
+                    Write-OK "Copied matching testOS run: $($candidate.Name)"
+                    return $true
+                }
+            } catch {
+                Write-Warn "Could not inspect USB disk $($disk.Number) partition $($part.PartitionNumber): $($_.Exception.Message)"
+            } finally {
+                if ($mountedByUs) {
+                    Remove-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction SilentlyContinue
+                    Remove-Item -LiteralPath $root -Force -ErrorAction SilentlyContinue
+                }
             }
         }
-    } finally {
-        if ($assignedDrive) {
-            Remove-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $drive -ErrorAction SilentlyContinue
-            Remove-Item -Path $drive -Force -ErrorAction SilentlyContinue
-        }
     }
+    return $false
 }
 
-function Validate-Results {
-    param([string]$RunDir)
-
-    $manifest = Join-Path $RunDir "manifest.json"
-    if (-not (Test-Path $manifest)) {
-        Write-Warn "No manifest.json in run dir. testOS schema validation skipped."
-        Write-Warn "(LiveDev hardware-evidence validator requires run-record.json format."
-        Write-Warn " testOS produces manifest.json - only basic checks are run here.)"
-        return
+function Test-SubmitAuth {
+    if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { return $true }
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        & gh auth status 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $true }
     }
-    Write-Info "Validating testOS manifest: $manifest"
-    $m = Get-Content $manifest -Raw | ConvertFrom-Json
-    if (-not $m.host) { Write-Err "manifest missing host fingerprint" }
-    if ($null -eq $m.passed -or $null -eq $m.failed -or $null -eq $m.skipped) {
-        Write-Err "manifest missing pass/fail/skip counts"
-    }
-    Write-Host "  manifest parses OK"
-    Write-Host "  passed=$($m.passed.Count) failed=$($m.failed.Count) skipped=$($m.skipped.Count)"
-    Write-OK "Results validated (basic schema check)."
-
-    # Also try the LiveDev validator if the bundle has the right shape.
-    $runRecord = Join-Path $RunDir "run-record.json"
-    if (Test-Path $runRecord) {
-        Write-Info "LiveDev run-record.json detected - running full evidence validator ..."
-        Invoke-Python tools/validate-hwtest-evidence.py --bundle $RunDir
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn "LiveDev validator reported issues. Submit will still proceed in dry-run."
-        }
-    }
+    Write-Host "[TOKEN NEEDED]"
+    Write-Host "Authenticate with 'gh auth login' (recommended), or set GH_TOKEN, then rerun."
+    return $false
 }
 
-function Do-DryRunSubmit {
-    param([string]$RunDir)
+function Do-Resume {
+    Write-Info "=== Rush LiveDev - resume after reboot (-Resume) ==="
+    Ensure-Repo
+    if ($Submit -and -not $DryRun -and -not (Test-SubmitAuth)) { exit 2 }
 
-    Write-Info "Submit dry-run (no push, no PR, no merge)."
     if ($DryRun) {
-        Write-Host "    [dry-run] Would run: python3 tools/livedev-next --submit $RunDir --dry-run"
+        Write-Host "    [dry-run] Would load the persistent checkpoint, copy only the matching USB run,"
+        Write-Host "    [dry-run] run the strict validator/privacy gate, then submit in dry-run mode."
         return
     }
-    $runRecord = Join-Path $RunDir "run-record.json"
-    if (Test-Path $runRecord) {
-        Invoke-Python tools/livedev-next --submit $RunDir --dry-run
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn "livedev-next --submit --dry-run reported issues."
+
+    $cp = Get-CheckpointData
+    if (-not $cp -or -not $cp.run_id -or -not $cp.run_dir -or -not $cp.plan_path) {
+        Write-Err "No complete persistent checkpoint. Refusing to associate arbitrary USB evidence."
+    }
+    $runId = "$($cp.run_id)"
+    $runRoot = "$($cp.run_dir)"
+    if (-not (Test-Path $runRoot -PathType Container) -or (Test-ReparsePoint $runRoot)) {
+        Write-Err "Persistent checkpoint run directory is missing or a reparse point."
+    }
+    $runDir = Join-Path $runRoot "results"
+    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    if (Test-ReparsePoint $runDir) { Write-Err "Persistent results directory is a reparse point." }
+
+    Write-Host ""
+    Write-Info "Step 1/3: Copy the USB run matching checkpoint $runId."
+    if (-not (Copy-MatchingResultsIntoRunDir $runDir $runId "ckpt-$runId")) {
+        Write-Err "No USB result matched run_id=$runId and its checkpoint nonce."
+    }
+
+    $usbPlan = Join-Path $runDir "plan.json"
+    if (-not (Test-Path $usbPlan -PathType Leaf) -or (Test-ReparsePoint $usbPlan)) {
+        Write-Err "Collected evidence has no regular plan.json."
+    }
+    if ((Get-FileHash $usbPlan -Algorithm SHA256).Hash -ne (Get-FileHash $cp.plan_path -Algorithm SHA256).Hash) {
+        Write-Err "USB plan does not match the persistent pre-reboot plan."
+    }
+    if ($cp.inventory_path) {
+        if (-not (Test-Path $cp.inventory_path -PathType Leaf) -or (Test-ReparsePoint $cp.inventory_path)) {
+            Write-Err "Persistent hardware inventory is missing or unsafe."
         }
-    } else {
-        Write-OK "testOS results staged in: $RunDir"
-        Write-Host ""
-        Write-Info "To open a real evidence PR for maintainer review (no auto-merge):"
-        Write-Host ""
-        Write-Host "    .\livedev-bootstrap.ps1 -Resume -Submit"
-        Write-Host ""
-        Write-Info "The PR will be opened on a branch. A maintainer reviews and merges."
+        Copy-Item -LiteralPath $cp.inventory_path -Destination (Join-Path $runDir "hardware-inventory.json") -Force
     }
-}
+    Save-Checkpoint $runId "collected" $runRoot $cp.inventory_path $cp.plan_path
 
-function Do-RealSubmit {
-    param([string]$RunDir)
+    Write-Host ""
+    Write-Info "Step 2/3: Strict provenance, schema, hash, path, and privacy validation."
+    Invoke-Python tools\validate-testos-evidence.py --run-dir $runDir --strict
+    if ($LASTEXITCODE -ne 0) { Write-Err "Strict evidence validation failed; submission blocked." }
+    Save-Checkpoint $runId "validated" $runRoot $cp.inventory_path $cp.plan_path
 
-    # Token check. Never print the token.
-    $token = $env:GH_TOKEN
-    if (-not $token) { $token = $env:GITHUB_TOKEN }
-    if (-not $token) {
-        Write-Host "[TOKEN NEEDED]"
-        Write-Host "Set `$env:GH_TOKEN, then rerun:"
-        Write-Host "    .\livedev-bootstrap.ps1 -Resume -Submit"
-        exit 2
+    Write-Host ""
+    Write-Info "Step 3/3: Unified draft-only evidence submission."
+    $submitArgs = @("tools\rush-submit-evidence", $runDir, "--submit-mode", "auto")
+    if (-not $Submit) { $submitArgs += "--dry-run" }
+    Invoke-Python @submitArgs
+    if ($LASTEXITCODE -ne 0) { Write-Err "Unified evidence submission failed." }
+    if ($Submit) {
+        Save-Checkpoint $runId "submitted" $runRoot $cp.inventory_path $cp.plan_path
+        Write-OK "Draft evidence PR opened. This script never merges it."
     }
-
-    Write-Info "Real submit: open evidence PR for maintainer review (no auto-merge)."
-    if ($DryRun) {
-        Write-Host "    [dry-run] Would push branch and open PR via GitHub API."
-        Write-Host "    [dry-run] Token present (not printed). No merge API call would be made."
-        return
-    }
-
-    $runRecord = Join-Path $RunDir "run-record.json"
-    if (Test-Path $runRecord) {
-        # LiveDev-shaped run: use livedev-next --submit (no --dry-run).
-        # rush_pr_lib.py never calls the merge API.
-        $env:GH_TOKEN = $token
-        Invoke-Python tools/livedev-next --submit $RunDir
-        if ($LASTEXITCODE -ne 0) { Write-Err "livedev-next --submit failed." }
-    } else {
-        # testOS-shaped run: self-contained push + PR open. No merge API call.
-        Submit-TestosResults $RunDir $token
-    }
-    Write-OK "Submit complete. PR opened for maintainer review."
-    Write-Info "A maintainer reviews and merges the PR. This script never merges."
-}
-
-function Submit-TestosResults {
-    param([string]$RunDir, [string]$Token)
-
-    $manifest = Join-Path $RunDir "manifest.json"
-    if (-not (Test-Path $manifest)) {
-        Write-Err "No manifest.json in $RunDir. Cannot submit testOS results."
-    }
-
-    # Extract metadata.
-    $m = Get-Content $manifest -Raw | ConvertFrom-Json
-    $datePart = "unknown-date"
-    if ($m.started_at) {
-        $datePart = ($m.started_at -split "T")[0]
-    }
-    $hostFp = "unknown-host"
-    if ($m.host -and $m.host.fingerprint) {
-        $hostFp = $m.host.fingerprint
-    }
-    $stamp = Get-Date -Format "yyyyMMddHHmmss"
-    $branch = "benchmarks/testos-$datePart-$stamp"
-
-    $workDir = Join-Path $env:TEMP "rush-livedev-submit-$stamp"
-    Write-Info "Cloning repo shallow into $workDir ..."
-    git clone --depth 1 $RepoUrl $workDir
-    if ($LASTEXITCODE -ne 0) { Write-Err "git clone failed." }
-    Set-Location $workDir
-    git checkout -b $branch
-
-    # Copy results into the clone.
-    $dest = "benchmarks/results/$datePart/$hostFp"
-    New-Item -ItemType Directory -Path $dest -Force | Out-Null
-    Copy-Item -Path (Join-Path $RunDir "*") -Destination $dest -Recurse -Force
-
-    git add benchmarks/results/
-    $commitMsg = "evidence(bench): testOS run $datePart host=$hostFp"
-    git -c user.email="livedev-bootstrap@local" -c user.name="Rush LiveDev bootstrap" commit -m $commitMsg
-    Write-OK "Committed: $commitMsg"
-
-    # Push using the token. Never store the token in git config.
-    $pushUrl = "https://x-access-token:$Token@github.com/$RepoHost.git"
-    git push $pushUrl $branch 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Err "git push failed." }
-    git remote set-url origin $RepoUrl 2>$null
-    Write-OK "Pushed branch: $branch"
-
-    # Open a PR via the GitHub API. NO merge call.
-    $prBody = @"
-Auto-collected by livedev-bootstrap.ps1 -Resume -Submit.
-
-Run summary:
-- Date: $datePart
-- Host: $hostFp
-
-Includes per-benchmark JSON results and manifest.json. No auto-merge -
-opened for maintainer review per Rush LiveDev policy.
-"@
-    $prPayload = @{
-        title = "benchmarks(testos): results from $datePart"
-        head = $branch
-        base = "main"
-        body = $prBody
-    } | ConvertTo-Json -Depth 5
-
-    $headers = @{
-        Authorization = "Bearer $Token"
-        Accept = "application/vnd.github+json"
-    }
-    try {
-        $resp = Invoke-RestMethod -Uri "https://api.github.com/repos/$RepoHost/pulls" -Method Post -Headers $headers -Body $prPayload -ContentType "application/json"
-    } catch {
-        Write-Err "GitHub PR API call failed: $_"
-    }
-    $prUrl = $resp.html_url
-    if (-not $prUrl) { Write-Err "Could not parse PR URL from API response." }
-    Write-OK "PR opened: $prUrl"
-    Write-Info "No merge API call made. A maintainer reviews and merges."
 }
 
 # --- USB result detection (Windows) -------------------------------
 function Test-UsbHasResults {
-    # Returns $true if a removable drive with testos-results\ is plugged in.
-    $drives = Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
-    foreach ($d in $drives) {
-        $resultsRoot = Join-Path $d.DeviceID "testos-results"
-        if (Test-Path $resultsRoot) { return $true }
+    # Inspect every partition on every USB disk. testOS uses an ESP, which
+    # Windows commonly leaves without a drive letter, so logical-disk-only
+    # detection would incorrectly offer to overwrite an evidence USB.
+    foreach ($disk in @(Get-Disk | Where-Object { $_.BusType -eq 'USB' })) {
+        foreach ($part in @(Get-Partition -DiskNumber $disk.Number -ErrorAction SilentlyContinue)) {
+            $mountedByUs = $false
+            $accessPath = ""
+            $root = ""
+            try {
+                if ($part.DriveLetter) {
+                    $root = "$($part.DriveLetter):\"
+                } else {
+                    $mount = Join-Path $env:TEMP "rush-livedev-detect-$($disk.Number)-$($part.PartitionNumber)"
+                    New-Item -ItemType Directory -Path $mount -Force | Out-Null
+                    $accessPath = $mount.TrimEnd('\') + '\'
+                    Add-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction Stop
+                    $root = $mount
+                    $mountedByUs = $true
+                }
+                if (Test-Path (Join-Path $root "testos-results") -PathType Container) {
+                    return $true
+                }
+            } catch {
+                # Detection is best-effort; Do-Resume reports actionable errors.
+            } finally {
+                if ($mountedByUs) {
+                    Remove-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $part.PartitionNumber -AccessPath $accessPath -ErrorAction SilentlyContinue
+                    Remove-Item -LiteralPath $root -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
     }
     return $false
 }

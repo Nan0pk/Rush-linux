@@ -13,6 +13,8 @@ Usage (called by tools/livedev-bootstrap.sh after image write):
       --repo-root /path/to/Rush-linux \\
       --plan-path /run-dir/plan.json \\
       --image-path /cache/testos-0.7.0-beta.4.raw \\
+      --testos-image-commit 0123456789abcdef0123456789abcdef01234567 \\
+      --testos-version 0.7.0-beta.4 \\
       --run-id auto-20260715-120000 \\
       --checkpoint-nonce ckpt-20260715-abcd1234 \\
       --device /dev/sdX
@@ -22,6 +24,8 @@ Testing (no hardware, no root):
       --repo-root /path/to/Rush-linux \\
       --plan-path /run-dir/plan.json \\
       --image-path /cache/testos-0.7.0-beta.4.raw \\
+      --testos-image-commit 0123456789abcdef0123456789abcdef01234567 \\
+      --testos-version 0.7.0-beta.4 \\
       --run-id auto-20260715-120000 \\
       --checkpoint-nonce ckpt-20260715-abcd1234 \\
       --source-dir /tmp/mock-esp
@@ -38,6 +42,7 @@ import datetime as _dt
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -91,6 +96,8 @@ def generate_run_intent(
     image_path: Path,
     run_id: str,
     checkpoint_nonce: str,
+    testos_image_commit: str,
+    testos_version: str,
     campaign_id: str | None = None,
     dry_run: bool = False,
 ) -> tuple[bytes, str]:
@@ -105,6 +112,12 @@ def generate_run_intent(
     # --- Source identity ---
     source_commit = _git_head(repo_root)
     source_version = _version(repo_root)
+    if not re.fullmatch(r"[0-9a-f]{40}", testos_image_commit):
+        raise RuntimeError(
+            "testos image commit must be exactly 40 lowercase hex characters"
+        )
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", testos_version):
+        raise RuntimeError("testos version is not valid semver")
 
     # --- Plan hash (from the actual plan.json file) ---
     if not plan_path.is_file():
@@ -123,9 +136,6 @@ def generate_run_intent(
     image_sha256 = _sha256_file(image_path)
     image_digest = f"sha256:{image_sha256}"
 
-    # --- testOS version (from VERSION; the runner cross-checks /etc/testos/version) ---
-    testos_version = source_version
-
     # --- Build the intent ---
     intent = {
         "schema_version": SCHEMA_VERSION,
@@ -135,6 +145,7 @@ def generate_run_intent(
         "source_version": source_version,
         "testos_version": testos_version,
         "testos_image_digest": image_digest,
+        "testos_image_commit": testos_image_commit,
         "plan_sha256": plan_sha256,
         "benchmark_catalog_sha256": catalog_sha256,
         "generated_at": _now_iso(),
@@ -224,7 +235,7 @@ def install_intent_plan(
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        os.rename(tmp, dest)
+        os.replace(tmp, dest)
         # On vfat, fsync the directory so the rename is durable.
         try:
             dir_fd = os.open(str(esp_mount), os.O_RDONLY)
@@ -253,6 +264,8 @@ def run_prepare(
     image_path: Path,
     run_id: str,
     checkpoint_nonce: str,
+    testos_image_commit: str,
+    testos_version: str,
     campaign_id: str | None,
     dry_run: bool,
     device: str | None,
@@ -269,6 +282,8 @@ def run_prepare(
         image_path=image_path,
         run_id=run_id,
         checkpoint_nonce=checkpoint_nonce,
+        testos_image_commit=testos_image_commit,
+        testos_version=testos_version,
         campaign_id=campaign_id,
         dry_run=dry_run,
     )
@@ -276,7 +291,9 @@ def run_prepare(
     print(f"   run_id:              {intent['run_id']}")
     print(f"   source_commit:       {intent['source_commit'][:12]}...")
     print(f"   source_version:      {intent['source_version']}")
+    print(f"   testos_version:      {intent['testos_version']}")
     print(f"   testos_image_digest: {intent['testos_image_digest'][:20]}...")
+    print(f"   testos_image_commit: {intent['testos_image_commit'][:12]}...")
     print(f"   plan_sha256:         {intent['plan_sha256'][:20]}...")
     print(f"   catalog_sha256:      {intent['benchmark_catalog_sha256'][:20]}...")
     print(f"   intent_sha256:       {intent_sha[:20]}...")
@@ -354,6 +371,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Stable run identifier (must match checkpoint).")
     parser.add_argument("--checkpoint-nonce", required=True,
                         help="Checkpoint nonce / campaign identity.")
+    parser.add_argument("--testos-image-commit", required=True,
+                        help="Full 40-char commit SHA embedded in the release image.")
+    parser.add_argument("--testos-version", required=True,
+                        help="Version embedded in the release image.")
     parser.add_argument("--campaign-id", default=None)
     parser.add_argument("--dry-run", action="store_true",
                         help="Mark the intent as dry_run=true.")
@@ -374,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
             image_path=ns.image_path,
             run_id=ns.run_id,
             checkpoint_nonce=ns.checkpoint_nonce,
+            testos_image_commit=ns.testos_image_commit,
+            testos_version=ns.testos_version,
             campaign_id=ns.campaign_id,
             dry_run=ns.dry_run,
             device=ns.device,

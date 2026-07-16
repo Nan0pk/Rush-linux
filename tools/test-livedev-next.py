@@ -69,8 +69,8 @@ def test_default_prints_bootstrap_commands():
     assert "livedev-bootstrap.sh" in stdout
     assert "livedev-bootstrap.ps1" in stdout
     assert "--auto" in stdout
-    # Windows command uses -Auto (PowerShell flag style)
-    assert "-Auto" in stdout
+    # Windows command uses Smart mode by default and fails closed on download.
+    assert "$LASTEXITCODE -ne 0" in stdout
     # Must mention the user-path description
     assert "USB" in stdout or "usb" in stdout
     assert "maintainer review" in stdout.lower()
@@ -625,8 +625,8 @@ def test_bootstrap_ps1_supports_required_flags():
     assert "/merge" not in text
     # Must print [TOKEN NEEDED] when token is missing
     assert "[TOKEN NEEDED]" in text
-    # Must use Invoke-RestMethod for PR creation (not merge)
-    assert "Invoke-RestMethod" in text or "Invoke-WebRequest" in text
+    # Must delegate to the unified validator/privacy/draft-only submit tool.
+    assert "rush-submit-evidence" in text
 
 
 def test_bootstrap_ps1_has_python_detection():
@@ -804,7 +804,7 @@ def test_readme_has_linux_and_windows_commands():
     """Spec: README has both Linux/macOS and Windows PowerShell one-command paths."""
     readme = (_ROOT / "README.md").read_text()
     assert "curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh" in readme
-    assert "curl.exe -L -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1" in readme
+    assert "curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1" in readme
     # Smart mode is the default now; -Auto is still accepted but no longer
     # the documented default in the README one-command line.
     assert "powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1" in readme

@@ -220,12 +220,15 @@ def test_prepare_usb_generates_runner_acceptable_intent():
         intent_raw, intent_sha = prepare_usb.generate_run_intent(
             repo_root=repo_root, plan_path=plan_path, image_path=image_path,
             run_id="prep-usb-test-0001", checkpoint_nonce="ckpt-prep-0001",
+            testos_image_commit=_git_head(),
+            testos_version=_version(),
         )
         intent = json.loads(intent_raw)
         # Verify fields are real values, not placeholders.
         assert intent["source_commit"] == _git_head()
         assert intent["source_version"] == _version()
         assert intent["testos_image_digest"] == f"sha256:{_sha256_file(image_path)}"
+        assert intent["testos_image_commit"] == _git_head()
         assert intent["plan_sha256"] == _sha256_file(plan_path)
         assert intent["benchmark_catalog_sha256"] == _sha256_bytes(_bench_list_bytes())
         assert intent["dry_run"] is False

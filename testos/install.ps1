@@ -134,10 +134,7 @@ Cache directory: %LOCALAPPDATA%\testos-installer\cache\
 # --- Admin check --------------------------------------------------
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin -and -not $ListOnly -and -not $DryRun) {
-    Write-Warn "Not running as Administrator. Disk writes will fail."
-    Write-Warn "Re-run from an elevated PowerShell: right-click PowerShell -> 'Run as Administrator'."
-    Write-Warn "Continuing anyway in 3 seconds... (Ctrl-C to abort)"
-    Start-Sleep -Seconds 3
+    Write-Err "Administrator privileges are required. Refusing disk access; reopen PowerShell with 'Run as Administrator'."
 }
 
 # --- Proactive decompressor check ---------------------------------
@@ -303,9 +300,29 @@ try {
     $SumsFile    = Join-Path $WorkDir "SHA256SUMS"
     $SumsContent = $null
 
+    if (-not $SumsAsset -and -not $SkipVerification) {
+        Write-Err "Release $Version has no SHA256SUMS asset. Refusing an unverified USB write."
+    }
     if ($SumsAsset -and -not $SkipVerification) {
         Download-File $SumsAsset.browser_download_url $SumsFile
         $SumsContent = Get-Content $SumsFile -Raw
+    }
+
+    # The run-intent must name the exact commit embedded in the image. This
+    # checksummed release sidecar is the authoritative host-readable value.
+    $ImageCommitAsset = $Assets | Where-Object { $_.name -eq "testos-image-commit.txt" } | Select-Object -First 1
+    if (-not $ImageCommitAsset) {
+        Write-Err "Release $Version predates testos-image-commit.txt. Refusing a stale/unprovable image; publish a corrected release first."
+    }
+    $ImageCommitFile = Join-Path $WorkDir "testos-image-commit.txt"
+    Download-File $ImageCommitAsset.browser_download_url $ImageCommitFile
+    if (-not $SkipVerification) {
+        $commitOk = Test-Sha256 $ImageCommitFile $SumsContent
+        if (-not $commitOk) { Write-Err "testos-image-commit.txt is missing from SHA256SUMS." }
+    }
+    $TestosImageCommit = (Get-Content $ImageCommitFile -Raw).Trim().ToLower()
+    if ($TestosImageCommit -notmatch '^[0-9a-f]{40}$') {
+        Write-Err "testos-image-commit.txt must contain one full 40-character commit SHA."
     }
 
     # Paths we'll resolve to:
@@ -398,7 +415,7 @@ try {
             # Verify before caching
             if (-not $SkipVerification -and $SumsContent) {
                 $ok = Test-Sha256 $DownloadDest $SumsContent
-                if (-not $ok) { Write-Warn "Image filename not found in SHA256SUMS - skipping verification."; $ok = $true }
+                if (-not $ok) { Write-Err "Image filename not found in SHA256SUMS. Refusing USB write." }
             }
 
             # Copy into cache for next time
@@ -712,6 +729,12 @@ try {
     }
 
     Write-OK "Write complete."
+    # Machine-readable handoff for livedev-bootstrap.ps1. These contain no
+    # secrets and let the bootstrap bind run-intent.json to what was written.
+    Write-Host "TESTOS_RAW_IMAGE: $ImageFile"
+    Write-Host "TESTOS_USB_DEVICE: $Device"
+    Write-Host "TESTOS_IMAGE_COMMIT: $TestosImageCommit"
+    Write-Host "TESTOS_VERSION: $($Version.TrimStart('v'))"
 
     # --- Next steps -----------------------------------------------
     Write-Host ""

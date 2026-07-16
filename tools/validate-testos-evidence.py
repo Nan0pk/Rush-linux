@@ -89,6 +89,7 @@ _ALLOWED_RESULT_FILES = {  # exact names that are NOT per-bench results
     "plan.json",
     "bench-list.toml",
     "source-sha.txt",
+    "hardware-inventory.json",
 }
 # Fixture-control files that live inside a fixture run directory but are NOT
 # part of a real testOS run. They are excluded from result-file processing and
