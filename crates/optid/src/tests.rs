@@ -42,6 +42,7 @@ mod integration_tests {
             apply: false, // DRY RUN
             once: true,
             help: false,
+            version: false,
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
@@ -867,6 +868,7 @@ device_resume_latency = 100000
             apply: false, // DRY RUN
             once: true,
             help: false,
+            version: false,
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
@@ -2173,6 +2175,7 @@ device_resume_latency = 100000
             apply: false,
             once: false, // run in background loop
             help: false,
+            version: false,
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
@@ -2243,6 +2246,7 @@ device_resume_latency = 100000
             apply: false,
             once: true,
             help: false,
+            version: false,
             interval_sec: 1,
             state_dir: temp_dir.clone(),
             config_path,
