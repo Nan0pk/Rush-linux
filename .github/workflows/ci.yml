@@ -128,3 +128,29 @@ jobs:
       - name: Validate evidence
         run: python3 tools/validate-evidence.py
 
+
+  telemetry-status:
+    name: Telemetry crate status (warn-only)
+    runs-on: ubuntu-latest
+    # Always runs (even if other jobs fail) so the telemetry state is visible
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check rush_telemetry (expected to fail; warn-only)
+        # AUDIT (FINAL-AUDIT-REPORT.md section 4.8, 2026-07-20):
+        # crates/rush_telemetry is excluded from the workspace because it
+        # does not compile (missing libc dependency, BPF skeleton codegen
+        # incomplete). This job makes the brokenness visible in CI without
+        # failing the build. When the crate compiles successfully, this job
+        # will print a ::notice:: and the crate should be re-included in
+        # the workspace (see Cargo.toml:13-21).
+        run: |
+          cd crates/rush_telemetry
+          if cargo check 2>&1; then
+            echo "::notice file=crates/rush_telemetry::rush_telemetry now compiles — consider re-including in workspace (see Cargo.toml:13-21)"
+          else
+            echo "::warning file=crates/rush_telemetry::rush_telemetry still does not compile (expected — see Cargo.toml:13-21 and FINAL-AUDIT-REPORT.md section 4.8)"
+          fi
+        continue-on-error: true
