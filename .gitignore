@@ -1,24 +1,4 @@
-/target/
-/.cache/
-/build/
-/dist/
-*.log
-
-# Test signing keys (never commit private keys)
-/config/keys/testing.private.pem
-
-# Graphify knowledge graph lives on dedicated branch (graphify-data)
-# to keep main history clean. Nothing under graphify-out/ is tracked on main;
-# fetch instructions live in docs/graphify-knowledge-graph.md.
-/graphify-out/
-.claude/settings.local.json
-
-# Local toolchain (extracted debs, no root needed)
-tmp-debs/
-
-# Python bytecode
-__pycache__/
-*.pyc
-
-# Evidence transcripts are committed deliberately (overrides the *.log rule above)
-!release/evidence/**/*.log
+```
+# Release evidence files
+release/evidence/
+```
