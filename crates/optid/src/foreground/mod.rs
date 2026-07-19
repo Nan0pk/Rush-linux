@@ -76,6 +76,18 @@ pub(crate) fn subscribe(
     _state_dir: PathBuf,
     _config: ForegroundConfig,
 ) -> mpsc::Receiver<(i32, String)> {
+    // AUDIT (FINAL-AUDIT-REPORT.md section 4.4, 2026-07-20):
+    // --foreground=auto is a v0.6 stub. No compositor integration is
+    // active, so foreground-app detection will never fire. The thread
+    // below sleeps forever and the receiver never yields. Real
+    // compositor integration (login1 SessionNew + Mutter/KWin/wlr-
+    // foreign-toplevel-management focus signals) is deferred to v0.7.
+    eprintln!(
+        "optid: WARNING --foreground=auto is a v0.6 stub; \
+         no compositor integration is active. \
+         Foreground-app detection will not fire. \
+         See FINAL-AUDIT-REPORT.md section 4.4"
+    );
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let _tx = tx;

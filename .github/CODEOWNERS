@@ -1,8 +1,17 @@
+# Default owner
 * @Nan0pk
-crates/optid/ @Nan0pk @agent-rust
-crates/optctl/ @Nan0pk @agent-rust
-crates/rush_collect/ @Nan0pk @agent-rust
-crates/rush_telemetry/ @Nan0pk @agent-rust
-crates/rushbench/ @Nan0pk @agent-rust
-tools/ @Nan0pk @agent-shell
+
+# Rust crates
+crates/optid/ @Nan0pk
+crates/optctl/ @Nan0pk
+crates/rush_collect/ @Nan0pk
+crates/rush_telemetry/ @Nan0pk
+crates/rushbench/ @Nan0pk
+crates/testos/ @Nan0pk
+
+# Shell / Python tooling
+tools/ @Nan0pk
+testos/ @Nan0pk
+
+# CI / GitHub config
 .github/ @Nan0pk

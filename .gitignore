@@ -1,1 +1,40 @@
-Nothing should be ignored based on the provided file changes. The only added file is a markdown document (`RUSH-LINUX-AUDIT-REPORT.md`), which is a source/config file and should not be added to .gitignore.
+# Rust build artifacts
+/target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Evidence artifacts (large, machine-specific binaries)
+release/evidence/host-bench/*/artifacts/
+release/evidence/host-bench/*/bundle.tar.gz
+# But keep transcripts and metadata (the actual proof)
+!release/evidence/**/*.log
+!release/evidence/**/meta.txt
+!release/evidence/**/results.json
+!release/evidence/**/NOTE.md
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build intermediates
+*.o
+*.d
+*.so
+*.a
+*.pdb
+*.rs.bk
+
+# Temporary
+/tmp-debs/
+*.bak

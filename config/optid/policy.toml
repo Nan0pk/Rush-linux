@@ -61,6 +61,15 @@ hot_temp_c = 82.0
 critical_temp_c = 92.0
 low_battery_pct = 20
 
+# =====================================================================
+# WARNING (FINAL-AUDIT-REPORT.md section 4.3, 2026-07-20):
+# The [memory] and [modes.*] sysctl values below are PARSED by optid's
+# config loader (so a malformed file fails loudly) but NOT ACTUATED by
+# the current Rust MVP. The daemon uses curated hardcoded values in
+# actuator.rs instead. Editing these keys has NO EFFECT at runtime.
+# Sysctl actuation from this file is a tracked follow-up (WP-N3).
+# =====================================================================
+#
 # Memory / VM tuning is owned by optid (ADR 0004), NOT by a static sysctl
 # drop-in, so the values can adapt to mode and hardware instead of being baked
 # in unconditionally at boot. In particular vm.swappiness is only safe at high

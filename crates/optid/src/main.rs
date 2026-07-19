@@ -312,8 +312,9 @@ fn run(args: Args) -> io::Result<()> {
              v0.6 stub — real compositor integration lands in v0.7.\n",
         )?;
         eprintln!(
-            "optid: foreground detection enabled (v0.6 stub — \
-             no compositor integration yet; the subscriber thread is idle)"
+            "optid: foreground detection enabled (--foreground=auto). \
+             v0.6 STUB: no compositor integration yet; the subscriber thread \
+             is idle. See FINAL-AUDIT-REPORT.md section 4.4."
         );
     }
 

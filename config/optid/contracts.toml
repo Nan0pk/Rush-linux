@@ -1,7 +1,19 @@
 # config/optid/contracts.toml
 #
 # Latency-budget contracts for the workload classes defined in SPEC §1.
-# Consumed by WP-N2 (PM QoS); not enforced yet.
+#
+# ENFORCEMENT STATUS (as of 2026-07-20, FINAL-AUDIT-REPORT.md section 4.2):
+# - CPU-side latency floor (/dev/cpu_dma_latency): ENFORCED by actuator.rs
+#   via write_cpu_latency() at actuator.rs:52.
+# - Device-side latency floor (per-device power/qos/resume_latency_us):
+#   WRITTEN by actuator.rs via write_device_latency() at actuator.rs:74,
+#   but the fits_contract() gate (contracts.rs:190) that would decide
+#   whether a depth-enabler may fire is currently dead code with zero
+#   call sites. The depth-enablers (WP-N5/N6: runtime PM autosuspend,
+#   NVMe APST, PCIe ASPM, SATA ALPM) are not implemented yet.
+# - Values are PROVISIONAL pending WP-B1 hardware validation against real
+#   hardware wakeup distributions.
+# Consumed by WP-N2 (PM QoS); see contracts.rs for the in-binary defaults.
 
 [contracts.idle]
 cpu_wakeup_latency = 100000        # 100ms (in microseconds)

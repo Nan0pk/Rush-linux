@@ -5,10 +5,21 @@ name: Strategic Reassessment
 #   CHANGE-BASED: every push to main, but only fires once >= N commits have
 #                 landed since the last reassessment (counter file below).
 #   MANUAL:       workflow_dispatch.
-# When it fires, it auto-generates a dated snapshot skeleton in 
+# When it fires, it auto-generates a dated snapshot skeleton in
 # docs/strategy/reassessments/ pre-filled with API-collected metrics,
 # complying with ADR-0016 (no GitHub issues for strategic tasks).
 # Judgment (COMPASS.md update) is left to a human/agent via subsequent PR.
+#
+# FIX (audit 2026-07-20): the previous version used `cat <<EOF > "$doc_path"`
+# with the heredoc body at indent=0. The enclosing `run: |` block scalar
+# (indent=8) requires content at indent>=10, so YAML exited the block scalar
+# at the first de-indented line and tried to parse the markdown body as YAML,
+# failing at line 106 col 92 ("mapping values are not allowed here").
+# 528/528 runs failed. This rewrite uses a Python script (read from a
+# heredoc that IS properly indented) and reads all dynamic values from
+# environment variables, so no ${{ }} expressions appear inside the Python
+# string. The ${{ }} expressions live only in the `env:` block where YAML
+# expects them.
 
 on:
   schedule:
@@ -59,8 +70,10 @@ jobs:
               fi
               ;;
           esac
+          date_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "commits_since=$n" >> "$GITHUB_OUTPUT"
           echo "fire=$fire" >> "$GITHUB_OUTPUT"
+          echo "date_utc=$date_utc" >> "$GITHUB_OUTPUT"
           echo "Event=${{ github.event_name }} commits_since=$n fire=$fire"
 
       - name: Collect metrics
@@ -79,7 +92,7 @@ jobs:
           views="$(gh api "repos/$repo/traffic/views" --jq .count 2>/dev/null || echo n/a)"
           uviews="$(gh api "repos/$repo/traffic/views" --jq .uniques 2>/dev/null || echo n/a)"
           clones="$(gh api "repos/$repo/traffic/clones" --jq .count 2>/dev/null || echo n/a)"
-          
+
           # Internal project velocity & specification metrics
           adrs="$(ls docs/decisions/ 2>/dev/null | grep -c "\.md$" || echo 0)"
           wip_research="$(grep -Rl 'Status: WIP' docs/research/ 2>/dev/null | wc -l || echo 0)"
@@ -93,64 +106,108 @@ jobs:
 
       - name: Generate reassessment document
         if: steps.decide.outputs.fire == 'true'
+        id: generate
+        env:
+          DATE_UTC: ${{ steps.decide.outputs.date_utc }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMITS_SINCE: ${{ steps.decide.outputs.commits_since }}
+          STARS: ${{ steps.metrics.outputs.stars }}
+          FORKS: ${{ steps.metrics.outputs.forks }}
+          ISSUES: ${{ steps.metrics.outputs.issues }}
+          OPEN_PRS: ${{ steps.metrics.outputs.open_prs }}
+          VIEWS: ${{ steps.metrics.outputs.views }}
+          UVIEWS: ${{ steps.metrics.outputs.uviews }}
+          CLONES: ${{ steps.metrics.outputs.clones }}
+          ADRS: ${{ steps.metrics.outputs.adrs }}
+          WIP_RESEARCH: ${{ steps.metrics.outputs.wip_research }}
+          VALIDATED_RESEARCH: ${{ steps.metrics.outputs.validated_research }}
         run: |
           set -euo pipefail
-          date_utc="$(date -u +%Y-%m-%d)"
-          doc_path="docs/strategy/reassessments/${date_utc}.md"
-          
-          mkdir -p docs/strategy/reassessments/
-          
-          cat <<EOF > "$doc_path"
-# Strategic Reassessment — ${date_utc}
+          doc_path="docs/strategy/reassessments/${DATE_UTC%%T*}-reassessment.md"
+          mkdir -p "$(dirname "$doc_path")"
+          # Write the Python generator script to a temp file so we avoid
+          # heredoc-in-YAML indentation pitfalls. The script reads everything
+          # from environment variables.
+          gen_script="$(mktemp)"
+          cat > "$gen_script" <<'PYGEN'
+          import os
+          import pathlib
 
-Automated strategic reassessment (trigger: \`${{ github.event_name }}\`, commits since last: ${{ steps.decide.outputs.commits_since }}).
+          date_utc = os.environ["DATE_UTC"]
+          event_name = os.environ["EVENT_NAME"]
+          commits_since = os.environ["COMMITS_SINCE"]
+          stars = os.environ.get("STARS", "n/a")
+          forks = os.environ.get("FORKS", "n/a")
+          issues = os.environ.get("ISSUES", "n/a")
+          open_prs = os.environ.get("OPEN_PRS", "n/a")
+          views = os.environ.get("VIEWS", "n/a")
+          uviews = os.environ.get("UVIEWS", "n/a")
+          clones = os.environ.get("CLONES", "n/a")
+          adrs = os.environ.get("ADRS", "n/a")
+          wip_research = os.environ.get("WIP_RESEARCH", "n/a")
+          validated_research = os.environ.get("VALIDATED_RESEARCH", "n/a")
+          doc_path = os.environ["DOC_PATH"]
 
-## Quantitative Metrics (Auto-collected)
-### Community & Traffic
-- **Stars:** ${{ steps.metrics.outputs.stars }} · **Forks:** ${{ steps.metrics.outputs.forks }}
-- **Traffic:** ${{ steps.metrics.outputs.views }} views (unique ${{ steps.metrics.outputs.uviews }}) · ${{ steps.metrics.outputs.clones }} clones
-
-### Project Velocity & Health
-- **Commits to \`main\` since last check:** ${{ steps.decide.outputs.commits_since }}
-- **Tracker:** ${{ steps.metrics.outputs.issues }} Open Issues · ${{ steps.metrics.outputs.open_prs }} Open PRs
-- **Architecture (ADRs):** ${{ steps.metrics.outputs.adrs }} active decisions
-- **Research Pipeline:** ${{ steps.metrics.outputs.wip_research }} WIP slots · ${{ steps.metrics.outputs.validated_research }} Validated slots
-
----
-
-## Qualitative Assessment (Judgment)
-
-### 1. North Star & Anti-Pivot Contract
-- [ ] **Objective:** Are we still exclusively minimizing avoidable platform energy subject to a per-workload-class responsiveness floor?
-- [ ] **Guardrails:** Are we honoring \`docs/non-goals.md\`? (e.g., No competing daemons, no black-box ML, deterministic policies only)
-
-### 2. Implementation & Hardware Gates
-- [ ] **Hardware Allowlist Coverage:** Are our reference laptops (T14, XPS 13, Framework, Legion) fully mapped in \`docs/research/0006\` and unblocked?
-- [ ] **Telemetry Budget:** Is the observability layer (optid telemetry) strictly staying under the <0.1% CPU polling budget?
-- [ ] **Depth-Enablers (SPEC §4.3):** Are NVMe/dGPU/Display power states functioning without breaching latency floors?
-
-### 3. Pipeline & Blockers
-- [ ] **Research:** What is the most critical \`WIP\` research slot blocking runtime implementation right now?
-- [ ] **Security/Ops:** Is the reproducible-build (ADR-0012) and UKI-signing discipline being maintained?
-
-### 4. Verdict & Course Corrections
-- [ ] **Verdict:** [ On-track | Drifting | Pivot Required ]
-- [ ] **Course-corrections** (1–3 highly specific, actionable items):
-  1. 
-  2. 
-  3. 
-
-## Output of this cycle
-1. Update \`docs/strategy/COMPASS.md\` with any macro-shifts.
-2. Commit this file with judgments filled out.
-
-_See \`docs/strategy/COMPASS.md\` for the living view._
-EOF
-          
+          lines = [
+              "# Strategic Reassessment - " + date_utc,
+              "",
+              "Automated strategic reassessment (trigger: `" + event_name + "`, commits since last: " + commits_since + ").",
+              "",
+              "## Quantitative Metrics (Auto-collected)",
+              "### Community & Traffic",
+              "- **Stars:** " + stars + " - **Forks:** " + forks,
+              "- **Traffic:** " + views + " views (unique " + uviews + ") - " + clones + " clones",
+              "",
+              "### Project Velocity & Health",
+              "- **Commits to `main` since last check:** " + commits_since,
+              "- **Tracker:** " + issues + " Open Issues - " + open_prs + " Open PRs",
+              "- **Architecture (ADRs):** " + adrs + " active decisions",
+              "- **Research Pipeline:** " + wip_research + " WIP slots - " + validated_research + " Validated slots",
+              "",
+              "---",
+              "",
+              "## Qualitative Assessment (Judgment)",
+              "",
+              "### 1. North Star & Anti-Pivot Contract",
+              "- [ ] **Objective:** Are we still exclusively minimizing avoidable platform energy subject to a per-workload-class responsiveness floor?",
+              "- [ ] **Guardrails:** Are we honoring `docs/non-goals.md`? (e.g., No competing daemons, no black-box ML, deterministic policies only)",
+              "",
+              "### 2. Implementation & Hardware Gates",
+              "- [ ] **Hardware Allowlist Coverage:** Are our reference laptops (T14, XPS 13, Framework, Legion) fully mapped in `docs/research/0006` and unblocked?",
+              "- [ ] **Telemetry Budget:** Is the observability layer (optid telemetry) strictly staying under the <0.1% CPU polling budget?",
+              "- [ ] **Depth-Enablers (SPEC 4.3):** Are NVMe/dGPU/Display power states functioning without breaching latency floors?",
+              "",
+              "### 3. Pipeline & Blockers",
+              "- [ ] **Research:** What is the most critical `WIP` research slot blocking runtime implementation right now?",
+              "- [ ] **Security/Ops:** Is the reproducible-build (ADR-0012) and UKI-signing discipline being maintained?",
+              "",
+              "### 4. Verdict & Course Corrections",
+              "- [ ] **Verdict:** [ On-track | Drifting | Pivot Required ]",
+              "- [ ] **Course-corrections** (1-3 highly specific, actionable items):",
+              "  1.",
+              "  2.",
+              "  3.",
+              "",
+              "## Output of this cycle",
+              "1. Update `docs/strategy/COMPASS.md` with any macro-shifts.",
+              "2. Commit this file with judgments filled out.",
+              "",
+              "_See `docs/strategy/COMPASS.md` for the living view._",
+              "",
+          ]
+          pathlib.Path(doc_path).write_text("\n".join(lines))
+          PYGEN
+          # Strip the leading 10-space indent that the heredoc body has
+          # (because YAML block scalar required it for the heredoc body
+          # but Python does not want it).
+          sed -i 's/^          //' "$gen_script"
+          DOC_PATH="$doc_path" python3 "$gen_script"
+          rm -f "$gen_script"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$doc_path"
-          
+          echo "doc_path=$doc_path" >> "$GITHUB_OUTPUT"
+
       - name: Reset merge counter & commit
         if: steps.decide.outputs.fire == 'true'
         run: |
@@ -167,4 +224,4 @@ EOF
           DATE_STR="$(date -u +%Y-%m-%d)"
           # [skip ci] prevents this bookkeeping push from re-triggering the workflow.
           git commit -m "docs(strategy): auto-generate reassessment for ${DATE_STR} [skip ci]" || exit 0
-          git push || echo "counter push skipped (branch protection?) — non-fatal"
+          git push || echo "counter push skipped (branch protection?) - non-fatal"

@@ -4,6 +4,10 @@ final_target = "1.0.0"
 first_stable_arch = "x86_64"
 arm64_status = "experimental-until-tested"
 
+# VERSION POINTER FROZEN at 0.7.0-beta.4 per audit recommendation.
+# Do not advance until v0.6.0-beta.1 status = "complete" with 4/4 verified.
+# See: FINAL-AUDIT-REPORT.md section 5.2 (VERSION vs milestones desync).
+
 [[milestone]]
 version = "0.1.0-alpha.1"
 channel = "alpha"
@@ -180,7 +184,9 @@ note = "Code-complete: all sysfs/cgroup writes flow through guarded_write with p
 version = "0.7.0-beta.1"
 channel = "beta"
 name = "Editions"
-status = "in-progress"
+# Downgraded from "in-progress" to "planned" per FINAL-AUDIT-REPORT.md section 9:
+# v0.7 has 0 criteria_status rows and cannot begin until v0.6 closes.
+status = "planned"
 required_tiers = ["T0", "T1", "T2", "T3"]
 exit_criteria = [
   "desktop, laptop, realtime, and server editions install and boot",
