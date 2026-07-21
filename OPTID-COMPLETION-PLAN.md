@@ -764,6 +764,8 @@ The audit did not use the token pasted into the prompt. Public REST and the inst
 | Secret-scanning alerts | HTTP 401: `Requires authentication` |
 | PR #322 fetch through installed GitHub connection | Success |
 | `OPTID-COMPLETION-PLAN.md` fetch/update on `work/optid-completion-plan` | Success after publication; verified separately |
+| PR metadata update with an inapplicable same-repository `maintainer_can_modify` field | HTTP 422: `Fork collab can only be enabled on cross-repo pull requests`; title/body still appeared in the returned draft snapshot |
+| Convert PR #322 to draft | Success |
 
 Security-alert contents and classic branch protection were not available through an authenticated endpoint exposed to this audit. No result is inferred for them.
 
