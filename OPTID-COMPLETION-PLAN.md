@@ -6,6 +6,57 @@
 
 **Status:** Proposed; implementation packages are mergeable, but hardware-dependent capability claims remain evidence-gated.
 
+## Executive summary — read this first
+
+### What is actually wrong
+
+Optid is not simply “30% built.” Its CPU control is substantially real, and initial runtime-PM, PCIe ASPM/SATA ALPM, and backlight write paths are already implemented (`crates/optid/src/actuator.rs:372-1013`). The two immediate defects are more fundamental:
+
+1. dynamic-device writes do not fit the shipped systemd write-path sandbox (`crates/optid/src/capability.rs:119-145`; `packaging/systemd/optid-apply.service:38-46`); and
+2. policy can stop requesting a depth setting without requesting its inverse, leaving the setting active until shutdown (`crates/optid/src/policy.rs:721-774`; `crates/optid/src/main.rs:402-407`).
+
+Fix state ownership and deployment first. Build observation, simulation, context, and pure controllers in parallel. Add new hardware writes only after their safety boundary is accepted. Hardware validation promotes a built domain; it does not block building disabled code (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
+
+### The plan in seven owner-sized tracks
+
+| Track | Packages | Owner-visible outcome |
+|---|---|---|
+| Truth and state | F1–F4 | Every domain has an effective mode, versioned status, complete desired state, and immediate restore behavior. |
+| Safe mutation | S1–S3, C1 | One accepted privilege boundary, typed operations, durable crash recovery, and defensible contract latency. |
+| Events and context | E1, O1–O2, X1–X2 | Prompt PSI/hotplug reaction, runtime-state proof, cgroup resource pull, optional desktop focus, and working GameMode context. |
+| Existing depth controls | D1–D5 | Runtime PM, storage, display, dGPU, and memory behavior completed rather than reimplemented. |
+| Thermal budget | T1–T3 | Read-only thermal/powercap truth, reproducible controller simulation, then evidence-gated PL1 writes. |
+| Research decisions | R1–R3 | Telemetry ownership resolved; broad primitives and render/ALS ideas either bounded or explicitly deferred. |
+| Product integration | I1–I3 | One truthful diagnostic surface, deterministic whole-system simulation, and separate hardware promotion PRs. |
+
+The 27 packages remain granular for workers. The seven tracks are the owner’s progress view.
+
+### What the owner will see first
+
+| Merge | Package | Visible result |
+|---|---|---|
+| 1 | F1 | `optctl` can show each domain’s effective `off`, `observe`, or `actuate` mode; invalid apply configuration fails clearly. |
+| 2 | F2 | No flashy hardware feature. The project gains deterministic fake kernel I/O, clock, event, and failure paths so later agents fail fast instead of debugging on the owner’s machine. |
+| 3 | F3 | Versioned status distinguishes unsupported, observed, denied, applied, failed, drifted, and restored outcomes. |
+| 4 | F4 in shadow mode | Diagnostics show exactly what would be restored on AC, workload, config, and hotplug transitions before restoration is promoted. |
+| 5 | O1 | Runtime observations for wakeups, runtime-PM state, C-state residency, PM QoS, storage state, and backlight state become available. |
+| 6 | First I1 slice | `optctl status` presents those observations and their support/error states without log archaeology. |
+| 7 | E1 or O2 | Optid reacts to real PSI/hotplug events or identifies the resource-pulling cgroup without needing compositor support. |
+
+This sequence deliberately delivers visible truth and responsiveness before the privileged broker is finished. S1 can be decided in parallel; S2/S3 block only new or migrated privileged writes, not the first seven outcomes.
+
+### Decision required before the safe-mutation lane
+
+The broker is a product architecture decision, not an automatic consequence of this plan. **No worker starts S2 until the owner accepts S1.** Other tracks continue while the decision is pending.
+
+| Option | What happens | Trade-off |
+|---|---|---|
+| **A. Separate minimal root broker — recommended** | The policy daemon observes and decides; a narrow root process accepts only typed, pre-authorized operations. | Largest initial build cost, smallest long-term write surface, cleanest way to support dynamic device paths. |
+| B. Keep one root daemon | Expand the existing daemon/service permissions enough to reach dynamic paths and keep checks in-process. | Less new code, but a compromise or path-validation mistake has a much larger hardware-write blast radius; the systemd mismatch still needs a deliberate solution. |
+| C. Observe-only | Build all sensing, context, simulation, diagnostics, and recommendations; add no new hardware writes. | Fastest and safest, but optid does not become a complete automatic orchestrator. |
+
+**Recommendation:** approve Option A. If the owner chooses B, replace S1–S2 with an accepted single-process threat model and an equally precise dynamic-path confinement design. If the owner chooses C, mark every actuation target observe-only rather than leaving it ambiguously unfinished.
+
 ## 0. How to use this plan
 
 This is a build plan, not a claim that the research briefs are accepted product specifications. Repository authority descends from human direction through `AGENTS.md`, the north-star specification, accepted decision records, strategy, validated research, unfinished research, plans, milestones, evidence, and code (`AGENTS.md:39-60`). Research prototypes must remain experimental and disabled by default (`AGENTS.md:161-162`). Missing hardware evidence blocks only the dependent write or release claim; it does not block read-only work, simulation, dry-run behavior, or an off-by-default prototype (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
@@ -123,6 +174,7 @@ flowchart TD
 - Existing depth actuators must not be expanded until the deployment boundary and restoration model are fixed.
 - Thermal sensing can merge before powercap; a pure PI controller can merge before any powercap write.
 - `sched_ext`, MUX writes, render scaling, and ALS actuation do not enter the critical path because their product interfaces are not accepted.
+- The first owner-visible lane—F1–F4, O1/O2, E1, and incremental I1—does not wait for S2/S3. The broker decision runs in parallel and gates privileged writes only.
 
 ## 4. Execution packages
 
@@ -686,14 +738,37 @@ Execution rules:
 - Worker agents report facts only: exact commands, statuses, files, and remaining gaps. They never mark hardware verified from mocks.
 - Parallel workers may depend only on frozen interfaces. The integration owner, not leaf workers, resolves cross-package conflicts.
 
+When a stop condition is hit, even a low-capability worker must copy, fill, and post this exact escalation instead of guessing:
+
+```text
+BLOCKED — NEW WORK PACKET REQUIRED
+
+Package: <ID and title>
+Base SHA: <immutable SHA>
+Stopped before: <edit, write, test, or decision not performed>
+Trigger: <which stop condition fired>
+Evidence: <file:line, exact error, or interface mismatch>
+Why guessing is unsafe: <one plain-English sentence>
+Decision required: <single precise question>
+Options supported by sources:
+  A. <option and consequence>
+  B. <option and consequence>
+Recommendation: <option, or "none — insufficient evidence">
+Files already changed: <exact list, or "none">
+Tests already run: <command and result, or "none">
+Safe independent work remaining in this package: <list, or "none">
+```
+
+After posting it, the worker must preserve its branch, make no speculative edit, start no unrelated package, and wait for a replacement packet. If partial changes are internally coherent and tested, the integration owner decides whether they become a bounded draft PR; the blocked worker does not make that scope decision.
+
 ### 6.4 Merge train
 
 1. Merge F1–F3 and test seams.
-2. Merge F4 in shadow/parity mode.
-3. Accept S1, then merge S2/S3 with existing actuator adapters.
-4. Merge E1/O1/O2/C1/T1/T2 and session protocol work.
-5. Merge domain completions individually in observe/default-off mode.
-6. Merge I1/I2 continuously, not as a late capstone.
+2. Merge F4 in shadow/parity mode and the first I1/I2 slices so the owner can inspect desired/restore behavior immediately.
+3. Merge E1/O1/O2/T1/T2 and other read-only or pure-model packages while S1 is reviewed.
+4. Accept one S1 option. If Option A is selected, merge S2/S3 with existing actuator adapters; if B or C is selected, replace that lane with the accepted alternative.
+5. Merge C1 and session protocol work as their decisions freeze.
+6. Merge domain completions individually in observe/default-off mode, continuously extending I1/I2.
 7. Promote one hardware/domain combination per evidence PR through I3.
 
 ## 7. Out of scope
@@ -769,6 +844,47 @@ The audit did not use the token pasted into the prompt. Public REST and the inst
 
 Security-alert contents and classic branch protection were not available through an authenticated endpoint exposed to this audit. No result is inferred for them.
 
-## 11. Definition of plan completion
+## 11. Owner completion checklist
 
-This plan is complete when every capability in Section 1 has one of four explicit outcomes: implemented and tested; observe-only by design; blocked by a named accepted-decision/evidence gate; or rejected with rationale. “100%” does not mean every research idea is enabled. It means no capability is silently missing, no write bypasses the safety contract, every applied value has an owner and restoration path, and every user-visible claim is backed by the correct level of evidence.
+The owner tracks these outcomes, not 27 branch names. `☐` becomes `☑` only when the linked PR and required evidence are recorded.
+
+| Done | Capability | Target outcome | Package/evidence |
+|---|---|---|---|
+| ☐ | CPU baseline | Existing CPU actions and decisions retained with regression coverage. | F2, I2 |
+| ☐ | Domain configuration | Every domain has one validated `off|observe|actuate` state and a visible effective value. | F1 |
+| ☐ | Deterministic test seams | Kernel I/O, clock, events, failures, and hotplug can be simulated without hardware. | F2 |
+| ☐ | Truthful state schema | Observation, desired state, gates, apply, drift, failure, and restore have versioned outcomes. | F3 |
+| ☐ | Desired-state reconciliation | Leaving a condition produces an immediate, ownership-safe restore. | F4 |
+| ☐ | Privilege architecture | Option A, B, or C is explicitly accepted; no ambiguous default remains. | S1 owner decision |
+| ☐ | Safe mutation boundary | The accepted architecture permits only reviewed operations and rejects arbitrary path/value writes. | S2 or accepted replacement |
+| ☐ | Crash/reboot recovery | Every write has a durable, identity-safe, idempotent recovery path. | S3 |
+| ☐ | Contracts | Unknown/stale latency denies sensitive writes; per-cgroup contracts compose deterministically. | C1 |
+| ☐ | Event reactor | PSI, config, context, power, timer, and hotplug sources reevaluate without a permanent two-second scan. | E1 |
+| ☐ | Runtime observability | Wakeup, runtime-PM, C-state, PM QoS, storage, and display state are truthfully reported. | O1 |
+| ☐ | Resource pull | Active cgroup v2 scopes are ranked from measured demand without a compositor dependency. | O2 |
+| ☐ | Session context protocol | Focus/fullscreen/activity messages are authenticated, per-seat, expiring, and PID/cgroup validated. | X1 |
+| ☐ | GNOME focus | Supported Mutter sessions add truthful optional focus context. | X2 GNOME PR |
+| ☐ | KDE focus | Supported KWin sessions add truthful optional focus context. | X2 KDE PR |
+| ☐ | wlroots focus | Each supported wlroots-family compositor has a versioned backend or is explicitly unsupported. | X2 wlroots PRs |
+| ☐ | GameMode | Registration affects validated PID/cgroup context and expires on unregister or client death. | X2 GameMode PR |
+| ☐ | Runtime PM | Verified eligible devices autosuspend only within contract/use constraints and restore on demand. | D1 + HWID promotion |
+| ☐ | NVMe APST | PSD latency/firmware provenance drives APST tables; unknown denies writes. | D2 NVMe + HWID/firmware promotion |
+| ☐ | PCIe ASPM/SATA ALPM | Existing paths are brokered, reconciled, guarded, observed, and promoted per hardware. | D2 ASPM/ALPM + promotion |
+| ☐ | Backlight | Manual ownership, drift, per-HWID floor policy, and transition restore are resolved. | D3 backlight |
+| ☐ | PSR/VRR/DPMS/ABM | Supported session APIs apply advisory hints; unsupported compositors degrade cleanly; root performs no direct KMS control. | D3 bridge backends |
+| ☐ | dGPU | Runtime/D3 state is observed; generic runtime PM is promoted only on verified systems; MUX stays advisory until specified. | D4 + promotion |
+| ☐ | Memory | zram/MGLRU state is audited; reversible VM sysctls are reconciled; optid never resizes live zram. | D5 |
+| ☐ | Thermal budget | Stable sensor identity and a reviewed derating model produce a deterministic read-only budget. | T1 |
+| ☐ | Powercap model | RAPL support and a pure bounded PI simulation pass accepted trace criteria. | T2 |
+| ☐ | PL1 actuation | One accepted backend writes within reported bounds with durable recovery and hardware evidence. | T3 + promotion |
+| ☐ | Telemetry ownership | `rush_telemetry` is repaired, separated, or archived; shared parsers have resolved licensing and CI. | R1 decision/PR |
+| ☐ | Remaining platform primitives | Each paper-0001 primitive is mapped, observe-only, spec-blocked, or rejected with rationale. | R2 notes |
+| ☐ | Render scaling/ALS | Feasibility produces an accepted bounded package or an explicit defer/reject decision. | R3 decision |
+| ☐ | Diagnostics | One command explains effective config, context, contract, desired state, gates, write, drift, and restore. | I1 |
+| ☐ | Whole-system simulation | The off/observe/mock-actuate and fault matrix is deterministic in CI. | I2 |
+| ☐ | Hardware promotion | Each automatic write is promoted separately by HWID/firmware evidence; merging code alone changes no claim. | I3 evidence PRs |
+| ☐ | `sched_ext` | WP-B1 evidence and ADR/SPEC produce either an authorized package or an explicit rejection; no premature implementation exists. | SPEC gate (`docs/SPEC-northstar.md:207-212`) |
+
+### Definition of completion
+
+This plan is complete when every checklist row has one explicit outcome: implemented and tested; observe-only by design; blocked by a named accepted-decision/evidence gate; or rejected with rationale. “100%” does not mean every research idea is enabled. It means no capability is silently missing, no write bypasses the safety contract, every applied value has an owner and restoration path, and every user-visible claim is backed by the correct level of evidence.
