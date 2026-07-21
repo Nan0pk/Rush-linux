@@ -175,9 +175,20 @@ if [[ -n "${ROOT_START}" && -n "${ROOT_SIZE}" ]]; then
     if mount -o ro "${ROOT_IMG}" "${ROOT_MNT}" 2>/dev/null; then
         DESKTOP_PACKAGES=""
         for pkg in plasma-desktop plasma-workspace kwayland pipewire xorg-server wayland weston; do
-            if [[ -d "${ROOT_MNT}/var/lib/pacman/local/${pkg}-"* ]] 2>/dev/null; then
-                DESKTOP_PACKAGES="${DESKTOP_PACKAGES} ${pkg}"
-            fi
+            # SC2144 fix: `[[ -d <glob> ]]` does not work — bash does not
+            # expand the glob inside [[ -d ]] when zero or many entries
+            # match. Use a nullglob array to enumerate matches, then
+            # check each with -d to be safe in case a non-directory matches.
+            shopt -s nullglob
+            _matches=("${ROOT_MNT}/var/lib/pacman/local/${pkg}-"*)
+            shopt -u nullglob
+            for _m in "${_matches[@]}"; do
+                if [[ -d "$_m" ]]; then
+                    DESKTOP_PACKAGES="${DESKTOP_PACKAGES} ${pkg}"
+                    break
+                fi
+            done
+            unset _matches
         done
         umount "${ROOT_MNT}"
 

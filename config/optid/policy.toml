@@ -62,22 +62,25 @@ critical_temp_c = 92.0
 low_battery_pct = 20
 
 # =====================================================================
-# WARNING (FINAL-AUDIT-REPORT.md section 4.3, 2026-07-20):
-# The [memory] and [modes.*] sysctl values below are PARSED by optid's
-# config loader (so a malformed file fails loudly) but NOT ACTUATED by
-# the current Rust MVP. The daemon uses curated hardcoded values in
-# actuator.rs instead. Editing these keys has NO EFFECT at runtime.
-# Sysctl actuation from this file is a tracked follow-up (WP-N3).
+# NOTE (corrected 2026-07-21, audit env-remediation):
+# The [memory] and [modes.*] sysctl values below ARE ACTUATED by optid.
+# `Policy::decide_resolved` in `policy.rs` emits `Action::VmSysctl` for
+# `vm.swappiness`, `vm.dirty_background_bytes`, and `vm.dirty_bytes`
+# (see `policy.rs` around line 646-680), and `actuator.rs` writes them
+# through `guarded_write` with journal-and-revert. The earlier FINAL
+# AUDIT REPORT (section 4.3) comment claiming these keys were NOT
+# actuated was stale — it predates the VmSysctl action landing. The
+# `high_swappiness_requires_zram` gate below is honored: when ZRAM is
+# not the active swap device, vm.* writes are skipped with a logged
+# reason.
 # =====================================================================
 #
 # Memory / VM tuning is owned by optid (ADR 0004), NOT by a static sysctl
 # drop-in, so the values can adapt to mode and hardware instead of being baked
 # in unconditionally at boot. In particular vm.swappiness is only safe at high
-# values when ZRAM is the active swap device, so it is gated on detected swap.
-# NOTE: the Rust MVP does not yet actuate these keys (it ignores unknown keys);
-# sysctl actuation in optid is a tracked follow-up. Until then no aggressive
-# swappiness/dirty value is applied unconditionally (the previous static file
-# that did so was removed to resolve the ADR 0004 contradiction).
+# values when ZRAM is the active swap device, so it is gated on detected swap
+# (see `high_swappiness_requires_zram` below and the `zram_swap_active`
+# snapshot field consumed by `Policy::decide_resolved`).
 [memory]
 owner = "optid"
 # Apply high swappiness only when ZRAM-backed swap is active.

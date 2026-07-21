@@ -711,7 +711,7 @@ CPU% and document the cap.
 - Wayland focus propagation in wlroots — https://drewdevault.com/2018/07/17/Input-handling-in-wlroots.html
 - `xdg_toplevel` configuration (activation state) — https://wayland-book.com/xdg-shell-in-depth/configuration.html
 - `xdg-shell` protocol reference — https://wayland.app/protocols/xdg-shell
-- On window activation (xdg_activation_v1) — https://blog.broulik.de/2025/08/on-window-activation/
+- On window activation (xdg_activation_v1) — https://web.archive.org/web/20260115015136/https://blog.broulik.de/2025/08/on-window-activation/ (Wayback Machine archive; the original blog post is currently unreachable from CI, captured 2026-01-15)
 - `wl_client_get_credentials` API — https://wayland.freedesktop.org/docs/html/apc.html
 - `security-context-v1` protocol — https://wayland.app/protocols/security-context-v1
 

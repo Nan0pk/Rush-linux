@@ -5,7 +5,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+# SC2164: fail loudly if the computed ROOT does not exist, rather than
+# silently continuing inside whatever cwd we were invoked from.
+cd "$ROOT" || { echo "fatal: could not cd to $ROOT" >&2; exit 1; }
 
 MODE="changed"
 BASE="${RUSH_BASE:-origin/main}"

@@ -35,7 +35,7 @@ v0.6 Phase A-C (in-container) → v0.6 Phase D (hardware) → v0.7 (editions) �
 
 ### The Single Blocker
 
-**Action Required:** Project owner must nominate two physical reference machines per [`docs/strategy/reference-hardware.md`](docs/strategy/reference-hardware.md):
+**Action Required:** Project owner must nominate two physical reference machines per [`docs/strategy/reference-hardware.md`](../strategy/reference-hardware.md):
 
 | Slot | Status | Action |
 |------|--------|--------|
