@@ -38,3 +38,15 @@ Thumbs.db
 # Temporary
 /tmp-debs/
 *.bak
+
+# mkosi / testOS build artifacts (audit issue #11, 2026-07-21)
+# mkosi produces large .raw disk images during rootfs / UKI / testOS builds.
+# mdBook builds the rendered site into book/ — never commit the build output.
+*.raw
+/book/
+
+# mkosi cache and output directories (kept narrow — only top-level, not
+# anything matching the name deeper in the tree)
+/.mkosi-cache/
+/.mkosi-output/
+/.mkosi.btrfs/

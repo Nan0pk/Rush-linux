@@ -575,7 +575,7 @@ The README (27,204 bytes, 581 lines, fetched OK) makes several claims that can b
 | "a measurement harness (`rushbench`) is operational" | ✓ | `crates/rushbench/Cargo.toml` exists (297 bytes); `tools/rush-host-bench.sh` exists (18,748 bytes). |
 | "The desktop and laptop editions are not yet buildable" | ✓ | `mkosi/mkosi.profiles/desktop/mkosi.conf` and `laptop/mkosi.conf` exist but v0.7 milestone criteria are unverified. |
 | "every decision is logged, explained, and reversible" | ◐ Partial | `optctl explain` is mentioned in milestones but not yet verified; `--revert-sysctls` exists in `actuator.rs` but reversibility on real hardware is not Phase-D-verified. |
-| "curl -fsSL https://raw.githubusercontent.com/.../livedev-bootstrap.sh" | ✓ (runnable) | `tools/livedev-bootstrap.sh` fetched OK (52,770 bytes). |
+| "curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh" | ✓ (runnable) | `tools/livedev-bootstrap.sh` fetched OK (52,770 bytes). |
 | "default install, with `power-profiles-daemon` in its default `balanced` profile" | ✓ | `reference-hardware.md` confirms this is the suggested baseline. |
 
 ### 7.2 Are all README commands runnable?

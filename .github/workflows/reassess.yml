@@ -94,9 +94,25 @@ jobs:
           clones="$(gh api "repos/$repo/traffic/clones" --jq .count 2>/dev/null || echo n/a)"
 
           # Internal project velocity & specification metrics
-          adrs="$(ls docs/decisions/ 2>/dev/null | grep -c "\.md$" || echo 0)"
-          wip_research="$(grep -Rl 'Status: WIP' docs/research/ 2>/dev/null | wc -l || echo 0)"
-          validated_research="$(grep -Rl 'Status: Validated' docs/research/ 2>/dev/null | wc -l || echo 0)"
+          #
+          # BUG FIX (audit env-remediation 2026-07-21):
+          # The previous `|| echo 0` pattern is harmful under
+          # `set -o pipefail` when the upstream tool always emits a
+          # count. `grep -c` and `wc -l` BOTH write "0" to stdout even
+          # when there are zero matches, and `grep` exits 1 in that
+          # case. With pipefail, the pipeline exits 1, so `|| echo 0`
+          # runs and emits a SECOND "0". The captured variable then
+          # contains "0\n0", and `echo "adrs=$adrs" >> "$GITHUB_OUTPUT"`
+          # writes a second bare line `0` (no `=`), which the Actions
+          # output parser rejects — causing this step to fail every
+          # time `validated_research` has zero matches (which is the
+          # current state of docs/research/).
+          #
+          # Fix: use `|| true` to suppress the pipefail exit code; the
+          # count itself is already on stdout from `wc -l` / `grep -c`.
+          adrs="$(ls docs/decisions/ 2>/dev/null | grep -c "\.md$" || true)"
+          wip_research="$(grep -Rl 'Status: WIP' docs/research/ 2>/dev/null | wc -l || true)"
+          validated_research="$(grep -Rl 'Status: Validated' docs/research/ 2>/dev/null | wc -l || true)"
 
           {
             echo "stars=$stars"; echo "forks=$forks"; echo "issues=$issues"; echo "open_prs=$open_prs"
