@@ -19,17 +19,17 @@ Do not reduce the project to a power-daemon rewrite or a queue of GitHub tasks.
 1. [`AGENTS.md`](../AGENTS.md) — project constitution and authority order.
 2. [`docs/SPEC-northstar.md`](SPEC-northstar.md) — product invariants and
    blocked work.
-3. [`OPTID-COMPLETION-PLAN.md`](../OPTID-COMPLETION-PLAN.md) — active optid
-   execution plan.
-4. [`docs/architecture/optid-d2-amendment.md`](architecture/optid-d2-amendment.md)
-   — owner-approved safety architecture.
+3. [`docs/architecture/optid-d2-amendment.md`](architecture/optid-d2-amendment.md)
+   — actionable summary for the owner-approved safety architecture.
+4. [`OPTID-COMPLETION-PLAN.md`](../OPTID-COMPLETION-PLAN.md) — full optid
+   execution plan and deeper justification.
 5. [`docs/plans/optid-package-status.toml`](plans/optid-package-status.toml) —
    machine-readable package state and dependencies.
 6. [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — repository
    implementation truth.
 7. `release/milestones.toml` and `release/evidence/` — release/evidence truth.
 
-Older audits and plans are useful history, not the current work selector.
+For safety work, read the amendment first. Consult the full plan and its cited long-form research only when the work packet needs deeper justification. Older audits and plans are useful history, not the current work selector.
 
 ## Current state
 
