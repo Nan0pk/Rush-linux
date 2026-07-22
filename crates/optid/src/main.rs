@@ -31,6 +31,7 @@ mod io_util;
 mod kernel_io;
 mod load_state;
 mod policy;
+mod reconciler;
 mod sensors;
 mod shim;
 #[cfg(test)]
