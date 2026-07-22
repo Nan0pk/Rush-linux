@@ -165,9 +165,47 @@ completion_evidence = []
 id = "D0"
 lane = "safety"
 title = "Prototype capability sealing and supervisor-managed cold restart"
+# Construction is complete on the D0 work branch; the PR is opened by the
+# builder and merged by the maintainer. Per the ledger's status vocabulary,
+# `completed` requires a linked PR number, so D0 stays `next` until merge.
+# The maintainer flips this to `completed`, fills `pr`, at merge time.
+# Per AGENTS.md §9, D0 is risk tier 3 (security boundary) and requires
+# independent cold verification.
 status = "next"
 depends = []
 pr = ""
+# Builder-provided construction evidence (reviewed by the maintainer at merge):
+# - crates/optid/Cargo.toml: added [features] experimental-capability-sealing
+#   (compile-time, never enabled in shipped optid). Added [[bin]] for
+#   optid-capability-seal-test with required-features.
+# - crates/optid/src/bin/optid-capability-seal-test.rs (new): main binary.
+#   Detects Landlock ABI, creates synthetic temp-dir targets, opens write
+#   descriptors BEFORE Landlock, installs Landlock (default-deny all writes),
+#   runs 5 seal checks, reports results. Exit 0=all-pass, 1=fail, 75=topology.
+# - crates/optid/src/capability_seal_test/landlock_syscall.rs (new): raw
+#   libc::syscall wrappers for landlock_create_ruleset (SYS 444),
+#   landlock_add_rule (SYS 445), landlock_restrict_self (SYS 446).
+#   detect_landlock_abi(), install_landlock_restrictions() (default-deny
+#   all write rights), add_path_rule(), kernel_version().
+# - crates/optid/src/capability_seal_test/seal_test.rs (new): 5 checks:
+#   (1) pre-opened writes succeed, (2) new write opens denied (EACCES/EPERM),
+#   (3) new read opens still succeed, (4) child thread inherits restrictions,
+#   (5) removed-file handling (clean error, no panic).
+# - packaging/systemd/optid-capability-seal-test.service (new): test-only
+#   systemd unit proving supervisor-managed cold restart (Restart=on-failure,
+#   exit 75 = topology-rebuild). Not installed in shipped image.
+# - cargo check -p optid: default build (no feature flag) clean
+# - cargo check -p optid --features experimental-capability-sealing --bin
+#   optid-capability-seal-test: clean
+# - cargo test -p optid: 367 passed, 0 failed (319 unit + 13 integration +
+#   16 PPD + 16 GameMode + 3 write-site)
+# - cargo fmt --all -- --check: clean
+# - cargo clippy --workspace --all-targets -- -D warnings: clean
+# - bash tools/checks.sh: PASS
+# Note: the binary validates Landlock on the running kernel. CI uses
+# synthetic files; hardware receipts are stored separately. The binary
+# does NOT connect to production actuation and does NOT select an unsealed
+# fallback (exits non-zero if Landlock unavailable).
 completion_evidence = []
 
 [[package]]

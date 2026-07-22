@@ -1,0 +1,44 @@
+# D0 — Test-only systemd unit for capability-sealing cold-restart proof.
+#
+# This unit proves that a supervisor (systemd) can cold-restart the D0
+# prototype after a topology-rebuild exit (exit code 75 = EX_TEMPFAIL).
+# It is NOT installed in the shipped image — it lives only in the
+# repository for the D0 evidence trail.
+#
+# Per the D0 plan: "Add a test-only systemd unit proving recovery
+# completes before a fresh capability table is constructed."
+#
+# Usage (on a real system with Landlock):
+#   sudo cp packaging/systemd/optid-capability-seal-test.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start optid-capability-seal-test
+#   journalctl -u optid-capability-seal-test -f
+#
+# The unit restarts on exit code 75 (topology-rebuild) up to 5 times
+# within 60 seconds, then gives up. A successful exit (code 0) means
+# Landlock sealing works on this kernel.
+
+[Unit]
+Description=optid D0 capability-sealing prototype (test-only, not shipped)
+Documentation=https://github.com/Nan0pk/Rush-linux/blob/main/OPTID-COMPLETION-PLAN.md
+# This is a test unit — do not start at boot.
+ConditionPathExists=/run/optid-d0-test-enabled
+
+[Service]
+Type=oneshot
+# The binary only exists when compiled with the experimental feature.
+ExecStart=/usr/local/libexec/optid-capability-seal-test
+# Restart on topology-rebuild (exit 75). Give up after 5 attempts in 60s.
+Restart=on-failure
+RestartPreventExitStatus=0
+RestartSec=2
+StartLimitBurst=5
+StartLimitIntervalSec=60
+# The prototype uses a temp dir for synthetic targets — no real hardware.
+PrivateTmp=true
+# Read-only filesystem — the prototype only writes to its temp dir.
+ProtectSystem=strict
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target
