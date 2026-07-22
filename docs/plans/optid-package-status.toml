@@ -6,6 +6,8 @@ safety_architecture = "D2-fail-passive"
 active_general = "F1"
 active_safety = "D0"
 
+# Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
+
 # Status vocabulary:
 # next           = canonical next package for its lane
 # ready_parallel = independent work may start without displacing the lane's next package
