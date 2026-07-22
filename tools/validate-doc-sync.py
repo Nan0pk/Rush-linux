@@ -253,9 +253,11 @@ def check_optid_plan_activation(entries):
     plan = read_file("OPTID-COMPLETION-PLAN.md")
     amendment = read_file("docs/architecture/optid-d2-amendment.md")
     readme = read_file("README.md")
+    handoff = read_file("docs/AI_CONTINUATION.md")
     ledger_path = ROOT / "docs" / "plans" / "optid-package-status.toml"
+    ledger_text = read_file("docs/plans/optid-package-status.toml")
 
-    if not plan or not amendment or not readme or not ledger_path.exists():
+    if not plan or not amendment or not readme or not handoff or not ledger_text or not ledger_path.exists():
         err("active optid plan, D2 amendment, README, or package ledger is missing")
         return
 
@@ -265,6 +267,24 @@ def check_optid_plan_activation(entries):
     except Exception as e:
         err(f"optid package ledger failed to parse: {e}")
         return
+
+    provenance = "all other packages carry forward the completion plan merged in PR #322"
+    if provenance not in ledger_text:
+        err("optid package ledger does not identify PR #322 as the source of non-safety packages")
+    else:
+        ok("optid package ledger records PR #322 provenance for non-safety packages")
+
+    worker_reading_tokens = (
+        "Reading order for safety-lane packets",
+        "it is the actionable summary",
+        "long-form research only when the packet needs deeper justification",
+    )
+    if any(token not in plan for token in worker_reading_tokens):
+        err("optid worker contract does not require amendment-first, reference-on-demand reading")
+    elif "For safety work, read the amendment first." not in handoff:
+        err("AI continuation handoff does not mirror the amendment-first reading order")
+    else:
+        ok("worker contract and handoff require amendment-first, reference-on-demand reading")
 
     packages = ledger.get("package", [])
     ids = [p.get("id") for p in packages]
