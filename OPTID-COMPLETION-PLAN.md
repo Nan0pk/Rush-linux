@@ -769,6 +769,8 @@ Real hardware is not a prerequisite to merge a disabled implementation. It is ma
 
 Each worker receives a deterministic packet. This is required whether execution uses one agent, a team, or a swarm.
 
+**Reading order for safety-lane packets:** read the [D2 architecture amendment](docs/architecture/optid-d2-amendment.md) first; it is the actionable summary. Consult this full plan and its cited long-form research only when the packet needs deeper justification or a source dispute must be resolved. Routine bounded work must not be delayed by rereading reference material that the packet does not depend on.
+
 ```text
 Work package: <exact ID and title>
 Base: <immutable commit SHA>
