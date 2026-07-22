@@ -37,7 +37,9 @@ pub(crate) struct MemoryConfig {
 /// `EffectiveConfig::allows_actuation` and the test suite to assert that
 /// tightening a mode (Actuate → Observe → Off) can never authorize a
 /// previously denied action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum DomainMode {
     /// Domain disabled. No actions are emitted, no observation is recorded.

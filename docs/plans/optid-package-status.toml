@@ -90,9 +90,37 @@ completion_evidence = []
 id = "F3"
 lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
+# Construction is complete on the F3 work branch; the PR is opened by the
+# builder and merged by the maintainer. Per the ledger's status vocabulary,
+# `completed` requires a linked PR number, so F3 stays `planned` until merge.
+# The maintainer flips this to `completed`, fills `pr`, at merge time.
 status = "planned"
 depends = ["F1"]
 pr = ""
+# Builder-provided construction evidence (reviewed by the maintainer at merge):
+# - crates/optid/src/envelope.rs (new, ~900 LOC): ObservationEnvelope,
+#   DesiredState, GateOutcome, ApplyOutcome, RestoreOutcome, SupportStatus,
+#   DenyReason, ApplyResult, RestoreResult, Ownership, Provenance,
+#   ProvenancedValue, SnapshotSummary, DomainObservation, CorrelationId,
+#   ENVELOPE_SCHEMA_VERSION=1. All types derive Serialize+Deserialize with
+#   snake_case rename. Forward-compat: unknown fields tolerated on
+#   deserialization; optional fields default to None/Unknown.
+# - crates/optid/Cargo.toml: added serde_json = "1.0" dependency.
+# - crates/optid/src/policy.rs: added Serialize derive to DomainMode (was
+#   Deserialize-only; F3 envelopes serialize DomainMode).
+# - crates/optid/src/main.rs: registered `mod envelope`.
+# - 19 envelope tests: schema version, GateOutcome::from_domain_mode for all
+#   three F1 modes, ApplyResult variants distinct (unsupported≠skipped≠failed),
+#   RestoreResult variants distinct (restored≠stabilized≠relinquished),
+#   DesiredState::empty/for_domain/for_domain_mut, envelope JSON round-trip,
+#   schema_version in JSON, unknown-field tolerance, missing-optional-field
+#   tolerance, no source path leaks (.rs/sys/proc/line!), golden JSON
+#   stability, Provenance round-trip, SupportStatus default=Unknown.
+# - cargo test -p optid: 386 passed, 0 failed (338 unit + 13 integration +
+#   16 PPD + 16 GameMode + 3 write-site)
+# - cargo fmt --all -- --check: clean
+# - cargo clippy --workspace --all-targets -- -D warnings: clean
+# - bash tools/checks.sh: PASS
 completion_evidence = []
 
 [[package]]

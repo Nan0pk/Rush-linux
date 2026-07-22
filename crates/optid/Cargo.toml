@@ -17,6 +17,7 @@ zbus = { version = "5.16.0", features = ["blocking"] }
 # the version stays in lockstep with zbus's expectation.
 zvariant = "5"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = "1.1"
 signal-hook = "0.4"
 libc = "0.2"
