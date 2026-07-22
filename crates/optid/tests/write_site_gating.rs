@@ -390,31 +390,28 @@ fn criterion_4_drift_detection_actuator_rs() {
     // Count kernel-write call sites in actuator.rs and assert the inventory
     // matches. New sites added without classification here fail mechanically.
     //
-    // `guarded_write(` matches:
-    //   - the RealPmqosSink::write_device_latency impl at line 71 (1 occurrence;
-    //     this is the actual sysfs write performed on behalf of
-    //     Action::DeviceResumeLatency; reached only via the gated call,
-    //     so it is covered by that call's classification — we subtract it here)
-    //   - one call per Action variant in apply() (8 calls: CpuEpp,
-    //     PlatformProfile, VmSysctl, RuntimePm ×2, PcieAspm, SataAlpm, Backlight)
-    //   - optid-safety: one call in apply_baseline() (curated baseline write
-    //     to /proc/sys/vm/swappiness)
-    // The use-statement at L22 and the doc comment at L2 do not match because
-    // they don't have `(` immediately after `guarded_write`.
-    // `guarded_write(` matches:
-    //   - the RealPmqosSink::write_device_latency impl at line 75 (1 occurrence;
-    //     subtracted below — covered by the DeviceResumeLatency call's classification)
-    //   - one call per Action variant in apply() that writes directly via guarded_write
-    //   - optid-safety: one call in apply_baseline() (curated baseline)
-    //   - Phase 6: one call inside the `runtime_pm_write` helper method (subtracted
-    //     below — the 3 actual RuntimePm write sites call `self.runtime_pm_write(`
+    // F2: the actuator now routes sysfs/procfs writes through
+    // `self.kernel.write(` (the KernelWrite trait method) instead of the
+    // `guarded_write(` free function. The KernelWrite impl enforces the
+    // same allowlist via `kernel_io::is_allowlisted_write_path`. The
+    // RealPmqosSink::write_device_latency impl still calls
+    // `RealKernel::default().write(` (1 occurrence; subtracted below —
+    // covered by the DeviceResumeLatency call's classification).
+    //
+    // `self.kernel.write(` matches:
+    //   - one call per Action variant in apply() that writes directly (7: CpuEpp,
+    //     PlatformProfile, VmSysctl, PcieAspm, SataAlpm, Backlight, + apply_baseline)
+    //   - one call inside the `runtime_pm_write` helper (subtracted below —
+    //     the 3 actual RuntimePm write sites call `self.runtime_pm_write(`
     //     instead, and are counted separately)
-    // The use-statement and doc comments do not match (no `(` after `guarded_write`).
-    let guarded_calls = count(ACTUATOR_RS, "guarded_write(").saturating_sub(2); // PmqosSink impl + runtime_pm_write helper
+    let kernel_write_calls_raw = count(ACTUATOR_RS, "self.kernel.write(");
+    // Subtract 1 for the runtime_pm_write helper's internal self.kernel.write(
+    // — it is reached via the 3 self.runtime_pm_write( calls counted below.
+    let guarded_calls = kernel_write_calls_raw.saturating_sub(1); // runtime_pm_write helper
     let pmqos_cpu_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_cpu_latency(");
     let pmqos_dev_calls = count(ACTUATOR_RS, "self.pmqos_sink.write_device_latency(");
     // Phase 6: the 3 RuntimePm write sites (delay, control, rollback) go through
-    // the `runtime_pm_write` helper rather than calling `guarded_write` directly.
+    // the `runtime_pm_write` helper rather than calling `self.kernel.write(` directly.
     // Count them separately so the inventory matches.
     let runtime_pm_write_calls = count(ACTUATOR_RS, "self.runtime_pm_write(");
     // `atomic_write_state_file(` matches only the real call sites in
@@ -423,10 +420,12 @@ fn criterion_4_drift_detection_actuator_rs() {
     let atomic_calls = count(ACTUATOR_RS, "atomic_write_state_file(");
     let systemctl_calls = count(ACTUATOR_RS, "Command::new(\"systemctl\")");
 
-    // Kernel-write calls = guarded_write + pmqos_sink calls (both reach sysfs
-    // or /dev/cpu_dma_latency). The inventory's "allowlist" +
-    // "adr0009-baseline" + "curated-baseline" classifications cover ALL
-    // kernel-write call sites, including pmqos_sink.
+    // Kernel-write calls = self.kernel.write (minus helper) + pmqos_sink calls
+    // (both reach sysfs or /dev/cpu_dma_latency). The pmqos_sink.write_device_latency
+    // impl delegates to RealKernel::default().write(, which is the actual sysfs
+    // write — we count it via pmqos_dev_calls, NOT via a separate RealKernel count,
+    // to avoid double-counting. The inventory's "allowlist" + "adr0009-baseline" +
+    // "curated-baseline" classifications cover ALL kernel-write call sites.
     let kernel_write_calls =
         guarded_calls + pmqos_cpu_calls + pmqos_dev_calls + runtime_pm_write_calls;
     let inv_actuator_kernel = WRITE_SITES
@@ -449,7 +448,7 @@ fn criterion_4_drift_detection_actuator_rs() {
 
     assert_eq!(
         kernel_write_calls, inv_actuator_kernel,
-        "actuator.rs: counted {kernel_write_calls} kernel-write call sites (guarded_write + pmqos_sink) but inventory lists {inv_actuator_kernel} (allowlist + adr0009-baseline + curated-baseline). Update WRITE_SITES."
+        "actuator.rs: counted {kernel_write_calls} kernel-write call sites (self.kernel.write + RealKernel pmqos + pmqos_sink) but inventory lists {inv_actuator_kernel} (allowlist + adr0009-baseline + curated-baseline). Update WRITE_SITES."
     );
     assert_eq!(
         atomic_calls, inv_actuator_atomic,

@@ -28,6 +28,7 @@ mod dbus;
 mod decision;
 mod foreground;
 mod io_util;
+mod kernel_io;
 mod load_state;
 mod policy;
 mod sensors;

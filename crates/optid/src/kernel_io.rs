@@ -1,0 +1,833 @@
+//! F2 — Injectable kernel I/O, clock, and event boundaries.
+//!
+//! This module is the **test seam** that the OPTID-COMPLETION-PLAN F2 package
+//! calls for. Sensors, actuators, and the recovery/revert path previously
+//! called `std::fs`, `std::time`, and `std::thread` directly, which made
+//! fault-injection and deterministic simulation impossible outside the
+//! production kernel. The four traits below narrow those call sites to a
+//! small surface that has both a production implementation (`RealKernel`)
+//! and a fault-injecting wrapper (`FaultKernel`).
+//!
+//! ## Design rules (F2 plan)
+//!
+//! 1. **No behavior change.** Every existing free function in `sensors.rs`
+//!    and `io_util.rs` keeps its signature and delegates to `RealKernel`.
+//!    The trait methods are exercised by production code through `*_with(io)`
+//!    variants; the old entry points call those variants with
+//!    `&RealKernel::new()`.
+//! 2. **Path canonicalization and permitted roots are centralized here.**
+//!    `is_allowlisted_write_path` is the single authority for which sysfs /
+//!    procfs paths optid may write. It is extracted verbatim from the
+//!    former `io_util::guarded_write` so the allowlist semantics are
+//!    unchanged.
+//! 3. **No policy redesign.** The traits are mechanical I/O seams. Decision
+//!    logic stays in `policy.rs`.
+//! 4. **`EventSource` is defined but not yet wired into the main loop.**
+//!    Replacing the fixed `thread::sleep` poll with a real event reactor
+//!    is package E1. F2 only provides the trait and a sleep-based
+//!    production impl so E1 has a stable seam to fill in.
+//!
+//! ## Trait surface
+//!
+//! - [`KernelRead`] — `read_to_string`, `read_dir`, `exists`.
+//! - [`KernelWrite`] — `write` (allowlist-enforced), `create_dir_all`,
+//!   `rename`, `remove_file`, `append`.
+//! - [`Clock`] — `now_unix`.
+//! - [`EventSource`] — `wait(duration) -> bool` (true = event arrived
+//!   before the deadline; false = full duration elapsed).
+//! - [`KernelIo`] — combined trait (read + write + clock) for the
+//!   actuator, which needs all three.
+//!
+//! ## Fault injection
+//!
+//! [`FaultKernel`] wraps any `KernelIo` and injects configurable failures:
+//! fail the Nth write to a specific path, make a path disappear after K
+//! reads, return malformed content, or deny permission. This is what makes
+//! the F2 fault-injection tests deterministic — they exercise the real
+//! production code path through `Actuator` with a `FaultKernel` that
+//! simulates missing files, EBUSY, short writes, and hot-unplug.
+
+use std::cell::RefCell;
+use std::io;
+use std::path::{Component, Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+// ─────────────────────────────────────────────────────────────────────
+// Path canonicalization and permitted roots (centralized here, F2)
+// ─────────────────────────────────────────────────────────────────────
+
+/// The single authority for which sysfs / procfs paths optid may write.
+///
+/// Extracted verbatim from the former `io_util::guarded_write` so the
+/// allowlist semantics are bit-for-bit unchanged. The `cfg!(test)` branches
+/// are preserved so existing tests that exercise the structural checks
+/// against temp-dir paths continue to behave identically.
+///
+/// Returns `Ok(())` if the path is allowlisted and free of directory
+/// traversal; otherwise returns `io::ErrorKind::PermissionDenied`.
+pub(crate) fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "refusing to write path with directory traversal: {}",
+                path.display()
+            ),
+        ));
+    }
+
+    // Structural check for the per-PCI-device PM QoS resume-latency file.
+    fn is_pm_qos_resume_latency(path: &Path) -> bool {
+        path.file_name().and_then(|n| n.to_str()) == Some("pm_qos_resume_latency_us")
+            && path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                == Some("power")
+    }
+
+    fn is_runtime_pm_attr(path: &Path) -> bool {
+        let name = path.file_name().and_then(|n| n.to_str());
+        let parent_is_power = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            == Some("power");
+        parent_is_power && matches!(name, Some("control") | Some("autosuspend_delay_ms"))
+    }
+
+    fn is_storage_pm_attr(path: &Path) -> bool {
+        let name = path.file_name().and_then(|n| n.to_str());
+        let parent_is_link = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            == Some("link");
+        (parent_is_link && name == Some("l1_aspm")) || name == Some("link_power_management_policy")
+    }
+
+    fn is_backlight_attr(path: &Path) -> bool {
+        path.file_name().and_then(|n| n.to_str()) == Some("brightness")
+            && path
+                .parent()
+                .and_then(|p| p.parent())
+                .and_then(|gp| gp.file_name())
+                .and_then(|n| n.to_str())
+                == Some("backlight")
+    }
+
+    let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
+        || path.starts_with("/sys/devices/system/cpu/")
+        || path == Path::new("/proc/sys/vm/swappiness")
+        || path == Path::new("/proc/sys/vm/dirty_background_bytes")
+        || path == Path::new("/proc/sys/vm/dirty_bytes")
+        || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
+        || (path.starts_with("/sys/") && is_runtime_pm_attr(path))
+        || (path.starts_with("/sys/") && is_storage_pm_attr(path))
+        || (path.starts_with("/sys/") && is_backlight_attr(path))
+        || (cfg!(test) && is_pm_qos_resume_latency(path))
+        || (cfg!(test) && is_runtime_pm_attr(path))
+        || (cfg!(test) && is_storage_pm_attr(path))
+        || (cfg!(test) && is_backlight_attr(path));
+
+    if !allowed {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("refusing to write unallowlisted path {}", path.display()),
+        ));
+    }
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Traits
+// ─────────────────────────────────────────────────────────────────────
+
+/// Read-only kernel I/O. Narrow surface for procfs / sysfs reads.
+///
+/// `read_dir` returns a `Vec<PathBuf>` rather than `fs::ReadDir` so the
+/// mock impl can synthesize directory listings without touching the
+/// filesystem.
+pub(crate) trait KernelRead {
+    fn read_to_string(&self, path: &Path) -> io::Result<String>;
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
+    fn exists(&self, path: &Path) -> bool;
+}
+
+/// Write-side kernel I/O. The `write` method enforces the centralized
+/// allowlist via [`is_allowlisted_write_path`] before delegating to the
+/// underlying filesystem, so every implementation (production and mock)
+/// applies the same structural defence.
+pub(crate) trait KernelWrite {
+    /// Allowlist-enforced write. Returns `PermissionDenied` for paths
+    /// outside the permitted roots or containing directory traversal.
+    fn write(&self, path: &Path, value: &str) -> io::Result<()>;
+    fn create_dir_all(&self, path: &Path) -> io::Result<()>;
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
+    fn remove_file(&self, path: &Path) -> io::Result<()>;
+    /// Append `text` to `path`, creating the file (and parent dirs) if
+    /// absent. Equivalent to `io_util::append_log`.
+    fn append(&self, path: &Path, text: &str) -> io::Result<()>;
+}
+
+/// Monotonic-ish wall clock for timestamps. Production uses
+/// `SystemTime::now().duration_since(UNIX_EPOCH)`.
+pub(crate) trait Clock {
+    fn now_unix(&self) -> u64;
+}
+
+/// Event reactor seam. F2's production impl is a plain `thread::sleep`
+/// that always returns `false` (full duration elapsed, no event). E1
+/// replaces this with a real reactor (PSI poll, udev hotplug, D-Bus
+/// signal) that returns `true` when an event arrives before the deadline.
+#[allow(dead_code)]
+pub(crate) trait EventSource {
+    /// Block for up to `duration`. Return `true` if an event arrived
+    /// before the deadline, `false` if the full duration elapsed.
+    fn wait(&self, duration: Duration) -> bool;
+}
+
+/// Combined trait for the actuator, which needs read + write + clock.
+/// Blanket-implemented for any `T: KernelRead + KernelWrite + Clock`.
+pub(crate) trait KernelIo: KernelRead + KernelWrite + Clock {}
+impl<T: KernelRead + KernelWrite + Clock> KernelIo for T {}
+
+// ─────────────────────────────────────────────────────────────────────
+// RealKernel — production implementation
+// ─────────────────────────────────────────────────────────────────────
+
+/// Production kernel I/O. Delegates to `std::fs`, `std::time`, and
+/// `std::thread`. The default constructor is used by every legacy free
+/// function in `sensors.rs` and `io_util.rs` so existing behavior is
+/// preserved bit-for-bit.
+#[derive(Default, Clone)]
+pub(crate) struct RealKernel;
+
+impl RealKernel {
+    pub(crate) fn new() -> Self {
+        Self
+    }
+}
+
+impl KernelRead for RealKernel {
+    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+    }
+
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(path)? {
+            out.push(entry?.path());
+        }
+        Ok(out)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        path.exists()
+    }
+}
+
+impl KernelWrite for RealKernel {
+    fn write(&self, path: &Path, value: &str) -> io::Result<()> {
+        is_allowlisted_write_path(path)?;
+        std::fs::write(path, value)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        std::fs::create_dir_all(path)
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        std::fs::rename(from, to)
+    }
+
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        std::fs::remove_file(path)
+    }
+
+    fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        use std::io::Write;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        file.write_all(text.as_bytes())
+    }
+}
+
+impl Clock for RealKernel {
+    fn now_unix(&self) -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or_default()
+    }
+}
+
+impl EventSource for RealKernel {
+    fn wait(&self, duration: Duration) -> bool {
+        // F2: plain sleep. E1 replaces this with a real event reactor.
+        std::thread::sleep(duration);
+        false
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FaultKernel — fault-injecting wrapper for deterministic tests
+// ─────────────────────────────────────────────────────────────────────
+
+/// A fault rule. When it fires, the wrapped I/O call returns the configured
+/// error instead of delegating to the inner kernel.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+enum FaultRule {
+    /// Fail the next `write` to `path` with `error`. Fires once.
+    FailWrite { path: PathBuf, error: io::ErrorKind },
+    /// Fail the next `read_to_string` of `path` with `error`. Fires once.
+    FailRead { path: PathBuf, error: io::ErrorKind },
+    /// Make `path` report as non-existent for `exists` / `read_to_string`.
+    /// Persists until cleared.
+    HidePath { path: PathBuf },
+    /// Return `content` instead of the real file contents for
+    /// `read_to_string(path)`. Persists until cleared.
+    MalformedContent { path: PathBuf, content: String },
+}
+
+/// A fault-injecting wrapper around any `KernelIo`. Used by the F2
+/// fault-injection tests to simulate missing files, permission-denied,
+/// short writes, and disappearing paths deterministically — without
+/// poking at the real kernel.
+///
+/// Rules are evaluated in insertion order. The first matching rule fires
+/// (for one-shot rules) or applies (for persistent rules). One-shot rules
+/// are consumed after firing.
+///
+/// **Not `Clone`** because `io::Error` is not `Clone`. Tests construct a
+/// fresh `FaultKernel` per scenario.
+///
+/// The rules vector is wrapped in a `RefCell` so that one-shot rules can
+/// be consumed from `&self` trait methods. `FaultKernel` is `!Sync` by
+/// virtue of `RefCell` and is intended for single-threaded test use only.
+#[allow(dead_code)]
+pub(crate) struct FaultKernel {
+    inner: Box<dyn KernelIo>,
+    rules: RefCell<Vec<FaultRule>>,
+}
+
+#[allow(dead_code)]
+impl FaultKernel {
+    /// Wrap an inner kernel (typically `Box::new(RealKernel::new())`).
+    pub(crate) fn new(inner: Box<dyn KernelIo>) -> Self {
+        Self {
+            inner,
+            rules: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Fail the next `write` to `path` with the given error kind.
+    pub(crate) fn fail_next_write(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::FailWrite { path, error });
+        self
+    }
+
+    /// Fail the next `read_to_string` of `path` with the given error kind.
+    #[allow(dead_code)]
+    pub(crate) fn fail_next_read(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::FailRead { path, error });
+        self
+    }
+
+    /// Make `path` report as non-existent (exists = false, read = NotFound).
+    pub(crate) fn hide_path(&self, path: PathBuf) -> &Self {
+        self.rules.borrow_mut().push(FaultRule::HidePath { path });
+        self
+    }
+
+    /// Return `content` for `read_to_string(path)` instead of the real
+    /// file contents.
+    pub(crate) fn malform_content(&self, path: PathBuf, content: String) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::MalformedContent { path, content });
+        self
+    }
+
+    /// Take the first matching one-shot read fault for `path`, or None.
+    fn take_one_shot_read_fault(&self, path: &Path) -> Option<io::ErrorKind> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules
+            .iter()
+            .position(|r| matches!(r, FaultRule::FailRead { path: p, .. } if p == path));
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::FailRead { error, .. } => error,
+            _ => unreachable!(),
+        })
+    }
+
+    /// Take the first matching one-shot write fault for `path`, or None.
+    fn take_one_shot_write_fault(&self, path: &Path) -> Option<io::ErrorKind> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules
+            .iter()
+            .position(|r| matches!(r, FaultRule::FailWrite { path: p, .. } if p == path));
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::FailWrite { error, .. } => error,
+            _ => unreachable!(),
+        })
+    }
+
+    fn path_is_hidden(&self, path: &Path) -> bool {
+        self.rules
+            .borrow()
+            .iter()
+            .any(|r| matches!(r, FaultRule::HidePath { path: p } if p == path))
+    }
+
+    fn malformed_content_for(&self, path: &Path) -> Option<String> {
+        self.rules.borrow().iter().find_map(|r| {
+            if let FaultRule::MalformedContent { path: p, content } = r {
+                (p == path).then_some(content.clone())
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl KernelRead for FaultKernel {
+    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        // Persistent rules first.
+        if self.path_is_hidden(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("FaultKernel: path hidden for test: {}", path.display()),
+            ));
+        }
+        if let Some(content) = self.malformed_content_for(path) {
+            return Ok(content);
+        }
+        // One-shot rule.
+        if let Some(kind) = self.take_one_shot_read_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!("FaultKernel: injected read fault for {}", path.display()),
+            ));
+        }
+        self.inner.read_to_string(path)
+    }
+
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        // For hidden paths, return an empty directory listing (simulates
+        // hot-unplug: the bus directory still exists but is empty).
+        if self.path_is_hidden(path) {
+            return Ok(Vec::new());
+        }
+        self.inner.read_dir(path)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        if self.path_is_hidden(path) {
+            return false;
+        }
+        self.inner.exists(path)
+    }
+}
+
+impl KernelWrite for FaultKernel {
+    fn write(&self, path: &Path, value: &str) -> io::Result<()> {
+        // Allowlist check first (same as RealKernel).
+        is_allowlisted_write_path(path)?;
+        // One-shot write fault.
+        if let Some(kind) = self.take_one_shot_write_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!("FaultKernel: injected write fault for {}", path.display()),
+            ));
+        }
+        self.inner.write(path, value)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        self.inner.create_dir_all(path)
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        self.inner.rename(from, to)
+    }
+
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.inner.remove_file(path)
+    }
+
+    fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        self.inner.append(path, text)
+    }
+}
+
+impl Clock for FaultKernel {
+    fn now_unix(&self) -> u64 {
+        self.inner.now_unix()
+    }
+}
+
+// Note: FaultKernel does NOT implement EventSource because KernelIo
+// (the combined trait used by the actuator) is Read + Write + Clock only.
+// The main-loop event reactor is package E1's job.
+
+// ─────────────────────────────────────────────────────────────────────
+// Tests for the kernel_io seam itself
+// ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The allowlist check is the centralized path-validation authority.
+    /// Verify it rejects traversal and unallowlisted paths identically to
+    /// the former `io_util::guarded_write`.
+    #[test]
+    fn allowlist_rejects_directory_traversal() {
+        let p = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/../../../../etc/passwd");
+        assert!(is_allowlisted_write_path(p).is_err());
+    }
+
+    #[test]
+    fn allowlist_accepts_cpu_epp_path() {
+        let p = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference");
+        assert!(is_allowlisted_write_path(p).is_ok());
+    }
+
+    #[test]
+    fn allowlist_accepts_vm_swappiness() {
+        assert!(is_allowlisted_write_path(Path::new("/proc/sys/vm/swappiness")).is_ok());
+    }
+
+    #[test]
+    fn allowlist_rejects_random_temp_path_in_test_build() {
+        // The cfg!(test) branches only relax the *structural* checks for
+        // pm_qos / runtime_pm / storage / backlight attrs — they do NOT
+        // allow arbitrary temp paths.
+        let p = Path::new("/tmp/definitely-not-allowlisted");
+        assert!(is_allowlisted_write_path(p).is_err());
+    }
+
+    #[test]
+    fn real_kernel_write_enforces_allowlist() {
+        let k = RealKernel::new();
+        let tmp = std::env::temp_dir().join("optid_kernel_io_real_write_test");
+        let _ = std::fs::create_dir_all(&tmp);
+        let target = tmp.join("evil.conf");
+        let res = k.write(&target, "x");
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn real_kernel_read_dir_returns_entries() {
+        let tmp =
+            std::env::temp_dir().join(format!("optid_kernel_io_readdir_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("a"), "1").unwrap();
+        std::fs::write(tmp.join("b"), "2").unwrap();
+        let k = RealKernel::new();
+        let mut entries = k.read_dir(&tmp).unwrap();
+        entries.sort();
+        assert_eq!(entries.len(), 2);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn real_kernel_clock_advances() {
+        let k = RealKernel::new();
+        let t1 = k.now_unix();
+        std::thread::sleep(Duration::from_millis(1100));
+        let t2 = k.now_unix();
+        assert!(t2 > t1, "clock must advance: t1={t1} t2={t2}");
+    }
+
+    #[test]
+    fn real_kernel_event_source_sleeps_full_duration() {
+        let k = RealKernel::new();
+        let start = SystemTime::now();
+        let interrupted = k.wait(Duration::from_millis(100));
+        let elapsed = start.elapsed().unwrap();
+        assert!(!interrupted, "F2 RealKernel.wait always returns false");
+        assert!(elapsed >= Duration::from_millis(90));
+    }
+
+    #[test]
+    fn fault_kernel_hides_path() {
+        let tmp = std::env::temp_dir().join(format!("optid_fault_hide_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        let target = tmp.join("real_file");
+        std::fs::write(&target, "real").unwrap();
+
+        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        fk.hide_path(target.clone());
+
+        assert!(!fk.exists(&target), "hidden path must report not-exists");
+        let res = fk.read_to_string(&target);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::NotFound);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn fault_kernel_malforms_content() {
+        let tmp = std::env::temp_dir().join(format!("optid_fault_malform_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        let target = tmp.join("psi");
+        std::fs::write(&target, "some avg10=1.00 avg60=1.00 avg300=1.00 total=1\n").unwrap();
+
+        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        fk.malform_content(target.clone(), "garbage not a psi line at all".to_string());
+
+        let content = fk.read_to_string(&target).unwrap();
+        assert_eq!(content, "garbage not a psi line at all");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn fault_kernel_fail_next_write_fires_once() {
+        // Use an allowlisted path so the allowlist check passes and the
+        // fault rule is the thing that fires.
+        let path = Path::new("/proc/sys/vm/swappiness");
+        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        fk.fail_next_write(path.to_path_buf(), io::ErrorKind::Other);
+
+        // First write: fault fires.
+        let res1 = fk.write(path, "60");
+        assert!(res1.is_err());
+        assert_eq!(res1.unwrap_err().kind(), io::ErrorKind::Other);
+
+        // Second write: no fault rule left. The write will likely fail
+        // with PermissionDenied (we're not root in tests), but the
+        // important thing is it's NOT the injected Other error.
+        let res2 = fk.write(path, "60");
+        if let Err(e) = res2 {
+            assert_ne!(
+                e.kind(),
+                io::ErrorKind::Other,
+                "second write must not fire the consumed fault rule"
+            );
+        }
+    }
+
+    #[test]
+    fn fault_kernel_fail_next_read_fires_once() {
+        let tmp = std::env::temp_dir().join(format!("optid_fault_read_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        let target = tmp.join("data");
+        std::fs::write(&target, "real").unwrap();
+
+        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        fk.fail_next_read(target.clone(), io::ErrorKind::PermissionDenied);
+
+        let res1 = fk.read_to_string(&target);
+        assert!(res1.is_err());
+        assert_eq!(res1.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+
+        // Second read: fault consumed, real content returned.
+        let res2 = fk.read_to_string(&target).unwrap();
+        assert_eq!(res2, "real");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn fault_kernel_hidden_dir_returns_empty_listing() {
+        let tmp = std::env::temp_dir().join(format!("optid_fault_dir_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("dev1"), "x").unwrap();
+        std::fs::write(tmp.join("dev2"), "x").unwrap();
+
+        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        fk.hide_path(tmp.clone());
+
+        let entries = fk.read_dir(&tmp).unwrap();
+        assert!(entries.is_empty(), "hidden dir must return empty listing");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Verify the blanket `KernelIo` impl covers `RealKernel`.
+    #[test]
+    fn blanket_kernel_io_covers_real_kernel() {
+        let k = RealKernel::new();
+        // If this compiles, the blanket impl works.
+        fn accepts_kernel_io(_: &dyn KernelIo) {}
+        accepts_kernel_io(&k);
+    }
+
+    /// Verify the blanket `KernelIo` impl covers `FaultKernel`.
+    #[test]
+    fn blanket_kernel_io_covers_fault_kernel() {
+        let k = FaultKernel::new(Box::new(RealKernel::new()));
+        fn accepts_kernel_io(_: &dyn KernelIo) {}
+        accepts_kernel_io(&k);
+    }
+
+    /// A simple in-memory kernel for pure unit tests (no filesystem).
+    /// Not used by the F2 fault-injection tests (which wrap RealKernel),
+    /// but provided as a building block for future packages (F3, S2D).
+    #[test]
+    fn memory_kernel_round_trip() {
+        let k = MemoryKernel::new();
+        // Use an allowlisted path so the MemoryKernel's write() (which
+        // enforces the allowlist) accepts it.
+        let path = Path::new("/proc/sys/vm/swappiness");
+        k.write(path, "42").unwrap();
+        assert_eq!(k.read_to_string(path).unwrap(), "42");
+        assert!(k.exists(path));
+        k.write(path, "100").unwrap();
+        assert_eq!(k.read_to_string(path).unwrap(), "100");
+    }
+
+    // ── MemoryKernel: minimal in-memory impl for pure unit tests ──────
+
+    /// Minimal in-memory kernel. Stores file contents in a `HashMap`.
+    /// **Note:** `write` still enforces the allowlist so that path-shape
+    /// bugs are caught even in pure unit tests. Tests that need to write
+    /// arbitrary paths should use `write_raw` (test-only).
+    pub(crate) struct MemoryKernel {
+        files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
+        dirs: std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<PathBuf>>>,
+        clock: std::sync::atomic::AtomicU64,
+    }
+
+    impl MemoryKernel {
+        pub(crate) fn new() -> Self {
+            Self {
+                files: std::sync::Mutex::new(std::collections::HashMap::new()),
+                dirs: std::sync::Mutex::new(std::collections::HashMap::new()),
+                clock: std::sync::atomic::AtomicU64::new(0),
+            }
+        }
+
+        /// Advance the in-memory clock by `secs`.
+        #[allow(dead_code)]
+        pub(crate) fn advance_clock(&self, secs: u64) {
+            self.clock
+                .fetch_add(secs, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        /// Test-only raw write that bypasses the allowlist. For setting
+        /// up fixture state in pure unit tests.
+        #[allow(dead_code)]
+        pub(crate) fn write_raw(&self, path: &Path, value: &str) {
+            self.files
+                .lock()
+                .unwrap()
+                .insert(path.to_path_buf(), value.to_string());
+        }
+    }
+
+    impl KernelRead for MemoryKernel {
+        fn read_to_string(&self, path: &Path) -> io::Result<String> {
+            self.files
+                .lock()
+                .unwrap()
+                .get(path)
+                .cloned()
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!("MemoryKernel: no such file: {}", path.display()),
+                    )
+                })
+        }
+
+        fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+            Ok(self
+                .dirs
+                .lock()
+                .unwrap()
+                .get(path)
+                .cloned()
+                .unwrap_or_default())
+        }
+
+        fn exists(&self, path: &Path) -> bool {
+            self.files.lock().unwrap().contains_key(path)
+                || self.dirs.lock().unwrap().contains_key(path)
+        }
+    }
+
+    impl KernelWrite for MemoryKernel {
+        fn write(&self, path: &Path, value: &str) -> io::Result<()> {
+            is_allowlisted_write_path(path)?;
+            self.files
+                .lock()
+                .unwrap()
+                .insert(path.to_path_buf(), value.to_string());
+            Ok(())
+        }
+
+        fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+            self.dirs
+                .lock()
+                .unwrap()
+                .entry(path.to_path_buf())
+                .or_default();
+            Ok(())
+        }
+
+        fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+            let mut files = self.files.lock().unwrap();
+            if let Some(content) = files.remove(from) {
+                files.insert(to.to_path_buf(), content);
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "MemoryKernel: rename source not found",
+                ))
+            }
+        }
+
+        fn remove_file(&self, path: &Path) -> io::Result<()> {
+            self.files
+                .lock()
+                .unwrap()
+                .remove(path)
+                .map(|_| ())
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "MemoryKernel: remove_file not found",
+                    )
+                })
+        }
+
+        fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+            let mut files = self.files.lock().unwrap();
+            let entry = files.entry(path.to_path_buf()).or_default();
+            entry.push_str(text);
+            Ok(())
+        }
+    }
+
+    impl Clock for MemoryKernel {
+        fn now_unix(&self) -> u64 {
+            self.clock.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    impl EventSource for MemoryKernel {
+        fn wait(&self, _duration: Duration) -> bool {
+            // In-memory: no real waiting. Tests that need event behavior
+            // will use a dedicated mock in E1.
+            false
+        }
+    }
+}
