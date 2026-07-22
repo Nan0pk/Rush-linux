@@ -27,6 +27,265 @@ pub(crate) struct MemoryConfig {
     pub(crate) high_swappiness_requires_zram: bool,
 }
 
+/// F1 — Per-domain runtime mode. The single source of truth for "may optid
+/// actuate this domain at all?" The existing gates (`--apply`, hardware
+/// allowlist, contract floor, journaled revert) still apply on top of
+/// `Actuate`; this enum is the *first* gate, evaluated in policy before an
+/// `Action` is even constructed for the actuator.
+///
+/// Ordering matters: `Off < Observe < Actuate`. Comparisons are used by
+/// `EffectiveConfig::allows_actuation` and the test suite to assert that
+/// tightening a mode (Actuate → Observe → Off) can never authorize a
+/// previously denied action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum DomainMode {
+    /// Domain disabled. No actions are emitted, no observation is recorded.
+    /// The domain is invisible to the runtime as if optid did not know about
+    /// it. Use for untrusted or retired domains.
+    Off,
+    /// Domain observes the system and would actuate, but suppresses the
+    /// final write. The would-be action is recorded in the decision report
+    /// so operators can see what optid *would* do. Use for promotion
+    /// evidence collection (D2 amendment, "observe, simulate, apply one
+    /// reversible value").
+    Observe,
+    /// Domain may actuate when all other gates pass (`--apply`, allowlist,
+    /// contract, journal). This is today's behavior for the v0.6 domains.
+    Actuate,
+}
+
+impl Default for DomainMode {
+    /// The migration-safety default. Existing v0.6 domains preserve their
+    /// today's behavior (actuate when armed); new domains added after F1
+    /// override this to `Off` via `Domain::default_mode`.
+    fn default() -> Self {
+        DomainMode::Actuate
+    }
+}
+
+impl DomainMode {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            DomainMode::Off => "off",
+            DomainMode::Observe => "observe",
+            DomainMode::Actuate => "actuate",
+        }
+    }
+}
+
+/// F1 — The closed set of actuation domains optid knows about. One entry per
+/// `Action` variant that performs a kernel write; mirrors the `Capability`
+/// enum and the allowlist domain strings. `SystemdSetProperty` has no domain
+/// because it invokes `systemctl` (cgroup reweight) rather than writing to
+/// sysfs/procfs/devfs.
+///
+/// Keep this in lockstep with `crate::capability::Capability` and
+/// `crate::action::Action::domain`. The `domain_round_trip` test enforces
+/// the triple-stay-in-sync invariant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Domain {
+    CpuEpp,
+    PlatformProfile,
+    VmSysctl,
+    CpuDmaLatency,
+    DeviceResumeLatency,
+    RuntimePm,
+    PcieAspm,
+    SataAlpm,
+    Backlight,
+}
+
+impl Domain {
+    /// Canonical config key and allowlist domain string. Matches the strings
+    /// used in `crates/optid/src/capability.rs` and `data/allowlist.toml`.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Domain::CpuEpp => "cpu_epp",
+            Domain::PlatformProfile => "platform_profile",
+            Domain::VmSysctl => "vm_sysctl",
+            Domain::CpuDmaLatency => "cpu_dma_latency",
+            Domain::DeviceResumeLatency => "device_resume_latency",
+            Domain::RuntimePm => "runtime_pm",
+            Domain::PcieAspm => "pci_aspm",
+            Domain::SataAlpm => "sata_alpm",
+            Domain::Backlight => "backlight",
+        }
+    }
+
+    /// All known domains, in the canonical order used by `EffectiveConfig`
+    /// rendering. New domains are appended at the end.
+    pub(crate) fn all() -> &'static [Domain] {
+        &[
+            Domain::CpuEpp,
+            Domain::PlatformProfile,
+            Domain::VmSysctl,
+            Domain::CpuDmaLatency,
+            Domain::DeviceResumeLatency,
+            Domain::RuntimePm,
+            Domain::PcieAspm,
+            Domain::SataAlpm,
+            Domain::Backlight,
+        ]
+    }
+
+    /// Default mode for this domain when no `[domains.<name>]` entry exists.
+    ///
+    /// **Migration mapping (F1):** every domain that exists in v0.6 (all
+    /// nine current entries) defaults to `Actuate`, preserving today's
+    /// behavior. Domains added after F1 default to `Off` and must be
+    /// explicitly enabled by the operator. This is the migration safety
+    /// contract: today's curated `policy.toml` keeps doing exactly what it
+    /// does today; only opt-in new behavior changes.
+    pub(crate) fn default_mode(&self) -> DomainMode {
+        // All current domains ship in v0.6 and default to Actuate.
+        // When the first post-F1 domain lands (e.g., nvme_apst), add a
+        // match arm returning `DomainMode::Off` for it here.
+        DomainMode::Actuate
+    }
+}
+
+/// F1 — The `[domains.<name>]` sub-table. Carries the per-domain runtime
+/// `mode`. `deny_unknown_fields` makes any unrecognized key a parse error,
+/// which is the "strict unknown-key validation" required by the F1 plan.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DomainConfig {
+    #[serde(default = "default_domain_mode")]
+    pub(crate) mode: DomainMode,
+}
+
+fn default_domain_mode() -> DomainMode {
+    // Used by serde when `[domains.<name>]` is present but `mode` is omitted.
+    // We use the migration-safety default (Actuate); operators who want to
+    // disable a domain must say so explicitly.
+    DomainMode::Actuate
+}
+
+impl Default for DomainConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_domain_mode(),
+        }
+    }
+}
+
+/// F1 — The top-level `[domains]` table. Holds an optional `DomainConfig`
+/// per known domain. Missing domains use `Domain::default_mode()`. Unknown
+/// domain names are rejected at parse time via `deny_unknown_fields`.
+///
+/// Example TOML:
+///
+/// ```toml
+/// [domains.runtime_pm]
+/// mode = "observe"          # collect promotion evidence
+///
+/// [domains.backlight]
+/// mode = "off"              # disable the backlight lever entirely
+/// ```
+///
+/// Domains not listed (e.g. `cpu_epp` in the example above) fall back to
+/// `Domain::default_mode()` — `Actuate` for v0.6 domains.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DomainsConfig {
+    #[serde(default)]
+    pub(crate) cpu_epp: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) platform_profile: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) vm_sysctl: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) cpu_dma_latency: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) device_resume_latency: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) runtime_pm: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) pci_aspm: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) sata_alpm: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) backlight: Option<DomainConfig>,
+}
+
+impl DomainsConfig {
+    /// Typed lookup by `Domain`. Returns the configured `DomainConfig` if the
+    /// operator wrote one, or `None` if the domain should use its
+    /// `default_mode()`.
+    pub(crate) fn get(&self, domain: Domain) -> Option<&DomainConfig> {
+        match domain {
+            Domain::CpuEpp => self.cpu_epp.as_ref(),
+            Domain::PlatformProfile => self.platform_profile.as_ref(),
+            Domain::VmSysctl => self.vm_sysctl.as_ref(),
+            Domain::CpuDmaLatency => self.cpu_dma_latency.as_ref(),
+            Domain::DeviceResumeLatency => self.device_resume_latency.as_ref(),
+            Domain::RuntimePm => self.runtime_pm.as_ref(),
+            Domain::PcieAspm => self.pci_aspm.as_ref(),
+            Domain::SataAlpm => self.sata_alpm.as_ref(),
+            Domain::Backlight => self.backlight.as_ref(),
+        }
+    }
+}
+
+/// F1 — The resolved, per-domain effective mode after applying (a) the
+/// domain's configured `mode` from `[domains.<name>]`, or (b) the domain's
+/// `default_mode()` when no config entry exists. Consumed by the policy
+/// decision path (to filter actions) and exposed to `optctl` via the status
+/// surface (so operators can see exactly what optid is allowed to do).
+#[derive(Debug, Clone)]
+pub(crate) struct EffectiveConfig {
+    pub(crate) domains: HashMap<Domain, DomainMode>,
+}
+
+impl EffectiveConfig {
+    /// Build the effective config from a `Policy`'s `[domains]` section.
+    pub(crate) fn from_policy(policy: &Policy) -> Self {
+        let mut domains = HashMap::new();
+        for &d in Domain::all() {
+            let mode = policy
+                .domains
+                .get(d)
+                .map(|c| c.mode)
+                .unwrap_or_else(|| d.default_mode());
+            domains.insert(d, mode);
+        }
+        Self { domains }
+    }
+
+    /// The effective mode for `domain`. Always returns a value because
+    /// `from_policy` populates every known domain. Returns `Off` for
+    /// unknown future domains as a fail-closed default.
+    pub(crate) fn mode_for(&self, domain: Domain) -> DomainMode {
+        self.domains
+            .get(&domain)
+            .copied()
+            .unwrap_or(DomainMode::Off)
+    }
+
+    /// True iff the domain may emit `Action`s for actuation. `Observe` and
+    /// `Off` both return false; the difference is whether the would-be
+    /// action is surfaced in the decision report (see `decide_resolved`).
+    pub(crate) fn allows_actuation(&self, domain: Domain) -> bool {
+        self.mode_for(domain) == DomainMode::Actuate
+    }
+
+    /// Render the effective config as a stable, human-readable block. Used
+    /// by `Decision::render` so `optctl status` shows the effective state.
+    /// Format is `domain_name=mode` per line, in `Domain::all()` order.
+    pub(crate) fn render(&self) -> String {
+        let mut out = String::new();
+        for &d in Domain::all() {
+            out.push_str(&format!(
+                "domains.{}={}\n",
+                d.as_str(),
+                self.mode_for(d).as_str()
+            ));
+        }
+        out
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 pub(crate) struct Policy {
     /// v0.6 Phase B3: top-level `[policy]` section carrying the
@@ -38,6 +297,13 @@ pub(crate) struct Policy {
     pub(crate) thresholds: Thresholds,
     pub(crate) modes: Modes,
     pub(crate) memory: MemoryConfig,
+    /// F1: top-level `[domains]` section carrying per-domain runtime modes.
+    /// Defaults to an empty `DomainsConfig` when the section is absent,
+    /// which means every domain uses its `default_mode()` (Actuate for v0.6
+    /// domains). Operators override per-domain via
+    /// `[domains.<name>] mode = "off|observe|actuate"`.
+    #[serde(default)]
+    pub(crate) domains: DomainsConfig,
     /// v0.6 Phase B1: `[shim]` top-level section carrying shim-specific
     /// configuration. Currently only the PPD sub-table is parsed; the
     /// GameMode sub-table (Phase B2) will land next. Defaults to an empty
@@ -245,6 +511,10 @@ impl Default for Policy {
             memory: MemoryConfig {
                 high_swappiness_requires_zram: true,
             },
+            // F1: empty domains config = every domain uses its `default_mode()`
+            // (Actuate for the v0.6 domains). Operators override per-domain
+            // via `[domains.<name>] mode = "off|observe|actuate"`.
+            domains: DomainsConfig::default(),
             // v0.6 Phase B1: empty shim config = use the hardcoded default
             // PPD profile → optid mode mapping. Operators override via
             // [shim.ppd.profiles] in policy.toml.
@@ -777,6 +1047,44 @@ impl Policy {
             reasons.push("default adaptive policy".to_string());
         }
 
+        // F1 — Apply the per-domain effective-mode gate. Actions whose
+        // domain is `Off` or `Observe` are filtered out before they reach
+        // the actuator. `Observe` surfaces a reason so the operator can see
+        // what optid would have done; `Off` is silent (the domain is
+        // invisible by design). `SystemdSetProperty` (domain = None) is
+        // never filtered: it is a cgroup reweight, not a hardware write,
+        // and is not subject to the per-domain gate.
+        let effective = EffectiveConfig::from_policy(self);
+        let mut suppressed_observe: Vec<Domain> = Vec::new();
+        let actions: Vec<Action> = actions
+            .into_iter()
+            .filter(|a| match a.domain() {
+                None => true,
+                Some(d) => {
+                    if effective.allows_actuation(d) {
+                        true
+                    } else {
+                        if effective.mode_for(d) == DomainMode::Observe {
+                            suppressed_observe.push(d);
+                        }
+                        false
+                    }
+                }
+            })
+            .collect();
+
+        // Deduplicate the observe-mode suppression reasons so the report
+        // stays readable when many devices of the same domain were
+        // nominated (e.g., 10 USB devices under runtime_pm).
+        suppressed_observe.sort_by_key(|d| d.as_str());
+        suppressed_observe.dedup();
+        for d in suppressed_observe {
+            reasons.push(format!(
+                "domain {} in observe mode: action suppressed, would-act logged",
+                d.as_str()
+            ));
+        }
+
         Decision {
             mode: effective_mode,
             reasons,
@@ -785,6 +1093,9 @@ impl Policy {
             workload_reason,
             cpu_wakeup_latency,
             device_resume_latency,
+            // F1: attach the effective config so `Decision::render` can
+            // surface it in the status report.
+            effective_config: effective,
         }
     }
 
@@ -1046,5 +1357,928 @@ mod tests {
         let mut snapshot = vm_snapshot(Some(0.5), Some(20.0), Some(true));
         snapshot.is_vm_guest = false;
         assert_eq!(policy.auto_mode(&snapshot), Mode::Performance);
+    }
+}
+
+#[cfg(test)]
+mod f1_tests {
+    //! F1 — `DomainMode`, `Domain`, `DomainsConfig`, `EffectiveConfig`, and
+    //! the migration-safety default. These tests enforce the F1 plan's
+    //! contracts:
+    //!
+    //! - existing v0.6 domains default to `Actuate` (today's behavior preserved);
+    //! - `[domains.<name>] mode = "off|observe|actuate"` is parsed and applied;
+    //! - unknown domain keys, unknown fields, and invalid modes fail closed at
+    //!   parse time;
+    //! - `Action::domain()` is consistent with `Capability::allowlist_domain`;
+    //! - `decide_resolved` filters actions by effective mode and surfaces a
+    //!   reason for observe-mode suppression;
+    //! - `Decision::render` includes the effective config block so `optctl
+    //!   status` prints the effective state (the "dry-run prints the effective
+    //!   state" plan contract).
+
+    use super::*;
+    use crate::action::Action;
+    use crate::contracts::Contracts;
+    use crate::sensors::Pressure;
+    use crate::workload::{Mode, WorkloadClass};
+    use std::path::PathBuf;
+
+    /// Snapshot that triggers every domain's action emission path so we can
+    /// observe filtering. Battery + Idle triggers runtime_pm, pci_aspm,
+    /// sata_alpm, and backlight. The other domains (cpu_epp,
+    /// platform_profile, vm_sysctl, cpu_dma_latency, device_resume_latency)
+    /// are emitted unconditionally by `decide_resolved`.
+    fn f1_snapshot_all_domains() -> Snapshot {
+        let cpu_pressure = Pressure {
+            avg10: 0.0,
+            avg60: 0.0,
+            avg300: 0.0,
+            total: 0,
+        };
+        Snapshot {
+            timestamp: 0,
+            on_ac: Some(false),
+            battery_pct: Some(80),
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: Some(cpu_pressure),
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: true,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: vec![PathBuf::from("/sys/devices/pci0000:00")],
+            runtime_pm_device_paths: vec![PathBuf::from("/sys/bus/usb/devices/1-1")],
+            pcie_aspm_device_paths: vec![PathBuf::from("/sys/bus/pci/devices/0000:00:00.0")],
+            sata_alpm_host_paths: vec![PathBuf::from("/sys/class/scsi_host/host0")],
+            selected_backlight: Some(PathBuf::from("/sys/class/backlight/intel_backlight")),
+            is_vm_guest: false,
+        }
+    }
+
+    fn f1_contracts() -> Contracts {
+        Contracts::default()
+    }
+
+    // ------------------------------------------------------------------
+    // DomainMode / Domain basics
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_domain_mode_ordering_is_off_observe_actuate() {
+        // Ordering is the safety invariant: tightening a mode can never
+        // authorize a previously denied action.
+        assert!(DomainMode::Off < DomainMode::Observe);
+        assert!(DomainMode::Observe < DomainMode::Actuate);
+        assert!(DomainMode::Off < DomainMode::Actuate);
+    }
+
+    #[test]
+    fn f1_domain_mode_serde_rejects_invalid_strings() {
+        let toml_str = r#"
+mode = "fast"
+"#;
+        let result: Result<DomainConfig, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "invalid mode string must fail closed at parse time"
+        );
+    }
+
+    #[test]
+    fn f1_domain_mode_serde_accepts_lowercase_off_observe_actuate() {
+        for s in ["off", "observe", "actuate"] {
+            let toml_str = format!("mode = \"{s}\"\n");
+            let cfg: DomainConfig = toml::from_str(&toml_str).expect("valid mode");
+            let expected = match s {
+                "off" => DomainMode::Off,
+                "observe" => DomainMode::Observe,
+                _ => DomainMode::Actuate,
+            };
+            assert_eq!(cfg.mode, expected, "mode string {s}");
+        }
+    }
+
+    #[test]
+    fn f1_domain_mode_serde_rejects_uppercase_variants() {
+        // The plan specifies lowercase; serde(rename_all = "lowercase")
+        // rejects "Off", "OBSERVE", etc. This is intentional: the config
+        // surface is case-sensitive to match the rest of policy.toml.
+        for s in ["Off", "OBSERVE", "Actuate", "ACTUATE"] {
+            let toml_str = format!("mode = \"{s}\"\n");
+            let result: Result<DomainConfig, _> = toml::from_str(&toml_str);
+            assert!(result.is_err(), "uppercase variant {s} must be rejected");
+        }
+    }
+
+    #[test]
+    fn f1_domain_all_returns_nine_known_domains() {
+        // If a new domain is added, this test must be updated. That's the
+        // point: the test forces the author to think about default_mode for
+        // the new domain.
+        assert_eq!(Domain::all().len(), 9, "expected 9 v0.6 domains");
+    }
+
+    #[test]
+    fn f1_domain_as_str_matches_allowlist_strings() {
+        // The domain string must match what the allowlist DB uses, so the
+        // effective-config gate composes correctly with the allowlist gate.
+        assert_eq!(Domain::CpuEpp.as_str(), "cpu_epp");
+        assert_eq!(Domain::PlatformProfile.as_str(), "platform_profile");
+        assert_eq!(Domain::VmSysctl.as_str(), "vm_sysctl");
+        assert_eq!(Domain::CpuDmaLatency.as_str(), "cpu_dma_latency");
+        assert_eq!(
+            Domain::DeviceResumeLatency.as_str(),
+            "device_resume_latency"
+        );
+        assert_eq!(Domain::RuntimePm.as_str(), "runtime_pm");
+        assert_eq!(Domain::PcieAspm.as_str(), "pci_aspm");
+        assert_eq!(Domain::SataAlpm.as_str(), "sata_alpm");
+        assert_eq!(Domain::Backlight.as_str(), "backlight");
+    }
+
+    #[test]
+    fn f1_domain_default_mode_is_actuate_for_v0_6_domains() {
+        // Migration safety: every v0.6 domain defaults to Actuate so
+        // today's curated policy.toml keeps doing exactly what it does
+        // today. New post-F1 domains override this to Off.
+        for &d in Domain::all() {
+            assert_eq!(
+                d.default_mode(),
+                DomainMode::Actuate,
+                "domain {} should default to Actuate (v0.6 migration safety)",
+                d.as_str()
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // DomainsConfig strict validation
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_domains_config_rejects_unknown_domain_key() {
+        // The plan requires "strict unknown-key" validation. An unknown
+        // domain name must fail closed at parse time, not silently be
+        // ignored. We parse just the inner `DomainsConfig` (no `[domains]`
+        // wrapper).
+        let toml_str = r#"
+[bogus_domain]
+mode = "actuate"
+"#;
+        let result: Result<DomainsConfig, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "unknown domain key must fail closed at parse time"
+        );
+    }
+
+    #[test]
+    fn f1_domain_config_rejects_unknown_field() {
+        // Parse the inner `DomainsConfig` (no `[domains]` wrapper).
+        let toml_str = r#"
+[runtime_pm]
+mode = "actuate"
+bogus_field = true
+"#;
+        let result: Result<DomainsConfig, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "unknown field in [domains.<name>] must fail closed at parse time"
+        );
+    }
+
+    #[test]
+    fn f1_domains_config_accepts_all_nine_known_domains() {
+        // Parse the inner `DomainsConfig` (no `[domains]` wrapper — that's
+        // the outer table name in policy.toml; the type itself is the
+        // inner table).
+        let toml_str = r#"
+[cpu_epp]
+mode = "actuate"
+[platform_profile]
+mode = "actuate"
+[vm_sysctl]
+mode = "actuate"
+[cpu_dma_latency]
+mode = "actuate"
+[device_resume_latency]
+mode = "actuate"
+[runtime_pm]
+mode = "actuate"
+[pci_aspm]
+mode = "actuate"
+[sata_alpm]
+mode = "actuate"
+[backlight]
+mode = "actuate"
+"#;
+        let cfg: DomainsConfig = toml::from_str(toml_str).expect("all nine known domains");
+        for &d in Domain::all() {
+            assert!(
+                cfg.get(d).is_some(),
+                "domain {} should be configured",
+                d.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn f1_domain_config_mode_defaults_to_actuate_when_omitted() {
+        // `[domains.runtime_pm]` with no `mode` key should default to
+        // Actuate (the migration-safety default), not Off. We parse just
+        // the inner `DomainsConfig` (TOML key is `runtime_pm`, not
+        // `domains.runtime_pm`, because the outer `[domains]` table is
+        // implied by the type we're deserializing into).
+        let toml_str = "[runtime_pm]\n";
+        let cfg: DomainsConfig = toml::from_str(toml_str).expect("valid empty sub-table");
+        let rc_cfg = cfg.get(Domain::RuntimePm).expect("runtime_pm configured");
+        assert_eq!(rc_cfg.mode, DomainMode::Actuate);
+    }
+
+    // ------------------------------------------------------------------
+    // EffectiveConfig
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_effective_config_default_policy_all_actuate() {
+        // The migration safety contract: `Policy::default()` (no [domains]
+        // section) yields Actuate for every v0.6 domain. This preserves
+        // today's behavior.
+        let policy = Policy::default();
+        let effective = EffectiveConfig::from_policy(&policy);
+        for &d in Domain::all() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Actuate,
+                "domain {} should be Actuate under default policy",
+                d.as_str()
+            );
+        }
+    }
+
+    /// Helper: parse a TOML fragment containing only `[domains.<name>]`
+    /// sub-tables and return a `Policy` built from `Policy::default()` with
+    /// only the `domains` field overridden. The F1 effective-config tests
+    /// exercise `[domains]` in isolation; they do not need a full
+    /// `[thresholds] / [modes.*] / [memory]` configuration.
+    fn f1_policy_with_domains(toml_str: &str) -> Policy {
+        #[derive(serde::Deserialize)]
+        struct DomainsOnly {
+            #[serde(default)]
+            domains: DomainsConfig,
+        }
+        let parsed: DomainsOnly = toml::from_str(toml_str).expect("valid domains fragment");
+        Policy {
+            domains: parsed.domains,
+            ..Policy::default()
+        }
+    }
+
+    #[test]
+    fn f1_effective_config_respects_off_mode() {
+        let toml_str = r#"
+[domains.runtime_pm]
+mode = "off"
+[domains.backlight]
+mode = "off"
+"#;
+        let policy = f1_policy_with_domains(toml_str);
+        let effective = EffectiveConfig::from_policy(&policy);
+        assert_eq!(effective.mode_for(Domain::RuntimePm), DomainMode::Off);
+        assert_eq!(effective.mode_for(Domain::Backlight), DomainMode::Off);
+        // Other domains fall back to default_mode (Actuate).
+        assert_eq!(effective.mode_for(Domain::CpuEpp), DomainMode::Actuate);
+        assert_eq!(effective.mode_for(Domain::PcieAspm), DomainMode::Actuate);
+    }
+
+    #[test]
+    fn f1_effective_config_respects_observe_mode() {
+        let toml_str = r#"
+[domains.runtime_pm]
+mode = "observe"
+"#;
+        let policy = f1_policy_with_domains(toml_str);
+        let effective = EffectiveConfig::from_policy(&policy);
+        assert_eq!(effective.mode_for(Domain::RuntimePm), DomainMode::Observe);
+        assert!(!effective.allows_actuation(Domain::RuntimePm));
+    }
+
+    #[test]
+    fn f1_effective_config_allows_actuation_only_for_actuate() {
+        let toml_str = r#"
+[domains.runtime_pm]
+mode = "actuate"
+[domains.pci_aspm]
+mode = "observe"
+[domains.sata_alpm]
+mode = "off"
+"#;
+        let policy = f1_policy_with_domains(toml_str);
+        let effective = EffectiveConfig::from_policy(&policy);
+        assert!(effective.allows_actuation(Domain::RuntimePm));
+        assert!(!effective.allows_actuation(Domain::PcieAspm));
+        assert!(!effective.allows_actuation(Domain::SataAlpm));
+    }
+
+    #[test]
+    fn f1_effective_config_render_lists_all_domains_in_canonical_order() {
+        let policy = Policy::default();
+        let effective = EffectiveConfig::from_policy(&policy);
+        let rendered = effective.render();
+        for &d in Domain::all() {
+            let line = format!("domains.{}={}", d.as_str(), DomainMode::Actuate.as_str());
+            assert!(
+                rendered.contains(&line),
+                "rendered output should contain '{line}', got:\n{rendered}"
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Action::domain() consistency
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_action_domain_returns_none_for_systemd_set_property() {
+        let a = Action::systemd_set_property(
+            "user.slice".to_string(),
+            vec!["CPUWeight=150".to_string()],
+            "test".to_string(),
+        );
+        assert!(a.domain().is_none());
+    }
+
+    #[test]
+    fn f1_action_domain_returns_some_for_every_kernel_write_variant() {
+        let cases: Vec<(Action, Domain)> = vec![
+            (
+                Action::cpu_epp("performance".to_string(), "r".to_string()),
+                Domain::CpuEpp,
+            ),
+            (
+                Action::platform_profile("balanced".to_string(), "r".to_string()),
+                Domain::PlatformProfile,
+            ),
+            (
+                Action::vm_sysctl(
+                    PathBuf::from("/proc/sys/vm/swappiness"),
+                    "100".to_string(),
+                    "r".to_string(),
+                ),
+                Domain::VmSysctl,
+            ),
+            (
+                Action::CpuDmaLatency {
+                    value: Some(100),
+                    reason: "r".to_string(),
+                },
+                Domain::CpuDmaLatency,
+            ),
+            (
+                Action::DeviceResumeLatency {
+                    path: PathBuf::from("/sys/devices/x/power/pm_qos_resume_latency_us"),
+                    value: Some(100),
+                    reason: "r".to_string(),
+                },
+                Domain::DeviceResumeLatency,
+            ),
+            (
+                Action::RuntimePm {
+                    device_dir: PathBuf::from("/sys/bus/usb/devices/1-1"),
+                    autosuspend_delay_ms: 2000,
+                    reason: "r".to_string(),
+                },
+                Domain::RuntimePm,
+            ),
+            (
+                Action::PcieAspm {
+                    device_dir: PathBuf::from("/sys/bus/pci/devices/0000:00:00.0"),
+                    enable: true,
+                    reason: "r".to_string(),
+                },
+                Domain::PcieAspm,
+            ),
+            (
+                Action::SataAlpm {
+                    host_dir: PathBuf::from("/sys/class/scsi_host/host0"),
+                    policy: "med_power_with_dipm".to_string(),
+                    reason: "r".to_string(),
+                },
+                Domain::SataAlpm,
+            ),
+            (
+                Action::Backlight {
+                    device_dir: PathBuf::from("/sys/class/backlight/intel_backlight"),
+                    target_pct: 50,
+                    reason: "r".to_string(),
+                },
+                Domain::Backlight,
+            ),
+        ];
+        for (action, expected) in cases {
+            assert_eq!(
+                action.domain(),
+                Some(expected),
+                "action {:?} should map to domain {:?}",
+                action,
+                expected
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // decide_resolved filtering
+    // ------------------------------------------------------------------
+
+    fn f1_decide(policy: &Policy, snapshot: &Snapshot) -> Decision {
+        let contracts = f1_contracts();
+        policy.decide_resolved(
+            snapshot,
+            Mode::Auto,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &contracts,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn f1_decide_default_policy_emits_actions_for_all_domains() {
+        // Migration safety: with the default policy (no [domains] section),
+        // today's action set is unchanged. Every domain that would have
+        // emitted an action under v0.6 still does.
+        let policy = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        // Sanity: at least one action per actuated domain is present.
+        let domains_with_actions: Vec<Domain> =
+            decision.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(
+            domains_with_actions.contains(&Domain::CpuEpp),
+            "cpu_epp action should be present under default policy"
+        );
+        assert!(
+            domains_with_actions.contains(&Domain::RuntimePm),
+            "runtime_pm action should be present under default policy (battery-idle)"
+        );
+        assert!(
+            domains_with_actions.contains(&Domain::Backlight),
+            "backlight action should be present under default policy (battery-idle)"
+        );
+    }
+
+    #[test]
+    fn f1_decide_off_mode_suppresses_domain_actions_silently() {
+        // When a domain is Off, its actions are filtered out AND no
+        // observe-mode reason is added (Off is silent by design).
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "off"
+[domains.backlight]
+mode = "off"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let domains_with_actions: Vec<Domain> =
+            decision.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(
+            !domains_with_actions.contains(&Domain::RuntimePm),
+            "runtime_pm action must be suppressed when mode=off"
+        );
+        assert!(
+            !domains_with_actions.contains(&Domain::Backlight),
+            "backlight action must be suppressed when mode=off"
+        );
+        // Off-mode suppression is silent: no reason mentions observe.
+        assert!(
+            !decision.reasons.iter().any(|r| r.contains("observe mode")),
+            "off-mode suppression must be silent, but reasons mention observe: {:?}",
+            decision.reasons
+        );
+    }
+
+    #[test]
+    fn f1_decide_observe_mode_suppresses_actions_but_surfaces_reason() {
+        // When a domain is Observe, its actions are filtered out BUT a
+        // reason is added so the operator can see what optid would have
+        // done. This is the D2 amendment's "observe, simulate, apply"
+        // promotion path.
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "observe"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let domains_with_actions: Vec<Domain> =
+            decision.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(
+            !domains_with_actions.contains(&Domain::RuntimePm),
+            "runtime_pm action must be suppressed when mode=observe"
+        );
+        // Observe-mode suppression surfaces a reason.
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|r| r.contains("runtime_pm") && r.contains("observe mode")),
+            "observe-mode suppression should surface a reason, got: {:?}",
+            decision.reasons
+        );
+    }
+
+    #[test]
+    fn f1_decide_actuate_mode_preserves_today_behavior() {
+        // When a domain is explicitly Actuate, behavior matches the default
+        // (no [domains] section). This is the migration safety net.
+        //
+        // We start from `Policy::default()` and override only the `domains`
+        // field, so the rest of the policy (thresholds, modes, memory) is
+        // bit-for-bit identical to the default. Re-parsing a stripped TOML
+        // would silently drop the optional `[modes.battery]` fields
+        // (`vm_swappiness`, `vm_dirty_bytes`, `background_cpu_weight`, ...)
+        // and produce a different action set, which is not what this test
+        // is checking.
+        let toml_str = r#"
+[domains.runtime_pm]
+mode = "actuate"
+"#;
+        let policy_explicit = f1_policy_with_domains(toml_str);
+        let policy_default = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let decision_explicit = f1_decide(&policy_explicit, &snapshot);
+        let decision_default = f1_decide(&policy_default, &snapshot);
+        // The action sets should be identical (modulo reason text).
+        let actions_explicit: Vec<String> = decision_explicit
+            .actions
+            .iter()
+            .map(|a| a.describe())
+            .collect();
+        let actions_default: Vec<String> = decision_default
+            .actions
+            .iter()
+            .map(|a| a.describe())
+            .collect();
+        assert_eq!(
+            actions_explicit, actions_default,
+            "explicit actuate must match default policy behavior"
+        );
+    }
+
+    #[test]
+    fn f1_decide_mixed_modes_filter_independently() {
+        // Different domains can have different modes; the filter is
+        // per-domain, not all-or-nothing.
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "off"
+[domains.pci_aspm]
+mode = "observe"
+[domains.sata_alpm]
+mode = "actuate"
+[domains.backlight]
+mode = "off"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let domains_with_actions: Vec<Domain> =
+            decision.actions.iter().filter_map(|a| a.domain()).collect();
+        // runtime_pm: off → suppressed
+        assert!(
+            !domains_with_actions.contains(&Domain::RuntimePm),
+            "runtime_pm must be suppressed (off)"
+        );
+        // pci_aspm: observe → suppressed, but reason surfaced
+        assert!(
+            !domains_with_actions.contains(&Domain::PcieAspm),
+            "pci_aspm must be suppressed (observe)"
+        );
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|r| r.contains("pci_aspm") && r.contains("observe mode")),
+            "pci_aspm observe-mode reason missing"
+        );
+        // sata_alpm: actuate → present
+        assert!(
+            domains_with_actions.contains(&Domain::SataAlpm),
+            "sata_alpm must be present (actuate)"
+        );
+        // backlight: off → suppressed
+        assert!(
+            !domains_with_actions.contains(&Domain::Backlight),
+            "backlight must be suppressed (off)"
+        );
+    }
+
+    #[test]
+    fn f1_decide_systemd_set_property_never_filtered() {
+        // SystemdSetProperty has no domain; it is never filtered by the
+        // effective-config gate. (It is still subject to its own gates
+        // like every other Action.)
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.cpu_epp]
+mode = "off"
+[domains.platform_profile]
+mode = "off"
+[domains.vm_sysctl]
+mode = "off"
+[domains.cpu_dma_latency]
+mode = "off"
+[domains.device_resume_latency]
+mode = "off"
+[domains.runtime_pm]
+mode = "off"
+[domains.pci_aspm]
+mode = "off"
+[domains.sata_alpm]
+mode = "off"
+[domains.backlight]
+mode = "off"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        // Memory-pressure snapshot triggers SystemdSetProperty emission.
+        let cpu_pressure = Pressure {
+            avg10: 0.0,
+            avg60: 0.0,
+            avg300: 0.0,
+            total: 0,
+        };
+        let mem_pressure = Pressure {
+            avg10: 50.0, // above memory_pressure_protect_avg10 (5.0)
+            avg60: 50.0,
+            avg300: 50.0,
+            total: 1000,
+        };
+        let snapshot = Snapshot {
+            timestamp: 0,
+            on_ac: Some(true),
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: Some(0.0),
+            cpu_pressure: Some(cpu_pressure),
+            memory_pressure: Some(mem_pressure),
+            io_pressure: None,
+            zram_swap_active: true,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
+            is_vm_guest: false,
+        };
+        let decision = f1_decide(&policy, &snapshot);
+        // Every kernel-write domain is off, but SystemdSetProperty should
+        // still be present because it has no domain.
+        let has_systemd = decision
+            .actions
+            .iter()
+            .any(|a| matches!(a, Action::SystemdSetProperty { .. }));
+        assert!(
+            has_systemd,
+            "SystemdSetProperty must not be filtered by domain gate, actions: {:?}",
+            decision.actions
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Decision::render surfaces effective_config (optctl status contract)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_decision_render_includes_effective_config_block() {
+        let policy = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let rendered = decision.render(&snapshot);
+        assert!(
+            rendered.contains("effective_config:"),
+            "rendered status should include effective_config block, got:\n{rendered}"
+        );
+        // Every domain should appear in the block.
+        for &d in Domain::all() {
+            let needle = format!("domains.{}=", d.as_str());
+            assert!(
+                rendered.contains(&needle),
+                "rendered status should mention domain {needle}"
+            );
+        }
+    }
+
+    #[test]
+    fn f1_decision_render_shows_off_observe_actuate_modes() {
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "off"
+[domains.pci_aspm]
+mode = "observe"
+[domains.sata_alpm]
+mode = "actuate"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let rendered = decision.render(&snapshot);
+        assert!(
+            rendered.contains("domains.runtime_pm=off"),
+            "rendered should show runtime_pm=off"
+        );
+        assert!(
+            rendered.contains("domains.pci_aspm=observe"),
+            "rendered should show pci_aspm=observe"
+        );
+        assert!(
+            rendered.contains("domains.sata_alpm=actuate"),
+            "rendered should show sata_alpm=actuate"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Existing curated policy.toml still parses (migration safety)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn f1_curated_policy_toml_still_parses() {
+        // The shipped config/optid/policy.toml must still parse under F1.
+        // The [domains] section is optional and defaults to Actuate for
+        // every v0.6 domain, so today's file keeps doing what it does.
+        let curated = include_str!("../../../config/optid/policy.toml");
+        let result: Result<Policy, _> = toml::from_str(curated);
+        assert!(
+            result.is_ok(),
+            "curated policy.toml must still parse under F1: {:?}",
+            result.err()
+        );
+        let policy = result.expect("parsed");
+        let effective = EffectiveConfig::from_policy(&policy);
+        for &d in Domain::all() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Actuate,
+                "curated policy should leave domain {} at Actuate",
+                d.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn f1_curated_baseline_still_uses_actuate_for_all_domains() {
+        // The safety-floor curated_baseline() must also preserve today's
+        // behavior under F1.
+        let policy = Policy::curated_baseline();
+        let effective = EffectiveConfig::from_policy(&policy);
+        for &d in Domain::all() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Actuate,
+                "curated_baseline should leave domain {} at Actuate",
+                d.as_str()
+            );
+        }
     }
 }
