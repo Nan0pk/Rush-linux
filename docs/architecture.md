@@ -9,7 +9,11 @@ Rush Linux has four layers:
 4. `optid`, the only default runtime optimizer.
 
 The project does not depend on a single static "performance" profile. It uses
-live pressure and hardware signals to apply reversible policy changes.
+live pressure and hardware signals to plan guarded policy changes. Exact
+rollback, emergency stabilization, persistent recovery, and capability sealing
+are defined by the accepted
+[`optid` D2 amendment](architecture/optid-d2-amendment.md); the current runtime
+has not completed that architecture yet.
 
 ## System Boundaries
 
@@ -27,6 +31,8 @@ kernel metrics -> optid sensors -> policy engine -> guarded action plan
 ## Subsystems
 
 - Adaptive engine: see `docs/adaptive-engine.md`.
+- Active optid safety architecture: see
+  `docs/architecture/optid-d2-amendment.md`.
 - Kernel defaults: see `docs/kernel-policy.md`.
 - Packaging and build model: see `docs/packaging-and-builds.md`.
 - Boot and rollback: see `docs/boot-and-updates.md`.
@@ -45,4 +51,3 @@ interfaces that are already being replaced.
 
 Architecture documentation is part of acceptance criteria. A change is not done
 until the relevant document and ADR are updated.
-

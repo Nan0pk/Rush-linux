@@ -18,9 +18,9 @@
 
 <hr>
 
-**Rush Linux is an Arch-based distribution that watches what you're doing and tunes the hardware to match.** Fast CPU when you're compiling. Tight latency when you're on a video call. Idle states when you're reading. No manual power profiles to flip between — every decision is logged, explained, and reversible.
+**Rush Linux is an Arch-based distribution that watches what you're doing and tunes the hardware to match.** Fast CPU when you're compiling. Tight latency when you're on a video call. Idle states when you're reading. Optid is designed to log and explain every decision and to hand every owned setting back safely.
 
-It's early beta. The optimizer (`optid`) runs in safe dry-run mode, the boot path is verified end-to-end (UKI + systemd-boot + signed rollback), and a measurement harness (`rushbench`) is operational. The desktop and laptop editions are not yet buildable; a consumer-installable distribution is the long-term goal. What works today is real, verified, and committed.
+It's early beta. The optimizer (`optid`) defaults to safe dry-run mode. Core CPU controls plus initial runtime-PM, PCIe ASPM, SATA ALPM, backlight, and VM-sysctl paths exist, but the packaged apply service cannot yet reach its dynamic device paths and crash-safe handback is still being built. The boot path is verified end-to-end (UKI + systemd-boot + signed rollback), and the `rushbench` measurement harness is operational. Desktop and laptop profiles exist, but consumer editions are not yet buildable. Code status and hardware evidence are reported separately below.
 
 ---
 
@@ -92,9 +92,12 @@ What it measures (×5 iterations per leg, ~12 minutes total):
 - **PSI cpu + io avg10** (kernel pressure-stall stats)
 - **Idle power draw** via Intel RAPL / AMD energy / battery drain
 
-It stops `tuned` and `power-profiles-daemon` for the duration and restarts
-them when it exits; optid's built-in revert journal restores every knob it
-touched. Nothing is permanently changed on your system.
+It stops `tuned` and `power-profiles-daemon` for the duration and restarts them
+when it exits. On a normal optid shutdown, the current journal attempts to
+restore the settings it changed. Crash/power-loss recovery is not yet a durable
+guarantee, so `--apply` remains an experimental hardware-test path; use it only
+on a machine where a reboot is an acceptable final recovery step. The active
+D2 work below is replacing this limitation with persistent verified recovery.
 
 For details, see [`benchmarks/host-runs/README.md`](benchmarks/host-runs/README.md).
 
@@ -223,7 +226,7 @@ sudo bash install.sh /dev/diskN
 
 ## How it works
 
-`optid` polls sensors every 2 seconds, maps the current system state to one of six workload classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`, and the derived `vm.guest`), looks up the PM QoS contract for that class, and either logs its intended actions (dry-run, the default) or applies them to the kernel. `optctl pin <app> <class>` lets applications claim a class directly. Default mode is always **dry-run**; kernel writes require explicit `--apply` on a supported host.
+`optid` currently polls sensors every 2 seconds, maps the system state to one of six workload classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`, and the derived `vm.guest`), looks up the PM QoS contract for that class, and either logs intended actions (dry-run, the default) or attempts guarded kernel writes. `optctl pin <app> <class>` lets applications claim a class directly. Kernel writes require explicit `--apply`; dynamic-device writes also require verified allowlist entries and are not yet deployable through the packaged service's fixed write-path sandbox.
 
 <details>
 <summary><strong>Architecture diagram</strong> (how optid flows)</summary>
@@ -247,8 +250,9 @@ sudo bash install.sh /dev/diskN
                               |
                               v   (--apply to write)
   +----------------- Actuate (kernel knobs) -------------+
-  |  energy_perf_preference  platform_profile            |
-  |  /dev/cpu_dma_latency  cgroup slice weights         |
+  |  EPP  platform profile  VM sysctls  CPU PM QoS       |
+  |  runtime PM  PCIe ASPM  SATA ALPM  backlight         |
+  |  per-device PM QoS  cgroup slice weights             |
   +------------------------------------------------------+
 ```
 
@@ -272,11 +276,30 @@ CPU wakeup latency is the hard floor — written to `/dev/cpu_dma_latency`, the 
 
 </details>
 
+### Current optid construction
+
+The active [capability-completion plan](OPTID-COMPLETION-PLAN.md) separates
+building code from promoting it on real hardware:
+
+- **F1 is next for general construction:** validated per-domain
+  `off|observe|actuate` configuration and visible effective state.
+- **D0 is next for the safety lane:** prove pre-opened sysfs descriptors,
+  Landlock capability sealing, and supervisor-managed cold restart.
+- The accepted [D2 architecture](docs/architecture/optid-d2-amendment.md) uses
+  one daemon, no permanent actuation broker, no steady-state write-path IPC,
+  persistent verified recovery, an independent one-shot recovery program, and
+  per-domain circuit breakers.
+- Physical hardware nomination gates promotion and v0.6 evidence claims. It
+  does not block observation, simulation, dry-run, F1, or D0.
+
+Current dependency and PR state is machine-readable in
+[`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).
+
 ---
 
 ## What's built
 
-- **`optid` daemon** — PSI + thermal + power-supply sensor polling, workload classification, PM QoS contract enforcement. Applies EPP, platform profile, and cgroup slices when run with `--apply`. Every decision is logged and explainable.
+- **`optid` daemon** — PSI + thermal + power-supply polling, workload classification, PM QoS contracts, and guarded action paths for EPP, platform profile, VM sysctls, CPU/per-device PM QoS, runtime PM, PCIe ASPM, SATA ALPM, backlight, and cgroup slices. Dry-run is the default. Dynamic-device paths are landed but currently soft-fail under the packaged apply-service sandbox; transition-time and durable crash recovery remain active work.
 - **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`, `trace`, `allow`, `deny`, `list-allow`. Machine-readable output via `--json`.
 - **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class.
 - **Rush LiveDev** — automation foundation: planner, runner, capture, evidence validator, AI harness, PR submission. See [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md).
@@ -294,7 +317,7 @@ CPU wakeup latency is the hard floor — written to `/dev/cpu_dma_latency`, the 
 | Pressure sensing | PSI (`/proc/pressure`) | Kernel-native; quantifies actual CPU/IO/memory stall time |
 | Latency enforcement | PM QoS (`/dev/cpu_dma_latency`) | Hard per-class latency floors, not soft hints |
 | Image composition | mkosi + Arch Linux | Declarative, reproducible; no bespoke build scripts |
-| Scheduling | sched_ext / scx_loader | BPF user-space scheduler; EEVDF as the verified fallback |
+| Scheduling | EEVDF today; `sched_ext` experimental fragment only | The north-star SPEC blocks a `sched_ext` work package until WP-B1 evidence exists |
 | Boot | UKI + systemd-boot | Atomic, signed, single-file boot entries |
 | Updates | systemd-sysupdate | Structured, rollback-aware OTA |
 | Firewall | nftables | Current kernel default; replaces iptables |
@@ -339,6 +362,9 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 - [Architecture](docs/architecture.md) — how `optid`, `optctl`, and the systemd units fit together
 - [Boot and updates](docs/boot-and-updates.md) — UKI, systemd-boot, signed rollback
 - [Adaptive engine](docs/adaptive-engine.md) — workload classification, PM QoS contracts
+- [Active optid completion plan](OPTID-COMPLETION-PLAN.md) — current package order; F1 general and D0 safety are next
+- [D2 fail-passive architecture](docs/architecture/optid-d2-amendment.md) — capability sealing, persistent recovery, cold restart, and circuit breakers
+- [Optid package ledger](docs/plans/optid-package-status.toml) — machine-readable dependencies, status, PRs, and completion evidence
 - [LiveDev operator runbook](docs/livedev/OPERATOR_RUNBOOK.md) — how to run benchmarks, capture evidence, submit PRs
 - [LiveDev developer guide](docs/livedev-developer-guide.md) — architecture boundaries, tool roles, data flow
 - [Benchmark methodology](docs/decisions/0011-benchmark-methodology.md) — how claims are measured
@@ -359,7 +385,7 @@ Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev c
 | v0.3 — rootfs builder, VM boots | ✅ complete |
 | v0.4 — UKI boot, rollback, update signing | ✅ complete |
 | v0.5 — minimal installable system (mkosi/Arch) | ✅ complete |
-| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress (code-complete; Phase D hardware-gated) |
+| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress (core slices landed; capability completion and Phase D evidence remain) |
 | **v0.7 — desktop / laptop / realtime / server editions** | ⚙ in progress (current version) |
 | v0.8 — benchmark lab, published results | planned |
 | v0.9 — release candidate hardening | planned |

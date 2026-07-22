@@ -4,7 +4,9 @@
 
 **Date:** 2026-07-22
 
-**Status:** Proposed; implementation packages are mergeable, but hardware-dependent capability claims remain evidence-gated.
+**Status:** Active. The owner accepted the D2 fail-passive architecture on 2026-07-22; implementation packages are mergeable, while hardware-dependent capability claims remain evidence-gated.
+
+**Current packages:** F1 is next for general construction. D0 is next for the safety lane. Machine-readable state lives in [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).
 
 ## Executive summary — read this first
 
@@ -15,21 +17,21 @@ Optid is not simply “30% built.” Its CPU control is substantially real, and 
 1. dynamic-device writes do not fit the shipped systemd write-path sandbox (`crates/optid/src/capability.rs:119-145`; `packaging/systemd/optid-apply.service:38-46`); and
 2. policy can stop requesting a depth setting without requesting its inverse, leaving the setting active until shutdown (`crates/optid/src/policy.rs:721-774`; `crates/optid/src/main.rs:402-407`).
 
-Fix state ownership and deployment first. Build observation, simulation, context, and pure controllers in parallel. Add new hardware writes only after their safety boundary is accepted. Hardware validation promotes a built domain; it does not block building disabled code (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
+Fix state ownership and deployment first. Build observation, simulation, context, and pure controllers in parallel. The accepted [D2 architecture amendment](docs/architecture/optid-d2-amendment.md) replaces a permanent broker with exact pre-opened capability descriptors, Landlock sealing, persistent verified recovery, supervisor-managed cold restart, and per-domain circuit breakers. Hardware validation promotes a built domain; it does not block building disabled code (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
 
 ### The plan in seven owner-sized tracks
 
 | Track | Packages | Owner-visible outcome |
 |---|---|---|
 | Truth and state | F1–F4 | Every domain has an effective mode, versioned status, complete desired state, and immediate restore behavior. |
-| Safe mutation | S1–S3, C1 | One accepted privilege boundary, typed operations, durable crash recovery, and defensible contract latency. |
+| Safe mutation | D0, S1D–S5D, C1 | Proven capability sealing, per-lever handback, verified recovery, independent supervision, circuit breakers, and defensible contract latency. |
 | Events and context | E1, O1–O2, X1–X2 | Prompt PSI/hotplug reaction, runtime-state proof, cgroup resource pull, optional desktop focus, and working GameMode context. |
 | Existing depth controls | D1–D5 | Runtime PM, storage, display, dGPU, and memory behavior completed rather than reimplemented. |
 | Thermal budget | T1–T3 | Read-only thermal/powercap truth, reproducible controller simulation, then evidence-gated PL1 writes. |
 | Research decisions | R1–R3 | Telemetry ownership resolved; broad primitives and render/ALS ideas either bounded or explicitly deferred. |
 | Product integration | I1–I3 | One truthful diagnostic surface, deterministic whole-system simulation, and separate hardware promotion PRs. |
 
-The 27 packages remain granular for workers. The seven tracks are the owner’s progress view.
+The 30 packages remain granular for workers. The seven tracks are the owner’s progress view.
 
 ### What the owner will see first
 
@@ -43,19 +45,15 @@ The 27 packages remain granular for workers. The seven tracks are the owner’s 
 | 6 | First I1 slice | `optctl status` presents those observations and their support/error states without log archaeology. |
 | 7 | E1 or O2 | Optid reacts to real PSI/hotplug events or identifies the resource-pulling cgroup without needing compositor support. |
 
-This sequence deliberately delivers visible truth and responsiveness before the privileged broker is finished. S1 can be decided in parallel; S2/S3 block only new or migrated privileged writes, not the first seven outcomes.
+This sequence deliberately delivers visible truth and responsiveness while the D2 safety lane is built. D0 runs in parallel with F1; D0 and S1D–S5D block only new or migrated privileged writes, not the first seven outcomes.
 
-### Decision required before the safe-mutation lane
+### Accepted safety decision
 
-The broker is a product architecture decision, not an automatic consequence of this plan. **No worker starts S2 until the owner accepts S1.** Other tracks continue while the decision is pending.
+The owner rejected the broker/one-root-daemon/observe-only choice and accepted **D2: fail-passive capability sealing**. This is no longer an open choice.
 
-| Option | What happens | Trade-off |
-|---|---|---|
-| **A. Separate minimal root broker — recommended** | The policy daemon observes and decides; a narrow root process accepts only typed, pre-authorized operations. | Largest initial build cost, smallest long-term write surface, cleanest way to support dynamic device paths. |
-| B. Keep one root daemon | Expand the existing daemon/service permissions enough to reach dynamic paths and keep checks in-process. | Less new code, but a compromise or path-validation mistake has a much larger hardware-write blast radius; the systemd mismatch still needs a deliberate solution. |
-| C. Observe-only | Build all sensing, context, simulation, diagnostics, and recommendations; add no new hardware writes. | Fastest and safest, but optid does not become a complete automatic orchestrator. |
+The normal write path remains in one optid process with no steady-state IPC. At startup it discovers and validates exact targets, opens typed descriptors, installs Landlock before worker threads, and then writes only through those descriptors. A persistent write-ahead log, verified readback, independent `optid-recover`, correct watchdog heartbeat, cold topology restart, and per-domain circuit breakers make “native Linux control underneath” a concrete recovery protocol rather than an assumption.
 
-**Recommendation:** approve Option A. If the owner chooses B, replace S1–S2 with an accepted single-process threat model and an equally precise dynamic-path confinement design. If the owner chooses C, mark every actuation target observe-only rather than leaving it ambiguously unfinished.
+The safety order is **D0 → S1D → S2D → S3D → S4D → S5D**. D0 must prove pre-opened sysfs behavior, Landlock inheritance and irreversibility, removed-device failure, and systemd cold restart on supported kernels. If it fails, S4D stops; unrelated read-only, simulation, diagnostics, and foundation packages continue. No worker may silently revive the superseded broker proposal.
 
 ## 0. How to use this plan
 
@@ -70,6 +68,10 @@ The original “30% implemented / 70% missing” estimate is not reproducible an
 - **evidence-gated:** code may merge disabled, but actuation or a milestone claim requires evidence.
 
 No worker may silently turn a research hypothesis into a product default.
+
+**Name collision:** “D2 architecture” means the accepted fail-passive safety
+decision. Package `D2` remains the existing storage-depth package. Worker
+packets must say either **architecture D2** or **package D2** explicitly.
 
 ## 1. Where optid is now
 
@@ -147,12 +149,12 @@ No worker may silently turn a research hypothesis into a product default.
 2. Context combines system pressure, per-cgroup resource pull, optional authenticated focus, GameMode registrations, power source, thermal headroom, and user mode.
 3. Policy produces a complete **desired state** for every domain on every evaluation, including explicit restore/unchanged outcomes.
 4. A reconciler diffs desired state against the last successfully applied state. Leaving a condition restores affected values immediately; shutdown recovery is only the final fallback.
-5. A privileged broker accepts typed operations only after capability/path validation, contract fit, verified hardware authorization, explicit mutation mode, and durable pre-write journaling. Those are the mandatory gates in the north-star specification (`docs/SPEC-northstar.md:81-93`).
+5. A sealed typed capability table permits operations only after capability/path validation, contract fit, verified hardware authorization, explicit mutation mode, and durable pre-write journaling. The daemon opens exact descriptors during privileged initialization, installs Landlock before worker threads, and does not reopen arbitrary hardware paths. Those are the mandatory gates in the north-star specification (`docs/SPEC-northstar.md:81-93`).
 6. Each domain supports `off`, `observe`, and `actuate`. New domains default to `off` or `observe`; `actuate` does not bypass hard gates.
 7. `optctl status` and `optctl explain` show the observation, selected contract, desired state, gate result, applied result, and restoration state without implying unsupported capability.
 8. A deterministic fake filesystem, fake clock, fake event source, and recording actuator make every package testable without nominated hardware.
 
-The user experience is predictable: optid can explain what it sees and would do on any supported system; it changes only verified hardware when explicitly in apply mode; it restores promptly when context changes; and a crash or reboot cannot strand an unrecorded tuning.
+The user experience is predictable: optid can explain what it sees and would do on any supported system; it changes only verified hardware when explicitly in apply mode; it restores promptly when context changes; and a crash triggers independent recovery before actuation resumes. Reboot is the final fallback, not the primary rollback mechanism.
 
 ## 3. Why this order
 
@@ -160,7 +162,7 @@ The critical path is safety and state ownership, not a contract call inserted in
 
 ```mermaid
 flowchart TD
-    F["Foundation: config, I/O seams, state"] --> S["Safety: broker, permit, recovery"]
+    F["Foundation: config, I/O seams, state"] --> S["Safety: sealing, handback, recovery"]
     F --> E["Events and observability"]
     S --> D["Depth-domain completion"]
     E --> C["Context and contracts"]
@@ -174,7 +176,7 @@ flowchart TD
 - Existing depth actuators must not be expanded until the deployment boundary and restoration model are fixed.
 - Thermal sensing can merge before powercap; a pure PI controller can merge before any powercap write.
 - `sched_ext`, MUX writes, render scaling, and ALS actuation do not enter the critical path because their product interfaces are not accepted.
-- The first owner-visible lane—F1–F4, O1/O2, E1, and incremental I1—does not wait for S2/S3. The broker decision runs in parallel and gates privileged writes only.
+- The first owner-visible lane—F1–F4, O1/O2, E1, and incremental I1—does not wait for S2D–S5D. D0 runs in parallel and gates capability sealing, not read-only progress.
 
 ## 4. Execution packages
 
@@ -204,7 +206,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **What to do.** Create `kernel_io.rs` with narrow `KernelRead`, `KernelWrite`, `Clock`, and `EventSource` traits. Implement production and in-memory versions. Move shared procfs/sysfs parsing behind these interfaces without behavior changes. Keep path canonicalization and permitted roots centralized.
 
-**Desired end state.** Sensor, policy, reconciler, and broker tests can simulate values, failures, hotplug, time, and partial writes deterministically.
+**Desired end state.** Sensor, policy, reconciler, sealed-actuator, and recovery tests can simulate values, failures, hotplug, time, and partial writes deterministically.
 
 **Tests/pass.** Run the current optid test suite through production-compatible adapters; add fault-injection tests for missing, malformed, permission-denied, short-write, and disappearing paths.
 
@@ -252,59 +254,113 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Scope/risk.** Large, 10–15 files, 900–1,500 LOC. Risk tier 2; independent verification required.
 
-### S1 — Ratify the privilege and authorization boundary
+### D0 — Prototype capability sealing and supervisor-managed cold restart
 
-**Starting condition.** Dynamic writes cannot be represented by the current fixed systemd path list (`crates/optid/src/capability.rs:119-145`; `packaging/systemd/optid-apply.service:38-46`). D-Bus authorization is inconsistent and ADR-0009 is proposed (`crates/optid/src/dbus.rs:90-108`; `crates/optid/src/dbus.rs:122-127`; `docs/decisions/0009-optid-security-boundary.md:1-5`). Research recommends structural typed permits and a smaller privileged boundary (`docs/research/0020-third-pass-tech-debt-audit.md:107-137`).
+**Starting condition.** D2 depends on Linux behavior that must be proven rather than assumed: writes through file descriptors opened before Landlock, denial of new write opens after restriction, inherited irreversible restrictions, safe failure when a sysfs object disappears, and ordered recovery/restart after topology change (`docs/architecture/optid-d2-amendment.md`; [kernel Landlock documentation](https://docs.kernel.org/userspace-api/landlock.html)).
 
-**What to do.** Write and accept one ADR covering: policy daemon identity; privileged broker process; Unix-socket protocol; peer-credential checks; polkit scope; multi-seat/session trust; allowed path roots; operation vocabulary; rate limits; audit records; and failure behavior. Prototype only the protocol types and threat-model tests until accepted.
+**What to do.** Build an experimental test binary and integration fixture that detects the running Landlock ABI, opens typed synthetic and real read-safe sysfs targets, installs Landlock before starting threads, verifies descriptor behavior and negative opens, simulates device removal, and exits with a dedicated topology-rebuild status. Add a test-only systemd unit proving recovery completes before a fresh capability table is constructed. Do not connect the prototype to production actuation.
 
-**Desired end state.** One accepted security boundary replaces ad hoc D-Bus and broad systemd-write assumptions.
+**Desired end state.** The project has a reproducible yes/no receipt for capability sealing and cold restart on each supported kernel. Failure blocks S4D only and records the exact kernel, ABI, object, syscall sequence, and result.
 
-**Tests/pass.** Threat table covers unprivileged local user, compromised session bridge, symlink/path traversal, stale PID, confused deputy, replay, hotplug path replacement, malformed request, and daemon crash.
+**Tests/pass.** Existing descriptors behave as documented; prohibited new write opens fail; child threads/processes cannot escape; removed objects return a handled error; rapid topology changes debounce; recovery precedes restart; a failed restart leaves actuation off. CI uses synthetic files, while hardware receipts are stored separately.
 
-**Feature flag.** None; decision package. Prototype protocol is compile-time `experimental-broker`, off by default.
+**Feature flag.** Compile-time `experimental-capability-sealing`; never enabled in shipped optid.
 
-**Modularity.** Depends on F2–F3. Read-only packages can proceed while this is decided. All new privileged actuation depends on acceptance.
+**Modularity.** No dependency. Runs beside F1. Gates S1D in the safety merge train and S4D technically; it does not gate F1–F4 or read-only work.
 
-**Spec gaps.** Project owner/security maintainer must choose the boundary. Recommendation: unprivileged policy daemon plus minimal root broker; reject granting the daemon broad recursive `/sys/devices` write access.
+**Spec gaps.** Required Landlock ABI and exact supported-kernel matrix. D0 supplies the evidence; it must not select an unsealed fallback.
 
-**Scope/risk.** Small design PR, 2–4 files, <300 LOC plus tests/prototype. Risk tier 3; human acceptance required.
+**Scope/risk.** Small-to-medium prototype, 3–7 files, 300–700 LOC. Risk tier 3 because it validates a security boundary; independent cold verification required.
 
-### S2 — Enforce typed permits in a minimal actuation broker
+### S1D — Freeze per-lever rollback, stabilization, and semantic envelopes
 
-**Starting condition.** Current action match arms perform checks inline (`crates/optid/src/actuator.rs:622-1013`), and service deployment cannot grant dynamic paths safely (`packaging/systemd/optid-apply.service:38-46`).
+**Starting condition.** Kernel-valid values are not automatically safe for every chassis, driver, or firmware. The accepted D2 handback table distinguishes exact rollback from emergency stabilization (`docs/architecture/optid-d2-amendment.md`).
 
-**What to do.** After S1 acceptance, create a broker crate or binary. A `Permit<DomainOperation>` may be constructed only after path/capability validation, contract evaluation, verified hardware authorization, explicit mutation mode, and successful pre-write journal append. The broker accepts an explicit operation enum, never arbitrary path/value pairs. Preserve current action result reasons.
+**What to do.** Define a typed contract for each current or planned lever: stable identity, supported ABI, credible worst case, allowed semantic envelope, original-value capture, ownership/drift rule, normal rollback, emergency stabilization, verification method, and unsupported behavior. Fan actuation remains excluded. Resolve ambiguous backlight, powercap, storage, and dGPU behavior before their write packages.
 
-**Desired end state.** The policy process cannot cause a write outside a reviewed operation; the root process does not classify workloads or parse arbitrary policy.
+**Desired end state.** Every operation can answer “what value did optid own, how is it restored, what conservative state is allowed if restoration fails, and how is the result verified?” No code calls a stabilizer “kernel default” or “restored.”
 
-**Tests/pass.** Unix-socket integration tests prove peer rejection, path traversal rejection, operation/path mismatch rejection, allowlist denial, contract denial, dry-run denial, journal failure denial, replay idempotence, and successful mock writes. Packaging test proves apply service can reach the broker without broad sysfs grants.
+**Tests/pass.** Schema/fixture tests require all fields for all 11 levers; missing identity, original value, envelope, or verification denies actuation. Review proves tightening an envelope cannot authorize a previously denied value.
 
-**Feature flag.** `[safety] broker = "shadow|enforce"`; default `shadow` in dry-run, `enforce` required before any newly added domain may actuate.
+**Feature flag.** None; design and typed-schema package. Production defaults do not change.
 
-**Modularity.** Depends on S1 and F2–F4. Migrate existing action families in separate adapter commits if needed.
+**Modularity.** Follows D0 in the safety merge train. F2/F3 and read-only packages may continue in parallel.
 
-**Spec gaps.** Exact broker process/package name is an owner choice. Recommend `optid-actuator` and a private `/run/optid/actuator.sock`.
+**Spec gaps.** Hardware-specific envelopes remain evidence-gated. Unknown values deny actuation but permit observation and dry-run explanation.
 
-**Scope/risk.** Large, 12–20 files, 1,200–2,000 LOC. Risk tier 3; separate builder and verifier; human merge only.
+**Scope/risk.** Medium, 4–8 files, 400–800 LOC. Risk tier 3; human acceptance and independent review.
 
-### S3 — Make recovery durable across crash and reboot
+### S2D — Implement persistent verified write-ahead transactions
 
-**Starting condition.** The current revert path runs on controlled shutdown (`crates/optid/src/main.rs:402-407`). Research 0006 requires a persistent journal, safe boot recovery, and watchdog behavior (`docs/research/0006-hw-allowlist-db-design.md:468-470`); powercap research repeats persistent recovery requirements (`docs/research/0012-dtpm-powercap-outer-loop.md:185-194`).
+**Starting condition.** Current recovery files live in the runtime state directory and existing action families journal independently (`crates/optid/src/io_util.rs:110-402`; `crates/optid/src/actuator.rs:372-1013`). They do not form one durable, identity-safe transaction protocol.
 
-**What to do.** Move the authoritative journal to `/var/lib/optid` with atomic append/fsync/rename semantics. Add boot-time recovery before apply mode, systemd watchdog notification, and `ExecStopPost` recovery. Record device identity plus path and reject restoration if identity changed. Compact only confirmed-restored records.
+**What to do.** Add a versioned transaction engine under `/var/lib/optid/recovery/`. Before a write, record generation owner, domain, typed operation, canonical hardware identity, original/intended values, rollback/stabilization method, and phase; fsync data and directory metadata. Apply through an injected typed I/O interface, read back, commit only on match, compensate on failure, and compact only after verified handback or explicit drift relinquishment.
 
-**Desired end state.** Abrupt termination or reboot leaves either a durable restoration record or no write.
+**Desired end state.** A write either has a durable undo record before it happens or does not happen. Recovery is idempotent and refuses path reuse or hardware-identity mismatch.
 
-**Tests/pass.** Fault-inject every boundary: before journal, after journal/before write, after write/before confirm, partial journal, full disk, broker kill, daemon kill, reboot simulation, path reuse, and repeated recovery. Pass means safe denial or idempotent restore with an explicit outcome.
+**Tests/pass.** Fault-inject before append, during partial append, after append/before write, after write/before readback, readback mismatch, full disk, power loss simulation, stale generation, path reuse, external drift, repeated compensation, and cleanup. Every case produces a typed outcome and either no write or verified recovery.
 
-**Feature flag.** `[safety] durable_journal = true`; mandatory for broker enforce mode.
+**Feature flag.** `[safety] transactions = "shadow|enforce"`; apply mode cannot use a migrated domain until `enforce` is healthy.
 
-**Modularity.** Depends on S2’s operation identity but its storage engine can be built after F2. Blocks powercap and new depth actuation.
+**Modularity.** Depends on F2, F3, and S1D. Existing action families migrate later through S4D adapters.
 
-**Spec gaps.** Retention and privacy policy for the journal. Recommend store only operation/path/device IDs and values, mode `0600`, retain unresolved entries indefinitely and resolved entries seven days.
+**Spec gaps.** Journal retention/privacy. Store only operation, identity, path, values, phases, and timestamps with root-only access; unresolved records are never age-deleted.
 
-**Scope/risk.** Large, 8–14 files, 800–1,300 LOC. Risk tier 3; independent crash-path verification.
+**Scope/risk.** Large, 8–14 files, 800–1,400 LOC. Risk tier 3; independent fault-injection verification.
+
+### S3D — Add independent recovery, watchdog, and boot ordering
+
+**Starting condition.** `optid-apply.service` is `Type=simple`, optid sends no watchdog heartbeat, the current sandbox cannot restore dynamic paths, and the main binary owns both policy and current recovery code (`packaging/systemd/optid-apply.service:1-47`; `crates/optid/src/main.rs:176-181`; `crates/optid/src/main.rs:402-407`).
+
+**What to do.** Create a minimal `optid-recover` executable that reads only the S2D journal, validates identity, performs named rollback or stabilization, records the outcome, and exits. Give recovery an explicit one-shot service/lifecycle with the access required for validated journal targets. Add early-boot recovery and systemd notification. Emit `WATCHDOG=1` from the main control path only after sensors, decision, transaction, readback, and journal health complete. Prove recovery finishes before restart or re-entry to actuation.
+
+**Desired end state.** A crash, watchdog kill, or boot with unresolved records runs code that does not share optid's classifier, policy parser, D-Bus, session bridge, or general runtime failure mode. It adds zero steady-state IPC.
+
+**Tests/pass.** Cover healthy/missing heartbeats, stuck cycle, SIGKILL, crash during recovery, corrupt record, failed rollback followed by stabilization, repeated boot, clean shutdown, unresolved journal, and recovery/restart ordering. Adding `WatchdogSec=` without a verified heartbeat is a test failure.
+
+**Feature flag.** Recovery is mandatory for migrated actuation. Watchdog timing is configuration with validated lower/upper bounds, not a bypass.
+
+**Modularity.** Depends on S2D. Packaging may land before S4D while dynamic domains remain observe-only.
+
+**Spec gaps.** Exact systemd unit ordering must be demonstrated by the package rather than asserted in prose.
+
+**Scope/risk.** Large, 8–15 files, 700–1,300 LOC. Risk tier 3; independent crash-path and service-order verification.
+
+### S4D — Move writes to a sealed typed capability table
+
+**Starting condition.** Dynamic device paths cannot fit the current fixed `ReadWritePaths` set (`crates/optid/src/capability.rs:119-145`; `packaging/systemd/optid-apply.service:38-46`). D0 has proven the supported Landlock/sysfs behavior, while S2D/S3D provide transactions and independent recovery.
+
+**What to do.** During privileged initialization, discover and canonicalize supported targets, validate stable device identity, open only exact files with minimum access, and store them as typed descriptors such as `RuntimePmControl`, `BacklightBrightness`, or `RaplPl1`. Install Landlock and run a negative self-test before starting worker threads or D-Bus/session inputs. Migrate action families from reopen-by-path writes to descriptor operations. Newly hotplugged devices remain observe-only; topology change follows the nine-step supervisor-managed cold restart in the D2 amendment.
+
+**Desired end state.** Normal actuation has no arbitrary path/value API, no new hardware write opens after sealing, no permanent helper, and no steady-state IPC. A failed seal leaves affected domains observe-only.
+
+**Tests/pass.** Operation/type mismatch, symlink/path replacement, stale identity, new write open, descriptor leak, inherited restriction, device removal, topology debounce, in-flight cancellation, recovery ordering, and cold capability-table rebuild all fail safely with exact status.
+
+**Feature flag.** `[safety] capability_sealing = "observe|enforce"`; `enforce` requires D0 evidence for the running kernel. Unsupported kernels cannot actuate migrated dynamic domains.
+
+**Modularity.** Depends on D0, F4, and S3D. Migrate one action family per bounded adapter PR if needed.
+
+**Spec gaps.** Supported Landlock ABI/kernel matrix is evidence from D0, not an owner guess.
+
+**Scope/risk.** Large, 10–18 files, 1,000–1,800 LOC. Risk tier 3; separate builder/verifier and human merge.
+
+### S5D — Add domain circuit breakers and controlled canary re-entry
+
+**Starting condition.** Restarting after recovery can reapply the same semantically bad but kernel-valid setting. Existing state has no persistent per-domain/HWID failure circuit.
+
+**What to do.** Persist circuit state by domain, operation, HWID, firmware, and failure class. On repeated failure, hand back the affected lever, quarantine it, start that domain observe-only, and keep unrelated domains active. After bounded cooldown and successful recovery, permit one monitored canary; close only after verification and reopen immediately on failure. Unknown process-wide corruption starts all actuation observe-only.
+
+**Desired end state.** `crash → restart → reapply → crash` is impossible. Operators can see why a circuit is open, what remains healthy, and what evidence is required for re-entry.
+
+**Tests/pass.** Deterministic sequences cover threshold, persistence, restart, cooldown, canary success/failure, firmware change, manual clear authorization, clock jump, and multi-domain isolation. A mock can exercise logic but cannot promote hardware.
+
+**Feature flag.** Circuit breakers are mandatory for migrated actuation; thresholds have safe bounds and no hidden environment bypass.
+
+**Modularity.** Depends on F3, F4, and S4D. May land per domain after a shared state machine freezes.
+
+**Spec gaps.** Initial thresholds/cooldowns require conservative defaults and later evidence tuning; changing them does not bypass hardware promotion.
+
+**Scope/risk.** Medium-to-large, 6–12 files, 600–1,100 LOC. Risk tier 3 for automatic re-entry; independent verification.
 
 ### C1 — Model contracts with measured latency and provenance
 
@@ -318,7 +374,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[contracts] mode = "observe|enforce"`; default `enforce` for apply. No `--no-contract-gate`. ADR-0025’s one-run hardware bypass remains the sole experimental escape (`docs/decisions/0025-risk-based-project-workflow.md:22-41`).
 
-**Modularity.** Depends on F1 and F3. Exposes a pure `ContractEvaluator`; actual writes wait for S2.
+**Modularity.** Depends on F1 and F3. Exposes a pure `ContractEvaluator`; migrated writes wait for S2D–S4D.
 
 **Spec gaps.** Owner/research decision: trusted latency sources and cache invalidation. Recommended v1: kernel-reported state latency plus allowlist evidence tied to HWID/firmware; unknown denies actuation.
 
@@ -382,17 +438,17 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** A root daemon cannot directly act as the user’s ordinary Wayland client, and foreign-toplevel app IDs do not reliably provide PIDs (`docs/research/0005-focus-vs-resource-pull.md:113-179`). Research 0010 also places GameMode compatibility at a session bridge (`docs/research/0010-ppd-gamemode-dbus-shim.md:259-280`).
 
-**What to do.** Specify a versioned bridge protocol for seat/session identity, focused app identity, optional PID/cgroup evidence, fullscreen, audio/video activity, GameMode registration, monotonic sequence, and expiry. Authenticate the peer using S1. Never accept a bridge-provided arbitrary cgroup path without server-side PID/cgroup validation.
+**What to do.** Specify a versioned bridge protocol for seat/session identity, focused app identity, optional PID/cgroup evidence, fullscreen, audio/video activity, GameMode registration, monotonic sequence, and expiry. Apply polkit to every unprivileged state-changing D-Bus call and authenticate session context with system-D-Bus credentials or an equivalently reviewed peer-credential channel. Never accept a bridge-provided arbitrary cgroup path without server-side PID/cgroup validation.
 
 **Desired end state.** Desktop context is optional, authenticated, per-seat, expiring, and combined with resource pull rather than trusted as sole truth.
 
 **Tests/pass.** Protocol tests cover disconnect/reconnect, stale messages, spoofed UID/PID, PID reuse, multi-seat, compositor restart, missing PID, and downgrade/unknown versions.
 
-**Feature flag.** `[context.session_bridge] mode = "off|observe|select"`; default `off` until S1 and one backend land.
+**Feature flag.** `[context.session_bridge] mode = "off|observe|select"`; default `off` until the authorization policy and one backend land.
 
-**Modularity.** Depends on F3, O2, and accepted S1. Exposes a backend-neutral protocol so GNOME/KDE/wlroots work can proceed independently.
+**Modularity.** Depends on F3 and O2. Exposes a backend-neutral protocol so GNOME/KDE/wlroots work can proceed independently of the hardware-write path.
 
-**Spec gaps.** Owner/security decision: supported session bus/system service topology and polkit policy. Recommendation: per-user bridge to root broker via authenticated Unix socket, not a root Wayland client.
+**Spec gaps.** Owner/security decision: supported session bus/system-service topology and polkit policy. Recommendation: a per-user session bridge authenticated to optid over system D-Bus, not a root Wayland client and not an actuation broker.
 
 **Scope/risk.** Medium design/core, 6–10 files, 500–900 LOC. Risk tier 3.
 
@@ -418,15 +474,15 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** Runtime PM actuation already validates, journals, writes, and rolls back (`crates/optid/src/actuator.rs:622-804`), but dynamic service deployment is broken and device-use/transition coverage is incomplete (`crates/optid/src/capability.rs:119-145`; `packaging/systemd/optid-apply.service:38-46`).
 
-**What to do.** Port existing operations through S2/F4. Add typed discovery by device class, active-use predicates for network/audio/camera/input/storage, PM QoS and wakeup constraints, per-device delay policy, hotplug handling, and explicit restore. Preserve CNVi/carrier safety. Record current runtime status from O1.
+**What to do.** Port existing operations through F4 and S2D–S5D. Add typed discovery by device class, active-use predicates for network/audio/camera/input/storage, PM QoS and wakeup constraints, per-device delay policy, cold-restart hotplug handling, and explicit rollback/stabilization. Preserve CNVi/carrier safety. Record current runtime status from O1.
 
 **Desired end state.** Eligible verified devices enter autosuspend only when their contract and live-use constraints permit, and restore promptly on demand or context change.
 
-**Tests/pass.** Mock matrix covers every device class, active-use guard, unknown latency, unverified allowlist, hotplug, drift, write failure, broker denial, and restore. Hardware is required only to promote a HWID from observe to actuate.
+**Tests/pass.** Mock matrix covers every device class, active-use guard, unknown latency, unverified allowlist, hotplug, drift, write failure, seal/transaction denial, rollback, and stabilization. Hardware is required only to promote a HWID from observe to actuate.
 
 **Feature flag.** `[domains.runtime_pm] mode`, default `observe`; `actuate` only with all SPEC gates.
 
-**Modularity.** Depends on F4, S2–S3, C1, O1. Device-class predicates may be separate PRs.
+**Modularity.** Depends on F4, S2D–S5D, C1, and O1. Device-class predicates may be separate PRs.
 
 **Spec gaps.** USB audio/video activity and network-idle definitions need accepted thresholds. Unknown denies actuation.
 
@@ -436,7 +492,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** PCIe ASPM and SATA ALPM writes exist (`crates/optid/src/actuator.rs:805-938`), but research defers NVMe APST, measured exit latency, and firmware gating (`docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md:226-240`; `docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md:331-334`).
 
-**What to do.** Port ASPM/ALPM through the reconciler/broker. Add NVMe Identify/PSD parsing and APST table construction behind a narrow interface; cache latency evidence by controller/firmware; guard mounted rotational SATA devices and active links; restore original settings on transition. Decide whether NVMe access uses an internal ioctl library or stable structured `nvme-cli` output before coding.
+**What to do.** Port ASPM/ALPM through the reconciler and sealed capability table. Add NVMe Identify/PSD parsing and APST table construction behind a narrow interface; cache latency evidence by controller/firmware; guard mounted rotational SATA devices and active links; restore original settings on transition. Decide whether NVMe access uses an internal ioctl library or stable structured `nvme-cli` output before coding.
 
 **Desired end state.** Storage depth is selected from actual device states and contracts, never a guessed universal latency.
 
@@ -444,7 +500,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** Separate `[domains.storage.nvme_apst|pcie_aspm|sata_alpm] mode`; default `observe`.
 
-**Modularity.** Depends on F4, S2–S3, C1, O1. NVMe, ASPM, and ALPM can be separate PRs sharing the storage model.
+**Modularity.** Depends on F4, S2D–S5D, C1, and O1. NVMe, ASPM, and ALPM can be separate PRs sharing the storage model.
 
 **Spec gaps.** Owner chooses NVMe interface. Recommend a Rust ioctl implementation with recorded fixtures; avoid parsing human text.
 
@@ -454,7 +510,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** Direct backlight writes exist (`crates/optid/src/actuator.rs:939-1013`). The implementation uses a universal floor, while research calls for an HWID/PWM-specific floor and a session bridge for PSR/VRR/DPMS (`crates/optid/src/actuators/display.rs:16-23`; `docs/research/0007-display-panel-backlight-psr-vrr-dpms.md:337-339`; `docs/research/0007-display-panel-backlight-psr-vrr-dpms.md:398-407`).
 
-**What to do.** First resolve floor policy. Add ownership/drift handling so manual user brightness changes are never immediately fought. Port writes through F4/S2. Extend X1 with advisory PSR, VRR, DPMS, and ABM hints; implement compositor-specific bridge adapters. The root daemon must not perform direct KMS control.
+**What to do.** First resolve floor policy. Add ownership/drift handling so manual user brightness changes are never immediately fought. Port writes through F4 and S2D–S5D. Extend X1 with advisory PSR, VRR, DPMS, and ABM hints; implement compositor-specific bridge adapters. The root daemon must not perform direct KMS control.
 
 **Desired end state.** Backlight changes are safe, reversible, and respectful of manual control. Display power hints are applied only through a supported session API and truthfully reported.
 
@@ -462,7 +518,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[domains.display.backlight] mode`, default `observe`; each bridge hint has its own `off|observe|actuate`, default `off`.
 
-**Modularity.** Backlight ownership depends on F4/S2/C1. Session bridge hints depend on X1 but not storage/runtime PM.
+**Modularity.** Backlight ownership depends on F4, S2D–S5D, and C1. Session bridge hints depend on X1 but not storage/runtime PM.
 
 **Spec gaps.** Owner must accept per-HWID floor policy and manual-override timeout. Recommend no special floor unless verified hardware evidence supplies one.
 
@@ -490,7 +546,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** optid already emits VM sysctl actions (`crates/optid/src/policy.rs:649-678`). Research assigns zram sizing to `zram-generator` and treats MGLRU as static/startup (`docs/research/0015-zram-mglru-tuning-per-ram-tier.md:198-212`).
 
-**What to do.** Add read-only audit of zram devices, compression algorithm, swap priority, RAM tier, MGLRU state, and effective swappiness. Reconcile existing swappiness/sysctl behavior through F4/S2. If edition packaging later wants tiered zram, generate static configuration outside optid in a separate packaging plan.
+**What to do.** Add read-only audit of zram devices, compression algorithm, swap priority, RAM tier, MGLRU state, and effective swappiness. Reconcile existing swappiness/sysctl behavior through F4 and S2D/S3D. If edition packaging later wants tiered zram, generate static configuration outside optid in a separate packaging plan.
 
 **Desired end state.** optid explains memory policy and may adjust approved reversible sysctls; it never swapoffs/resizes live zram.
 
@@ -498,7 +554,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[domains.memory] mode`, default `observe`; reversible sysctl actuation retains current safe default mapping.
 
-**Modularity.** Depends on F4/O1; broker migration for writes depends on S2. No zram implementation dependency.
+**Modularity.** Depends on F4/O1; persistent transaction/recovery migration for writes depends on S2D/S3D. No zram implementation dependency.
 
 **Spec gaps.** Edition-level zram defaults belong to a packaging decision, outside this plan.
 
@@ -516,7 +572,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[thermal] mode = "off|observe"`, default `observe`; budget policy experimental until thresholds are accepted.
 
-**Modularity.** Depends on F2–F3. Independent of S1/S2 and hardware nomination.
+**Modularity.** Depends on F2–F3. Independent of the D2 safety packages and hardware nomination.
 
 **Spec gaps.** Zone selection, weights, and thresholds require an accepted policy. Recommend conservative max-of-eligible-zones for v1, with no fan writes.
 
@@ -534,7 +590,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[domains.powercap] mode = "off|observe|simulate"`, default `observe` when supported.
 
-**Modularity.** Depends on T1/F2/F3. Independent of S2 for simulation.
+**Modularity.** Depends on T1/F2/F3. Independent of S2D–S5D for simulation.
 
 **Spec gaps.** Accepted control objective, gains, sample period, bounds, and AMD backend are missing. Owner/control reviewer must accept them; do not use research hypotheses as defaults.
 
@@ -544,7 +600,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** T2 provides observation/simulation only. Research requires persistent recovery/watchdog for power limits (`docs/research/0012-dtpm-powercap-outer-loop.md:185-194`).
 
-**What to do.** Add only the accepted v1 backend—recommended Intel RAPL PL1—to S2’s operation vocabulary. Clamp to hardware-reported bounds, journal the original constraint durably, rate-limit changes, restore on disable/transition/crash, and fail to firmware default on uncertain identity. AMD HSMP is a separate future package.
+**What to do.** Add only the accepted v1 backend—recommended Intel RAPL PL1—to the sealed typed capability vocabulary. Bound it by S1D's semantic envelope, journal the original constraint durably, rate-limit changes, restore on disable/transition/crash, and use the named S1D stabilizer on uncertain identity. AMD HSMP is a separate future package.
 
 **Desired end state.** Verified hardware can opt into bounded PL1 control; every write is explainable and recoverable.
 
@@ -552,7 +608,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Feature flag.** `[domains.powercap] mode = "actuate"`, default never; requires `--apply` and all hard gates.
 
-**Modularity.** Depends on S2–S3, C1, T1–T2. Does not block other domains.
+**Modularity.** Depends on S2D–S5D, C1, and T1–T2. Does not block other domains.
 
 **Spec gaps.** T2 controller decision and backend scope must be accepted first.
 
@@ -634,7 +690,7 @@ Every package below is one independently reviewable PR unless its “modularity�
 
 **Starting condition.** The repository has testOS and fixtures, but the current plan needs deterministic combinations without a hardware prerequisite (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
 
-**What to do.** Create scenario fixtures for idle/interactive/latency/throughput, AC/battery, thermal rise/recovery, foreground/no foreground, GameMode, device hotplug, unsupported hardware, permission denial, malformed sysfs, config reload, broker crash, and reboot recovery. Run with all domains off, observe, individually actuating against mocks, and all supported mock actuators together.
+**What to do.** Create scenario fixtures for idle/interactive/latency/throughput, AC/battery, thermal rise/recovery, foreground/no foreground, GameMode, device hotplug, unsupported hardware, permission denial, malformed sysfs, config reload, seal failure, daemon/recovery crash, circuit opening, and reboot recovery. Run with all domains off, observe, individually actuating against mocks, and all supported mock actuators together.
 
 **Desired end state.** Every package has isolated tests and the integrated daemon has a reproducible no-hardware acceptance suite.
 
@@ -671,14 +727,14 @@ Every package below is one independently reviewable PR unless its “modularity�
 | Lane | Sequential core | Safe parallel work |
 |---|---|---|
 | Foundation | F1 → F3 → F4 | F2 can start with F1. |
-| Safety | S1 → S2 → S3 | S3 storage engine can prototype against F2 after S1 vocabulary freezes. |
-| Events/context | F2 → E1; F2/F3 → O1/O2; O2 + S1 → X1 → X2 | O1, O2, T1, R1, R2, and R3 are independent read/design lanes. |
+| Safety | D0 → S1D → S2D → S3D → S4D → S5D | D0 starts beside F1. S2D can prototype against F2/F3 after S1D freezes handback vocabulary. |
+| Events/context | F2 → E1; F2/F3 → O1/O2; F3 + O2 → X1 → X2 | O1, O2, T1, R1, R2, and R3 are independent read/design lanes. |
 | Contracts | F1/F3 → C1 | Latency parsers/fixtures can proceed while source policy is decided. |
-| Depth | F4 + S2/S3 + C1 + O1 → D1/D2/D3 | D1, D2, and D3 then run in parallel; D4 follows D1; D5 is mostly independent. |
-| Thermal | T1 → T2 → T3 | T1/T2 proceed before broker/hardware; T3 waits for S2/S3/C1. |
+| Depth | F4 + S2D/S3D/S4D/S5D + C1 + O1 → D1/D2/D3 | D1, D2, and D3 then run in parallel; D4 follows D1; D5 needs only the relevant transaction/recovery subset. |
+| Thermal | T1 → T2 → T3 | T1/T2 proceed before sealing/hardware; T3 waits for S2D–S5D/C1. |
 | Integration | F3/F4 → I1/I2 → I3 | Each domain adds its own diagnostics and fixtures before merge. |
 
-Critical path to safe new hardware writes: **F1/F2/F3 → F4 → S1 → S2 → S3 → C1 → selected domain → I2 → evidence promotion**.
+Critical path to safe new hardware writes: **D0 + F1/F2/F3 → F4 + S1D → S2D → S3D → S4D → S5D + C1 → selected domain → I2 → evidence promotion**.
 
 `sched_ext` is not shown because SPEC forbids its work package until WP-B1 evidence (`docs/SPEC-northstar.md:207-212`). MUX writes and render/ALS production actuation are not shown because they require accepted designs.
 
@@ -691,7 +747,7 @@ Critical path to safe new hardware writes: **F1/F2/F3 → F4 → S1 → S2 → S
 | Normal dry-run | No reads beyond capability discovery | Read and explain | Read, compute, show denied-by-dry-run; never write |
 | `--apply` absent | Same | Same | Denied by mutation gate |
 | `--apply` present, gate fails | Same | Same | No write; exact contract/allowlist/journal/capability denial |
-| `--apply` present, all gates pass | Same | Same | Broker writes, verifies, records, reconciles, and restores |
+| `--apply` present, all gates pass | Same | Same | Sealed typed capability writes, verifies, records, reconciles, and restores |
 
 No per-domain flag may weaken the four mandatory gates (`docs/SPEC-northstar.md:81-93`).
 
@@ -765,8 +821,8 @@ After posting it, the worker must preserve its branch, make no speculative edit,
 
 1. Merge F1–F3 and test seams.
 2. Merge F4 in shadow/parity mode and the first I1/I2 slices so the owner can inspect desired/restore behavior immediately.
-3. Merge E1/O1/O2/T1/T2 and other read-only or pure-model packages while S1 is reviewed.
-4. Accept one S1 option. If Option A is selected, merge S2/S3 with existing actuator adapters; if B or C is selected, replace that lane with the accepted alternative.
+3. Merge D0 and E1/O1/O2/T1/T2 plus other read-only or pure-model packages without blocking on hardware nomination.
+4. Merge S1D–S3D, then S4D only after D0 proves the supported-kernel behavior; add S5D before automatic re-entry or hardware promotion.
 5. Merge C1 and session protocol work as their decisions freeze.
 6. Merge domain completions individually in observe/default-off mode, continuously extending I1/I2.
 7. Promote one hardware/domain combination per evidence PR through I3.
@@ -778,7 +834,7 @@ This plan does not build distro editions, mkosi profiles, archive pinning, UKI/S
 ## 8. Fit with the project roadmap
 
 - The v0.6 hardware gate remains valid for v0.6 behavior claims (`release/milestones.toml:143-181`). This plan lets off/observe/simulation work proceed while that evidence is unavailable (`AGENTS.md:173-188`).
-- `corrected-path-forward-v0.6-to-v1.md` remains the proposed release sequence, but its “single blocker” does not describe the code-build dependency graph (`docs/plans/corrected-path-forward-v0.6-to-v1.md:20-36`).
+- `corrected-path-forward-v0.6-to-v1.md` is retained as the v0.6 release-evidence sequence; its former “single blocker” language does not describe the construction dependency graph (`docs/plans/corrected-path-forward-v0.6-to-v1.md:20-45`).
 - The v0.6 proposal’s foreground phase is replaced by O2/X1/X2 because the current stub and privilege topology require a resource-pull core plus session bridge (`crates/optid/src/foreground/mod.rs:69-99`; `docs/research/0005-focus-vs-resource-pull.md:113-179`).
 - `release/milestones.toml` keeps v0.7 as Editions and v0.8 as Benchmark Lab (`release/milestones.toml:183-208`). This plan does not rename or overload either milestone.
 - Milestone ledgers should link completed package PRs as implementation evidence and separate hardware promotion PRs as capability evidence. Merging code never changes a milestone status by itself.
@@ -787,7 +843,8 @@ This plan does not build distro editions, mkosi profiles, archive pinning, UKI/S
 
 | Gap | Why it blocks | Resolver | Recommended resolution |
 |---|---|---|---|
-| Privilege broker and D-Bus/session authorization | Dynamic writes do not fit current service confinement; trust is inconsistent. | Owner + security maintainer | Accept S1: unprivileged policy, narrow root broker, authenticated per-user bridge. |
+| Capability sealing and recovery | Dynamic writes do not fit current service confinement, and current recovery is not durable. | D0/S1D–S5D maintainers | Implement the accepted D2 amendment; D0 failure blocks S4D without reviving the superseded broker by assumption. |
+| D-Bus/session authorization | State-changing D-Bus authorization and session trust are inconsistent. | X1 owner + security maintainer | Apply polkit consistently and authenticate a per-user bridge to optid; never run the root daemon as a Wayland client. |
 | Desired-state ownership and drift | Without it, optid can fight users or restore someone else’s value. | Owner + optid maintainer | Restore only values still equal to optid’s last confirmed write; otherwise relinquish and report drift. |
 | Contract exit-latency sources | PM QoS constraint values are not measurements. | Kernel/power maintainer + owner | Kernel-reported state latency plus HWID/firmware evidence; unknown denies actuation. |
 | NVMe APST control ABI | Text parsing and ioctl choices have different stability/testability. | Storage maintainer | Typed Rust ioctl with recorded Identify fixtures. |
@@ -855,9 +912,13 @@ The owner tracks these outcomes, not 27 branch names. `☐` becomes `☑` only w
 | ☐ | Deterministic test seams | Kernel I/O, clock, events, failures, and hotplug can be simulated without hardware. | F2 |
 | ☐ | Truthful state schema | Observation, desired state, gates, apply, drift, failure, and restore have versioned outcomes. | F3 |
 | ☐ | Desired-state reconciliation | Leaving a condition produces an immediate, ownership-safe restore. | F4 |
-| ☐ | Privilege architecture | Option A, B, or C is explicitly accepted; no ambiguous default remains. | S1 owner decision |
-| ☐ | Safe mutation boundary | The accepted architecture permits only reviewed operations and rejects arbitrary path/value writes. | S2 or accepted replacement |
-| ☐ | Crash/reboot recovery | Every write has a durable, identity-safe, idempotent recovery path. | S3 |
+| ☐ | D2 architecture | Owner-approved fail-passive capability sealing replaces the permanent broker path in repository truth. | D2 amendment PR |
+| ☐ | Capability-sealing proof | Pre-opened sysfs descriptors, denied new opens, inheritance, removal, and cold restart are reproducibly proven. | D0 |
+| ☐ | Handback contracts | Every lever distinguishes exact rollback, emergency stabilization, semantic envelope, ownership, and verification. | S1D |
+| ☐ | Verified transactions | Every migrated write has a durable identity-safe record, readback, compensation, and idempotent recovery. | S2D |
+| ☐ | Independent recovery | Minimal recovery, boot ordering, and real control-loop watchdog behavior pass fault injection. | S3D |
+| ☐ | Sealed mutation boundary | Typed pre-opened descriptors plus Landlock reject arbitrary new hardware write opens without steady-state IPC. | S4D |
+| ☐ | Circuit breakers | A bad domain is handed back, quarantined, and canary-tested without crash-loop reapplication. | S5D |
 | ☐ | Contracts | Unknown/stale latency denies sensitive writes; per-cgroup contracts compose deterministically. | C1 |
 | ☐ | Event reactor | PSI, config, context, power, timer, and hotplug sources reevaluate without a permanent two-second scan. | E1 |
 | ☐ | Runtime observability | Wakeup, runtime-PM, C-state, PM QoS, storage, and display state are truthfully reported. | O1 |
@@ -869,7 +930,7 @@ The owner tracks these outcomes, not 27 branch names. `☐` becomes `☑` only w
 | ☐ | GameMode | Registration affects validated PID/cgroup context and expires on unregister or client death. | X2 GameMode PR |
 | ☐ | Runtime PM | Verified eligible devices autosuspend only within contract/use constraints and restore on demand. | D1 + HWID promotion |
 | ☐ | NVMe APST | PSD latency/firmware provenance drives APST tables; unknown denies writes. | D2 NVMe + HWID/firmware promotion |
-| ☐ | PCIe ASPM/SATA ALPM | Existing paths are brokered, reconciled, guarded, observed, and promoted per hardware. | D2 ASPM/ALPM + promotion |
+| ☐ | PCIe ASPM/SATA ALPM | Existing paths are sealed, reconciled, guarded, observed, and promoted per hardware. | D2 ASPM/ALPM + promotion |
 | ☐ | Backlight | Manual ownership, drift, per-HWID floor policy, and transition restore are resolved. | D3 backlight |
 | ☐ | PSR/VRR/DPMS/ABM | Supported session APIs apply advisory hints; unsupported compositors degrade cleanly; root performs no direct KMS control. | D3 bridge backends |
 | ☐ | dGPU | Runtime/D3 state is observed; generic runtime PM is promoted only on verified systems; MUX stays advisory until specified. | D4 + promotion |

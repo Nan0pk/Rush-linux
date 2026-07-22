@@ -24,9 +24,9 @@
 purpose = "Project overview, repo layout, build instructions, design rules"
 owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
-deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md"]
+deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = []
-last_verified = "2026-06-26"
+last_verified = "2026-07-22"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -50,18 +50,18 @@ last_verified = "2026-06-14"
 purpose = "Authoritative list of what is implemented and what is not"
 owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
-deps = ["VERSION", "ROADMAP.md"]
+deps = ["VERSION", "ROADMAP.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = ["README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-06-29"
+last_verified = "2026-07-22"
 validator = "version_matches:VERSION"
 
 [docs."docs/AI_CONTINUATION.md"]
 purpose = "Handoff document for AI agents or new maintainers continuing the project"
 owner_area = "area:docs"
 covers_code = []
-deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION"]
+deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION", "AGENTS.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = []
-last_verified = "2026-06-29"
+last_verified = "2026-07-22"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -118,17 +118,17 @@ last_verified = "2026-06-14"
 purpose = "Four-layer system architecture and subsystem boundaries"
 owner_area = "area:docs"
 covers_code = []
-deps = ["docs/PROJECT_BRIEF.md"]
+deps = ["docs/PROJECT_BRIEF.md", "docs/architecture/optid-d2-amendment.md"]
 freshens = ["docs/adaptive-engine.md", "docs/kernel-policy.md", "docs/packaging-and-builds.md"]
-last_verified = "2026-06-14"
+last_verified = "2026-07-22"
 
 [docs."docs/adaptive-engine.md"]
 purpose = "optid design: inputs, actions, guardrails, current MVP scope"
 owner_area = "area:optid"
 covers_code = ["crates/optid/src/main.rs", "crates/optid/src/shim/conflict.rs", "crates/optid/src/shim/ppd.rs", "crates/optid/src/shim/gamemode.rs", "config/optid/policy.toml"]
-deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md"]
+deps = ["docs/architecture.md", "docs/decisions/0004-adaptive-optid.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md"]
 freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md"]
-last_verified = "2026-06-29"
+last_verified = "2026-07-22"
 validator = "covers_optid_features"
 
 [docs."docs/kernel-policy.md"]
@@ -819,17 +819,49 @@ validator = "optional_file"
 purpose = "Agent constitution: authority, source order, human-effort rule, evidence scope, blocker traceability, and repository safety"
 owner_area = "area:project"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/"]
-deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/agent-protocol.md"]
+deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/agent-protocol.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = ["CONTRIBUTING.md", "docs/how-rush-is-built.md"]
-last_verified = "2026-07-10"
+last_verified = "2026-07-22"
 
 [docs."docs/SUMMARY.md"]
 purpose = "Complete reader-facing documentation index, including every research paper"
 owner_area = "area:docs"
 covers_code = []
-deps = ["docs/project-workflow.md", "docs/decisions/README.md"]
+deps = ["docs/project-workflow.md", "docs/decisions/README.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = []
-last_verified = "2026-07-10"
+last_verified = "2026-07-22"
+
+[docs."OPTID-COMPLETION-PLAN.md"]
+purpose = "Active evidence-backed optid capability completion plan and worker-package contract"
+owner_area = "area:optid"
+covers_code = ["crates/optid/", "crates/optctl/", "packaging/systemd/optid*.service", "config/optid/"]
+deps = ["AGENTS.md", "docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
+freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-22"
+
+[docs."docs/architecture/optid-d2-amendment.md"]
+purpose = "Owner-approved fail-passive optid safety architecture: capability sealing, verified recovery, cold restart, and circuit breakers"
+owner_area = "area:optid"
+covers_code = ["crates/optid/src/actuator.rs", "crates/optid/src/capability.rs", "crates/optid/src/io_util.rs", "crates/optid/src/main.rs", "packaging/systemd/optid-apply.service"]
+deps = ["AGENTS.md", "docs/SPEC-northstar.md", "OPTID-COMPLETION-PLAN.md"]
+freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md", "docs/plans/optid-package-status.toml"]
+last_verified = "2026-07-22"
+
+[docs."docs/plans/optid-package-status.toml"]
+purpose = "Machine-readable optid package ledger with active packages, dependencies, PRs, and completion evidence"
+owner_area = "area:optid"
+covers_code = []
+deps = ["OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md"]
+freshens = ["AGENTS.md", "README.md", "docs/AI_CONTINUATION.md"]
+last_verified = "2026-07-22"
+
+[docs."docs/plans/corrected-path-forward-v0.6-to-v1.md"]
+purpose = "Superseded implementation sequence retained as the v0.6 physical-hardware evidence and release-promotion plan"
+owner_area = "area:release"
+covers_code = []
+deps = ["OPTID-COMPLETION-PLAN.md", "docs/plans/optid-package-status.toml", "release/milestones.toml"]
+freshens = []
+last_verified = "2026-07-22"
 
 [docs."docs/decisions/0024-livedev-pr-submission.md"]
 purpose = "Superseded LiveDev PR-submission design; safe submission behavior retained under ADR 0025"

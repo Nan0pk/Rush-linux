@@ -6,12 +6,15 @@ improve responsiveness, battery behavior, thermals, and resource utilization.
 
 ## Workload Classification
 
-`optid` implements a workload-class detector (contract-setter) that maps current telemetry and override pins to exactly one of five workload classes:
+`optid` implements a workload-class detector (contract-setter) that maps current telemetry and override pins to one of six published workload classes:
 - `idle`: Extremely low activity.
 - `light`: Low background or system activity.
 - `interactive`: Default responsive user activity.
 - `latency-critical`: High-priority interactive work (e.g., gaming, audio) requiring low latency.
 - `throughput`: Massive batch tasks (e.g., compiling) requiring raw compute output.
+- `vm.guest`: Derived guest-VM context that currently resolves to the
+  `interactive` contract because host PM QoS does not propagate through the
+  hypervisor boundary.
 
 The classification is performed by a pure function based on load average, PSI pressure, and power supply state, with highest precedence given to explicit application pins (`optctl pin`).
 
@@ -71,13 +74,13 @@ Workload-class selection is separate from mode selection. `Policy::classify()` f
 
 ## PM QoS and Latency Budget Contracts
 
-`optid` enforces latency budgets defined in `/config/optid/contracts.toml` mapping committed workload classes to concrete latency floors:
+`optid` applies latency constraints defined in `/config/optid/contracts.toml` mapping committed workload classes to concrete latency floors:
 - **CPU wakeup latency floor**: Enforced globally by writing the floor in microseconds to `/dev/cpu_dma_latency` using a file descriptor held open for the daemon's lifetime (which automatically releases the floor on crash/exit).
-- **Device resume latency floor**: Enforced per-device by writing the floor in microseconds to each PCI device's `/sys/bus/pci/devices/*/power/pm_qos_resume_latency_us` path. Prior sysfs values are journaled to the state directory and reverted on service startup and shutdown.
+- **Device resume latency floor**: Requested per device by writing the floor in microseconds to each PCI device's `/sys/bus/pci/devices/*/power/pm_qos_resume_latency_us` path. Prior sysfs values are journaled to the state directory and reverted on startup and clean shutdown.
 
-All PM QoS writes are subject to the dry-run (`--apply`) gate, act on floor changes only to avoid thrashing, and are explainable via `optctl explain`.
+All PM QoS writes are subject to the dry-run (`--apply`) gate, act on floor changes only to avoid thrashing, and are explainable via `optctl explain`. The PM QoS value is a constraint, not a measured device exit latency. Provenance-aware device-depth contract checks remain C1 work.
 
-`vm.*` sysctl actuation is guarded by the zram-backed memory policy: when `high_swappiness_requires_zram` is enabled and no zram swap device is active, `optid` skips all `vm.*` writes and records the skip reason in the decision report. When `vm.*` writes are applied, the original and intended values are journaled in the state directory so startup/shutdown revert logic can restore prior values.
+`vm.*` sysctl actuation is guarded by the zram-backed memory policy: when `high_swappiness_requires_zram` is enabled and no zram swap device is active, `optid` skips all `vm.*` writes and records the skip reason in the decision report. When `vm.*` writes are applied, the original and intended values are journaled in the state directory so startup/clean-shutdown revert logic can attempt to restore prior values. Persistent verified crash recovery is active D2 work.
 
 ## Current MVP
 
@@ -88,15 +91,21 @@ The current Rust implementation:
 - reads thermal state from `/sys/class/thermal`;
 - reads load average from `/proc/loadavg`;
 - chooses battery, balanced, performance, or realtime mode;
-- workload classifier pure function mapping PSI/load/AC/pin to the five classes with hysteresis, D-Bus override pinning (`optctl pin`), and state publication.
+- workload classifier pure function mapping PSI/load/AC/pin to the six published classes with hysteresis, D-Bus override pinning (`optctl pin`), and state publication;
 - writes status and decision logs under `/run/optid`;
-- applies guarded actions only when `--apply` is passed.
+- contains guarded action paths for EPP, platform profile, VM sysctls, CPU and
+  per-device PM QoS, runtime PM, PCIe ASPM, SATA ALPM, backlight, and cgroup
+  weights; and
+- applies actions only when `--apply` is passed and the action's other gates
+  permit it.
 
 `optctl` communicates with `optid` via D-Bus as defined in `packaging/dbus/io.rushlinux.Optid.xml`, with automatic fallback to files in the state directory if D-Bus is offline.
 
 The packaged default `optid.service` runs in dry-run mode. Mutating policy is
 split into `optid-apply.service` so early releases cannot silently change CPU,
-platform, or cgroup settings without an explicit service choice.
+platform, or cgroup settings without an explicit service choice. The current
+apply service grants only fixed write paths, so landed dynamic-device actions
+soft-fail there until D2 capability sealing replaces that deployment mismatch.
 
 ## Policy Ownership
 
@@ -202,6 +211,8 @@ Accepted action classes:
 - systemd runtime cgroup properties such as CPU weight, I/O weight, memory
   protection, and OOM policy.
 - CPU energy performance preference and platform profile changes.
+- VM sysctls, CPU/per-device PM QoS, runtime PM, PCIe ASPM, SATA ALPM, and
+  backlight operations that are already present behind their gates.
 - Background throttling during pressure, heat, video calls, or battery use.
 - zswap/zram/swap policy after memory pressure support is implemented.
 - GPU, PCIe, USB, NVMe, Wi-Fi, and display power policy only through hardware
@@ -215,3 +226,7 @@ Accepted action classes:
 - Unsafe sysfs writes require explicit allowlisting.
 - Hardware-specific policy must degrade safely when sensors or firmware knobs
   are missing.
+- The accepted [D2 architecture](architecture/optid-d2-amendment.md) requires
+  exact rollback to be distinguished from emergency stabilization, durable
+  verified transactions, independent recovery, sealed typed capabilities, and
+  per-domain circuit breakers before hardware promotion.

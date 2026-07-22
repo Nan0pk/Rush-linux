@@ -59,6 +59,30 @@ If sources conflict, follow the higher source, name the conflict, recommend a
 resolution, and update or clearly mark the stale lower source. Do not quietly
 choose whichever source makes the task easier.
 
+### Current optid work
+
+The active optid construction source is
+[`OPTID-COMPLETION-PLAN.md`](OPTID-COMPLETION-PLAN.md). Its accepted safety
+architecture is the
+[`D2 fail-passive amendment`](docs/architecture/optid-d2-amendment.md), which
+replaces the plan's former S1–S3 broker lane with D0 and S1D–S5D. Do not revive
+the permanent broker or steady-state actuation IPC path unless a later explicit
+owner decision supersedes D2.
+
+Read [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml)
+before selecting work. It is the machine-readable package ledger. At its
+2026-07-22 activation:
+
+- F1 is the next general construction package;
+- D0 is the next safety-lane package; and
+- physical hardware nomination blocks release and automatic-actuation claims,
+  not observation, simulation, dry-run, disabled implementation, F1, or D0.
+
+If an older audit, plan, README, or chat calls hardware nomination the only
+project blocker, interpret that statement as a v0.6 evidence blocker only.
+Package dependencies and current work state come from the active plan and
+ledger.
+
 ## 4. Human-Effort Rule
 
 The human's time, attention, money, hardware, and patience are scarce project

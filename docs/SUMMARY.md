@@ -4,6 +4,11 @@
 - [Architecture](architecture.md)
 - [Implementation Status](IMPLEMENTATION_STATUS.md)
 
+## Active Optid Work
+- [Capability Completion Plan](../OPTID-COMPLETION-PLAN.md)
+- [D2 Fail-Passive Architecture Amendment](architecture/optid-d2-amendment.md)
+- [Machine-Readable Package Status](plans/optid-package-status.toml)
+
 ## Core Concepts
 - [Adaptive Engine](adaptive-engine.md)
 - [Agent Protocol](agent-protocol.md)

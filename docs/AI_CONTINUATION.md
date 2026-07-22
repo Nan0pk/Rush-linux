@@ -1,191 +1,165 @@
-# AI Continuation — Agent Handoff Document
+# AI Continuation — Current Rush Linux Handoff
 
-This file is the canonical orientation and operational runbook for future AI agents or human maintainers continuing the development of Rush Linux. Read it thoroughly before initiating any codebase changes.
+Last verified: 2026-07-22
 
----
+This is the short orientation for a fresh worker. `AGENTS.md` and
+`docs/SPEC-northstar.md` remain higher authority.
 
-## 🌌 Mission
+## Mission
 
-Continue building **Rush Linux**: a modern, verifiable, source-built Linux distribution architecture designed to deliver Apple-class adaptive power efficiency and responsiveness on x86_64 laptops.
+Continue building Rush Linux: an Arch-based adaptive operating-system project
+focused on power intelligence, responsiveness, evidence, and explainable
+behavior. `optid` is the policy brain, but LiveDev, testOS, image/boot/update
+work, measurement, and release evidence are also first-class project systems.
 
-Rather than relying on static, competing user-space scripts (e.g., TLP, TuneD, power-profiles-daemon), Rush Linux establishes a crystal-clear, single-owner optimization boundary owned entirely by **`optid`**—a highly explainable, multi-sensor pure-Rust workload orchestrator.
+Do not reduce the project to a power-daemon rewrite or a queue of GitHub tasks.
 
----
+## Read in this order
 
-## Forbidden Shortcuts
+1. [`AGENTS.md`](../AGENTS.md) — project constitution and authority order.
+2. [`docs/SPEC-northstar.md`](SPEC-northstar.md) — product invariants and
+   blocked work.
+3. [`OPTID-COMPLETION-PLAN.md`](../OPTID-COMPLETION-PLAN.md) — active optid
+   execution plan.
+4. [`docs/architecture/optid-d2-amendment.md`](architecture/optid-d2-amendment.md)
+   — owner-approved safety architecture.
+5. [`docs/plans/optid-package-status.toml`](plans/optid-package-status.toml) —
+   machine-readable package state and dependencies.
+6. [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — repository
+   implementation truth.
+7. `release/milestones.toml` and `release/evidence/` — release/evidence truth.
 
-To preserve the uncompromising engineering standards of Rush Linux, you must strictly adhere to the following rules:
-- **No Derivative Slop:** Do not replace our declarative image composition plane with custom procedural ISO build scripts.
-- **Reject Legacy Technology Base:** Do not introduce X11, PulseAudio, iptables, cgroup v1 baselines, SysV init, OpenRC, runit, or conflicting power daemons (TLP, power-profiles-daemon) as defaults.
-- **No Speculative claims (The Evidence Rule):** Any checkmark (✅) or claim of correctness/performance in documentation or milestone ledgers must be accompanied by an authentic command transcript. No claim substitutes for an empirical receipt.
-- **Do not bypass the Allowlist:** No sysfs or cgroup writes may occur outside the structural boundaries established in `guarded_write`.
-- **Maintain 100% Documentation Synchronization:** Architecture documents, docmap entries, and ADRs are non-negotiable acceptance criteria. Every code or config commit must concurrently update all dependent documents.
+Older audits and plans are useful history, not the current work selector.
 
----
+## Current state
 
-## 🔄 Session Lifecycle
+- Version pointer: `0.7.0-beta.4`.
+- v0.5 Minimal Installable System has committed milestone evidence.
+- v0.6 remains in progress. PPD/GameMode surfaces, `vm.guest`, the hardware
+  allowlist, core CPU controls, and initial dynamic-device actions have landed.
+- Runtime PM, PCIe ASPM, SATA ALPM, backlight, per-device PM QoS, and VM-sysctl
+  paths exist; they are not stubs.
+- The packaged apply service intentionally cannot write dynamic device paths.
+- Policy does not yet produce complete inverse desired state on every
+  transition.
+- Current recovery runs on startup and clean shutdown but is not the accepted
+  persistent verified crash-recovery protocol.
+- Every seeded hardware allowlist row is unverified, so automatic depth writes
+  remain denied by default.
+- Foreground/compositor integration is still a stub, so GameMode's per-PID
+  effect path is incomplete.
+- `sched_ext` is SPEC-blocked until WP-B1 evidence exists.
 
-Every agentic or human work session must follow this turnkey lifecycle:
+## The two next packages
 
-1. **Start Session:**
-   ```bash
-   bash tools/start-work.sh "what you are about to implement"
-   ```
-2. **Execute Work:** Implement code, stage builds, and run our comprehensive verification suite (`cargo test --workspace`).
-3. **Verify Documentation Consistency:**
-   ```bash
-   python3 tools/validate-doc-sync.py
-   ```
-4. **Finish Session:**
-   ```bash
-   bash tools/finish-work.sh "highly structured commit message"
-   ```
+There are two independent lanes:
 
-*(Note: If you must detach from a session before completion, create a `DIRTY_STATE.md` recording exactly what was completed and what blocker remains so the next agent can resume seamlessly).*
+### F1 — next general construction package
 
----
+Implement validated per-domain configuration:
 
-## 📊 Current State of the Architecture
+- `DomainMode { Off, Observe, Actuate }`;
+- typed configuration for every domain;
+- strict mixed/legacy-key validation;
+- a visible `EffectiveConfig` through `optctl`; and
+- compatibility for old boolean keys for one release with warnings, while
+  rejecting conflicting old/new keys.
 
-Rush Linux has completed the beta `v0.5.0-beta.1` Minimal Installable System milestone (all four exit criteria verified, PR #174) and the in-container portion of `v0.6.0-beta.1` Hardware-Aware optid (PPD + GameMode shims, `vm.guest` class, foreground stub — PRs #183–#186). The version pointer is now `0.7.0-beta.4` (Editions). **`v0.6.0-beta.1` is code-complete but not yet certified:** its two quantitative criteria are hardware-gated and await Phase D physical-hardware benchmarks.
+F1 changes no hardware-write behavior.
 
-### 🏆 Implemented and Fully Hardened
-- **Semantic Issue Boundary (ADR 0016):** Overarching multi-year Epics (Tracks A–D) and specification tracks (`WP-N1`–`WP-N9`, `WP-B1`) have been officially migrated out of open GitHub issues and consolidated into our markdown canon (`docs/SPEC-northstar.md` and `ROADMAP.md`). The GitHub repository presents exactly **1 Open Issue** (`good first issue` #3: *"Split optid into modules"*).
-- **Core Optimization Crate (`crates/optid`):** 
-  - Pure pure functional workload classifier resolving 5 distinct SPEC §1 workload classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`) with hysteresis and IPC D-Bus pinning (`optctl pin`).
-  - Active PM QoS latency budget enforcement (`config/optid/contracts.toml`) writing dynamic CPU DMA latency floors (`/dev/cpu_dma_latency`) and per-device PCI resume latency floors.
-  - **Single-instance exclusive file locking** (`M4` flock) on `optid.lock` to absolutely prevent multi-daemon race conditions.
-  - **Robust Signal Hooks (`H2`):** Actively intercepts `SIGTERM`, `SIGINT`, and `SIGHUP` to break the run loop cleanly, guaranteeing deterministic reversion of sysctls (`revert_sysctls`) and PM QoS floors (`revert_pm_qos`) when the daemon is stopped by systemd.
-  - **Path Traversal Security Blocks (`M1`):** Structural rejection of any candidate paths containing directory traversal (`..`) components in `guarded_write`.
-  - **TOML Crate Integration:** Standardized, highly maintainable deserialization of `policy.toml` via the `toml` crate.
-- **Measurement Harness (`crates/rushbench`):** Pure Rust tool capable of executing real energy probing (BAT / Intel RAPL) and responsiveness verification.
-- **Test-Verified Core:** Workspace tests pass at the count reported by `cargo test --workspace` (see CI for the current exact count; do not hardcode a number here, it goes stale). `validate-doc-sync.py` is the authoritative doc-sync gate.
-- **Staged Base OS Overlay (`mkosi/mkosi.extra/`):** Custom release binaries (`optid`, `optctl`, `optid-boot-assess`) have been completely recompiled and staged into Git under their exact target system paths in `mkosi/mkosi.extra/`.
+### D0 — next safety-lane package
 
----
+Build an experimental proof for:
 
-## Next Task
+- pre-opened sysfs descriptors remaining usable after Landlock;
+- prohibited new write opens failing;
+- restrictions applying before worker threads and remaining inherited;
+- removed sysfs objects failing safely;
+- a dedicated topology-rebuild exit status; and
+- systemd recovery completing before cold restart rebuilds the descriptor
+  table.
 
-**First, run Dragnet.** Before any feature work, run `python3 tools/dragnet.py
---observe` and read the newest report in `release/evidence/dragnet/`. As of
-2026-06-28 the report is GREEN (DRAGNET-008); the v0.3/v0.4/v0.5 evidence
-debt closed by PR #174 (2026-06-23) is settled.
+D0 does not connect to production actuation. It gates S4D only. If the proof
+fails on a supported kernel, record the exact kernel/ABI/object/syscall result
+and stop S4D; do not invent a silent unsealed fallback.
 
-**v0.6.0-beta.1 — Hardware-Aware optid: in-container Phases A–C are merged.**
-The implementation plan lives at
-`docs/plans/v0.6-hardware-aware-optid-proposal.md` (5-phase: A through E).
-Merged Work Packages: Phase A (allowlist foundation), Phase B1/B2 (PPD shim
-PR #183, GameMode shim PR #184), Phase C2 (`vm.guest` class PR #185), Phase C1
-(foreground stub PR #186), and Phase E (version bump to `0.7.0-beta.4`, this
-branch).
+## Accepted D2 safety lane
 
-**THE LIVE BLOCKER IS PHASE D (hardware gate).** The two quantitative v0.6
-exit criteria — "mixed-load responsiveness improves on two machines" and
-"battery behavior matches or improves mainstream defaults" — cannot be done by
-an agent. They require:
+The owner rejected the former broker/one-root-daemon/observe-only menu and
+accepted D2:
 
-1. **D1** — nominate two physical reference machines; fill in
-   `docs/strategy/reference-hardware.md` (one desktop, one battery laptop;
-   suggested baseline Ubuntu 24.04 LTS + PPD `balanced`).
-2. **D2** — the `mixed-load-001` workload is defined in
-   `docs/strategy/mixed-load-workload.md`; wire it into `rushbench` as a named
-   preset.
-3. **D3/D4** — baseline + `optid --apply` runs on each machine; commit
-   transcripts under `release/evidence/host-bench/<date>-<hostname>/`
-   (copy the shape from `release/evidence/host-bench/_TEMPLATE/`).
-4. **D5** — write `VERDICT.md` per machine; copy the verdict text into the v0.6
-   `criteria_status` `note` fields in `release/milestones.toml` and flip
-   `verified = true` only on PASS. Only then may v0.6 be marked `complete`.
+`D0 → S1D → S2D → S3D → S4D → S5D`
 
-Until Phase D lands, `release/milestones.toml` keeps v0.6 `status =
-"in-progress"` with all four criteria `verified = false`, per the Evidence Rule.
+“Architecture D2” is the safety decision. Package `D2` is still the separate
+storage-depth package; do not confuse the two in worker packets or status.
 
-**Historical: Phase A was completed 2026-06-28:**
+- exact pre-opened typed capability descriptors;
+- Landlock installed before worker threads;
+- no permanent actuation broker and no steady-state write-path IPC;
+- rollback distinct from emergency stabilization for every lever;
+- persistent write-ahead recovery under `/var/lib/optid/recovery/`;
+- apply/readback/compensation transactions;
+- a minimal independent `optid-recover` executable;
+- a real control-loop systemd watchdog heartbeat;
+- supervisor-managed cold restart for hotplug topology rebuild; and
+- persistent per-domain/HWID circuit breakers with canary re-entry.
 
-- A1 — WP-N4 allowlist foundation verified (12 optid + 4 optctl tests pass).
-- A2 — Criterion 4 enumeration harness added
-  (`crates/optid/tests/write_site_gating.rs`); 29 write sites inventoried,
-  every site classified as `allowlist` / `adr0009-baseline` / `state-file` /
-  `revert-path` / `non-sysfs`; drift-detection assertions catch new sites
-  added without classification.
-- A3 — `--allowlist` default flipped from `disabled` to `enabled`;
-  `--no-allowlist` is the new emergency escape hatch. Five new
-  `args::tests` pin the new default.
-- A5 — research-0006 §7 medium-term plan updated; docmap.toml
-  `covers_code` extended to include `crates/optid/src/args.rs`;
-  `last_verified` bumped to 2026-06-28.
+Do not revive S1–S3 from the pre-amendment plan. D-Bus/session authentication
+still requires consistent polkit and is handled by X1; it is not an actuation
+broker.
 
-**Phase B (PPD + GameMode shims) is the next in-container Work Package.**
-Per the proposal §3 Phase B, the work is:
+## Hardware evidence is not a build gate
 
-1. `crates/optid/src/shim/ppd.rs` — implement `net.hadess.PowerProfiles`
-   D-Bus interface on the `io.rushlinux.Optid1` name. GNOME Settings →
-   Power slider and KDE `powerdevil` speak this interface.
-2. `crates/optid/src/shim/gamemode.rs` — implement
-   `com.feralinteractive.GameMode.RegisterGame` / `UnregisterGame` /
-   `QueryStatus`. Steam, Lutris, Heroic speak this interface; no client
-   changes needed.
-3. `crates/optid/src/shim/conflict.rs` — detect `tlp.service`,
-   `tuned.service`, `power-profiles-daemon.service` at startup; refuse
-   `--apply` if any is running.
-4. Tests: `crates/optid/tests/shim_ppd.rs`, `shim_gamemode.rs` —
-   exercise the D-Bus interfaces against a mock session bus.
+Physical reference machines are required to:
 
-**Phase C (foreground detection + vm.guest class)** can proceed in parallel
-with Phase B. Phase C1 (foreground) is feature-flagged off by default
-(`--foreground=off`); Phase C2 (vm.guest class) is fully unit-testable
-in-container.
+- promote a HWID/firmware combination from observe to automatic actuation;
+- verify v0.6 responsiveness and battery criteria; and
+- make release or performance claims.
 
-**Phase D (reference machines + baselines) is the human/hardware gate.**
-Two physical machines need to be nominated by the project owner (one
-desktop, one battery-equipped laptop), baselines collected under a
-mainstream distro (suggested: Ubuntu 24.04 LTS with PPD `balanced`), then
-`optid --apply` runs on the same hardware, and `rushbench` transcripts
-committed. The Phase A PR description must surface D1 (machine
-nomination) so the project owner has lead time.
+They are not required for observation, simulation, dry-run, disabled code,
+F1–F4, D0, deterministic fixtures, diagnostics, or pure controller work.
 
-### Engine and evidence gaps that an agent CAN close without hardware
+## Work-session lifecycle
 
-Phase D is human-only, but several engine/evidence gaps in the in-container
-work are still agent-addressable and were the focus of the post-PR-#270 cleanup
-pass. These are being addressed as a series of small, independently reviewable
-PRs:
+Start non-read-only work with:
 
-1. **Latency-contract correction** (PR A, this branch). The `latency-critical`
-   CPU wakeup and device-resume floors were 10 us / 100 us -- unachievable on
-   non-RT kernels (per `tools/external-data/analysis/baselines.json`, 0% of
-   OSADL RT-kernel systems reach max cyclictest < 100 us), producing permanent
-   `budget_violation` in `rushbench` reports. Corrected to 1 ms / 1 ms
-   (1000 us / 1000 us) in `config/optid/contracts.toml`,
-   `Contracts::default()`, and the `crates/rushbench` mock fixtures. The
-   five primary SPEC section 1 workload classes (idle, light, interactive,
-   latency-critical, throughput) remain the contract surface; `vm.guest` is
-   a derived execution environment that resolves to `interactive` (PM QoS
-   does not propagate across the hypervisor boundary), not a sixth primary
-   class.
+```bash
+bash tools/start-work.sh "short task description"
+```
 
-   **Authority note:** The 1 ms / 1 ms correction is a **proposed correction**
-   from the post-PR-#270 handoff prompt, not yet ratified as an accepted ADR.
-   The OSADL cyclictest data supports the correction but does not constitute
-   physical-hardware validation on Rush reference machines. The SPEC-northstar
-   §1 defines latency-critical as a floor "never a target to exceed" but does
-   not pin a numeric value; the 10/100 µs values were provisional. This PR
-   corrects the provisional values; a follow-up ADR should ratify 1 ms as the
-   accepted default.
+Implement one coherent package, update its ledger entry, add behavior tests,
+and run:
 
-2. **Systemd unit <-> actuator capability drift** (PR B, separate branch).
-   To be addressed in a follow-up PR.
-3. **Actuator boundary hardening** (PR B, separate branch).
-4. **Multi-write transactional semantics** (PR C, separate branch).
-5. **Documentation drift** (addressed incrementally across PRs A/B/C).
+```bash
+bash tools/finish-work.sh --dry-run
+```
 
-### Phase D (reference machines + baselines) is the human/hardware gate
+Agents may commit, push a branch, and open a draft pull request. They never
+merge or enable auto-merge. The human maintainer merges.
 
-Two physical machines need to be nominated by the project owner (one
-desktop, one battery-equipped laptop), baselines collected under a
-mainstream distro (suggested: Ubuntu 24.04 LTS with PPD `balanced`), then
-`optid --apply` runs on the same hardware, and `rushbench` transcripts
-committed. The Phase A PR description must surface D1 (machine
-nomination) so the project owner has lead time.
+## Non-negotiable safeguards
 
-Happy hacking! Always execute under the **Evidence Rule**.
+- Do not bypass explicit apply mode, typed capability/path validation,
+  responsiveness-contract fit, or verified hardware authorization.
+- Do not call a kernel-valid value hardware-safe without matching evidence.
+- Do not call emergency stabilization “rollback” or “kernel default.”
+- Do not mark hardware verified from mocks.
+- Do not start `sched_ext`, fan actuation, MUX writes, or production render/ALS
+  actuation without the missing higher-authority decision/evidence.
+- Do not integrate the quarantined `rush_telemetry` crate as-is.
+- Do not make hardware nomination a reason to stop unrelated safe work.
+
+## Handoff facts
+
+When finishing or stopping, report:
+
+- immutable base SHA and package ID;
+- exact files changed;
+- exact commands and results;
+- assumptions and source citations;
+- unresolved dependency or stop condition;
+- ledger status/PR update; and
+- whether any claim still needs hardware or independent verification.
+
+Never invent a branch, commit, pull request, check result, approval, or
+hardware receipt.
