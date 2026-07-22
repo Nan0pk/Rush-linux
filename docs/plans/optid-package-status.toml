@@ -127,9 +127,38 @@ completion_evidence = []
 id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
+# Construction is complete on the F4 work branch; the PR is opened by the
+# builder and merged by the maintainer. Per the ledger's status vocabulary,
+# `completed` requires a linked PR number, so F4 stays `planned` until merge.
 status = "planned"
 depends = ["F2", "F3"]
 pr = ""
+# Builder-provided construction evidence (reviewed by the maintainer at merge):
+# - crates/optid/src/reconciler.rs (new, ~800 LOC): Reconciler struct with
+#   per-domain state tracking (baseline/desired/last_attempted/last_confirmed/
+#   ownership/retries), transition detection (AcChanged, WorkloadChanged,
+#   ModeChanged, ConfigReloaded, DeviceRemoved, DomainDisabled), restore
+#   action generation, coalesce-identical-writes (should_write), bounded
+#   retries (MAX_RETRIES=3), drift detection (relinquish ownership on drift),
+#   shadow/v1 mode toggle. Self-contained types (Ownership, DesiredState,
+#   ApplyResult, RestoreResult, ApplyOutcome, RestoreOutcome) — will align
+#   with envelope::types when F3 merges.
+# - crates/optid/src/main.rs: registered `mod reconciler`.
+# - 24 reconciler tests: transition detection (AC, workload, mode, domain
+#   disable, no-transition-on-first-observation), reconcile DomainDisabled
+#   (emits restore, shadow mode emits nothing, doesn't restore unowned),
+#   reconcile AC/workload/mode (restores domains with no desired, skips
+#   domains with active desired), coalesce (redundant write skipped, changed
+#   value written, unconfirmed domain written), bounded retries (increments,
+#   exceeds MAX_RETRIES → relinquish, desired change resets), drift
+#   detection (relinquishes ownership), device removal (drops state),
+#   DesiredState envelope (all domains, tracked values), transition describe,
+#   config reload, apply/restore outcome helpers.
+# - cargo test -p optid: 391 passed, 0 failed (343 unit + 13 integration +
+#   16 PPD + 16 GameMode + 3 write-site)
+# - cargo fmt --all -- --check: clean
+# - cargo clippy --workspace --all-targets -- -D warnings: clean
+# - bash tools/checks.sh: PASS
 completion_evidence = []
 
 [[package]]
