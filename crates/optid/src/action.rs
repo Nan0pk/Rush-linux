@@ -9,6 +9,8 @@
 
 use std::path::PathBuf;
 
+use crate::policy::Domain;
+
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
     CpuEpp {
@@ -102,6 +104,31 @@ impl Action {
             path,
             value,
             reason,
+        }
+    }
+
+    /// F1 — The actuation domain this `Action` belongs to. `SystemdSetProperty`
+    /// returns `None` because it invokes `systemctl` (cgroup reweight) rather
+    /// than writing to sysfs/procfs/devfs and is therefore not subject to the
+    /// per-domain `DomainMode` gate. Every other variant returns its domain,
+    /// which `Policy::decide_resolved` uses to filter actions by effective
+    /// mode before they reach the actuator.
+    ///
+    /// Keep this in lockstep with `crate::capability::Capability::allowlist_domain`
+    /// and `crate::policy::Domain::as_str`. The `action_domain_matches_capability`
+    /// test enforces the triple-stay-in-sync invariant.
+    pub(crate) fn domain(&self) -> Option<Domain> {
+        match self {
+            Action::CpuEpp { .. } => Some(Domain::CpuEpp),
+            Action::PlatformProfile { .. } => Some(Domain::PlatformProfile),
+            Action::SystemdSetProperty { .. } => None,
+            Action::VmSysctl { .. } => Some(Domain::VmSysctl),
+            Action::CpuDmaLatency { .. } => Some(Domain::CpuDmaLatency),
+            Action::DeviceResumeLatency { .. } => Some(Domain::DeviceResumeLatency),
+            Action::RuntimePm { .. } => Some(Domain::RuntimePm),
+            Action::PcieAspm { .. } => Some(Domain::PcieAspm),
+            Action::SataAlpm { .. } => Some(Domain::SataAlpm),
+            Action::Backlight { .. } => Some(Domain::Backlight),
         }
     }
 
