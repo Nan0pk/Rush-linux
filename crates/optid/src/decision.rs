@@ -3,6 +3,7 @@
 //! `optctl status` / `optctl explain` read.
 
 use crate::action::Action;
+use crate::policy::EffectiveConfig;
 use crate::sensors::{fmt_pressure, Snapshot};
 use crate::workload::{Mode, WorkloadClass};
 
@@ -15,6 +16,10 @@ pub(crate) struct Decision {
     pub(crate) workload_reason: String,
     pub(crate) cpu_wakeup_latency: Option<i64>,
     pub(crate) device_resume_latency: Option<i64>,
+    /// F1 — The per-domain effective config used to filter this decision's
+    /// actions. Rendered into the status report so `optctl status` shows
+    /// exactly what optid is allowed to do per domain.
+    pub(crate) effective_config: EffectiveConfig,
 }
 
 impl Decision {
@@ -58,6 +63,12 @@ impl Decision {
         for action in &self.actions {
             out.push_str(&format!("- {}\n", action.describe()));
         }
+        // F1 — append the effective per-domain config so `optctl status`
+        // surfaces the runtime mode of every domain. This is the
+        // "EffectiveConfig object consumed by policy and exposed to optctl"
+        // contract from the F1 plan.
+        out.push_str("effective_config:\n");
+        out.push_str(&self.effective_config.render());
         out
     }
 }

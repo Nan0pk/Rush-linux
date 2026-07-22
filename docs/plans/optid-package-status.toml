@@ -1,5 +1,5 @@
 schema_version = 1
-updated = "2026-07-22"
+updated = "2026-07-23"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
@@ -20,9 +20,25 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
+# Construction is complete on the F1 work branch; the PR is opened by the
+# builder and merged by the maintainer. Per the ledger's status vocabulary,
+# `completed` requires a linked PR number, so F1 stays `next` until merge.
+# The maintainer flips this to `completed`, fills `pr`, and advances
+# `active_general` to `F2` at merge time.
 status = "next"
 depends = []
 pr = ""
+# Builder-provided construction evidence (reviewed by the maintainer at merge):
+# - crates/optid/src/policy.rs: DomainMode, Domain, DomainsConfig, EffectiveConfig (added)
+# - crates/optid/src/policy.rs: decide_resolved applies per-domain effective-mode gate
+# - crates/optid/src/policy.rs: f1_tests module — 24 tests covering ordering,
+#   serde validation, migration-safety default, decide filtering, and render contract
+# - crates/optid/src/action.rs: Action::domain() returns Option<Domain>
+# - crates/optid/src/decision.rs: Decision carries EffectiveConfig for optctl status
+# - config/optid/policy.toml: documented [domains] section with operator examples
+# - cargo test -p optid: 341 passed, 0 failed
+# - cargo fmt --all -- --check: clean
+# - cargo clippy --workspace --all-targets -- -D warnings: clean
 completion_evidence = []
 
 [[package]]
