@@ -10,6 +10,21 @@ rust-version.workspace = true
 name = "optid"
 path = "src/main.rs"
 
+# D0 — Experimental capability-sealing prototype binary.
+# Only compiles with --features experimental-capability-sealing.
+# Never enabled in shipped optid (per AGENTS.md §8 and the D0 plan).
+[[bin]]
+name = "optid-capability-seal-test"
+path = "src/bin/optid-capability-seal-test.rs"
+required-features = ["experimental-capability-sealing"]
+
+[features]
+# D0: experimental Landlock capability-sealing prototype. Validates the
+# D2 fail-passive architecture's security boundary. Not connected to
+# production actuation. Per the D0 plan, this must never be enabled in
+# shipped optid.
+experimental-capability-sealing = []
+
 [dependencies]
 zbus = { version = "5.16.0", features = ["blocking"] }
 # zvariant is re-exported by zbus but we use OwnedValue directly in the
