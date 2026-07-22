@@ -189,6 +189,12 @@ def check_stale_patterns(entries):
              "D-Bus is already implemented (see docs/IMPLEMENTATION_STATUS.md)"),
             ("currently talks through the state directory",
              "optctl now uses D-Bus first with file fallback"),
+            ("code-complete; Phase D hardware-gated",
+             "optid capability construction remains active; hardware gates promotion claims"),
+            ("restores every knob it touched",
+             "current recovery is not yet the persistent verified D2 protocol"),
+            ("Nothing is permanently changed on your system",
+             "apply mode cannot promise universal crash/power-loss recovery yet"),
         ]
         for phrase, reason in stale_phrases:
             if phrase.lower() in readme.lower():
@@ -202,8 +208,19 @@ def check_markdown_links(entries):
     print("\n── Check: Markdown link resolution ──")
     link_pattern = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
-    docs_to_check = ["README.md", "CONTRIBUTING.md", "docs/architecture.md",
-                     "docs/adaptive-engine.md", "docs/AI_CONTINUATION.md"]
+    docs_to_check = [
+        "AGENTS.md",
+        "OPTID-COMPLETION-PLAN.md",
+        "README.md",
+        "CONTRIBUTING.md",
+        "docs/AI_CONTINUATION.md",
+        "docs/IMPLEMENTATION_STATUS.md",
+        "docs/SUMMARY.md",
+        "docs/adaptive-engine.md",
+        "docs/architecture.md",
+        "docs/architecture/optid-d2-amendment.md",
+        "docs/plans/corrected-path-forward-v0.6-to-v1.md",
+    ]
 
     broken = 0
     for doc_path in docs_to_check:
@@ -220,13 +237,110 @@ def check_markdown_links(entries):
             if not link:
                 continue
             # Check file exists
-            target = ROOT / link
+            target = (ROOT / doc_path).parent / link
             if not target.exists():
                 err(f"Broken link in {doc_path}: '{link}'")
                 broken += 1
 
     if broken == 0:
         ok(f"All internal links in {len(docs_to_check)} key docs resolve")
+
+
+def check_optid_plan_activation(entries):
+    """Keep the human-facing plan and machine-readable work selector aligned."""
+    print("\n── Check: active optid plan and package ledger ──")
+
+    plan = read_file("OPTID-COMPLETION-PLAN.md")
+    amendment = read_file("docs/architecture/optid-d2-amendment.md")
+    readme = read_file("README.md")
+    handoff = read_file("docs/AI_CONTINUATION.md")
+    ledger_path = ROOT / "docs" / "plans" / "optid-package-status.toml"
+    ledger_text = read_file("docs/plans/optid-package-status.toml")
+
+    if not plan or not amendment or not readme or not handoff or not ledger_text or not ledger_path.exists():
+        err("active optid plan, D2 amendment, README, or package ledger is missing")
+        return
+
+    try:
+        with ledger_path.open("rb") as f:
+            ledger = tomllib.load(f)
+    except Exception as e:
+        err(f"optid package ledger failed to parse: {e}")
+        return
+
+    provenance = "all other packages carry forward the completion plan merged in PR #322"
+    if provenance not in ledger_text:
+        err("optid package ledger does not identify PR #322 as the source of non-safety packages")
+    else:
+        ok("optid package ledger records PR #322 provenance for non-safety packages")
+
+    worker_reading_tokens = (
+        "Reading order for safety-lane packets",
+        "it is the actionable summary",
+        "long-form research only when the packet needs deeper justification",
+    )
+    if any(token not in plan for token in worker_reading_tokens):
+        err("optid worker contract does not require amendment-first, reference-on-demand reading")
+    elif "For safety work, read the amendment first." not in handoff:
+        err("AI continuation handoff does not mirror the amendment-first reading order")
+    else:
+        ok("worker contract and handoff require amendment-first, reference-on-demand reading")
+
+    packages = ledger.get("package", [])
+    ids = [p.get("id") for p in packages]
+    known = set(ids)
+    valid_statuses = {"next", "ready_parallel", "planned", "completed", "blocked"}
+
+    if len(packages) != 30:
+        err(f"optid package ledger must contain 30 active packages, found {len(packages)}")
+    elif len(known) != len(ids):
+        err("optid package ledger contains duplicate package IDs")
+    else:
+        ok("optid package ledger contains 30 unique packages")
+
+    for package in packages:
+        package_id = package.get("id", "<missing>")
+        status = package.get("status")
+        if status not in valid_statuses:
+            err(f"optid package {package_id} has invalid status {status!r}")
+        for dep in package.get("depends", []):
+            if dep not in known:
+                err(f"optid package {package_id} depends on unknown package {dep}")
+            if dep == package_id:
+                err(f"optid package {package_id} depends on itself")
+
+    by_id = {p.get("id"): p for p in packages}
+    for key, expected in (("active_general", "F1"), ("active_safety", "D0")):
+        actual = ledger.get(key)
+        if actual != expected:
+            err(f"optid ledger {key} must be {expected}, found {actual!r}")
+        elif by_id.get(actual, {}).get("status") != "next":
+            err(f"optid ledger {key}={actual} is not marked next")
+        else:
+            ok(f"{key} is {actual} and marked next")
+
+    if ledger.get("safety_architecture") != "D2-fail-passive":
+        err("optid ledger must record safety_architecture = D2-fail-passive")
+    elif "**Status:** Active" not in plan:
+        err("OPTID-COMPLETION-PLAN.md is not marked Active")
+    elif any(heading in plan for heading in ("### S1 —", "### S2 —", "### S3 —")):
+        err("OPTID-COMPLETION-PLAN.md still contains superseded S1-S3 package headings")
+    elif "**Status:** Accepted owner direction" not in amendment:
+        err("D2 amendment is not marked as accepted owner direction")
+    else:
+        ok("D2 is accepted and superseded S1-S3 package headings are absent")
+
+    required_readme = (
+        "F1 is next for general construction",
+        "D0 is next for the safety lane",
+        "docs/architecture/optid-d2-amendment.md",
+        "docs/plans/optid-package-status.toml",
+    )
+    missing = [token for token in required_readme if token not in readme]
+    if missing:
+        err(f"README is missing active optid truth: {', '.join(missing)}")
+    else:
+        ok("README names F1, D0, D2, and the package ledger")
 
 
 def check_optid_doc_sync(entries):
@@ -373,6 +487,7 @@ def main():
     check_adr_status(entries)
     check_stale_patterns(entries)
     check_markdown_links(entries)
+    check_optid_plan_activation(entries)
     check_optid_doc_sync(entries)
     check_last_verified(entries, args.max_age)
     check_adr_citations_resolve(entries)

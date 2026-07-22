@@ -1,0 +1,295 @@
+schema_version = 1
+updated = "2026-07-22"
+plan = "OPTID-COMPLETION-PLAN.md"
+architecture = "docs/architecture/optid-d2-amendment.md"
+safety_architecture = "D2-fail-passive"
+active_general = "F1"
+active_safety = "D0"
+
+# Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
+
+# Status vocabulary:
+# next           = canonical next package for its lane
+# ready_parallel = independent work may start without displacing the lane's next package
+# planned        = waits for listed dependencies or an accepted dependent specification
+# completed      = linked PR and required package-level proof are recorded
+# blocked        = a named accepted decision or dependency prevents construction
+# Promotion gates are separate from construction status.
+
+[[package]]
+id = "F1"
+lane = "foundation"
+title = "Freeze capability states and domain configuration"
+status = "next"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "F2"
+lane = "foundation"
+title = "Introduce injectable kernel I/O, clock, and event boundaries"
+status = "ready_parallel"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "F3"
+lane = "foundation"
+title = "Version observations, decisions, and action outcomes"
+status = "planned"
+depends = ["F1"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "F4"
+lane = "foundation"
+title = "Reconcile complete desired state and restore on transitions"
+status = "planned"
+depends = ["F2", "F3"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D0"
+lane = "safety"
+title = "Prototype capability sealing and supervisor-managed cold restart"
+status = "next"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "S1D"
+lane = "safety"
+title = "Freeze per-lever rollback, stabilization, and semantic envelopes"
+status = "planned"
+depends = ["D0"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "S2D"
+lane = "safety"
+title = "Implement persistent verified write-ahead transactions"
+status = "planned"
+depends = ["F2", "F3", "S1D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "S3D"
+lane = "safety"
+title = "Add independent recovery, watchdog, and boot ordering"
+status = "planned"
+depends = ["S2D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "S4D"
+lane = "safety"
+title = "Move writes to a sealed typed capability table"
+status = "planned"
+depends = ["D0", "F4", "S3D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "S5D"
+lane = "safety"
+title = "Add domain circuit breakers and controlled canary re-entry"
+status = "planned"
+depends = ["F3", "F4", "S4D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "C1"
+lane = "contracts"
+title = "Model contracts with measured latency and provenance"
+status = "planned"
+depends = ["F1", "F3"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "E1"
+lane = "events"
+title = "Replace the fixed sleep with a real event reactor"
+status = "planned"
+depends = ["F2"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "O1"
+lane = "observability"
+title = "Add truthful runtime-state observability"
+status = "planned"
+depends = ["F2", "F3"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "O2"
+lane = "observability"
+title = "Discover cgroup v2 scopes and compute resource pull"
+status = "planned"
+depends = ["F2", "F3"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "X1"
+lane = "context"
+title = "Define and secure the session-context bridge"
+status = "planned"
+depends = ["F3", "O2"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "X2"
+lane = "context"
+title = "Implement compositor backends and correct GameMode"
+status = "planned"
+depends = ["X1"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D1"
+lane = "depth"
+title = "Complete runtime PM as a reconciled domain"
+status = "planned"
+depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D2"
+lane = "depth"
+title = "Complete storage depth control, including NVMe APST"
+status = "planned"
+depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D3"
+lane = "depth"
+title = "Finish backlight ownership and add the display bridge"
+status = "planned"
+depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D", "X1"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D4"
+lane = "depth"
+title = "Add conservative dGPU runtime PM and keep MUX advisory"
+status = "planned"
+depends = ["D1"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "D5"
+lane = "depth"
+title = "Keep memory ownership with the correct component"
+status = "planned"
+depends = ["C1", "F4", "S2D", "S3D"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "T1"
+lane = "thermal"
+title = "Build thermal sensing and a pure budget model"
+status = "ready_parallel"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "T2"
+lane = "thermal"
+title = "Add powercap discovery and PI simulation"
+status = "planned"
+depends = ["T1"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "T3"
+lane = "thermal"
+title = "Promote PL1 actuation behind all safety gates"
+status = "planned"
+depends = ["C1", "S2D", "S3D", "S4D", "S5D", "T2"]
+promotion = "matching_hardware_evidence"
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "R1"
+lane = "research"
+title = "Resolve telemetry ownership and extract stable parsers"
+status = "ready_parallel"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "R2"
+lane = "research"
+title = "Specify remaining platform primitives before implementation"
+status = "ready_parallel"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "R3"
+lane = "research"
+title = "Run feasibility gates for render scaling and ALS"
+status = "ready_parallel"
+depends = []
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "I1"
+lane = "integration"
+title = "Make diagnostics and configuration friction-free"
+status = "planned"
+depends = ["F3"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "I2"
+lane = "integration"
+title = "Build the full-system simulation and fault matrix"
+status = "planned"
+depends = ["F3", "F4"]
+pr = ""
+completion_evidence = []
+
+[[package]]
+id = "I3"
+lane = "integration"
+title = "Integrate and promote without turning hardware into a build gate"
+status = "planned"
+depends = ["I1", "I2"]
+promotion = "matching_hardware_evidence"
+pr = ""
+completion_evidence = []
+
+[[excluded]]
+id = "sched_ext"
+status = "spec_blocked"
+root = "docs/SPEC-northstar.md:207-212"
+reason = "No work package may start until WP-B1 evidence exists and governing authority changes."

@@ -2,38 +2,39 @@
 
 **Date:** 2026-07-19  
 **Author:** Repository Analysis  
-**Status:** Proposed  
+**Status:** Superseded for implementation sequencing; retained as a v0.6 release-evidence plan
 **Supersedes:** Implicit path in `ROADMAP.md` (version sequencing correction)
+**Superseded by:** `OPTID-COMPLETION-PLAN.md` and `docs/plans/optid-package-status.toml` for construction order
 
 ---
 
 ## Executive Summary
 
-This document corrects the project's milestone sequencing and identifies the single critical blocker preventing forward progress: **nomination of two reference machines for v0.6 Phase D benchmarks**.
+This document corrects milestone sequencing and identifies the blocker for **v0.6 Phase D evidence and release promotion**: nomination of two reference machines. It no longer defines the optid construction queue.
 
 The project is currently at version `0.7.0-beta.4`, but this is a **versioning artifact** — v0.6.0-beta.1 (Hardware-Aware optid) remains incomplete with 0/4 exit criteria verified. Per the Evidence Rule, v0.7 (Editions) cannot be meaningfully completed until v0.6's quantitative criteria are satisfied, because edition behavior (desktop, laptop, realtime) must be validated against the hardware-aware optid policies.
 
-**Recommendation:** Freeze version pointer at `0.7.0-beta.4` but treat v0.6 completion as the immediate gate. Do not advance to v0.8 until v0.6 closes.
+**Recommendation:** Keep the version pointer at `0.7.0-beta.4` and do not make later release claims until v0.6 evidence closes. Continue safe construction through the active optid plan: F1 is the next general package and D0 is the next safety package.
 
 ---
 
 ## Critical Path Analysis
 
-### Hard Gates (Sequential Dependencies)
+### Release and promotion gates (sequential dependencies)
 
 ```
 v0.6 Phase A-C (in-container) → v0.6 Phase D (hardware) → v0.7 (editions) → v0.8 (benchmarks) → v0.9 (RC) → v1.0 (stable)
 ```
 
-**Current state:**
-- ✅ v0.6 Phase A (allowlist verify + default flip + Criterion 4 harness) — code-complete, needs verification
+**Current release-evidence state:**
+- ✅ v0.6 Phase A slice (allowlist verify + default flip + Criterion 4 harness) — merged; broader capability completion continues in the active plan
 - ✅ v0.6 Phase B (PPD/GameMode shims + conflict detection) — merged (PRs #183-#186)
 - ✅ v0.6 Phase C (foreground stub + vm.guest class) — merged (PRs #185-#186)
 - ⛔ **v0.6 Phase D (hardware benchmarks)** — BLOCKED awaiting machine nomination
 - ⏸️ v0.7 (editions) — cannot validate without v0.6 Phase D data
 - ⏸️ v0.8+ — downstream of v0.7
 
-### The Single Blocker
+### The v0.6 release-evidence blocker
 
 **Action Required:** Project owner must nominate two physical reference machines per [`docs/strategy/reference-hardware.md`](../strategy/reference-hardware.md):
 
@@ -42,10 +43,14 @@ v0.6 Phase A-C (in-container) → v0.6 Phase D (hardware) → v0.7 (editions) �
 | Desktop | ❌ TBD | Nominate machine, confirm physical access, confirm baseline distro (Ubuntu 24.04 LTS recommended) |
 | Laptop | ❌ TBD | Nominate machine (HP Victus candidate exists but needs clean re-capture), confirm battery present, confirm baseline distro |
 
-**Why this blocks everything:**
+**What this blocks:**
 - v0.6 Criterion 2: "mixed-load responsiveness improves on two machines" — requires physical runs
 - v0.6 Criterion 3: "battery behavior matches or improves mainstream defaults" — requires battery-equipped laptop
-- v0.7 editions must demonstrate correct optid behavior per edition (desktop vs laptop vs realtime) — requires v0.6 validation first
+- v0.7 edition validation and later release promotion claims that depend on proven optid behavior
+
+It does **not** block observation, simulation, dry-run, disabled implementation,
+F1–F4, D0, diagnostics, or pure controllers. Those dependencies are defined in
+`OPTID-COMPLETION-PLAN.md`, not this historical release sequence.
 
 ---
 
@@ -124,7 +129,7 @@ Once machines are nominated:
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| No machines nominated within 2 weeks | HIGH | CRITICAL — project stalls | Escalate to project owner; this is the single point of failure |
+| No machines nominated within 2 weeks | HIGH | CRITICAL — v0.6 evidence and dependent release promotion stall | Preserve construction momentum through the active optid plan while the owner resolves hardware access |
 | Machines nominated but not accessible for runs | MEDIUM | HIGH | Confirm access owner and scheduling commitment upfront |
 | Baseline runs fail due to missing hardware support | MEDIUM | MEDIUM | Use allowlist override mechanism (`/etc/optid/allowlist.d/`) to enable testing on unseeded hardware |
 | Optid shows no improvement or regression | LOW-MEDIUM | HIGH | This is valid scientific outcome — document findings, iterate on policy, do not suppress negative results |
@@ -199,8 +204,10 @@ The project is in an unusually strong position for its stage:
 - Code quality is high (all tests passing, clippy clean)
 - Documentation is comprehensive and honest
 
-**The only blocker is human:** two machines must be nominated and accessed for benchmark runs. This is a 1-2 week action item that unlocks the entire v0.6→v1.0 path.
+**The remaining blocker for v0.6 hardware evidence is owner/hardware access:** two machines must be nominated and benchmarked. That does not make the human the blocker for ongoing engineering.
 
-Once v0.6 closes, the remaining milestones (v0.7 editions, v0.8 benchmarks, v0.9/v1.0 hardening) are largely engineering execution without external dependencies.
+Once v0.6 evidence closes, dependent release promotion can proceed. Meanwhile,
+construction follows the active completion plan and package ledger.
 
-**Recommendation:** Prioritize machine nomination above all other work. Everything else waits on this.
+**Recommendation:** Pursue machine nomination for evidence in parallel with F1
+and D0. Do not stop safe, independently testable construction.
