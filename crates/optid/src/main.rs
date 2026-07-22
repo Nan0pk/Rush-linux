@@ -26,6 +26,7 @@ mod capability;
 mod contracts;
 mod dbus;
 mod decision;
+mod envelope;
 mod foreground;
 mod io_util;
 mod kernel_io;

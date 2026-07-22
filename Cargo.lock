@@ -535,6 +535,7 @@ version = "0.7.0-beta.4"
 dependencies = [
  "libc",
  "serde",
+ "serde_json",
  "signal-hook",
  "toml",
  "zbus",
