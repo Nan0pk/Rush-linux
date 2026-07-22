@@ -20,11 +20,10 @@ use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
 use crate::capability::Capability;
-use crate::io_util::{
-    append_log, atomic_write_state_file, get_path_hash, guarded_write, mark_applied,
-};
+use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, mark_applied};
+use crate::kernel_io::{KernelIo, KernelWrite, RealKernel};
 use crate::load_state::BootState;
-use crate::sensors::{discover_cpu_epp_paths, now_unix};
+use crate::sensors::discover_cpu_epp_paths_with;
 
 pub(crate) trait PmqosSink {
     fn read_cpu_latency(&self) -> io::Result<String>;
@@ -72,7 +71,7 @@ impl PmqosSink for RealPmqosSink {
     }
 
     fn write_device_latency(&mut self, device_path: &Path, value: &str) -> io::Result<()> {
-        guarded_write(device_path, value)
+        crate::kernel_io::RealKernel::new().write(device_path, value)
     }
 }
 
@@ -104,6 +103,11 @@ pub(crate) struct Actuator {
     /// `boot_state.apply_armed`. The curated baseline is gated by
     /// `boot_state.baseline_armed` and applied via `apply_baseline`.
     pub(crate) boot_state: Option<BootState>,
+    /// F2: injectable kernel I/O. Defaults to `RealKernel` for production
+    /// and existing tests. New fault-injection tests construct the actuator
+    /// via `new_with_kernel` and pass a `FaultKernel` to simulate missing
+    /// paths, permission-denied, short writes, and disappearing devices.
+    pub(crate) kernel: Box<dyn KernelIo>,
     /// Test-only hook: when `Some(n)`, the `n`-th `guarded_write` call within
     /// a single `Action::RuntimePm` apply (1 = delay write, 2 = control write,
     /// 3 = rollback delay write) returns a synthetic `Err`. This field is
@@ -115,6 +119,13 @@ pub(crate) struct Actuator {
 
 impl Actuator {
     pub(crate) fn new(state_dir: PathBuf) -> Self {
+        Self::new_with_kernel(state_dir, Box::new(RealKernel::new()))
+    }
+
+    /// F2: construct an actuator with an injected `KernelIo`. Used by
+    /// fault-injection tests to pass a `FaultKernel`. Production callers
+    /// use `new()`, which delegates here with `RealKernel::new()`.
+    pub(crate) fn new_with_kernel(state_dir: PathBuf, kernel: Box<dyn KernelIo>) -> Self {
         let log_path = state_dir.join("actions.log");
         let audit_path = state_dir.join("audit.jsonl");
         Self {
@@ -130,6 +141,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            kernel,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
         }
@@ -152,6 +164,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            kernel: Box::new(RealKernel::new()),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
         }
@@ -209,7 +222,9 @@ impl Actuator {
         let value = "100";
 
         // Read current value (best-effort).
-        let old_value = fs::read_to_string(path)
+        let old_value = self
+            .kernel
+            .read_to_string(path)
             .ok()
             .unwrap_or_default()
             .trim()
@@ -218,7 +233,7 @@ impl Actuator {
         // Journal original if not already journaled.
         let orig_file = self.state_dir.join(format!("original_{key}"));
         if !orig_file.exists() {
-            if let Ok(current_val) = fs::read_to_string(path) {
+            if let Ok(current_val) = self.kernel.read_to_string(path) {
                 let _ = atomic_write_state_file(&orig_file, current_val.trim());
             }
         }
@@ -228,7 +243,7 @@ impl Actuator {
         let _ = atomic_write_state_file(&intended_file, value);
 
         // Apply.
-        match guarded_write(path, value) {
+        match self.kernel.write(path, value) {
             Ok(_) => {
                 mark_applied(&self.state_dir, key, value);
                 self.log(&format!(
@@ -339,7 +354,7 @@ impl Actuator {
             "{{\"ts_unix\":{ts},\"event\":\"actuation_denied\",\"hwid\":\"{hwid}\",\
 \"domain\":\"{domain}\",\"requested_state\":{requested_state},\
 \"deny_reason\":\"{reason}\",\"allowlist_version\":\"{version}\"}}\n",
-            ts = now_unix(),
+            ts = self.kernel.now_unix(),
             hwid = json_escape(hwid),
             domain = json_escape(domain),
             requested_state = requested_state,
@@ -361,7 +376,7 @@ impl Actuator {
         }
         match action {
             Action::CpuEpp { value, .. } => {
-                let paths = discover_cpu_epp_paths();
+                let paths = discover_cpu_epp_paths_with(self.kernel.as_ref());
                 if paths.is_empty() {
                     self.log("skip cpu.epp: no energy_performance_preference paths")?;
                     return Ok(());
@@ -377,14 +392,16 @@ impl Actuator {
                         ))?;
                         continue;
                     }
-                    let old_value = fs::read_to_string(&path)
+                    let old_value = self
+                        .kernel
+                        .read_to_string(&path)
                         .ok()
                         .unwrap_or_default()
                         .trim()
                         .to_string();
                     // Soft-fail per CPU: a hotplug or transient EBUSY on one
                     // core should not terminate the daemon.
-                    match guarded_write(&path, value) {
+                    match self.kernel.write(&path, value) {
                         Ok(_) => {
                             self.log(&format!(
                                 "write {} = {value} (was {old_value})",
@@ -403,7 +420,9 @@ impl Actuator {
             Action::PlatformProfile { value, .. } => {
                 let path = Path::new("/sys/firmware/acpi/platform_profile");
                 if path.exists() {
-                    let old_value = fs::read_to_string(path)
+                    let old_value = self
+                        .kernel
+                        .read_to_string(path)
                         .ok()
                         .unwrap_or_default()
                         .trim()
@@ -417,7 +436,7 @@ impl Actuator {
                     }
                     // Soft-fail: a write rejection here should not crash the
                     // daemon. Log and move on; next cycle will retry.
-                    match guarded_write(path, value) {
+                    match self.kernel.write(path, value) {
                         Ok(_) => {
                             self.log(&format!(
                                 "write {} = {value} (was {old_value})",
@@ -483,7 +502,7 @@ impl Actuator {
                 // Back up original value if not already backed up
                 let orig_file = self.state_dir.join(format!("original_{key}"));
                 if !orig_file.exists() {
-                    if let Ok(current_val) = fs::read_to_string(path) {
+                    if let Ok(current_val) = self.kernel.read_to_string(path) {
                         let _ = atomic_write_state_file(&orig_file, current_val.trim());
                     }
                 }
@@ -493,12 +512,14 @@ impl Actuator {
                 let _ = atomic_write_state_file(&intended_file, value);
 
                 // Write new value to sysctl path
-                let old_value = fs::read_to_string(path)
+                let old_value = self
+                    .kernel
+                    .read_to_string(path)
                     .ok()
                     .unwrap_or_default()
                     .trim()
                     .to_string();
-                match guarded_write(path, value) {
+                match self.kernel.write(path, value) {
                     Ok(_) => {
                         mark_applied(&self.state_dir, &key, value);
                         self.log(&format!(
@@ -702,19 +723,22 @@ impl Actuator {
                 // Step 2: read originals (reuse existing journal if present
                 // from a previous cycle that crashed before marking applied).
                 let (orig_control, orig_delay) = if orig_file.exists() {
-                    let content = fs::read_to_string(&orig_file).unwrap_or_default();
+                    let content = self.kernel.read_to_string(&orig_file).unwrap_or_default();
                     let mut lines = content.lines();
                     let _dev = lines.next();
                     let c = lines.next().unwrap_or("on").to_string();
                     let d = lines.next().unwrap_or("n/a").to_string();
                     (c, d)
                 } else {
-                    let c = fs::read_to_string(&control_path)
+                    let c = self
+                        .kernel
+                        .read_to_string(&control_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "on".to_string());
                     let d = if delay_path.exists() {
-                        fs::read_to_string(&delay_path)
+                        self.kernel
+                            .read_to_string(&delay_path)
                             .ok()
                             .map(|s| s.trim().to_string())
                             .unwrap_or_else(|| "n/a".to_string())
@@ -842,7 +866,9 @@ impl Actuator {
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_aspm_{hash}"));
                 if !orig_file.exists() {
-                    let orig = fs::read_to_string(&aspm_path)
+                    let orig = self
+                        .kernel
+                        .read_to_string(&aspm_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "0".to_string());
@@ -855,7 +881,7 @@ impl Actuator {
                 let intended_file = self.state_dir.join(format!("intended_aspm_{hash}"));
                 let _ = atomic_write_state_file(&intended_file, val);
 
-                match guarded_write(&aspm_path, val) {
+                match self.kernel.write(&aspm_path, val) {
                     Ok(_) => {
                         self.last_pcie_aspm.insert(device_dir.clone(), *enable);
                         let aspm_key = format!("aspm_{hash}");
@@ -906,7 +932,9 @@ impl Actuator {
                 let hash = get_path_hash(host_dir);
                 let orig_file = self.state_dir.join(format!("original_alpm_{hash}"));
                 if !orig_file.exists() {
-                    let orig = fs::read_to_string(&policy_path)
+                    let orig = self
+                        .kernel
+                        .read_to_string(&policy_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "max_performance".to_string());
@@ -918,7 +946,7 @@ impl Actuator {
                 let intended_file = self.state_dir.join(format!("intended_alpm_{hash}"));
                 let _ = atomic_write_state_file(&intended_file, policy);
 
-                match guarded_write(&policy_path, policy) {
+                match self.kernel.write(&policy_path, policy) {
                     Ok(_) => {
                         self.last_sata_alpm.insert(host_dir.clone(), policy.clone());
                         let alpm_key = format!("alpm_{hash}");
@@ -980,7 +1008,9 @@ impl Actuator {
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_bl_{hash}"));
                 if !orig_file.exists() {
-                    let orig = fs::read_to_string(&bright_path)
+                    let orig = self
+                        .kernel
+                        .read_to_string(&bright_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_default();
@@ -993,7 +1023,7 @@ impl Actuator {
                 let intended_file = self.state_dir.join(format!("intended_bl_{hash}"));
                 let _ = atomic_write_state_file(&intended_file, &target_str);
 
-                match guarded_write(&bright_path, &target_str) {
+                match self.kernel.write(&bright_path, &target_str) {
                     Ok(_) => {
                         self.last_backlight.insert(device_dir.clone(), target);
                         let bl_key = format!("bl_{hash}");
@@ -1016,7 +1046,10 @@ impl Actuator {
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {
-        append_log(&self.log_path, &format!("{} {message}\n", now_unix()))
+        append_log(
+            &self.log_path,
+            &format!("{} {message}\n", self.kernel.now_unix()),
+        )
     }
 
     /// Phase 6: write helper for RuntimePm's transactional two-write + rollback
@@ -1048,7 +1081,7 @@ impl Actuator {
         {
             let _ = write_num; // suppress unused-variable warning in production
         }
-        guarded_write(path, value)
+        self.kernel.write(path, value)
     }
 }
 

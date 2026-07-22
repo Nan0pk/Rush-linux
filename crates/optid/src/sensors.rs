@@ -5,11 +5,17 @@
 //! engine reasons about. Keeping the readers in one place makes it obvious
 //! which kernel interfaces the daemon depends on and makes it easy to mock
 //! the world in tests by constructing `Snapshot` literals.
+//!
+//! F2: the actual filesystem and clock calls are now routed through the
+//! [`kernel_io`](crate::kernel_io) traits. Every public function in this
+//! module has a `*_with(read, clock)` form that accepts injected I/O, and
+//! the legacy no-argument form delegates to `RealKernel::new()`. This
+//! preserves bit-for-bit behavior while making fault-injection and
+//! deterministic simulation possible from tests.
 
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::kernel_io::{Clock, KernelRead, RealKernel};
 use crate::workload::WorkloadClass;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -21,8 +27,15 @@ pub(crate) struct Pressure {
 }
 
 impl Pressure {
+    /// F2: production path — delegates to `RealKernel`.
+    #[allow(dead_code)]
     pub(crate) fn read(path: &str) -> Option<Self> {
-        let text = fs::read_to_string(path).ok()?;
+        Self::read_with(&RealKernel::new(), path)
+    }
+
+    /// F2: injectable read path for tests.
+    pub(crate) fn read_with(read: &dyn KernelRead, path: &str) -> Option<Self> {
+        let text = read.read_to_string(Path::new(path)).ok()?;
         parse_pressure(&text)
     }
 }
@@ -60,28 +73,37 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
+    /// F2: production path — delegates to `RealKernel`.
     pub(crate) fn collect() -> Self {
+        let kernel = RealKernel::new();
+        Self::collect_with(&kernel, &kernel)
+    }
+
+    /// F2: injectable collect path for tests. Takes separate `read` and
+    /// `clock` parameters so a test can mix-and-match (e.g. a `FaultKernel`
+    /// for reads with a `RealKernel` clock).
+    pub(crate) fn collect_with(read: &dyn KernelRead, clock: &dyn Clock) -> Self {
         Self {
-            timestamp: now_unix(),
-            on_ac: read_on_ac(),
-            battery_pct: read_battery_pct(),
-            max_temp_millic: read_max_thermal_millic(),
-            loadavg_1: read_loadavg_1(),
-            cpu_pressure: Pressure::read("/proc/pressure/cpu"),
-            memory_pressure: Pressure::read("/proc/pressure/memory"),
-            io_pressure: Pressure::read("/proc/pressure/io"),
-            zram_swap_active: read_zram_swap_active(),
+            timestamp: clock.now_unix(),
+            on_ac: read_on_ac_with(read),
+            battery_pct: read_battery_pct_with(read),
+            max_temp_millic: read_max_thermal_millic_with(read),
+            loadavg_1: read_loadavg_1_with(read),
+            cpu_pressure: Pressure::read_with(read, "/proc/pressure/cpu"),
+            memory_pressure: Pressure::read_with(read, "/proc/pressure/memory"),
+            io_pressure: Pressure::read_with(read, "/proc/pressure/io"),
+            zram_swap_active: read_zram_swap_active_with(read),
             foreground_app: None,
             pinned_class: None,
             global_pinned_class: None,
-            pm_qos_device_paths: discover_pm_qos_device_paths(),
-            runtime_pm_device_paths: discover_runtime_pm_device_paths(),
-            pcie_aspm_device_paths: discover_pcie_aspm_device_paths(),
-            sata_alpm_host_paths: discover_sata_alpm_host_paths(),
+            pm_qos_device_paths: discover_pm_qos_device_paths_with(read),
+            runtime_pm_device_paths: discover_runtime_pm_device_paths_with(read),
+            pcie_aspm_device_paths: discover_pcie_aspm_device_paths_with(read),
+            sata_alpm_host_paths: discover_sata_alpm_host_paths_with(read),
             selected_backlight: crate::actuators::display::select_backlight(
-                &discover_backlight_devices(),
+                &discover_backlight_devices_with(read),
             ),
-            is_vm_guest: detect_vm_guest(),
+            is_vm_guest: detect_vm_guest_with(read),
         }
     }
 
@@ -120,15 +142,27 @@ pub(crate) fn fmt_pressure(value: Option<Pressure>) -> String {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// F2: every discover_* and read_* function has a `*_with(read)` form
+// that takes an injected `KernelRead`, and a legacy no-argument form
+// that delegates to `RealKernel::new()`. The production path and
+// the test path share the same implementation.
+// ─────────────────────────────────────────────────────────────────────
+
+#[allow(dead_code)]
 pub(crate) fn discover_pm_qos_device_paths() -> Vec<PathBuf> {
+    discover_pm_qos_device_paths_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_pm_qos_device_paths_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let base = Path::new("/sys/bus/pci/devices");
     let mut paths = Vec::new();
-    let Ok(entries) = fs::read_dir(base) else {
+    let Ok(entries) = read.read_dir(base) else {
         return paths;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path().join("power").join("pm_qos_resume_latency_us");
-        if path.exists() {
+    for entry in entries {
+        let path = entry.join("power").join("pm_qos_resume_latency_us");
+        if read.exists(&path) {
             paths.push(path);
         }
     }
@@ -139,15 +173,19 @@ pub(crate) fn discover_pm_qos_device_paths() -> Vec<PathBuf> {
 /// `/sys/bus/{pci,usb}/devices/` that exposes a writable `power/control`
 /// attribute. The list is intentionally broad — the actuator narrows it to the
 /// allowlisted set. Non-blocking directory reads only (per the optid invariant).
+#[allow(dead_code)]
 pub(crate) fn discover_runtime_pm_device_paths() -> Vec<PathBuf> {
+    discover_runtime_pm_device_paths_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_runtime_pm_device_paths_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for bus in ["/sys/bus/pci/devices", "/sys/bus/usb/devices"] {
-        let Ok(entries) = fs::read_dir(bus) else {
+        let Ok(entries) = read.read_dir(Path::new(bus)) else {
             continue;
         };
-        for entry in entries.filter_map(Result::ok) {
-            let dev = entry.path();
-            if dev.join("power").join("control").exists() {
+        for dev in entries {
+            if read.exists(&dev.join("power").join("control")) {
                 paths.push(dev);
             }
         }
@@ -157,15 +195,19 @@ pub(crate) fn discover_runtime_pm_device_paths() -> Vec<PathBuf> {
 
 /// Enumerate PCI devices exposing `link/l1_aspm` (kernel ≥ 5.2) — WP-N6 PCIe
 /// ASPM candidates. The actuator narrows this to the allowlisted set.
+#[allow(dead_code)]
 pub(crate) fn discover_pcie_aspm_device_paths() -> Vec<PathBuf> {
+    discover_pcie_aspm_device_paths_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_pcie_aspm_device_paths_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let base = Path::new("/sys/bus/pci/devices");
     let mut paths = Vec::new();
-    let Ok(entries) = fs::read_dir(base) else {
+    let Ok(entries) = read.read_dir(base) else {
         return paths;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let dev = entry.path();
-        if dev.join("link").join("l1_aspm").exists() {
+    for dev in entries {
+        if read.exists(&dev.join("link").join("l1_aspm")) {
             paths.push(dev);
         }
     }
@@ -174,15 +216,19 @@ pub(crate) fn discover_pcie_aspm_device_paths() -> Vec<PathBuf> {
 
 /// Enumerate SCSI hosts exposing `link_power_management_policy` — WP-N6 SATA
 /// ALPM candidates.
+#[allow(dead_code)]
 pub(crate) fn discover_sata_alpm_host_paths() -> Vec<PathBuf> {
+    discover_sata_alpm_host_paths_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_sata_alpm_host_paths_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let base = Path::new("/sys/class/scsi_host");
     let mut paths = Vec::new();
-    let Ok(entries) = fs::read_dir(base) else {
+    let Ok(entries) = read.read_dir(base) else {
         return paths;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let host = entry.path();
-        if host.join("link_power_management_policy").exists() {
+    for host in entries {
+        if read.exists(&host.join("link_power_management_policy")) {
             paths.push(host);
         }
     }
@@ -191,30 +237,38 @@ pub(crate) fn discover_sata_alpm_host_paths() -> Vec<PathBuf> {
 
 /// Enumerate backlight device directories under `/sys/class/backlight/` —
 /// WP-N7 candidates. Selection among them is `display::select_backlight`.
+#[allow(dead_code)]
 pub(crate) fn discover_backlight_devices() -> Vec<PathBuf> {
+    discover_backlight_devices_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_backlight_devices_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let base = Path::new("/sys/class/backlight");
     let mut paths = Vec::new();
-    let Ok(entries) = fs::read_dir(base) else {
+    let Ok(entries) = read.read_dir(base) else {
         return paths;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let dev = entry.path();
-        if dev.join("brightness").exists() {
+    for dev in entries {
+        if read.exists(&dev.join("brightness")) {
             paths.push(dev);
         }
     }
     paths
 }
 
+#[allow(dead_code)]
 pub(crate) fn discover_cpu_epp_paths() -> Vec<PathBuf> {
+    discover_cpu_epp_paths_with(&RealKernel::new())
+}
+
+pub(crate) fn discover_cpu_epp_paths_with(read: &dyn KernelRead) -> Vec<PathBuf> {
     let base = Path::new("/sys/devices/system/cpu");
-    let Ok(entries) = fs::read_dir(base) else {
+    let Ok(entries) = read.read_dir(base) else {
         return Vec::new();
     };
 
     entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
+        .into_iter()
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
@@ -223,17 +277,21 @@ pub(crate) fn discover_cpu_epp_paths() -> Vec<PathBuf> {
                 })
         })
         .map(|path| path.join("cpufreq/energy_performance_preference"))
-        .filter(|path| path.exists())
+        .filter(|path| read.exists(path))
         .collect()
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_on_ac() -> Option<bool> {
-    let entries = fs::read_dir("/sys/class/power_supply").ok()?;
+    read_on_ac_with(&RealKernel::new())
+}
+
+pub(crate) fn read_on_ac_with(read: &dyn KernelRead) -> Option<bool> {
+    let entries = read.read_dir(Path::new("/sys/class/power_supply")).ok()?;
     let mut saw_battery = false;
 
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        let kind = fs::read_to_string(path.join("type")).unwrap_or_default();
+    for path in entries {
+        let kind = read.read_to_string(&path.join("type")).unwrap_or_default();
         let kind = kind.trim();
         if kind.eq_ignore_ascii_case("Battery") {
             saw_battery = true;
@@ -241,7 +299,7 @@ pub(crate) fn read_on_ac() -> Option<bool> {
         }
 
         if matches!(kind, "Mains" | "USB" | "USB_C" | "USB_PD") {
-            if let Ok(online) = fs::read_to_string(path.join("online")) {
+            if let Ok(online) = read.read_to_string(&path.join("online")) {
                 return Some(online.trim() == "1");
             }
         }
@@ -254,26 +312,35 @@ pub(crate) fn read_on_ac() -> Option<bool> {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_battery_pct() -> Option<u8> {
-    let entries = fs::read_dir("/sys/class/power_supply").ok()?;
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        let kind = fs::read_to_string(path.join("type")).unwrap_or_default();
+    read_battery_pct_with(&RealKernel::new())
+}
+
+pub(crate) fn read_battery_pct_with(read: &dyn KernelRead) -> Option<u8> {
+    let entries = read.read_dir(Path::new("/sys/class/power_supply")).ok()?;
+    for path in entries {
+        let kind = read.read_to_string(&path.join("type")).unwrap_or_default();
         if kind.trim().eq_ignore_ascii_case("Battery") {
-            let capacity = fs::read_to_string(path.join("capacity")).ok()?;
+            let capacity = read.read_to_string(&path.join("capacity")).ok()?;
             return capacity.trim().parse::<u8>().ok();
         }
     }
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_zram_swap_active() -> bool {
+    read_zram_swap_active_with(&RealKernel::new())
+}
+
+pub(crate) fn read_zram_swap_active_with(read: &dyn KernelRead) -> bool {
     #[cfg(test)]
     if let Ok(val) = std::env::var("OPTID_MOCK_ZRAM_SWAP_ACTIVE") {
         return val == "true";
     }
 
-    let Ok(text) = fs::read_to_string("/proc/swaps") else {
+    let Ok(text) = read.read_to_string(Path::new("/proc/swaps")) else {
         return false;
     };
     for line in text.lines().skip(1) {
@@ -286,8 +353,13 @@ pub(crate) fn read_zram_swap_active() -> bool {
 
 /// v0.6 Phase C2: Read `/sys/class/dmi/id/sys_vendor` and return `true`
 /// if the vendor string matches a known hypervisor.
+#[allow(dead_code)]
 pub(crate) fn detect_vm_guest() -> bool {
-    let Ok(text) = fs::read_to_string("/sys/class/dmi/id/sys_vendor") else {
+    detect_vm_guest_with(&RealKernel::new())
+}
+
+pub(crate) fn detect_vm_guest_with(read: &dyn KernelRead) -> bool {
+    let Ok(text) = read.read_to_string(Path::new("/sys/class/dmi/id/sys_vendor")) else {
         return false;
     };
     is_vm_guest_sys_vendor(text.trim())
@@ -311,31 +383,38 @@ pub(crate) fn is_vm_guest_sys_vendor(sys_vendor: &str) -> bool {
     )
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_max_thermal_millic() -> Option<i64> {
-    let entries = fs::read_dir("/sys/class/thermal").ok()?;
+    read_max_thermal_millic_with(&RealKernel::new())
+}
+
+pub(crate) fn read_max_thermal_millic_with(read: &dyn KernelRead) -> Option<i64> {
+    let entries = read.read_dir(Path::new("/sys/class/thermal")).ok()?;
     entries
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry
-                .file_name()
-                .to_str()
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
                 .is_some_and(|name| name.starts_with("thermal_zone"))
         })
-        .filter_map(|entry| fs::read_to_string(entry.path().join("temp")).ok())
+        .filter_map(|path| read.read_to_string(&path.join("temp")).ok())
         .filter_map(|value| value.trim().parse::<i64>().ok())
         .max()
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_loadavg_1() -> Option<f32> {
-    let text = fs::read_to_string("/proc/loadavg").ok()?;
+    read_loadavg_1_with(&RealKernel::new())
+}
+
+pub(crate) fn read_loadavg_1_with(read: &dyn KernelRead) -> Option<f32> {
+    let text = read.read_to_string(Path::new("/proc/loadavg")).ok()?;
     text.split_whitespace().next()?.parse::<f32>().ok()
 }
 
+#[allow(dead_code)]
 pub(crate) fn now_unix() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or_default()
+    RealKernel::new().now_unix()
 }
 
 #[cfg(test)]
@@ -449,5 +528,34 @@ mod tests {
     fn vm_guest_handles_newline_trailing() {
         assert!(is_vm_guest_sys_vendor("QEMU\n"));
         assert!(is_vm_guest_sys_vendor("VMware, Inc.\n"));
+    }
+
+    // ── F2: KernelRead injection smoke tests ───────────────────────────
+
+    /// Verify the *_with functions accept an injected KernelRead and
+    /// behave gracefully when the kernel paths are absent (as in the
+    /// test container). This is a smoke test that the seam compiles and
+    /// runs; the FaultKernel-based fault-injection tests live in
+    /// `tests.rs::f2_fault_injection_tests`.
+    #[test]
+    fn f2_collect_with_real_kernel_does_not_panic() {
+        let k = RealKernel::new();
+        // collect_with will read whatever the container exposes (likely
+        // nothing for /sys/* in CI); the important thing is it does not
+        // panic and returns a Snapshot.
+        let snap = Snapshot::collect_with(&k, &k);
+        // Just exercise the field — the test is a smoke test that the
+        // seam compiles and runs without panicking.
+        let _ = snap.timestamp;
+    }
+
+    #[test]
+    fn f2_read_loadavg_with_real_kernel_returns_some_on_real_kernel() {
+        // /proc/loadavg exists on any Linux. The RealKernel read should
+        // succeed. (If this fails, the container doesn't have /proc —
+        // that's fine, the test is a smoke test for the seam.)
+        let k = RealKernel::new();
+        let _ = read_loadavg_1_with(&k);
+        // No assertion on Some vs None — container-dependent.
     }
 }

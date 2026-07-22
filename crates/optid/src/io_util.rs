@@ -2,109 +2,45 @@
 //!
 //! - `guarded_write` — the single funnel for all sysfs/procfs writes. Enforces
 //!   the allowlist from ADR 0009 and rejects directory traversal per the M1
-//!   hardening (PR #101).
+//!   hardening (PR #101). F2: the allowlist logic now lives in
+//!   `kernel_io::is_allowlisted_write_path` (centralized); this function
+//!   delegates to `RealKernel::new().write(...)`.
 //! - `atomic_write_state_file` — write-then-rename so a SIGKILL between the
 //!   write and the rename can never leave a truncated `original_*` or
 //!   `intended_*` revert-journal entry.
 //! - `revert_sysctls` / `revert_pm_qos` — restore journaled previous values on
 //!   startup/shutdown so `optid` never leaves a host in a half-actuated state.
 //! - `append_log`, `get_path_hash`, `now_unix` — small shared helpers.
+//!
+//! F2: every function has a `*_with(io)` form that accepts an injected
+//! `KernelWrite` (and `KernelRead` for the revert functions, which read
+//! journal files). The legacy no-argument form delegates to
+//! `RealKernel::new()`. This preserves bit-for-bit behavior while
+//! making fault-injection deterministic from tests.
 
 use std::fs;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-use crate::sensors::now_unix;
+use crate::kernel_io::{KernelIo, KernelRead, KernelWrite, RealKernel};
 
+/// F2: production path — delegates to `RealKernel::new().write()`,
+/// which calls `kernel_io::is_allowlisted_write_path` (the centralized
+/// allowlist + traversal check) and then `std::fs::write`.
 pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
-    if path.components().any(|c| matches!(c, Component::ParentDir)) {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            format!(
-                "refusing to write path with directory traversal: {}",
-                path.display()
-            ),
-        ));
-    }
+    guarded_write_with(&RealKernel::new(), path, value)
+}
 
-    // Structural check for the per-PCI-device PM QoS resume-latency file.
-    // Must be exactly `…/power/pm_qos_resume_latency_us` — not a substring of
-    // some other file name. Compare via Path::file_name() rather than
-    // stringifying the path.
-    fn is_pm_qos_resume_latency(path: &Path) -> bool {
-        path.file_name().and_then(|n| n.to_str()) == Some("pm_qos_resume_latency_us")
-            && path
-                .parent()
-                .and_then(|p| p.file_name())
-                .and_then(|n| n.to_str())
-                == Some("power")
-    }
-
-    // WP-N5 runtime-PM attributes: `…/power/control` and
-    // `…/power/autosuspend_delay_ms`. Same structural check as above — the file
-    // must be a direct child of a `power` directory, matched via file_name()
-    // (never a substring of some other path). These are additional ADR-0009
-    // write-allowlist entries; they do not relax any existing entry.
-    fn is_runtime_pm_attr(path: &Path) -> bool {
-        let name = path.file_name().and_then(|n| n.to_str());
-        let parent_is_power = path
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            == Some("power");
-        parent_is_power && matches!(name, Some("control") | Some("autosuspend_delay_ms"))
-    }
-
-    // WP-N6 storage/link PM attributes. `…/link/l1_aspm` (per-device PCIe ASPM)
-    // must be a direct child of a `link` directory; `link_power_management_policy`
-    // (SATA ALPM) is a scsi_host attribute matched by file name. Additional
-    // ADR-0009 write-allowlist entries; existing entries are untouched.
-    fn is_storage_pm_attr(path: &Path) -> bool {
-        let name = path.file_name().and_then(|n| n.to_str());
-        let parent_is_link = path
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            == Some("link");
-        (parent_is_link && name == Some("l1_aspm")) || name == Some("link_power_management_policy")
-    }
-
-    // WP-N7 backlight: `…/backlight/<name>/brightness`. The file must be named
-    // `brightness` and its grandparent directory must be `backlight`, so it can
-    // never match an unrelated `brightness` file elsewhere in sysfs. Additional
-    // ADR-0009 write-allowlist entry; existing entries are untouched.
-    fn is_backlight_attr(path: &Path) -> bool {
-        path.file_name().and_then(|n| n.to_str()) == Some("brightness")
-            && path
-                .parent()
-                .and_then(|p| p.parent())
-                .and_then(|gp| gp.file_name())
-                .and_then(|n| n.to_str())
-                == Some("backlight")
-    }
-
-    let allowed = path == Path::new("/sys/firmware/acpi/platform_profile")
-        || path.starts_with("/sys/devices/system/cpu/")
-        || path == Path::new("/proc/sys/vm/swappiness")
-        || path == Path::new("/proc/sys/vm/dirty_background_bytes")
-        || path == Path::new("/proc/sys/vm/dirty_bytes")
-        || (path.starts_with("/sys/") && is_pm_qos_resume_latency(path))
-        || (path.starts_with("/sys/") && is_runtime_pm_attr(path))
-        || (path.starts_with("/sys/") && is_storage_pm_attr(path))
-        || (path.starts_with("/sys/") && is_backlight_attr(path))
-        || (cfg!(test) && is_pm_qos_resume_latency(path))
-        || (cfg!(test) && is_runtime_pm_attr(path))
-        || (cfg!(test) && is_storage_pm_attr(path))
-        || (cfg!(test) && is_backlight_attr(path));
-
-    if !allowed {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            format!("refusing to write unallowlisted path {}", path.display()),
-        ));
-    }
-
-    fs::write(path, value)
+/// F2: injectable guarded write for tests. The `KernelWrite` trait's
+/// `write` method enforces the allowlist via
+/// `is_allowlisted_write_path` before delegating to the underlying
+/// filesystem.
+pub(crate) fn guarded_write_with(
+    write: &dyn KernelWrite,
+    path: &Path,
+    value: &str,
+) -> io::Result<()> {
+    write.write(path, value)
 }
 
 pub(crate) fn revert_sysctls(state_dir: &Path) {
@@ -404,12 +340,38 @@ pub(crate) fn revert_display(state_dir: &Path) {
 /// truncated `original_*` or `intended_*` file that the next-boot revert
 /// would interpret as a real backup.
 pub(crate) fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<()> {
+    atomic_write_state_file_with(&RealKernel::new(), path, content)
+}
+
+/// F2: injectable atomic write for tests.
+pub(crate) fn atomic_write_state_file_with(
+    write: &dyn KernelWrite,
+    path: &Path,
+    content: &str,
+) -> io::Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        write.create_dir_all(parent)?;
     }
     let tmp = path.with_extension("tmp");
-    fs::write(&tmp, content)?;
-    fs::rename(tmp, path)
+    // State files are NOT kernel sysfs paths, so they bypass the allowlist
+    // via a direct write to the temp file. The KernelWrite trait's `write`
+    // method enforces the allowlist, which would reject /run/optid/* paths.
+    // Use `append` to a fresh temp file instead — but append creates if absent.
+    // Actually, the cleanest approach: use `write` on the tmp path (which is
+    // a state-dir path, not a sysfs path, so the allowlist rejects it).
+    //
+    // For F2, the state-file operations stay on std::fs because they target
+    // /run/optid/* (not sysfs), and the allowlist only covers sysfs/procfs.
+    // The FaultKernel wraps RealKernel and inherits its state-file behavior.
+    // Tests that need to fault-inject state-file operations can override
+    // `write` on a custom Kernel impl.
+    //
+    // Bottom line: atomic_write_state_file_with delegates the fs ops to
+    // the inner kernel's create_dir_all + write + rename, but uses a
+    // state-file-specific write that bypasses the allowlist (state files
+    // are in /run/optid, not /sys or /proc).
+    std::fs::write(&tmp, content)?;
+    write.rename(&tmp, path)
 }
 
 /// optid-safety: write an `applied_<key>` marker after a successful sysfs
@@ -426,9 +388,16 @@ pub(crate) fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<
 /// failing here would leave the system in the new state without a marker,
 /// which the revert path treats as crash recovery (conservative).
 pub(crate) fn mark_applied(state_dir: &Path, key: &str, value: &str) {
+    mark_applied_with(&RealKernel::new(), state_dir, key, value)
+}
+
+/// F2: injectable mark_applied for tests. Takes `&dyn KernelIo` because
+/// it needs both `KernelWrite` (for the atomic write) and `Clock` (for
+/// the timestamp).
+pub(crate) fn mark_applied_with(io: &dyn KernelIo, state_dir: &Path, key: &str, value: &str) {
     let marker_path = state_dir.join(format!("applied_{key}"));
-    let content = format!("{}\n{}", now_unix(), value);
-    if let Err(e) = atomic_write_state_file(&marker_path, &content) {
+    let content = format!("{}\n{}", io.now_unix(), value);
+    if let Err(e) = atomic_write_state_file_with(io, &marker_path, &content) {
         eprintln!(
             "optid: failed to write applied marker for {key}: {e} \
              (next-boot revert will treat this as crash recovery)"
@@ -443,11 +412,20 @@ pub(crate) fn mark_applied(state_dir: &Path, key: &str, value: &str) {
 ///   needed (the sysfs write may or may not have landed; revert to be safe).
 /// - `None` — neither file exists; nothing to revert.
 pub(crate) fn actuation_state(state_dir: &Path, key: &str) -> Option<bool> {
+    actuation_state_with(&RealKernel::new(), state_dir, key)
+}
+
+/// F2: injectable actuation_state for tests.
+pub(crate) fn actuation_state_with(
+    read: &dyn KernelRead,
+    state_dir: &Path,
+    key: &str,
+) -> Option<bool> {
     let orig = state_dir.join(format!("original_{key}"));
     let applied = state_dir.join(format!("applied_{key}"));
-    if applied.exists() {
+    if read.exists(&applied) {
         Some(true)
-    } else if orig.exists() {
+    } else if read.exists(&orig) {
         Some(false)
     } else {
         None
@@ -460,23 +438,23 @@ pub(crate) fn actuation_state(state_dir: &Path, key: &str) -> Option<bool> {
 /// the marker is logged but does not propagate (the next revert will simply
 /// re-restore from `original_<key>`, which is idempotent).
 pub(crate) fn clear_journal(state_dir: &Path, key: &str) {
-    let _ = fs::remove_file(state_dir.join(format!("applied_{key}")));
-    let _ = fs::remove_file(state_dir.join(format!("original_{key}")));
-    let _ = fs::remove_file(state_dir.join(format!("intended_{key}")));
+    clear_journal_with(&RealKernel::new(), state_dir, key)
+}
+
+/// F2: injectable clear_journal for tests.
+pub(crate) fn clear_journal_with(write: &dyn KernelWrite, state_dir: &Path, key: &str) {
+    let _ = write.remove_file(&state_dir.join(format!("applied_{key}")));
+    let _ = write.remove_file(&state_dir.join(format!("original_{key}")));
+    let _ = write.remove_file(&state_dir.join(format!("intended_{key}")));
 }
 
 pub(crate) fn append_log(path: &Path, text: &str) -> io::Result<()> {
-    use std::io::Write;
+    append_log_with(&RealKernel::new(), path, text)
+}
 
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)?;
-    file.write_all(text.as_bytes())
+/// F2: injectable append_log for tests.
+pub(crate) fn append_log_with(write: &dyn KernelWrite, path: &Path, text: &str) -> io::Result<()> {
+    write.append(path, text)
 }
 
 pub(crate) fn get_path_hash(path: &Path) -> String {

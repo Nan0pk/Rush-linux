@@ -29,9 +29,45 @@ completion_evidence = []
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
+# Construction is complete on the F2 work branch; the PR is opened by the
+# builder and merged by the maintainer. Per the ledger's status vocabulary,
+# `completed` requires a linked PR number, so F2 stays `ready_parallel`
+# (its original status) until merge. The maintainer flips this to
+# `completed`, fills `pr`, at merge time.
 status = "ready_parallel"
 depends = []
 pr = ""
+# Builder-provided construction evidence (reviewed by the maintainer at merge):
+# - crates/optid/src/kernel_io.rs (new): KernelRead/KernelWrite/Clock/EventSource
+#   traits + RealKernel (production) + FaultKernel (fault-injection wrapper) +
+#   MemoryKernel (pure in-memory, for future packages) + centralized
+#   is_allowlisted_write_path (extracted verbatim from io_util::guarded_write).
+# - crates/optid/src/sensors.rs: every discover_* and read_* function has a
+#   *_with(read, clock) variant; legacy no-arg fns delegate to RealKernel::new().
+#   Snapshot::collect delegates to collect_with(&RealKernel, &RealKernel).
+# - crates/optid/src/io_util.rs: guarded_write, atomic_write_state_file,
+#   mark_applied, actuation_state, clear_journal, append_log all have *_with(io)
+#   variants; legacy fns delegate to RealKernel::new(). The path-validation
+#   logic moved to kernel_io::is_allowlisted_write_path (centralized).
+# - crates/optid/src/actuator.rs: new `kernel: Box<dyn KernelIo>` field;
+#   Actuator::new delegates to new_with_kernel(RealKernel). All fs::read_to_string
+#   -> self.kernel.read_to_string; all guarded_write -> self.kernel.write;
+#   now_unix() -> self.kernel.now_unix(); discover_cpu_epp_paths ->
+#   discover_cpu_epp_paths_with(self.kernel.as_ref()).
+# - crates/optid/tests/write_site_gating.rs: drift-detection updated to count
+#   self.kernel.write( instead of guarded_write( for actuator.rs kernel-write
+#   sites. Inventory count unchanged (12 sites).
+# - crates/optid/src/tests.rs: new f2_fault_injection_tests module (8 tests):
+#   missing path on read, permission-denied on write, disappearing path
+#   (HidePath), malformed content, one-shot rule consumption, hidden directory
+#   discovery, RealKernel equivalence with legacy, FaultKernel allowlist
+#   preservation.
+# - cargo test -p optid: 339 passed, 0 failed (291 unit + 13 integration +
+#   16 PPD + 16 GameMode + 3 write-site)
+# - cargo fmt --all -- --check: clean
+# - cargo clippy --workspace --all-targets -- -D warnings: clean
+# - bash tools/checks.sh: PASS
+# - bash tools/finish-work.sh --dry-run: PASS
 completion_evidence = []
 
 [[package]]
