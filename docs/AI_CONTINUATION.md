@@ -50,7 +50,7 @@ Older audits and plans are useful history, not the current work selector.
   effect path is incomplete.
 - `sched_ext` is SPEC-blocked until WP-B1 evidence exists.
 
-## The two next packages
+## Next Task
 
 There are two independent lanes:
 
@@ -137,7 +137,7 @@ bash tools/finish-work.sh --dry-run
 Agents may commit, push a branch, and open a draft pull request. They never
 merge or enable auto-merge. The human maintainer merges.
 
-## Non-negotiable safeguards
+## Forbidden Shortcuts
 
 - Do not bypass explicit apply mode, typed capability/path validation,
   responsiveness-contract fit, or verified hardware authorization.

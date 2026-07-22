@@ -111,7 +111,7 @@ part of X1/security work.
 - A blank-disk install path using `systemd-repart`, with committed VM/boot
   evidence for the milestones that are marked verified.
 
-## Optid: active gaps
+## Not Yet Implemented
 
 The active completion plan owns these gaps; this list is a summary, not a
 second work queue.
