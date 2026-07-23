@@ -185,7 +185,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Trust the container-mounted checkout
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        # The provenance tests intentionally replace HOME, so this trust entry
+        # must outlive per-user Git config inside the root-owned container.
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
       - name: Initialize Arch package trust
         run: |
           pacman-key --init
