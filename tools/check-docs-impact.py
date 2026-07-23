@@ -94,11 +94,25 @@ def _git(args: list[str], cwd: Path = _ROOT) -> tuple[int, str, str]:
 
 
 def _changed_files(base: str, head: str) -> list[str]:
-    """Return the list of files changed between base and head."""
-    rc, out, err = _git(["diff", "--name-only", f"{base}...{head}"])
-    if rc != 0:
-        raise RuntimeError(f"git diff failed: {err.strip()}")
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    """Return committed plus local changed paths.
+
+    CI normally has only the committed base-to-head diff. Including working,
+    staged, and untracked files makes the same check useful before a local
+    commit instead of silently reporting "no changes".
+    """
+    commands = (
+        ["diff", "--name-only", f"{base}...{head}"],
+        ["diff", "--name-only"],
+        ["diff", "--cached", "--name-only"],
+        ["ls-files", "--others", "--exclude-standard"],
+    )
+    changed: set[str] = set()
+    for command in commands:
+        rc, out, err = _git(command)
+        if rc != 0:
+            raise RuntimeError(f"git {' '.join(command)} failed: {err.strip()}")
+        changed.update(line.strip() for line in out.splitlines() if line.strip())
+    return sorted(changed)
 
 
 def _match_any(path: str, patterns: list[str]) -> bool:

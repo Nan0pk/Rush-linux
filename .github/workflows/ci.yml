@@ -1,4 +1,4 @@
-name: Change checks
+name: PR Gate
 
 on:
   pull_request:
@@ -10,19 +10,27 @@ permissions:
   contents: read
 
 concurrency:
-  group: change-checks-${{ github.event.pull_request.number || github.ref }}
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Relevant tests and safety rules
+  classify:
+    name: Select relevant lanes
     runs-on: ubuntu-latest
+    outputs:
+      base: ${{ steps.change.outputs.base }}
+      rust: ${{ steps.change.outputs.rust }}
+      python: ${{ steps.change.outputs.python }}
+      shell: ${{ steps.change.outputs.shell }}
+      windows: ${{ steps.change.outputs.windows }}
+      workflow: ${{ steps.change.outputs.workflow }}
+      image: ${{ steps.change.outputs.image }}
+      dependencies: ${{ steps.change.outputs.dependencies }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Classify the change
+      - name: Classify changed paths
         id: change
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -37,192 +45,221 @@ jobs:
           else
             BASE="HEAD^"
           fi
-          git diff --name-only "$BASE"...HEAD > /tmp/rush-changed-files
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
-          if grep -Eq '^(Cargo\.(toml|lock)|crates/|rust-toolchain)' /tmp/rush-changed-files; then echo 'rust=true' >> "$GITHUB_OUTPUT"; else echo 'rust=false' >> "$GITHUB_OUTPUT"; fi
-          if grep -Eq '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev-)' /tmp/rush-changed-files; then echo 'python=true' >> "$GITHUB_OUTPUT"; else echo 'python=false' >> "$GITHUB_OUTPUT"; fi
-          if grep -Eq '\.ps1$' /tmp/rush-changed-files; then echo 'powershell=true' >> "$GITHUB_OUTPUT"; else echo 'powershell=false' >> "$GITHUB_OUTPUT"; fi
-          if grep -Eq '^Cargo\.(toml|lock)$' /tmp/rush-changed-files; then echo 'deps=true' >> "$GITHUB_OUTPUT"; else echo 'deps=false' >> "$GITHUB_OUTPUT"; fi
-          echo 'Changed files:'
-          cat /tmp/rush-changed-files
+          git diff --name-only "$BASE"...HEAD | tee /tmp/rush-changed-files
 
-      - name: Install Rust system dependencies
-        if: steps.change.outputs.rust == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config
+          classify() {
+            local name="$1" pattern="$2"
+            if grep -Eq "$pattern" /tmp/rush-changed-files; then
+              echo "$name=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$name=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
 
-      - name: Set up Rust
-        if: steps.change.outputs.rust == 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+          classify rust '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'
+          classify python '(^|/).*\.py$|^pyproject\.toml$|^schemas/'
+          classify shell '\.sh$|^tools/|^testos/'
+          classify windows '\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
+          classify workflow '^\.github/workflows/.*\.ya?ml$'
+          classify image '^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
+          classify dependencies '^Cargo\.(toml|lock)$'
 
-      - name: Cache Rust
-        if: steps.change.outputs.rust == 'true'
-        uses: Swatinem/rust-cache@v2
-
-      - name: Set up Python
-        if: steps.change.outputs.python == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Python test dependency
-        if: steps.change.outputs.python == 'true'
-        run: python -m pip install pytest
-
-      - name: Run relevant checks
-        run: bash tools/checks.sh --ci --changed-base "${{ steps.change.outputs.base }}"
-
-      - name: Check dependency policy
-        if: steps.change.outputs.deps == 'true'
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
-  required-rust:
-    name: Rust
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Tests
-        run: cargo test --workspace
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-  # AUDIT (env-remediation 2026-07-21):
-  # The 2026-07-21 audit (COMPLETE-AUDIT-REPORT.md section 9) could not run
-  # shellcheck because the sandbox lacked it. This job closes that gap
-  # permanently by running shellcheck in CI on every PR/push.
-  #
-  # Severity policy:
-  #   - `error` severity is REQUIRED (fails the build).
-  #   - `warning` and `note` severities are emitted as GitHub annotations
-  #     via shellcheck's native `diff`/`gcc` output, but do not fail the
-  #     build. This matches the project's "tighten over time" philosophy
-  #     used for clippy (-D warnings) — tighten shellcheck to -D warnings
-  #     once the existing 15 warnings / 22 notes are triaged.
-  required-shell:
-    name: Shell scripts (shellcheck)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install shellcheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-      - name: shellcheck (error severity = required)
-        run: |
-          set -euo pipefail
-          # Collect every .sh under the repo (excluding vendored / build
-          # output dirs). Sort for deterministic output.
-          mapfile -t scripts < <(find . -name '*.sh' \
-              -not -path './target/*' \
-              -not -path './.git/*' \
-              -not -path './.claude/*' \
-              -not -path './book/*' \
-              -not -path './.mkosi-cache/*' \
-              -not -path './.mkosi-output/*' \
-              | sort)
-          echo "Checking ${#scripts[@]} shell scripts"
-          # SC1090/SC1091: don't fail on dynamic `source` follows.
-          # SC2155: declare-and-assign separately (existing code uses both
-          #         patterns; tightening is a follow-up).
-          # SC2034: unused variable (existing code has some intentional
-          #         "import-like" reads).
-          # SC2312: consider invoking `command -v` directly (style only).
-          shellcheck --external-sources \
-            --exclude=SC1090,SC1091,SC2155,SC2034,SC2312 \
-            --severity=error \
-            "${scripts[@]}"
-
-  required-doc-sync:
-    name: Documentation sync
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate documentation
-        run: python3 tools/validate-doc-sync.py --max-age 90
-
-  required-optid-package:
-    name: Optid package contract
+  linux:
+    name: Linux and repository checks
+    needs: classify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Resolve comparison base
-        id: base
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python checks
+        if: needs.classify.outputs.python == 'true'
+        run: python -m pip install pytest ruff
+
+      - name: Install shellcheck
+        if: needs.classify.outputs.shell == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Set up Go for actionlint
+        if: needs.classify.outputs.workflow == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install actionlint
+        if: needs.classify.outputs.workflow == 'true'
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust system dependencies
+        if: needs.classify.outputs.rust == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        if: needs.classify.outputs.rust == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        if: needs.classify.outputs.rust == 'true'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run the canonical change-aware checks
+        run: bash tools/checks.sh --ci --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: Check Rust dependency policy
+        if: needs.classify.outputs.dependencies == 'true'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+  windows:
+    name: Native Windows
+    needs: classify
+    if: needs.classify.outputs.windows == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Parse changed PowerShell
+        shell: pwsh
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BASE: ${{ github.event.before }}
+          BASE: ${{ needs.classify.outputs.base }}
+        run: |
+          $files = git diff --name-only "$env:BASE...HEAD" |
+            Where-Object { $_ -match '\.ps1$' }
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            $path = (Resolve-Path -LiteralPath $file).Path
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $path, [ref]$tokens, [ref]$errors
+            )
+            if ($errors.Count) {
+              $errors | ForEach-Object { Write-Error $_ }
+              exit 1
+            }
+          }
+      - name: Run native LiveDev parity tests
+        run: python -m pytest tools/test-windows-livedev-parity.py -q
+
+  image:
+    name: Product image
+    needs: classify
+    if: needs.classify.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    steps:
+      - name: Install image-build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed \
+            archlinux-keyring base-devel rust mkosi git dbus pkgconf \
+            systemd systemd-ukify python python-pytest python-pefile \
+            dosfstools mtools zstd util-linux
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Initialize Arch package trust
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+      - name: Validate image and boot contracts
+        run: |
+          bash -n tools/build-mkosi-image.sh
+          bash -n testos/build-testos.sh
+          python -m pytest -q \
+            tools/test-livedev-image.py \
+            tools/test-testos-boot-behavioral.py \
+            tools/test-testos-production-provenance.py
+      - name: Build the affected product image
+        env:
+          BASE: ${{ needs.classify.outputs.base }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            BASE="$PR_BASE"
-          elif [[ -n "$PUSH_BASE" && ! "$PUSH_BASE" =~ ^0+$ ]]; then
-            BASE="$PUSH_BASE"
+          git diff --name-only "$BASE"...HEAD > /tmp/rush-image-paths
+          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
+            bash testos/build-testos.sh
           else
-            BASE="HEAD^"
+            bash tools/build-mkosi-image.sh --edition livedev
           fi
-          echo "base=$BASE" >> "$GITHUB_OUTPUT"
-      - name: Reject false package completion
-        run: python3 tools/validate-optid-packages.py --base "${{ steps.base.outputs.base }}"
+          if ! find build -maxdepth 1 -type f -name '*.raw' -size +64M -print -quit | grep -q .; then
+            echo "No real product image was produced." >&2
+            exit 1
+          fi
 
-  required-policy:
-    name: Repository policy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate version consistency
-        run: python3 tools/validate-versions.py
-      - name: Validate repository policy
-        shell: pwsh
-        run: ./tools/validate-repo.ps1
-
-  required-evidence:
-    name: Evidence integrity (Dragnet)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate evidence
-        run: python3 tools/validate-evidence.py
-
-
-  telemetry-status:
-    name: Telemetry crate status (warn-only)
-    runs-on: ubuntu-latest
-    # Always runs (even if other jobs fail) so the telemetry state is visible
+  gate:
+    name: PR Gate
+    needs: [classify, linux, windows, image]
     if: always()
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Check rush_telemetry (expected to fail; warn-only)
-        # AUDIT (FINAL-AUDIT-REPORT.md section 4.8, 2026-07-20):
-        # crates/rush_telemetry is excluded from the workspace because it
-        # does not compile (missing libc dependency, BPF skeleton codegen
-        # incomplete). This job makes the brokenness visible in CI without
-        # failing the build. When the crate compiles successfully, this job
-        # will print a ::notice:: and the crate should be re-included in
-        # the workspace (see Cargo.toml:13-21).
+      - name: Require every selected lane
+        env:
+          CLASSIFY: ${{ needs.classify.result }}
+          LINUX: ${{ needs.linux.result }}
+          WINDOWS: ${{ needs.windows.result }}
+          IMAGE: ${{ needs.image.result }}
         run: |
-          cd crates/rush_telemetry
-          if cargo check 2>&1; then
-            echo "::notice file=crates/rush_telemetry::rush_telemetry now compiles — consider re-including in workspace (see Cargo.toml:13-21)"
-          else
-            echo "::warning file=crates/rush_telemetry::rush_telemetry still does not compile (expected — see Cargo.toml:13-21 and FINAL-AUDIT-REPORT.md section 4.8)"
-          fi
-        continue-on-error: true
+          set -euo pipefail
+          [[ "$CLASSIFY" == "success" ]]
+          [[ "$LINUX" == "success" ]]
+          [[ "$WINDOWS" == "success" || "$WINDOWS" == "skipped" ]]
+          [[ "$IMAGE" == "success" || "$IMAGE" == "skipped" ]]
+          echo "All selected PR lanes passed."
+
+  # Temporary zero-work aliases for the status names protected on main before
+  # this consolidated gate existed. They depend on the real aggregator and can
+  # be deleted after branch protection requires only "PR Gate / PR Gate".
+  legacy-rust:
+    name: Rust
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.gate.result }}" = success
+
+  legacy-docs:
+    name: Documentation sync
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.gate.result }}" = success
+
+  legacy-policy:
+    name: Repository policy
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.gate.result }}" = success
+
+  legacy-evidence:
+    name: Evidence integrity (Dragnet)
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.gate.result }}" = success

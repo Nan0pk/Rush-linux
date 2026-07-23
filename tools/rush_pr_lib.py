@@ -69,10 +69,6 @@ PROTECTED_EVIDENCE_SUBDIRS = [
     "release/evidence/BUILD-HOST-RUNBOOK.md",
 ]
 
-# Required CI checks (must not be skipped/weakened).
-REQUIRED_CHECKS = ["Rust", "Documentation sync", "Repository policy", "Evidence integrity (Dragnet)"]
-
-
 # ─── Data types ──────────────────────────────────────────────────────────────
 
 

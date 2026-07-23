@@ -26,8 +26,9 @@ the exact claims they were meant to protect.
 2. Not every change uses every stage. The path is chosen by actual risk.
 3. Accepted decisions outrank unfinished research. Research remains visible
    whether or not it has been validated.
-4. Use one normal pull-request status, **Change checks**, backed by
-   `tools/checks.sh`. It selects tests from the files that changed.
+4. Use one stable pull-request status, **PR Gate**, backed by
+   `tools/checks.sh`. It selects tests from the files that changed and
+   aggregates the Linux/repository, native Windows, and image lanes.
 5. Keep external-link and new-advisory scans scheduled rather than blocking
    unrelated pull requests.
 6. Builders run ordinary checks. Independent cold verification is reserved for

@@ -99,15 +99,19 @@ connected to a row, it should not block a pull request.
 
 ## Pull-request checks
 
-There is one normal required status: **Change checks**. It selects work by the
-files changed:
+There is one stable required status: **PR Gate**. It selects work by the files
+changed and aggregates every selected lane:
 
-- Rust changed: format, tests, Clippy, and dependency policy when relevant.
-- Python, testOS, schemas, or LiveDev changed: Python tests and evidence fixtures.
-- Shell or PowerShell changed: parser checks.
-- Evidence or release truth changed: evidence integrity checks.
-- Documentation or public project data changed: doc registry, version, and
-  generated front-page checks.
+- Repository integrity always: whitespace, generated artifacts, workflow
+  safety, versions, docs, front page, evidence, and package truth.
+- Rust changed: format, tests, Clippy, all targets/features, and dependency
+  policy when relevant.
+- Python changed: compile, Ruff, pytest, and evidence fixtures.
+- Shell changed: parser and ShellCheck on shebang-discovered entry points.
+- Windows or shared LiveDev changed: native PowerShell parsing and Windows
+  parity tests.
+- Image/build paths changed: image and boot contract tests plus a real product
+  image build in a privileged Arch container.
 - Optid code changed: exactly one package claim changes; candidates name
   production entry points, integration tests, and evidence; only a cold
   verifier may record `completed`.
