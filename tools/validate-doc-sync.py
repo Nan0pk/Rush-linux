@@ -3,8 +3,8 @@
 Rush Linux Documentation Sync Validator.
 
 Reads docs/docmap.toml and checks:
-  1. Every registered doc exists on disk.
-  2. Cross-references (deps) point to registered docs.
+  1. Every active mapped doc exists on disk.
+  2. Cross-references (deps) resolve on disk.
   3. Version strings in key docs match VERSION file.
   4. ADR status values are valid.
   5. No known stale patterns (e.g. "next step" for completed features).
@@ -70,7 +70,7 @@ def check_docmap_loads():
         with open(DOCMAP_PATH, "rb") as f:
             data = tomllib.load(f)
         entries = data.get("docs", {})
-        ok(f"docmap.toml loaded: {len(entries)} doc entries")
+        ok(f"docmap.toml loaded: {len(entries)} active doc entries")
         return entries
     except Exception as e:
         err(f"docs/docmap.toml failed to parse: {e}")
@@ -95,33 +95,31 @@ def check_all_docs_exist(entries):
 
 
 def check_research_is_discoverable(entries):
-    """Every research paper must be registered even when it is unfinished."""
+    """Every numbered paper must be linked from the research index."""
     print("\n── Check: Research discoverability ──")
-    registered = set(entries)
     research_dir = ROOT / "docs" / "research"
+    index_path = research_dir / "README.md"
+    if not index_path.exists():
+        err("docs/research/README.md is missing")
+        return
+    index = index_path.read_text(encoding="utf-8")
     missing = []
     for paper in sorted(research_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
-        path = paper.relative_to(ROOT).as_posix()
-        if path not in registered:
-            missing.append(path)
-            err(f"Research paper is missing from docs/docmap.toml: {path}")
+        if paper.name not in index:
+            missing.append(paper.name)
+            err(f"Research paper is missing from docs/research/README.md: {paper.name}")
     if not missing:
-        ok("Every research paper is registered in docmap.toml")
+        ok("Every numbered research paper is indexed")
 
 
 def check_deps_exist(entries):
-    """Every dep must reference a registered doc."""
-    print("\n── Check: All deps reference registered docs ──")
-    all_paths = set(entries.keys())
+    """Every declared dependency must resolve; not every dependency is active."""
+    print("\n── Check: All active-doc dependencies resolve ──")
     for path, entry in sorted(entries.items()):
         deps = entry.get("deps", [])
         for dep in deps:
-            if dep not in all_paths:
-                err(f"{path} has dep '{dep}' which is not registered in docmap")
-            elif not (ROOT / dep).exists():
+            if not (ROOT / dep).exists():
                 err(f"{path} has dep '{dep}' which does not exist on disk")
-            else:
-                pass  # fine
 
 
 def check_version_consistency(entries):
@@ -138,7 +136,6 @@ def check_version_consistency(entries):
     version_docs = [
         ("docs/IMPLEMENTATION_STATUS.md", version.replace(".", r"\.")),
         ("ROADMAP.md", version.replace(".", r"\.")),
-        ("docs/AI_CONTINUATION.md", version.replace(".", r"\.")),
     ]
 
     for path, escaped in version_docs:
@@ -212,13 +209,13 @@ def check_markdown_links(entries):
         "OPTID-COMPLETION-PLAN.md",
         "README.md",
         "CONTRIBUTING.md",
-        "docs/AI_CONTINUATION.md",
         "docs/IMPLEMENTATION_STATUS.md",
         "docs/SUMMARY.md",
+        "docs/research/README.md",
         "docs/adaptive-engine.md",
         "docs/architecture.md",
         "docs/architecture/optid-d2-amendment.md",
-        "docs/plans/corrected-path-forward-v0.6-to-v1.md",
+        "docs/project-workflow.md",
     ]
 
     broken = 0
@@ -252,11 +249,11 @@ def check_optid_plan_activation(entries):
     plan = read_file("OPTID-COMPLETION-PLAN.md")
     amendment = read_file("docs/architecture/optid-d2-amendment.md")
     readme = read_file("README.md")
-    handoff = read_file("docs/AI_CONTINUATION.md")
+    constitution = read_file("AGENTS.md")
     ledger_path = ROOT / "docs" / "plans" / "optid-package-status.toml"
     ledger_text = read_file("docs/plans/optid-package-status.toml")
 
-    if not plan or not amendment or not readme or not handoff or not ledger_text or not ledger_path.exists():
+    if not plan or not amendment or not readme or not constitution or not ledger_text or not ledger_path.exists():
         err("active optid plan, D2 amendment, README, or package ledger is missing")
         return
 
@@ -280,10 +277,10 @@ def check_optid_plan_activation(entries):
     )
     if any(token not in plan for token in worker_reading_tokens):
         err("optid worker contract does not require amendment-first, reference-on-demand reading")
-    elif "For safety work, read the amendment first." not in handoff:
-        err("AI continuation handoff does not mirror the amendment-first reading order")
+    elif "For safety work, read the amendment first." not in constitution:
+        err("AGENTS.md does not mirror the amendment-first reading order")
     else:
-        ok("worker contract and handoff require amendment-first, reference-on-demand reading")
+        ok("worker contract and AGENTS.md require amendment-first, reference-on-demand reading")
 
     packages = ledger.get("package", [])
     ids = [p.get("id") for p in packages]
@@ -447,11 +444,6 @@ def check_adr_citations_resolve(entries) -> None:
     for d in scan_dirs:
         if d.exists():
             scan_files.extend(p for p in d.rglob("*") if p.is_file() and p.suffix in (".md", ".toml", ".json"))
-    # Also scan root-level plan / handoff docs.
-    for p in [ROOT / "HANDOFF.md", ROOT / "HANDOFF-2026-06-26.md"]:
-        if p.exists():
-            scan_files.append(p)
-
     bad = 0
     # Phrases that indicate a *forward* reference (ADR not yet written, on
     # purpose). Skip citations on lines containing these phrases.

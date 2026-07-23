@@ -125,12 +125,12 @@ If any check fails, **stop**. Do not "work around" by editing the rig.
 ## 4. Discovery (no broad reads needed)
 
 ```bash
-graphify query "what is the exact schema_version=1 layout rushbench emits, and what filename pattern does it write under benchmarks/results/?" --graph graphify-out/graph.json
-graphify query "what command does rushbench report take and what does it emit to stdout?" --graph graphify-out/graph.json
+rg -n "schema_version|benchmarks/results" crates/rushbench benchmarks tools
+rg -n "rushbench.*report|Command::Report|report" crates/rushbench
 ```
 
-Read only what they point to. This is an evidence PR; the agent should be
-spending zero time reading source files.
+Read only the matching implementation and schema files. This is an evidence
+PR; do not load unrelated source.
 
 ---
 

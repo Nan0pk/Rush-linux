@@ -1,136 +1,59 @@
-# Keeping Documentation In Sync
+# Keeping Documentation in Sync
 
-Rush Linux has 40+ documentation files that must stay aligned with each
-other and with the actual code. This guide explains the system that prevents
-drift, contradictions, and staleness.
+Rush keeps user commands and project state current without registering every
+historical file as active truth.
 
-## The Doc Management System
+## Three small indexes
 
-### 1. Doc Registry: `docs/docmap.toml`
+- `docs/docmap.toml` maps maintained user, architecture, workflow, and release
+  documents to the code or state they describe.
+- `docs/decisions/README.md` indexes architecture decisions. Each ADR carries
+  its own status.
+- `docs/research/README.md` indexes numbered research papers. Research is
+  context, not accepted direction.
 
-The docmap is the **single source of truth** for doc ownership and
-relationships. Every documentation file has an entry that records:
+Archives, old plans, and `docs/inbox/` do not belong in the active docmap.
 
-| Field | Purpose |
-|-------|---------|
-| `purpose` | One-line description of what this doc covers |
-| `owner_area` | GitHub label for the responsible area |
-| `covers_code` | Code paths this doc describes (for drift detection) |
-| `deps` | Other docs whose content this doc depends on |
-| `freshens` | Other docs that must be reviewed when this doc changes |
-| `last_verified` | Date a human/agent confirmed the doc matches reality |
-| `validator` | Hint for the automated sync checker |
+## What automation checks
 
-**When adding a new doc:** Add an entry to `docs/docmap.toml`.
+`python3 tools/validate-doc-sync.py` verifies:
 
-**When changing a doc:** Update its `last_verified` date.
+- every active doc and dependency exists;
+- every numbered research paper appears in the research index;
+- current versions agree;
+- ADR statuses are valid;
+- important internal links resolve;
+- the optid plan, package ledger, safety amendment, README, and agent contract
+  agree;
+- maintained docs have a recent `last_verified` date.
 
-### 2. Automated Sync Validator: `tools/validate-doc-sync.py`
+`python3 tools/render-frontpage.py --check` independently verifies the
+generated README status and every advertised command target.
 
-Runs in CI and checks:
+## Updating documentation
 
-- ✅ Every registered doc exists on disk
-- ✅ All cross-references (`deps`) point to registered, existing docs
-- ✅ Version strings in key docs match `VERSION` file
-- ✅ ADR status values are valid (proposed/accepted/superseded/rejected)
-- ✅ No known stale patterns (e.g., "next step" for completed features)
-- ✅ Internal Markdown links resolve to real files
-- ✅ optid features mentioned in docs actually exist in code
-- ✅ `last_verified` dates are within the freshness window
+1. Change the smallest document that owns the affected behavior.
+2. Update `README.md` only for a public command, project-stage, or generated
+   status change.
+3. If an active mapped document changed, update its `last_verified` date.
+4. Add a research paper to `docs/research/README.md`; add an ADR to
+   `docs/decisions/README.md`.
+5. Run:
 
-Run locally:
+   ```sh
+   bash tools/finish-work.sh --dry-run
+   ```
 
-```sh
-python3 tools/validate-doc-sync.py              # default: warn at 90 days
-python3 tools/validate-doc-sync.py --max-age 30  # stricter: warn at 30 days
-```
+For common code areas:
 
-### 3. CI Integration
+- `optid` behavior → `docs/adaptive-engine.md` and implementation status when
+  feature status changed;
+- kernel policy → `docs/kernel-policy.md`;
+- image/package flow → `docs/build-system.md` or
+  `docs/packaging-and-builds.md`;
+- LiveDev behavior → the user/operator guide that exposes it;
+- release truth → `VERSION`, `RELEASES.md`, `ROADMAP.md`, and the milestone or
+  evidence records that support the claim.
 
-The sync validator runs in CI alongside the existing checks. A PR that
-changes code without updating the affected docs will fail CI.
-
-## How To Update Docs For Common Changes
-
-### Changing `optid` behavior
-
-1. Edit `crates/optid/src/main.rs`
-2. Update `docs/adaptive-engine.md` — add or change the feature description
-3. Update `docs/IMPLEMENTATION_STATUS.md` — move items between Implemented/Not Yet
-4. Update `README.md` — if the "Current Implementation Status" section is affected
-5. In `docs/docmap.toml` — bump `last_verified` for all four docs
-
-### Changing optimizer policy
-
-1. Edit `config/optid/policy.toml`
-2. Update `docs/adaptive-engine.md` — thresholds, mode configs, guardrails
-3. Check `docs/decisions/0004-adaptive-optid.md` — does the ADR still apply?
-4. In `docs/docmap.toml` — bump `last_verified` for all changed docs
-
-### Changing kernel config
-
-1. Edit `distro/kernel/*.config`
-2. Update `docs/kernel-policy.md` — explain the change
-3. Check `docs/decisions/0010-realtime-edition-kernel-policy.md`
-4. In `docs/docmap.toml` — bump `last_verified`
-
-### Bumping the version
-
-1. Update `VERSION`
-2. Update `RELEASES.md` — add new entry
-3. Update `ROADMAP.md` — change "Current project version" line
-4. Update `docs/IMPLEMENTATION_STATUS.md` — change version reference
-5. Update `docs/AI_CONTINUATION.md` — change version reference
-6. In `docs/docmap.toml` — bump `last_verified` for all five files
-7. Run `python3 tools/validate-doc-sync.py` to confirm
-
-### Adding a new ADR
-
-1. Create `docs/decisions/00XX-title.md` with `Status: proposed`
-2. Update `docs/decisions/README.md` if it adds new rules
-3. Add entry to `docs/docmap.toml`
-4. Update any docs listed in the new ADR's consequences
-5. Do NOT set `Status: accepted` without maintainer ratification (see ADR README)
-
-### Adding a new doc
-
-1. Write the doc
-2. Add an entry to `docs/docmap.toml` with purpose, owner_area, and deps
-3. If other docs should reference it, add it to their `deps` or `freshens`
-4. Run `python3 tools/validate-doc-sync.py`
-
-## For AI Agents
-
-When an AI agent makes changes, it MUST:
-
-1. **Before changing code or config:** Read the `covers_code` entries in
-   `docs/docmap.toml` to find which docs describe the affected code.
-2. **After changing code or config:** Update every affected doc, then update
-   `last_verified` in `docs/docmap.toml` for each changed doc.
-3. **After changing docs:** Check the `freshens` list for that doc and review
-   whether the dependent docs also need updating.
-4. **Before committing:** Run `python3 tools/validate-doc-sync.py` and confirm
-   it passes. If it fails, fix the flagged issues before pushing.
-
-### Quick Agent Workflow
-
-```
-1. Read docs/docmap.toml
-2. Identify affected docs via covers_code and deps
-3. Make code changes
-4. Update affected docs
-5. Bump last_verified in docmap.toml
-6. Run validate-doc-sync.py
-7. Commit code + docs + docmap changes together
-```
-
-## Troubleshooting
-
-| Error | Fix |
-|-------|-----|
-| "Registered doc does not exist" | Create the file or remove the docmap entry |
-| "does NOT contain current version" | Update the version string in that doc |
-| "Broken link in X" | Fix or remove the link |
-| "contains stale phrase" | Update the doc to reflect current reality |
-| "last verified N days ago" | Review the doc, confirm it's still accurate, bump the date |
-| "has dep which is not registered" | Add the missing doc to docmap.toml or fix the dep path |
+Do not touch unrelated docs merely to satisfy a gate. If the documented truth
+did not change, no documentation rewrite is required.

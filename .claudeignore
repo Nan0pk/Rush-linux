@@ -12,7 +12,6 @@ rushbench/results/
 
 # Generated / cache
 .cache/
-graphify-out/
 docs/_build/
 
 # Unsorted drafts — not validated, not ready for agent context
@@ -20,4 +19,3 @@ docs/inbox/
 
 # Signing keys
 config/keys/
-

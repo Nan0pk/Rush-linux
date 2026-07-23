@@ -4,15 +4,14 @@ trim-benchmark-samples.py
 ==========================
 
 Trims `samples` arrays from psi-cpu / psi-io benchmark result JSONs to control
-repo bloat. Run from the repo root after the WP-ENERGY-PROBE-TRIM handoff.
+repo bloat. Run from the repository root.
 
 Reference trim: 311 MB -> ~12 KB across 8 psi records (99.96% reduction).
-See docs/agent-bus/WP-ENERGY-PROBE-TRIM.handoff.md for the spec.
+The original one-off handoff remains available in Git history.
 """
 
 from __future__ import annotations
 import json
-import os
 import sys
 from pathlib import Path
 

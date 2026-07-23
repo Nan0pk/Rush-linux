@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject newly tracked build output, generated staging files, and executables."""
+"""Reject generated output, compiled files, and misplaced root reports."""
 
 from __future__ import annotations
 
@@ -19,6 +19,20 @@ GENERATED_PREFIXES = (
 COMPILED_MAGIC = {
     b"\x7fELF": "ELF executable",
     b"MZ": "Windows executable",
+}
+ALLOWED_ROOT_MARKDOWN = {
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "DIRTY_STATE.md",
+    "FINAL-AUDIT-REPORT.md",
+    "OPTID-COMPLETION-PLAN.md",
+    "README.md",
+    "RELEASES.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "SUPPORT.md",
 }
 
 
@@ -55,6 +69,9 @@ def violations(paths: list[str], root: Path = ROOT) -> list[str]:
         if normalized.startswith(GENERATED_PREFIXES):
             failures.append(f"{normalized}: generated build/staging path")
             continue
+        if "/" not in normalized and normalized.endswith(".md") and normalized not in ALLOWED_ROOT_MARKDOWN:
+            failures.append(f"{normalized}: report or handoff belongs under docs/")
+            continue
         path = root / relative
         if not path.is_file():
             continue
@@ -76,14 +93,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"BLOCKED: cannot determine changed files: {exc}", file=sys.stderr)
         return 2
     if failures:
-        print("BLOCKED: generated or compiled artifacts are being added to source control.")
-        print("Risk: builds become non-reproducible and the checkout dirties itself.")
-        print("Root: build outputs must be recreated from canonical source inputs.")
-        print("Ways forward: delete the artifact or generate it in an ignored build directory.")
+        print("BLOCKED: repository hygiene rejected one or more changed files.")
+        print("Risk: generated output or stray reports can diverge from canonical project truth.")
+        print("Root: build output is reproducible; maintained prose has an owned docs location.")
+        print("Ways forward: regenerate artifacts outside source control or move prose under docs/.")
         for failure in failures:
             print(f"  - {failure}")
         return 1
-    print("OK: changed files contain no generated staging or compiled artifacts")
+    print("OK: changed files contain no generated artifacts or misplaced root reports")
     return 0
 
 

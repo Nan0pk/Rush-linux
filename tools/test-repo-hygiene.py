@@ -32,6 +32,19 @@ def test_generated_staging_path_is_rejected(tmp_path):
     assert failures and "generated" in failures[0]
 
 
+def test_root_report_is_rejected(tmp_path):
+    report = tmp_path / "LATEST-AUDIT.md"
+    report.write_text("stale narrative", encoding="utf-8")
+    failures = hygiene.violations(["LATEST-AUDIT.md"], tmp_path)
+    assert failures and "belongs under docs" in failures[0]
+
+
+def test_allowed_root_instructions_are_accepted(tmp_path):
+    instructions = tmp_path / "CLAUDE.md"
+    instructions.write_text("See AGENTS.md", encoding="utf-8")
+    assert hygiene.violations(["CLAUDE.md"], tmp_path) == []
+
+
 def test_elf_is_rejected(tmp_path):
     target = tmp_path / "tool"
     target.write_bytes(b"\x7fELFcompiled")

@@ -127,8 +127,12 @@ if matches '^\.github/workflows/.*\.ya?ml$'; then
         while IFS= read -r file; do
             [[ -f "$file" ]] && WORKFLOW_FILES+=("$file")
         done < <(files_matching '^\.github/workflows/.*\.ya?ml$')
-        attempt run "R5 — a changed workflow cannot execute as written" \
-            actionlint -shellcheck= "${WORKFLOW_FILES[@]}"
+        if (( ${#WORKFLOW_FILES[@]} > 0 )); then
+            attempt run "R5 — a changed workflow cannot execute as written" \
+                actionlint -shellcheck= "${WORKFLOW_FILES[@]}"
+        else
+            echo "No changed workflow remains to lint (deleted workflow only)."
+        fi
     elif $STRICT; then
         FAILURES=$((FAILURES + 1))
     fi
