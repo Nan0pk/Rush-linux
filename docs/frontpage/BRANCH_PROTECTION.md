@@ -1,15 +1,16 @@
-# Branch protection: required check
+# Branch protection: one stable required check
 
-The `main` branch should require one ordinary pull-request status:
+Require exactly `PR Gate / PR Gate` on `main`. The aggregator fails unless the
+always-on repository/Linux lane and every path-selected Windows or image lane
+pass.
 
-| check name | workflow | purpose |
-|---|---|---|
-| `Change checks / Relevant tests and safety rules` | `.github/workflows/ci.yml` | Runs only the tests relevant to the changed files and enforces the no-auto-merge rule |
+The implementation lives in `.github/workflows/ci.yml`. Individual lane names
+may evolve without repeatedly editing branch protection; the aggregator is the
+stable contract.
 
-Repository administrators configure this in **Settings -> Branches**. Require a
-pull request and the check above. Do not enable automatic merging for agents or
-repository automation.
+Labeling, release drafting, publishing, scheduled maintenance, pages, and
+reassessment workflows are not quality gates. They create artifacts or report
+state and must not be configured as required PR checks.
 
-Release, image-publishing, scheduled link, advisory, graph, and reassessment
-workflows are intentionally not required PR gates. They create artifacts or
-report maintenance state; they do not judge every ordinary change.
+Only the human maintainer merges. Automatic merge remains disabled for agents
+and repository automation.

@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# Run the checks relevant to this change. CI is authoritative; local runs skip
-# only checks whose required tool is unavailable and say so plainly.
+# One change-aware check runner for local work and the Linux CI lane.
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# SC2164: fail loudly if the computed ROOT does not exist, rather than
-# silently continuing inside whatever cwd we were invoked from.
 cd "$ROOT" || { echo "fatal: could not cd to $ROOT" >&2; exit 1; }
 
 MODE="changed"
@@ -36,6 +33,15 @@ fi
 
 matches() {
     [[ "$CHANGED" == "ALL" ]] || printf '%s\n' "$CHANGED" | grep -Eq "$1"
+}
+
+files_matching() {
+    local pattern="$1"
+    if [[ "$CHANGED" == "ALL" ]]; then
+        git ls-files | grep -E "$pattern" || true
+    else
+        printf '%s\n' "$CHANGED" | grep -E "$pattern" || true
+    fi
 }
 
 run() {
@@ -71,26 +77,38 @@ for candidate in python3 python; do
     fi
 done
 if (( ${#PYTHON[@]} == 0 )); then
-    echo "BLOCKED: a working Python 3.11+ interpreter is required for repository checks." >&2
+    echo "BLOCKED: Python 3.11+ is required for repository checks." >&2
     exit 1
 fi
-# Python otherwise inherits the legacy Windows console code page under Git
-# Bash, and validators with Unicode headings can crash before checking files.
 case "${OSTYPE:-}" in
     msys*|cygwin*) export PYTHONUTF8=1 ;;
 esac
 
-attempt run "R4/R8 — unapproved direction and stale project truth" \
+# Fast repository-integrity checks. These are deliberately canonical and run
+# once; CI does not duplicate them in separate jobs.
+attempt run "R5 — whitespace or conflict-marker damage entered the patch" \
+    git diff --check "$BASE"...HEAD
+attempt run "R5 — uncommitted whitespace damage entered the patch" \
+    git diff --check
+attempt run "R4/R8 — automation can merge or project truth is unsafe" \
     "${PYTHON[@]}" tools/check-workflow-safety.py
-attempt run "R8 — public docs and versions contradict the repository" \
+attempt run "R5/R8 — generated or compiled output entered source control" \
+    "${PYTHON[@]}" tools/check-repo-hygiene.py --base "$BASE"
+attempt run "R8 — public versions contradict canonical release truth" \
     "${PYTHON[@]}" tools/validate-versions.py
-attempt run "R8 — documentation is missing or points at stale sources" \
+attempt run "R8 — documentation is missing or contradicts canonical sources" \
     "${PYTHON[@]}" tools/validate-doc-sync.py
+attempt run "R8 — a user-facing change has no matching guide update" \
+    "${PYTHON[@]}" tools/check-docs-impact.py --base "$BASE"
+attempt run "R8 — the generated practical README is stale" \
+    "${PYTHON[@]}" tools/render-frontpage.py --check
 attempt run "R1/R5 — optid package claims outrun integrated, verified behavior" \
     "${PYTHON[@]}" tools/validate-optid-packages.py --base "$BASE"
+attempt run "R1 — a verified or release claim lacks matching proof" \
+    "${PYTHON[@]}" tools/validate-evidence.py
 
 if need pwsh "repository policy"; then
-    attempt run "R4/R8 — an unratified decision or core project invariant slipped in" \
+    attempt run "R4/R8 — a core invariant or unratified decision slipped in" \
         pwsh -NoProfile -File tools/validate-repo.ps1
 elif $STRICT; then
     FAILURES=$((FAILURES + 1))
@@ -103,39 +121,71 @@ if [[ "$MODE" == "quick" ]]; then
     exit 0
 fi
 
-if matches '(^|/)([^/]+\.sh)$'; then
-    while IFS= read -r file; do
-        [[ -f "$file" ]] && attempt run "R5 — a changed shell entry point cannot start" bash -n "$file"
-    done < <(printf '%s\n' "$CHANGED" | grep -E '\.sh$' || true)
+if matches '^\.github/workflows/.*\.ya?ml$'; then
+    if need actionlint "GitHub Actions workflow"; then
+        WORKFLOW_FILES=()
+        while IFS= read -r file; do
+            [[ -f "$file" ]] && WORKFLOW_FILES+=("$file")
+        done < <(files_matching '^\.github/workflows/.*\.ya?ml$')
+        attempt run "R5 — a changed workflow cannot execute as written" \
+            actionlint -shellcheck= "${WORKFLOW_FILES[@]}"
+    elif $STRICT; then
+        FAILURES=$((FAILURES + 1))
+    fi
+fi
+
+SHELL_FILES=()
+while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    if [[ "$file" == *.sh ]] || head -n 1 "$file" | grep -Eq '^#!.*\b(ba|da|k)?sh\b'; then
+        SHELL_FILES+=("$file")
+    fi
+done < <(files_matching '(^|/)[^/]+$|\.sh$')
+
+if (( ${#SHELL_FILES[@]} > 0 )); then
+    for file in "${SHELL_FILES[@]}"; do
+        attempt run "R5 — a changed shell entry point cannot parse" bash -n "$file"
+    done
+    if need shellcheck "shell static analysis"; then
+        attempt run "R5 — a changed shell entry point has a static defect" \
+            shellcheck --external-sources --exclude=SC1090,SC1091 "${SHELL_FILES[@]}"
+    elif $STRICT; then
+        FAILURES=$((FAILURES + 1))
+    fi
 fi
 
 if matches '\.ps1$'; then
     if need pwsh "PowerShell parser"; then
         while IFS= read -r file; do
             [[ -f "$file" ]] || continue
+            # shellcheck disable=SC2016
+            # PowerShell must receive its own $variables literally.
             attempt run "R5 — a changed Windows entry point cannot parse" \
                 env RUSH_PS_FILE="$file" pwsh -NoProfile -Command \
                 '$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:RUSH_PS_FILE,[ref]$tokens,[ref]$errors); if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
-        done < <(printf '%s\n' "$CHANGED" | grep -E '\.ps1$' || true)
+        done < <(files_matching '\.ps1$')
     elif $STRICT; then
         FAILURES=$((FAILURES + 1))
     fi
 fi
 
-if matches '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'; then
-    if need cargo "Rust"; then
-        attempt run "R5 — Rust source is malformed" cargo fmt --all -- --check
-        attempt run "R3/R5 — safety behavior or existing Rust behavior regressed" cargo test --workspace
-        attempt run "R5 — Rust defects caught by static analysis" cargo clippy --workspace --all-targets -- -D warnings
-    elif $STRICT; then
-        FAILURES=$((FAILURES + 1))
+if matches '(^|/).*\.py$|^pyproject\.toml$|^schemas/|^release/evidence/livedev-'; then
+    PY_FILES=()
+    while IFS= read -r file; do
+        [[ -f "$file" ]] && PY_FILES+=("$file")
+    done < <(files_matching '\.py$')
+    if (( ${#PY_FILES[@]} > 0 )); then
+        attempt run "R5 — changed Python cannot compile" \
+            "${PYTHON[@]}" -m py_compile "${PY_FILES[@]}"
+        if need ruff "Python static analysis"; then
+            attempt run "R5 — changed Python has a static defect" ruff check "${PY_FILES[@]}"
+        elif $STRICT; then
+            FAILURES=$((FAILURES + 1))
+        fi
     fi
-fi
-
-if matches '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev-)'; then
     if "${PYTHON[@]}" -c 'import pytest' >/dev/null 2>&1; then
-        attempt run "R5/R6 — test and evidence tooling regressed" \
-            "${PYTHON[@]}" -m pytest tools/test-*.py -q
+        attempt run "R5/R6 — tooling or evidence behavior regressed" \
+            "${PYTHON[@]}" -m pytest -q
     elif $STRICT; then
         echo "BLOCKED: pytest is required for Python/tooling changes in CI." >&2
         FAILURES=$((FAILURES + 1))
@@ -146,14 +196,18 @@ if matches '^(tools/.*\.py|tools/test-|testos/|schemas/|release/evidence/livedev
         "${PYTHON[@]}" tools/validate-hwtest-evidence.py --fixtures
 fi
 
-if matches '^(release/evidence/|release/milestones\.toml|release/test-tiers\.toml|tools/validate-evidence\.py)'; then
-    attempt run "R1 — a verified or release claim lacks matching proof" \
-        "${PYTHON[@]}" tools/validate-evidence.py
-fi
-
-if matches '^(README\.md|docs/frontpage/|docs/frontpage/project\.yml|tools/render-frontpage\.py)'; then
-    attempt run "R8 — the generated public front page is stale" \
-        "${PYTHON[@]}" tools/render-frontpage.py --check
+if matches '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'; then
+    if need cargo "Rust"; then
+        attempt run "R5 — Rust formatting drifted" cargo fmt --all -- --check
+        attempt run "R3/R5 — safety behavior or existing Rust behavior regressed" \
+            cargo test --workspace
+        attempt run "R5 — Rust defects were found by static analysis" \
+            cargo clippy --workspace --all-targets -- -D warnings
+        attempt run "R5 — an optional feature or target no longer compiles" \
+            cargo check --workspace --all-targets --all-features
+    elif $STRICT; then
+        FAILURES=$((FAILURES + 1))
+    fi
 fi
 
 echo

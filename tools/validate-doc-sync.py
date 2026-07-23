@@ -19,7 +19,6 @@ Exit code: 0 = all pass, 1 = errors found.
 """
 
 import argparse
-import os
 import re
 import sys
 import tomllib
@@ -342,18 +341,30 @@ def check_optid_plan_activation(entries):
     else:
         ok("D2 is accepted and superseded S1-S3 package headings are absent")
 
-    required_readme = (
-        "F1 is the active general repair",
-        "D0 is the active safety repair",
-        "F2–F4 are also merged but incomplete",
+    active_general = str(ledger.get("active_general", ""))
+    active_safety = str(ledger.get("active_safety", ""))
+    merged_incomplete = sorted(
+        package_id
+        for package_id, package in by_id.items()
+        if package.get("status") == "merged_incomplete"
+        and package_id not in {active_general, active_safety}
+    )
+    required_readme = [
+        f"**Active general repair:** `{active_general}`",
+        f"**Active safety repair:** `{active_safety}`",
         "docs/architecture/optid-d2-amendment.md",
         "docs/plans/optid-package-status.toml",
-    )
+    ]
+    if merged_incomplete:
+        required_readme.append(
+            "**Other merged but incomplete packages:** "
+            + ", ".join(f"`{package_id}`" for package_id in merged_incomplete)
+        )
     missing = [token for token in required_readme if token not in readme]
     if missing:
         err(f"README is missing active optid truth: {', '.join(missing)}")
     else:
-        ok("README names the F1/D0 repair lanes, incomplete F2-F4, D2, and the ledger")
+        ok("README derives active repairs, incomplete packages, D2, and the ledger")
 
 
 def check_optid_doc_sync(entries):

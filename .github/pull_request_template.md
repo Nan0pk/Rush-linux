@@ -1,74 +1,32 @@
-## What Does This Change?
+## Outcome
 
-A clear description of what this PR changes and why.
+What changed, why it matters, and what a user or developer can now do.
 
-## Motivation
+## Risk
 
-Why is this change needed? Link to the issue it resolves (e.g., `Closes #123`)
-or explain the problem it solves.
+Name the affected boundary and the concrete failure this change could cause.
+Use `low` for docs/refactors, `medium` for runtime behavior, and `high` for
+privileged writes, boot/storage, security boundaries, or release claims.
 
-## Type of Change
+## Verification
 
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that changes existing behavior)
-- [ ] Refactor (no functional change)
-- [ ] Documentation update
-- [ ] CI / build system change
-- [ ] Kernel config change
-- [ ] Policy / defaults change
+- [ ] `bash tools/finish-work.sh --dry-run`
+- [ ] The PR enters through the real behavior surface, not only a new module
+      (when runtime behavior changes)
+- [ ] User-facing behavior and commands are reflected in README/docs
 
-## Testing
+List any check that could not run and why.
 
-- [ ] `cargo test --workspace` passes
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
-- [ ] `cargo fmt --all -- --check` passes
-- [ ] `pwsh ./tools/validate-repo.ps1` passes
-- [ ] `python3 tools/validate-evidence.py` passes (Dragnet gate)
-- [ ] New or updated tests added for this change
+## Optid package work
 
-### Evidence (Dragnet)
+Delete this section when the PR is not optid package work.
 
-- [ ] If this PR sets any milestone criterion `verified = true`, it commits the
-      acceptance `transcript` and `python3 tools/dragnet.py --observe` is GREEN
-      with zero `pending` ledger rows for that milestone. (See `docs/dragnet-protocol.md`.)
+- Package ID:
+- [ ] Exactly one ledger entry is updated.
+- [ ] Builder state is honest (`candidate` or `merged_incomplete`, never
+      self-certified `completed`).
+- [ ] Production entry point, integration test, and committed evidence paths
+      are recorded when claiming `candidate`.
+- [ ] Cold verification is separate before `completed`.
 
-### Optid package contract
-
-- Package ID (or `not optid`): ___
-- [ ] This optid code PR updates exactly one entry in
-      `docs/plans/optid-package-status.toml`.
-- [ ] The package is `candidate` or honestly `merged_incomplete`; the builder
-      did not self-certify it as `completed`.
-- [ ] Ledger paths identify production runtime entry points, integration tests,
-      and committed evidence (required for `candidate`).
-- [ ] Integration tests enter through a production daemon/CLI/service surface,
-      not only through a newly added module.
-- [ ] No new production `allow(dead_code)` or module-only wiring hides
-      incomplete integration.
-- [ ] `python3 tools/validate-optid-packages.py --base origin/main` passes.
-
-## Documentation
-
-**Documentation updates are required for changes to behavior, defaults,
-policy, boot/update flow, kernel fragments, recipes, or service behavior.**
-
-- [ ] No documentation update needed (explain why below)
-- [ ] `docs/IMPLEMENTATION_STATUS.md` updated
-- [ ] Relevant docs updated (list which ones):
-  - ___
-- [ ] ADR added or amended (if this changes architectural direction)
-
-### If no doc update is needed, explain why:
-
-___
-
-## Checklist
-
-- [ ] I have read `CONTRIBUTING.md`
-- [ ] My changes follow the project's design rules (modern defaults,
-      one adaptive policy owner, explainable behavior)
-- [ ] No legacy defaults were introduced without justification
-- [ ] No guardrails were weakened
-- [ ] If this changes privileged actions, `SECURITY.md` and relevant
-      ADRs are updated
+Automation never merges this PR.

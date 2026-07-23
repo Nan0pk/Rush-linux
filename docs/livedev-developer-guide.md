@@ -151,7 +151,7 @@
 | rush-agent | AI harness | No (mock only) | No | No |
 | validate-hwtest-evidence | Validator | No | No | No |
 | rush_pr_lib | PR submission | No | **NEVER** | **NEVER** |
-| CI (Change checks) | Server-side validation | No | No | No |
+| CI (PR Gate) | Server-side validation | No | No | No |
 | Human | Maintainer | Yes | **YES** (only role) | **YES** (only role) |
 
 ## Data flow summary

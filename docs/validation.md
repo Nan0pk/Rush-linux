@@ -1,17 +1,22 @@
 # Validation
 
 The pull-request mechanism is defined in `docs/project-workflow.md` and run by
-`tools/checks.sh`. There is one normal GitHub status: **Change checks**.
+`tools/checks.sh`. There is one stable required GitHub status: **PR Gate**.
 
 The runner selects checks from the files that changed:
 
-- repository structure, accepted-decision ratification, versions, docs, and
-  no-auto-merge safety;
-- Rust format, tests, and Clippy for Rust changes;
-- Python/tooling tests and hardware-evidence fixtures for tooling changes;
-- shell and PowerShell parsing for changed scripts;
-- evidence integrity when evidence or release truth changes;
-- generated front-page consistency when its inputs change;
+- repository structure, accepted-decision ratification, versions, docs,
+  no-auto-merge safety, evidence integrity, and generated front-page
+  consistency on every change;
+- Rust format, tests, Clippy, and all-target/all-feature compilation for Rust
+  changes;
+- Python compilation, Ruff, tests, and hardware-evidence fixtures for tooling
+  changes;
+- parser and ShellCheck coverage for changed shell entry points;
+- native PowerShell parsing and Windows parity tests for Windows/shared
+  LiveDev changes;
+- image and boot contract tests plus a real product image build for image/build
+  changes;
 - dependency policy when Cargo dependencies change.
 
 Run locally with:
@@ -22,7 +27,8 @@ bash tools/checks.sh
 
 If an optional local tool is missing, the runner names the skipped area. It
 does not hide the cause or block unrelated work. Pull-request CI installs the
-required tools and runs that area authoritatively.
+required tools and runs that area authoritatively. `PR Gate` fails unless every
+selected lane passes.
 
 ## What a green check means
 

@@ -16,600 +16,156 @@
   <a href="VERSION"><img src="https://img.shields.io/badge/version-0.7.0--beta.4-blue?style=flat-square" alt="version"></a>
 </p>
 
-<hr>
+Rush Linux is an Arch-based operating-system project that adapts power and
+performance to the work being done. `optid` observes the machine, classifies the
+workload, explains its decisions, and can apply guarded hardware settings when
+explicitly enabled.
 
-**Rush Linux is an Arch-based distribution that watches what you're doing and tunes the hardware to match.** Fast CPU when you're compiling. Tight latency when you're on a video call. Idle states when you're reading. Optid is designed to log and explain every decision and to hand every owned setting back safely.
+This is an early beta. Dry-run is the safe default. The boot/update path and
+benchmark tooling are usable; automatic hardware actuation and crash-safe
+handback are still under active construction.
 
-It's early beta. The optimizer (`optid`) defaults to safe dry-run mode. Core CPU controls plus initial runtime-PM, PCIe ASPM, SATA ALPM, backlight, and VM-sysctl paths exist, but the packaged apply service cannot yet reach its dynamic device paths and crash-safe handback is still being built. The boot path is verified end-to-end (UKI + systemd-boot + signed rollback), and the `rushbench` measurement harness is operational. Desktop and laptop profiles exist, but consumer editions are not yet buildable. Code status and hardware evidence are reported separately below.
+**Rush LiveDev is the quickest way to try the project:** one smart command
+chooses the useful VM, USB, or results-resume path for the machine it runs on.
 
----
+<!-- RUSH_FRONTPAGE:START -->
+### Current repository truth
 
-## Rush LiveDev — one command
+- **Version:** `0.7.0-beta.4`
+- **Stage:** Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready.
+- **Build profiles:** `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos`
+- **Active general repair:** `F1` — Freeze capability states and domain configuration (`merged_incomplete`)
+- **Active safety repair:** `D0` — Prototype capability sealing and supervisor-managed cold restart (`merged_incomplete`)
+- **Other merged but incomplete packages:** `F2`, `F3`, `F4`
+- **Safety architecture:** [D2 fail-passive](docs/architecture/optid-d2-amendment.md)
+- **Canonical work state:** [optid package ledger](docs/plans/optid-package-status.toml)
 
-One command does everything. Paste this into a terminal:
+### Practical command guide
 
-**Linux/macOS:**
+Use the first command that matches what you want to do. Detailed options stay in the linked runbooks.
+
+#### Run the smart LiveDev flow — Linux / macOS
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh
 ```
 
-**Windows PowerShell:**
+Detects an existing results USB, QEMU, or a USB-preparation path and chooses the useful next action.
 
-Open PowerShell **as Administrator** first; raw USB writing and temporary ESP
-mounting require elevation.
+#### Run the smart LiveDev flow — Windows PowerShell (Administrator)
 
 ```powershell
 curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
-That's it. The script auto-detects what to do:
+Open PowerShell as Administrator. Elevation is needed only for raw USB writing and temporary ESP mounting.
 
-- **USB with `testos-results/` plugged in** → resume: copy results, validate, submit evidence PR
-- **Linux/macOS with QEMU installed, no USB results** → run deterministic VM test cycle (no USB, no reboot)
-- **No QEMU, no USB results** → prepare USB via testOS, print boot instructions
-
-In interactive mode (terminal attached), it shows a context-dependent menu:
-
-```
-  What would you like to do?
-
-  [1] usb — Prepare a USB via testOS (for real-hardware testing)
-  [2] submit-vm — Submit the most recent VM run (from artifacts/livedev/)
-
-  Pick [1-2] (or press Enter for default 1):
-```
-
-The menu is context-dependent: `resume` appears only when a USB with results is detected, `vm` appears only when QEMU is installed, `submit-vm` appears only when VM artifacts exist. Non-interactive runs (CI, piped stdin) auto-pick based on what's available.
-
-**Note:** the USB path requires `sudo` for writing the USB device. The script will prompt for your password when it reaches that step.
-
----
-
-## Want to test optid RIGHT NOW on your existing Linux machine?
-
-**No USB. No QEMU. No reboot. No installing Rush as your distro.** One command
-builds optid, runs a baseline measurement under your current distro defaults,
-runs optid in `--apply` mode for the same measurement, compares the two, and
-(if you have `gh` authenticated) submits an evidence PR.
-
-**Run from a TTY** (Ctrl+Alt+F3, *not* a GNOME/KDE terminal) and quit Chrome /
-Discord / IDEs first — those skew the numbers.
+#### Compare optid on an existing Linux install — Linux
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/rush-host-bench.sh | sudo bash
 ```
 
-To auto-submit results as an evidence PR after the run (needs `gh auth login`
-or `GH_TOKEN` set):
+No USB, VM, reboot, or Rush installation. Apply mode is experimental; a reboot remains the final recovery fallback.
+
+#### Start a clean development task — Cloned repository
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/rush-host-bench.sh | sudo bash -s -- --submit
+bash tools/start-work.sh "short task description"
 ```
 
-What it measures (×5 iterations per leg, ~12 minutes total):
-- **Cyclictest max wakeup latency** (responsiveness floor)
-- **PSI cpu + io avg10** (kernel pressure-stall stats)
-- **Idle power draw** via Intel RAPL / AMD energy / battery drain
+Creates a work branch when needed and runs the fast starting-state checks.
 
-It stops `tuned` and `power-profiles-daemon` for the duration and restarts them
-when it exits. On a normal optid shutdown, the current journal attempts to
-restore the settings it changed. Crash/power-loss recovery is not yet a durable
-guarantee, so `--apply` remains an experimental hardware-test path; use it only
-on a machine where a reboot is an acceptable final recovery step. The active
-D2 work below is replacing this limitation with persistent verified recovery.
-
-For details, see [`benchmarks/host-runs/README.md`](benchmarks/host-runs/README.md).
-
-The script automatically:
-- Collects a **privacy-safe hardware inventory** (CPU, GPU, RAM, battery, kernel, DMI board vendor/model — no serials, MACs, UUIDs, or hostnames) before any benchmarks run
-- Saves a **persistent checkpoint** so you can resume with one command after reboot
-- Never auto-merges, never marks milestones verified, never edits release truth
-
-The USB installer fails closed if the published release lacks checksummed
-image-commit or canonical-version metadata. This blocks stale pre-contract
-images and lets a corrected image use a distinct build tag without pretending
-the project version changed.
-
-### After reboot — one command to resume
-
-When the script prints boot instructions, it also saves a checkpoint. After the test machine reboots back to its host OS, plug the USB back in and run:
+#### Run every check relevant to a change — Cloned repository
 
 ```sh
-python3 tools/rush-livedev-checkpoint.py resume-command
+bash tools/finish-work.sh --dry-run
 ```
 
-This prints the exact command to resume (e.g. `python3 tools/livedev-next --resume`). The checkpoint survives reboot because it's stored in `~/.local/share/rush-livedev/`, not `/tmp`.
+Uses the same change-aware check runner as CI and does not commit or push.
 
-### GitHub auth (for `--submit`)
-
-To open an evidence PR, the script needs GitHub auth. Three ways, best first:
-
-1. **`gh` CLI (recommended, no token pasted):** install `gh` and run `gh auth login` once. After that, every `--submit` just works.
-2. **Interactive prompt:** run `bash livedev-bootstrap.sh --resume --submit` and paste a token when prompted (not echoed, not stored).
-3. **Env var:** `export GH_TOKEN=...` (typed in your terminal, not pasted from chat).
-
-The script checks auth **before** doing any USB/copy/validate work, so you won't waste 30 seconds only to fail at the last step.
-
-<details>
-<summary><strong>What the PR looks like</strong> (click to expand)</summary>
-
-The submission generates a rich PR body automatically:
-
-- **Pass/fail badge** (green/red/yellow shield)
-- **Summary table** (passed / failed / skipped counts)
-- **Host table** (fingerprint, kernel, CPU, board, battery)
-- **Per-benchmark results table** (bench id, status, value, unit, error)
-- **Artifact bundle** (tar.gz with all JSON + system logs)
-- **Validation checklist** (manifest parses, fingerprint present, results present)
-- **Auto-labels**: `evidence`, `livedev`, `result-pass` / `result-fail` / `result-mixed`
-- **Dedup**: if you re-run with the same host + date, it updates the existing PR instead of creating a duplicate
-- **Deterministic branch**: `evidence/<date>/<host-fingerprint>`
-
-Failed benchmarks are preserved as evidence (never deleted). No auto-merge — a maintainer reviews and merges.
-
-</details>
-
-<details>
-<summary><strong>What the one command does</strong> (situation → action)</summary>
-
-| situation | action |
-|---|---|
-| USB with `testos-results/` plugged in | resume: mount USB read-only, copy results, validate manifest, submit evidence PR (needs `GH_TOKEN` in env) |
-| `qemu-system-x86_64` installed, no USB results | build livedev image (if missing, needs sudo), run `--run-vm` with deterministic marker-driven state machine, collect artifacts, submit |
-| No QEMU, no USB results | prepare USB via testOS, print boot instructions; after reboot, re-run same command |
-
-</details>
-
-<details>
-<summary><strong>Forcing a specific path</strong> (optional flags)</summary>
+#### Build the LiveDev image — Supported Linux build host
 
 ```sh
-bash livedev-bootstrap.sh --vm        # force QEMU/--run-vm path
-bash livedev-bootstrap.sh --auto      # force USB/testOS prepare path
-bash livedev-bootstrap.sh --resume    # force resume path
-bash livedev-bootstrap.sh --resume --submit  # resume + open real PR (needs GH_TOKEN)
-bash livedev-bootstrap.sh --dry-run   # show what would run
+sudo bash tools/build-mkosi-image.sh --edition livedev
 ```
 
-</details>
-
-Full runbook: [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md)
-
----
-
-## testOS — USB boot backend / manual fallback
-
-testOS is the bootable USB image that `livedev-bootstrap.sh` and `livedev-bootstrap.ps1` invoke under the hood when preparing the USB for real-hardware testing. It is preserved as a manual fallback path for users who want to drive each step themselves. For QEMU-driven dev/CI testing, use `python3 tools/livedev-next --run-vm` with the LiveDev mkosi image instead.
-
-> **Latest release: [v0.7.0-beta.4](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.4)**
-
-<details>
-<summary><strong>Linux</strong> — write the USB manually</summary>
-
-```bash
-wget https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
-less install.sh    # inspect it if you like
-sudo bash install.sh /dev/sdX
-```
-
-Safety checks: refuses the host's root disk, refuses non-removable disks without `--force`, refuses mounted devices, warns if the target is much larger than the image, asks `yes` before writing.
-</details>
-
-<details>
-<summary><strong>Windows</strong> — native PowerShell, no WSL</summary>
-
-```powershell
-curl.exe -L -o install.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-If blocked: `Unblock-File .\install.ps1` first. The installer scans for USB disks automatically. Safety checks: refuses the system disk, refuses non-USB bus types without `-Force`, asks `yes` before writing.
-</details>
-
-<details>
-<summary><strong>macOS</strong> — download-then-run</summary>
-
-```bash
-diskutil list
-curl -fsSL -o install.sh https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/testos/install.sh
-sudo bash install.sh /dev/diskN
-```
-
-</details>
-
-**After writing the USB:** plug it into the test machine, reboot, pick USB from the boot menu (disable Secure Boot if it refuses). testOS boots to a console menu — type `0` for all benchmarks, or pick specific numbers. Press Esc to abort early. Results are saved to the USB; testOS reboots back to the host OS when done.
-
-**Pull results into the repo (manual fallback):** use `livedev-bootstrap.sh --resume` (or `.\livedev-bootstrap.ps1 -Resume`) which copies and validates the results, then opens an evidence PR for maintainer review. The manual collector scripts (`testos/collect-results.sh`, `testos/collect-results.ps1`) are also available. Full testOS docs: [`testos/README.md`](testos/README.md).
-
----
-
-## How it works
-
-`optid` currently polls sensors every 2 seconds, maps the system state to one of six workload classes (`idle`, `light`, `interactive`, `latency-critical`, `throughput`, and the derived `vm.guest`), looks up the PM QoS contract for that class, and either logs intended actions (dry-run, the default) or attempts guarded kernel writes. `optctl pin <app> <class>` lets applications claim a class directly. Kernel writes require explicit `--apply`; dynamic-device writes also require verified allowlist entries and are not yet deployable through the packaged service's fixed write-path sandbox.
-
-<details>
-<summary><strong>Architecture diagram</strong> (how optid flows)</summary>
-
-```
-  +----------------- Sensors (every 2s) -----------------+
-  |  /proc/pressure  /sys/power_supply  /sys/thermal     |
-  +---------------------------+--------------------------+
-                              |
-                              v
-  +------------- Classify into 6 classes ----------------+
-  |  idle  light  interactive  latency-critical          |
-  |  throughput  vm.guest (derived)                       |
-  +---------------------------+--------------------------+
-                              |
-                              v
-  +----------- contracts.toml (PM QoS floors) -----------+
-  |  per-class: cpu_wakeup_latency,                      |
-  |            device_resume_latency (microseconds)      |
-  +---------------------------+--------------------------+
-                              |
-                              v   (--apply to write)
-  +----------------- Actuate (kernel knobs) -------------+
-  |  EPP  platform profile  VM sysctls  CPU PM QoS       |
-  |  runtime PM  PCIe ASPM  SATA ALPM  backlight         |
-  |  per-device PM QoS  cgroup slice weights             |
-  +------------------------------------------------------+
-```
-
-</details>
-
-<details>
-<summary><strong>Workload class contracts</strong> (latency floors in <code>config/optid/contracts.toml</code>)</summary>
-
-The contracts file pins two latency floors per workload class. The governor / EPP / platform-profile / cgroup-slice values live in `config/optid/policy.toml`, keyed by **mode** (`battery`, `balanced`, `performance`, `realtime`) rather than by workload class — mode is what the actuator writes; class is what the classifier decides.
-
-| Workload class | CPU wakeup latency | Device resume latency | Use case |
-|:---------------|:------------------|:---------------------|:---------|
-| `idle` | 100 ms | 1 s | Screen off, no foreground app |
-| `light` | 50 ms | 500 ms | Reading, browsing, light editor |
-| `interactive` | 1 ms | 10 ms | Typing, scrolling, UI interaction |
-| `latency-critical` | 1 ms | 1 ms | Video call, game, audio session |
-| `throughput` | 10 ms | 100 ms | Compile, render, batch job |
-| `vm.guest` | (resolves to `interactive`) | (resolves to `interactive`) | Guest VM under Rush — host-side PM QoS does not propagate across the hypervisor boundary, so the latency-critical floor is unenforceable. |
-
-CPU wakeup latency is the hard floor — written to `/dev/cpu_dma_latency`, the kernel will not let any CPU enter a C-state deeper than that floor allows.
-
-</details>
-
-### Current optid construction
-
-The active [capability-completion plan](OPTID-COMPLETION-PLAN.md) separates
-merged code, completed packages, and promotion on real hardware:
-
-- **F1 is the active general repair:** PR #324 merged useful configuration
-  scaffolding, but observe evidence, cgroup gating, and fail-closed defaults
-  remain incomplete.
-- **D0 is the active safety repair:** PR #328 merged an experimental Landlock
-  test, but it does not yet provide the required capability-sealing and
-  supervisor-recovery proof.
-- **F2–F4 are also merged but incomplete:** their partial code does not unlock
-  downstream packages. In particular, F3/F4 are not wired into the live
-  daemon path.
-- The accepted [D2 architecture](docs/architecture/optid-d2-amendment.md) uses
-  one daemon, no permanent actuation broker, no steady-state write-path IPC,
-  persistent verified recovery, an independent one-shot recovery program, and
-  per-domain circuit breakers.
-- Physical hardware nomination gates promotion and v0.6 evidence claims. It
-  does not block observation, simulation, dry-run, F1, or D0.
-
-Current dependency, defect, evidence, and PR state is machine-readable in
-[`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).
-CI rejects optid code that does not update exactly one package claim and rejects
-`completed` without production-path proof and a cold-verification receipt.
-
----
-
-## What's built
-
-- **`optid` daemon** — PSI + thermal + power-supply polling, workload classification, PM QoS contracts, and guarded action paths for EPP, platform profile, VM sysctls, CPU/per-device PM QoS, runtime PM, PCIe ASPM, SATA ALPM, backlight, and cgroup slices. Dry-run is the default. Dynamic-device paths are landed but currently soft-fail under the packaged apply-service sandbox; transition-time and durable crash recovery remain active work.
-- **`optctl` CLI** — D-Bus client (`io.rushlinux.Optid1`): `status`, `explain`, `mode`, `pin`, `trace`, `allow`, `deny`, `list-allow`. Machine-readable output via `--json`.
-- **`rushbench` harness** — measures battery drain (`energy_now` or RAPL) and latency (PSI avg10, cyclictest, foreground launch) per workload class.
-- **Rush LiveDev** — automation foundation: planner, runner, capture, evidence validator, AI harness, PR submission. See [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md).
-- **testOS** — bootable USB image for real-hardware benchmarking. See [testOS README](testos/README.md).
-- **Bootable VM** — Arch-based rootfs boots to `multi-user.target` via UKI through OVMF/systemd-boot with `optid.service` active. Verified.
-- **Installable system** — `tools/rush-install.sh` stamps the mkosi-built image onto a blank disk via `systemd-repart`; installed system boots twice cleanly with `optid.service` active.
-- **Rollback + signing** — systemd-sysupdate descriptors, ≥3 retained boot entries, boot assessment service, Ed25519 update metadata signing. Bad-kernel rollback verified.
-
-<details>
-<summary><strong>Technology choices</strong> (why each layer)</summary>
-
-| Layer | Choice | Why |
-|:------|:-------|:----|
-| Optimizer | `optid` (Rust) | No GC pauses; direct sysfs access; auditable actuator path |
-| Pressure sensing | PSI (`/proc/pressure`) | Kernel-native; quantifies actual CPU/IO/memory stall time |
-| Latency enforcement | PM QoS (`/dev/cpu_dma_latency`) | Hard per-class latency floors, not soft hints |
-| Image composition | mkosi + Arch Linux | Declarative, reproducible; no bespoke build scripts |
-| Scheduling | EEVDF today; `sched_ext` experimental fragment only | The north-star SPEC blocks a `sched_ext` work package until WP-B1 evidence exists |
-| Boot | UKI + systemd-boot | Atomic, signed, single-file boot entries |
-| Updates | systemd-sysupdate | Structured, rollback-aware OTA |
-| Firewall | nftables | Current kernel default; replaces iptables |
-| Desktop | Wayland + PipeWire | Native compositor and audio stack *(planned, not yet built)* |
-
-</details>
-
----
-
-## Build from source
-
-<details>
-<summary><strong>Build commands</strong> (cargo + mkosi)</summary>
-
-```bash
-git clone https://github.com/Nan0pk/Rush-linux.git
-cd Rush-linux
-cargo build --workspace --release
-
-# One sensor read + classify cycle (dry-run, exits after one pass)
-./target/release/optid --once
-
-# Check current status from the state directory
-./target/release/optctl status
-
-# Build the testOS USB image from source (requires mkosi + archlinux-keyring;
-# ~10 minutes the first time)
-sudo bash testos/build-testos.sh
-
-# Run the full test suite
-cargo test --workspace
-```
-
-Or open in VS Code Dev Containers or GitHub Codespaces — the checked-in [dev container](.devcontainer/devcontainer.json) provisions Rust stable, Python 3.11+, and PowerShell Core, then builds the workspace automatically.
-
-</details>
-
----
-
-## Documentation
-
-- [Architecture](docs/architecture.md) — how `optid`, `optctl`, and the systemd units fit together
-- [Boot and updates](docs/boot-and-updates.md) — UKI, systemd-boot, signed rollback
-- [Adaptive engine](docs/adaptive-engine.md) — workload classification, PM QoS contracts
-- [Active optid completion plan](OPTID-COMPLETION-PLAN.md) — current package order; F1 general and D0 safety are next
-- [D2 fail-passive architecture](docs/architecture/optid-d2-amendment.md) — capability sealing, persistent recovery, cold restart, and circuit breakers
-- [Optid package ledger](docs/plans/optid-package-status.toml) — machine-readable dependencies, status, PRs, and completion evidence
-- [LiveDev operator runbook](docs/livedev/OPERATOR_RUNBOOK.md) — how to run benchmarks, capture evidence, submit PRs
-- [LiveDev developer guide](docs/livedev-developer-guide.md) — architecture boundaries, tool roles, data flow
-- [Benchmark methodology](docs/decisions/0011-benchmark-methodology.md) — how claims are measured
-- [Testing strategy](docs/testing-and-benchmarks.md) — release gates and tiers
-- [testOS README](testos/README.md) — full design rationale for the USB benchmark environment
-- [Roadmap](ROADMAP.md) — where the project is going
-- [All docs](docs/SUMMARY.md)
-
----
-
-## Status
-
-| Milestone | State |
-|:----------|:------|
-| Phase 0 — repo, ADRs, CI | ✅ complete |
-| v0.1 — compile-clean core, `optid --once` | ✅ complete |
-| v0.2 — D-Bus control plane, `optctl` | ✅ complete |
-| v0.3 — rootfs builder, VM boots | ✅ complete |
-| v0.4 — UKI boot, rollback, update signing | ✅ complete |
-| v0.5 — minimal installable system (mkosi/Arch) | ✅ complete |
-| **v0.6 — hardware-aware optid, PPD/GameMode shims** | ⚙ in progress (core slices landed; capability completion and Phase D evidence remain) |
-| **v0.7 — desktop / laptop / realtime / server editions** | ⚙ in progress (current version) |
-| v0.8 — benchmark lab, published results | planned |
-| v0.9 — release candidate hardening | planned |
-| v1.0 — installable, benchmarked, stable | planned |
-
-[Full roadmap](ROADMAP.md)
-
-### The evidence rule
-
-Rush Linux enforces a **Builder/Verifier separation**: no claim of correctness or performance is accepted without a literal command transcript. `✅ Verified` means a human or CI ran the command and the output is on record. Claims without transcripts are proposals, not facts. This applies to benchmarks, boot verification, and optimizer behavior equally. See [the testing doc](docs/testing-and-benchmarks.md) and the [agent protocol](docs/agent-protocol.md).
-
----
-
-<!-- RUSH_FRONTPAGE:START -->
-<details>
-<summary><strong>Repository reference</strong> (editions, workflows, services, docs, tests — click to expand)</summary>
-
-<details>
-<summary><strong>Editions</strong></summary>
-
-Rush Linux is built from a single mkosi base plus per-edition
-profiles. Available editions:
-
-| edition | image id | config |
-|---|---|---|
-| `desktop` | `rush-linux-desktop` | `mkosi/mkosi.profiles/desktop/mkosi.conf` |
-| `laptop` | `rush-linux-laptop` | `mkosi/mkosi.profiles/laptop/mkosi.conf` |
-| `livedev` | `rush-linux-livedev` | `mkosi/mkosi.profiles/livedev/mkosi.conf` |
-| `realtime-audio` | `rush-linux-realtime-audio` | `mkosi/mkosi.profiles/realtime-audio/mkosi.conf` |
-| `server` | `rush-linux-server` | `mkosi/mkosi.profiles/server/mkosi.conf` |
-| `testos` | `rush-linux-testos` | `mkosi/mkosi.profiles/testos/mkosi.conf` |
-
-</details>
-
-<details>
-<summary><strong>Rush LiveDev</strong></summary>
-
-Deterministic hardware-test and benchmark-campaign workflow with
-two operator paths: `--run-vm` (QEMU-driven, for CI/dev) and
-`--auto`/`--resume` (USB-based, for real hardware).
-
-```sh
-python3 tools/livedev-next --help    # livedev-next
-python3 tools/rush-autopilot --help    # rush-autopilot
-python3 tools/build-mkosi-image.sh --help    # build-mkosi-image.sh
-```
-
-Additional tools:
-
-| tool | path |
-|---|---|
-| `livedev-bootstrap.ps1` | `tools/livedev-bootstrap.ps1` |
-| `livedev-bootstrap.sh` | `tools/livedev-bootstrap.sh` |
-| `livedev-e2e-dry-run.py` | `tools/livedev-e2e-dry-run.py` |
-| `rush-agent` | `tools/rush-agent` |
-| `rush-builder.py` | `tools/rush-builder.py` |
-| `rush-capture` | `tools/rush-capture` |
-| `rush-exec` | `tools/rush-exec` |
-| `rush-host-bench.sh` | `tools/rush-host-bench.sh` |
-| `rush-install.sh` | `tools/rush-install.sh` |
-| `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
-| `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
-| `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
-| `rush-livedev-runner` | `tools/rush-livedev-runner` |
-| `rush-safe-copy-tree.py` | `tools/rush-safe-copy-tree.py` |
-| `rush-submit-evidence` | `tools/rush-submit-evidence` |
-
-</details>
-
-<details>
-<summary><strong>CI workflows</strong></summary>
-
-GitHub Actions workflows that run on PRs and on main:
-
-| workflow | name | path |
-|---|---|---|
-| `ci.yml` | Change checks | `.github/workflows/ci.yml` |
-| `docker-publish.yml` | Docker Image CI | `.github/workflows/docker-publish.yml` |
-| `graphify.yml` | Graphify knowledge graph | `.github/workflows/graphify.yml` |
-| `labeler.yml` | Pull Request Labeler | `.github/workflows/labeler.yml` |
-| `maintenance.yml` | Scheduled maintenance | `.github/workflows/maintenance.yml` |
-| `pages.yml` | Deploy to GitHub Pages | `.github/workflows/pages.yml` |
-| `reassess.yml` | Strategic Reassessment | `.github/workflows/reassess.yml` |
-| `release-drafter.yml` | Release Drafter | `.github/workflows/release-drafter.yml` |
-| `release-testos.yml` | Release testOS image | `.github/workflows/release-testos.yml` |
-| `stale.yml` | Close stale issues and PRs | `.github/workflows/stale.yml` |
-
-</details>
-
-<details>
-<summary><strong>Systemd services</strong></summary>
-
-Services shipped in the image (optid is the adaptive optimizer;
-rush-* are the LiveDev tools):
-
-| unit | description | path |
-|---|---|---|
-| `optid-apply.service` | Rush Linux optimization daemon (apply mode) | `packaging/systemd/optid-apply.service` |
-| `optid-boot-assess.service` | Rush Linux boot assessment marker | `packaging/systemd/optid-boot-assess.service` |
-| `optid-capability-seal-test.service` | optid D0 capability-sealing prototype (test-only, not shipped) | `packaging/systemd/optid-capability-seal-test.service` |
-| `optid.service` | Rush Linux optimization daemon (dry-run) | `packaging/systemd/optid.service` |
-| `rush-autopilot.service` | Rush LiveDev autopilot planner/runner | `packaging/systemd/rush-autopilot.service` |
-| `rush-capture.service` | Rush LiveDev capture session manager | `packaging/systemd/rush-capture.service` |
-| `rush-livedev-autostart.service` | Rush LiveDev autostart (safe countdown before autopilot) | `packaging/systemd/rush-livedev-autostart.service` |
-| `rush-livedev-failure.service` | Rush LiveDev failure handler (fail-closed, no root prompt) | `packaging/systemd/rush-livedev-failure.service` |
-| `rush-livedev-test.service` | Rush LiveDev post-reboot test runner | `packaging/systemd/rush-livedev-test.service` |
-
-</details>
-
-<details>
-<summary><strong>Operator commands</strong></summary>
-
-Single entrypoint for LiveDev operations:
-
-```sh
-python3 tools/livedev-next --help    # livedev-next
-python3 tools/rush-autopilot --help    # rush-autopilot
-python3 tools/build-mkosi-image.sh --help    # build-mkosi-image.sh
-```
-
-Additional tools:
-
-| tool | path |
-|---|---|
-| `livedev-bootstrap.ps1` | `tools/livedev-bootstrap.ps1` |
-| `livedev-bootstrap.sh` | `tools/livedev-bootstrap.sh` |
-| `livedev-e2e-dry-run.py` | `tools/livedev-e2e-dry-run.py` |
-| `rush-agent` | `tools/rush-agent` |
-| `rush-builder.py` | `tools/rush-builder.py` |
-| `rush-capture` | `tools/rush-capture` |
-| `rush-exec` | `tools/rush-exec` |
-| `rush-host-bench.sh` | `tools/rush-host-bench.sh` |
-| `rush-install.sh` | `tools/rush-install.sh` |
-| `rush-livedev-autostart` | `tools/rush-livedev-autostart` |
-| `rush-livedev-checkpoint.py` | `tools/rush-livedev-checkpoint.py` |
-| `rush-livedev-orchestrator` | `tools/rush-livedev-orchestrator` |
-| `rush-livedev-runner` | `tools/rush-livedev-runner` |
-| `rush-safe-copy-tree.py` | `tools/rush-safe-copy-tree.py` |
-| `rush-submit-evidence` | `tools/rush-submit-evidence` |
-
-</details>
-
-<details>
-<summary><strong>Documentation</strong></summary>
-
-Key docs:
-
-| doc | description |
-|---|---|
-| [`docs/livedev/OPERATOR_RUNBOOK.md`](docs/livedev/OPERATOR_RUNBOOK.md) | LiveDev operator runbook |
-| [`docs/livedev-developer-guide.md`](docs/livedev-developer-guide.md) | LiveDev developer guide |
-| [`docs/editions/livedev.md`](docs/editions/livedev.md) | LiveDev edition |
-| [`docs/architecture.md`](docs/architecture.md) | Architecture |
-| [`docs/build-system.md`](docs/build-system.md) | Build system |
-| [`docs/boot-and-updates.md`](docs/boot-and-updates.md) | Boot & updates |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing |
-| [`docs/SUMMARY.md`](docs/SUMMARY.md) | Docs index |
-
-</details>
-
-<details>
-<summary><strong>Tests & validation</strong></summary>
-
-Run the test suite locally:
-
-```sh
-python3 -m pytest \
-  tools/test-builder.py \
-  tools/test-checkpoint-resume.py \
-  tools/test-cloud-safe-livedev.py \
-  tools/test-frontpage-sync.py \
-  tools/test-livedev-hardening.py \
-  tools/test-livedev-image.py \
-  tools/test-livedev-next.py \
-  tools/test-livedev-orchestrator.py \
-  tools/test-livedev-smoke.py \
-  tools/test-livedev-state.py \
-  tools/test-optid-package-contract.py \
-  tools/test-reboot-submission-contract.py \
-  tools/test-rush-agent.py \
-  tools/test-rush-autopilot.py \
-  tools/test-rush-builder-unit.py \
-  tools/test-rush-capture.py \
-  tools/test-rush-pr.py \
-  tools/test-rush-runner.py \
-  tools/test-submit-evidence.py \
-  tools/test-testos-boot-behavioral.py \
-  tools/test-testos-boot-reliability.py \
-  tools/test-testos-checkpoint-lifecycle.py \
-  tools/test-testos-evidence-submission-blockers.py \
-  tools/test-testos-plan-units-timing.py \
-  tools/test-testos-private-diagnostics.py \
-  tools/test-testos-production-provenance.py \
-  tools/test-testos-real-hardware-defects.py \
-  tools/test-testos-real-path-validation.py \
-  tools/test-validate-hwtest-evidence.py \
-  tools/test-windows-livedev-parity.py
-```
-
-</details>
-
-</details>
+Requires Rust, mkosi, and the host dependencies listed in the build documentation.
 
 <!-- RUSH_FRONTPAGE:END -->
 
----
+## How the smart LiveDev command behaves
+
+The same bootstrap command finds the useful next step:
+
+- results USB present → copy, validate, and offer an evidence submission;
+- QEMU available → build or reuse the LiveDev image and run the VM path;
+- neither available → prepare the real-hardware USB path and print the boot
+  instructions.
+
+It preserves an existing checkout and does not merge pull requests or mark
+milestones verified. USB writing needs `sudo` on Linux/macOS or an Administrator
+PowerShell on Windows. GitHub authentication is needed only when opening an
+evidence PR.
+
+The full operator procedure is in the
+[LiveDev runbook](docs/livedev/OPERATOR_RUNBOOK.md).
+
+testOS remains the current boot backend and manual fallback for real-hardware
+USB testing.
+
+## What optid does
+
+Every control-loop iteration follows the same basic path:
+
+1. read pressure, power, thermal, application, and device state;
+2. classify the workload as `idle`, `light`, `interactive`,
+   `latency-critical`, `throughput`, or `vm.guest`;
+3. resolve the desired contract and domain gates;
+4. log intended actions in dry-run mode, or attempt guarded writes with
+   `--apply`;
+5. report support, skip, failure, and recovery outcomes.
+
+Implemented paths include core CPU controls and initial runtime-PM, PCIe ASPM,
+SATA ALPM, backlight, VM-sysctl, PM QoS, and cgroup controls. The packaged apply
+service cannot yet reach all dynamic device paths, and the persistent verified
+D2 recovery protocol is not complete. Treat apply mode as experimental.
+
+See [adaptive engine](docs/adaptive-engine.md) for the control model and
+[implementation status](docs/IMPLEMENTATION_STATUS.md) for the detailed
+inventory.
+
+## Build and development
+
+The practical commands above are the supported entry points. Useful details:
+
+- [build system](docs/build-system.md) — host dependencies, mkosi profiles, and
+  image outputs;
+- [how Rush is built](docs/how-rush-is-built.md) — source and packaging flow;
+- [testing](docs/testing-and-benchmarks.md) — claims, evidence, and release
+  tiers;
+- [project workflow](docs/project-workflow.md) — the risk-based contributor
+  process.
+
+Only the human maintainer merges to `main`. A merged optid PR proves that code
+landed; package completion additionally requires production-path integration
+and independent committed evidence.
+
+## Project map
+
+- [Northstar specification](docs/SPEC-northstar.md)
+- [Architecture](docs/architecture.md)
+- [Active optid completion plan](OPTID-COMPLETION-PLAN.md)
+- [Hardware support](docs/hardware-support.md)
+- [Roadmap](ROADMAP.md)
+- [All documentation](docs/SUMMARY.md)
+
+> Latest release: [v0.7.0-beta.4](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.4)
 
 ## Contributing
 
-We are looking for kernel engineers, Rustaceans, and systems programmers who value verifiable claims over marketing copy.
-
-- [How Rush is built](docs/how-rush-is-built.md)
-- [Agent and contributor protocol](docs/agent-protocol.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Open a discussion](https://github.com/Nan0pk/Rush-linux/discussions)
-
----
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). The repository expects small
+coherent pull requests, change-aware tests, and evidence that matches the claim.
 
 ## License
 

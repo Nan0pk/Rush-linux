@@ -1,0 +1,65 @@
+schema_version = 2
+
+[project]
+stage = "Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready."
+
+[[command]]
+id = "livedev-posix"
+title = "Run the smart LiveDev flow"
+platform = "Linux / macOS"
+language = "sh"
+command = "curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh"
+targets = ["tools/livedev-bootstrap.sh"]
+note = "Detects an existing results USB, QEMU, or a USB-preparation path and chooses the useful next action."
+
+[[command]]
+id = "livedev-windows"
+title = "Run the smart LiveDev flow"
+platform = "Windows PowerShell (Administrator)"
+language = "powershell"
+command = "curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1"
+targets = ["tools/livedev-bootstrap.ps1"]
+note = "Open PowerShell as Administrator. Elevation is needed only for raw USB writing and temporary ESP mounting."
+
+[[command]]
+id = "host-benchmark"
+title = "Compare optid on an existing Linux install"
+platform = "Linux"
+language = "sh"
+command = "curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/rush-host-bench.sh | sudo bash"
+targets = ["tools/rush-host-bench.sh"]
+note = "No USB, VM, reboot, or Rush installation. Apply mode is experimental; a reboot remains the final recovery fallback."
+
+[[command]]
+id = "start-development"
+title = "Start a clean development task"
+platform = "Cloned repository"
+language = "sh"
+command = "bash tools/start-work.sh \"short task description\""
+targets = ["tools/start-work.sh"]
+note = "Creates a work branch when needed and runs the fast starting-state checks."
+
+[[command]]
+id = "verify-change"
+title = "Run every check relevant to a change"
+platform = "Cloned repository"
+language = "sh"
+command = "bash tools/finish-work.sh --dry-run"
+targets = ["tools/finish-work.sh"]
+note = "Uses the same change-aware check runner as CI and does not commit or push."
+
+[[command]]
+id = "build-livedev"
+title = "Build the LiveDev image"
+platform = "Supported Linux build host"
+language = "sh"
+command = "sudo bash tools/build-mkosi-image.sh --edition livedev"
+targets = ["tools/build-mkosi-image.sh"]
+note = "Requires Rust, mkosi, and the host dependencies listed in the build documentation."
+
+[links]
+runbook = "docs/livedev/OPERATOR_RUNBOOK.md"
+build = "docs/build-system.md"
+status = "docs/IMPLEMENTATION_STATUS.md"
+ledger = "docs/plans/optid-package-status.toml"
+architecture = "docs/architecture/optid-d2-amendment.md"

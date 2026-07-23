@@ -24,8 +24,6 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
-import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -295,13 +293,14 @@ def test_ci_workflow_exists():
         import yaml
         data = yaml.safe_load(workflow.read_text())
         assert "jobs" in data
-        assert "checks" in data["jobs"]
+        assert {"classify", "linux", "windows", "image", "gate"} <= set(data["jobs"])
     except ImportError:
         # PyYAML not available — just check the file exists and has basic structure.
         text = workflow.read_text()
         assert "name:" in text
         assert "jobs:" in text
-        assert "Relevant tests and safety rules" in text
+        assert "name: PR Gate" in text
+        assert "Native Windows" in text
 
 
 def test_ci_invokes_validator():
