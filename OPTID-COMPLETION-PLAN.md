@@ -182,6 +182,27 @@ flowchart TD
 
 Every package below is one independently reviewable PR unless its “modularity” field explicitly permits a split. Estimated lines are net production plus tests, not time.
 
+### Definition of package completion
+
+The package's **desired end state** and **tests/pass** paragraphs are the
+acceptance contract. A PR, compilation, isolated module tests, or a builder's
+summary does not complete a package.
+
+A builder may record one package as `candidate` only when:
+
+- the behavior is consumed by the named production daemon, CLI, service, or
+  integration entry point;
+- tests enter through that production surface, not only through the new module;
+- runtime entry points, integration tests, and committed evidence paths are
+  recorded in the package ledger; and
+- the implementation does not depend on dead-code suppression or duplicated
+  types that bypass an accepted shared contract.
+
+A cold verifier checks the exact implementation commit without repairing it.
+Only the verifier may commit a passing receipt and propose `completed`.
+Downstream dependencies unlock only from `completed`. Partial merged code is
+`merged_incomplete` and remains repair work.
+
 ### F1 — Freeze capability states and domain configuration
 
 **Starting condition.** Policy configuration has per-feature booleans and defaults, while new research domains have no consistent runtime state (`crates/optid/src/policy.rs:290-374`). New research prototypes must stay experimental and disabled (`AGENTS.md:161-162`).

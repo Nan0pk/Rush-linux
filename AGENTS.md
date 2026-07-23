@@ -70,11 +70,13 @@ the permanent broker or steady-state actuation IPC path unless a later explicit
 owner decision supersedes D2.
 
 Read [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml)
-before selecting work. It is the machine-readable package ledger. At its
-2026-07-22 activation:
+before selecting work. It is the machine-readable package ledger. Current
+repair state:
 
-- F1 is the next general construction package;
-- D0 is the next safety-lane package; and
+- PRs #324–#328 merged partial F1–F4 and D0 implementations without satisfying
+  their package end states;
+- F1 and D0 remain the active repair targets;
+- dependencies do not unlock from `candidate` or `merged_incomplete`; and
 - physical hardware nomination blocks release and automatic-actuation claims,
   not observation, simulation, dry-run, disabled implementation, F1, or D0.
 
@@ -185,6 +187,32 @@ elegant. Do not expand scope without explaining why the current task requires
 it. A prototype from unfinished research must remain off by default and clearly
 marked experimental.
 
+### Package completion contract
+
+For work selected from a machine-readable package ledger:
+
+1. A merged PR proves only that code merged. It does not prove the package.
+2. A builder may move one package to `candidate` and record real production
+   entry points, integration tests, and evidence paths. A builder may not mark
+   its own package `completed`.
+3. `completed` requires a cold verifier's committed receipt, a numeric
+   implementation PR, satisfied dependencies, production-path integration,
+   and every package acceptance item.
+4. Tests that call only a new module prove the module, not runtime integration.
+   At least one test must enter through the daemon, CLI, service, or other
+   production surface named by the package.
+5. A module that is only declared with `mod`, is hidden behind
+   `allow(dead_code)`, duplicates the accepted shared types, or is not consumed
+   by the stated runtime path is incomplete.
+6. Partial work is useful, but must be called `candidate` or
+   `merged_incomplete`; it does not unlock downstream dependencies.
+7. Any optid production or test-code PR must update exactly one ledger package.
+   `tools/validate-optid-packages.py` enforces the machine-checkable part.
+
+Do not paste command output or implementation summaries into comments and call
+them evidence. Evidence is a committed path whose contents prove the claimed
+behavior.
+
 ## 9. Evidence Without Gridlock
 
 No claim is true merely because an agent says it is true. Use evidence that
@@ -194,8 +222,9 @@ hardware log, or reviewer result.
 Builders must run and report their own checks. That is normal engineering, not
 independent certification.
 
-Independent verification is required only for:
+Independent verification is required for:
 
+- completing any package from an active machine-readable construction plan;
 - a release or milestone claim;
 - a physical-hardware safety or performance claim;
 - a security-boundary change;
@@ -205,7 +234,9 @@ Independent verification is required only for:
 
 The independent verifier checks the work cold and does not quietly repair it.
 Ordinary unit tests, formatting, documentation, and low-risk bug fixes do not
-need a second agent before a pull request can be opened.
+need a second agent before a pull request can be opened. A package builder also
+opens its PR without waiting; cold verification controls only the transition
+from `candidate` to `completed`.
 
 Evidence may block a claim or automatic rollout. Missing evidence must not
 block research, read-only diagnosis, simulation, a dry run, or an explicitly

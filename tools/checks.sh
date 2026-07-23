@@ -86,6 +86,8 @@ attempt run "R8 — public docs and versions contradict the repository" \
     "${PYTHON[@]}" tools/validate-versions.py
 attempt run "R8 — documentation is missing or points at stale sources" \
     "${PYTHON[@]}" tools/validate-doc-sync.py
+attempt run "R1/R5 — optid package claims outrun integrated, verified behavior" \
+    "${PYTHON[@]}" tools/validate-optid-packages.py --base "$BASE"
 
 if need pwsh "repository policy"; then
     attempt run "R4/R8 — an unratified decision or core project invariant slipped in" \

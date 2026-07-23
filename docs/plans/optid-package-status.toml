@@ -1,4 +1,4 @@
-schema_version = 1
+schema_version = 2
 updated = "2026-07-23"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
@@ -12,200 +12,63 @@ active_safety = "D0"
 # next           = canonical next package for its lane
 # ready_parallel = independent work may start without displacing the lane's next package
 # planned        = waits for listed dependencies or an accepted dependent specification
-# completed      = linked PR and required package-level proof are recorded
+# candidate      = integrated builder result with runtime paths and tests, awaiting cold verification
+# merged_incomplete = code merged, but the package end state or required proof is missing
+# completed      = linked PR, runtime integration, tests, evidence, and cold-verification receipt are recorded
 # blocked        = a named accepted decision or dependency prevents construction
 # Promotion gates are separate from construction status.
+#
+# A merged PR is not package completion. Comments are not evidence. Dependencies
+# unlock only from `completed`. The validator enforces these rules.
 
 [[package]]
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-# Construction is complete on the F1 work branch; the PR is opened by the
-# builder and merged by the maintainer. Per the ledger's status vocabulary,
-# `completed` requires a linked PR number, so F1 stays `next` until merge.
-# The maintainer flips this to `completed`, fills `pr`, and advances
-# `active_general` to `F2` at merge time.
-status = "next"
+status = "merged_incomplete"
 depends = []
-pr = ""
-# Builder-provided construction evidence (reviewed by the maintainer at merge):
-# - crates/optid/src/policy.rs: DomainMode, Domain, DomainsConfig, EffectiveConfig (added)
-# - crates/optid/src/policy.rs: decide_resolved applies per-domain effective-mode gate
-# - crates/optid/src/policy.rs: f1_tests module — 24 tests covering ordering,
-#   serde validation, migration-safety default, decide filtering, and render contract
-# - crates/optid/src/action.rs: Action::domain() returns Option<Domain>
-# - crates/optid/src/decision.rs: Decision carries EffectiveConfig for optctl status
-# - config/optid/policy.toml: documented [domains] section with operator examples
-# - cargo test -p optid: 341 passed, 0 failed
-# - cargo fmt --all -- --check: clean
-# - cargo clippy --workspace --all-targets -- -D warnings: clean
+pr = "324"
+blocking_reason = "Observe mode loses the would-be action; SystemdSetProperty bypasses domain gating; future domains fail open to actuate."
 completion_evidence = []
 
 [[package]]
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-# Construction is complete on the F2 work branch; the PR is opened by the
-# builder and merged by the maintainer. Per the ledger's status vocabulary,
-# `completed` requires a linked PR number, so F2 stays `ready_parallel`
-# (its original status) until merge. The maintainer flips this to
-# `completed`, fills `pr`, at merge time.
-status = "ready_parallel"
+status = "merged_incomplete"
 depends = []
-pr = ""
-# Builder-provided construction evidence (reviewed by the maintainer at merge):
-# - crates/optid/src/kernel_io.rs (new): KernelRead/KernelWrite/Clock/EventSource
-#   traits + RealKernel (production) + FaultKernel (fault-injection wrapper) +
-#   MemoryKernel (pure in-memory, for future packages) + centralized
-#   is_allowlisted_write_path (extracted verbatim from io_util::guarded_write).
-# - crates/optid/src/sensors.rs: every discover_* and read_* function has a
-#   *_with(read, clock) variant; legacy no-arg fns delegate to RealKernel::new().
-#   Snapshot::collect delegates to collect_with(&RealKernel, &RealKernel).
-# - crates/optid/src/io_util.rs: guarded_write, atomic_write_state_file,
-#   mark_applied, actuation_state, clear_journal, append_log all have *_with(io)
-#   variants; legacy fns delegate to RealKernel::new(). The path-validation
-#   logic moved to kernel_io::is_allowlisted_write_path (centralized).
-# - crates/optid/src/actuator.rs: new `kernel: Box<dyn KernelIo>` field;
-#   Actuator::new delegates to new_with_kernel(RealKernel). All fs::read_to_string
-#   -> self.kernel.read_to_string; all guarded_write -> self.kernel.write;
-#   now_unix() -> self.kernel.now_unix(); discover_cpu_epp_paths ->
-#   discover_cpu_epp_paths_with(self.kernel.as_ref()).
-# - crates/optid/tests/write_site_gating.rs: drift-detection updated to count
-#   self.kernel.write( instead of guarded_write( for actuator.rs kernel-write
-#   sites. Inventory count unchanged (12 sites).
-# - crates/optid/src/tests.rs: new f2_fault_injection_tests module (8 tests):
-#   missing path on read, permission-denied on write, disappearing path
-#   (HidePath), malformed content, one-shot rule consumption, hidden directory
-#   discovery, RealKernel equivalence with legacy, FaultKernel allowlist
-#   preservation.
-# - cargo test -p optid: 339 passed, 0 failed (291 unit + 13 integration +
-#   16 PPD + 16 GameMode + 3 write-site)
-# - cargo fmt --all -- --check: clean
-# - cargo clippy --workspace --all-targets -- -D warnings: clean
-# - bash tools/checks.sh: PASS
-# - bash tools/finish-work.sh --dry-run: PASS
+pr = "325"
+blocking_reason = "The in-memory adapter is test-private; short-write injection is missing; recovery, journal, markers, logs, and atomic content writes still bypass the seam."
 completion_evidence = []
 
 [[package]]
 id = "F3"
 lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
-# Construction is complete on the F3 work branch; the PR is opened by the
-# builder and merged by the maintainer. Per the ledger's status vocabulary,
-# `completed` requires a linked PR number, so F3 stays `planned` until merge.
-# The maintainer flips this to `completed`, fills `pr`, at merge time.
-status = "planned"
+status = "merged_incomplete"
 depends = ["F1"]
-pr = ""
-# Builder-provided construction evidence (reviewed by the maintainer at merge):
-# - crates/optid/src/envelope.rs (new, ~900 LOC): ObservationEnvelope,
-#   DesiredState, GateOutcome, ApplyOutcome, RestoreOutcome, SupportStatus,
-#   DenyReason, ApplyResult, RestoreResult, Ownership, Provenance,
-#   ProvenancedValue, SnapshotSummary, DomainObservation, CorrelationId,
-#   ENVELOPE_SCHEMA_VERSION=1. All types derive Serialize+Deserialize with
-#   snake_case rename. Forward-compat: unknown fields tolerated on
-#   deserialization; optional fields default to None/Unknown.
-# - crates/optid/Cargo.toml: added serde_json = "1.0" dependency.
-# - crates/optid/src/policy.rs: added Serialize derive to DomainMode (was
-#   Deserialize-only; F3 envelopes serialize DomainMode).
-# - crates/optid/src/main.rs: registered `mod envelope`.
-# - 19 envelope tests: schema version, GateOutcome::from_domain_mode for all
-#   three F1 modes, ApplyResult variants distinct (unsupported≠skipped≠failed),
-#   RestoreResult variants distinct (restored≠stabilized≠relinquished),
-#   DesiredState::empty/for_domain/for_domain_mut, envelope JSON round-trip,
-#   schema_version in JSON, unknown-field tolerance, missing-optional-field
-#   tolerance, no source path leaks (.rs/sys/proc/line!), golden JSON
-#   stability, Provenance round-trip, SupportStatus default=Unknown.
-# - cargo test -p optid: 386 passed, 0 failed (338 unit + 13 integration +
-#   16 PPD + 16 GameMode + 3 write-site)
-# - cargo fmt --all -- --check: clean
-# - cargo clippy --workspace --all-targets -- -D warnings: clean
-# - bash tools/checks.sh: PASS
+pr = "326"
+blocking_reason = "The envelope module is explicitly dormant; the daemon, optctl, logs, and action outcomes do not construct or consume it."
 completion_evidence = []
 
 [[package]]
 id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
-# Construction is complete on the F4 work branch; the PR is opened by the
-# builder and merged by the maintainer. Per the ledger's status vocabulary,
-# `completed` requires a linked PR number, so F4 stays `planned` until merge.
-status = "planned"
+status = "merged_incomplete"
 depends = ["F2", "F3"]
-pr = ""
-# Builder-provided construction evidence (reviewed by the maintainer at merge):
-# - crates/optid/src/reconciler.rs (new, ~800 LOC): Reconciler struct with
-#   per-domain state tracking (baseline/desired/last_attempted/last_confirmed/
-#   ownership/retries), transition detection (AcChanged, WorkloadChanged,
-#   ModeChanged, ConfigReloaded, DeviceRemoved, DomainDisabled), restore
-#   action generation, coalesce-identical-writes (should_write), bounded
-#   retries (MAX_RETRIES=3), drift detection (relinquish ownership on drift),
-#   shadow/v1 mode toggle. Self-contained types (Ownership, DesiredState,
-#   ApplyResult, RestoreResult, ApplyOutcome, RestoreOutcome) — will align
-#   with envelope::types when F3 merges.
-# - crates/optid/src/main.rs: registered `mod reconciler`.
-# - 24 reconciler tests: transition detection (AC, workload, mode, domain
-#   disable, no-transition-on-first-observation), reconcile DomainDisabled
-#   (emits restore, shadow mode emits nothing, doesn't restore unowned),
-#   reconcile AC/workload/mode (restores domains with no desired, skips
-#   domains with active desired), coalesce (redundant write skipped, changed
-#   value written, unconfirmed domain written), bounded retries (increments,
-#   exceeds MAX_RETRIES → relinquish, desired change resets), drift
-#   detection (relinquishes ownership), device removal (drops state),
-#   DesiredState envelope (all domains, tracked values), transition describe,
-#   config reload, apply/restore outcome helpers.
-# - cargo test -p optid: 391 passed, 0 failed (343 unit + 13 integration +
-#   16 PPD + 16 GameMode + 3 write-site)
-# - cargo fmt --all -- --check: clean
-# - cargo clippy --workspace --all-targets -- -D warnings: clean
-# - bash tools/checks.sh: PASS
+pr = "327"
+blocking_reason = "The reconciler is dormant, duplicates F3 types, cannot represent multiple devices per domain, and performs no production readback or restore."
 completion_evidence = []
 
 [[package]]
 id = "D0"
 lane = "safety"
 title = "Prototype capability sealing and supervisor-managed cold restart"
-# Construction is complete on the D0 work branch; the PR is opened by the
-# builder and merged by the maintainer. Per the ledger's status vocabulary,
-# `completed` requires a linked PR number, so D0 stays `next` until merge.
-# The maintainer flips this to `completed`, fills `pr`, at merge time.
-# Per AGENTS.md §9, D0 is risk tier 3 (security boundary) and requires
-# independent cold verification.
-status = "next"
+status = "merged_incomplete"
 depends = []
-pr = ""
-# Builder-provided construction evidence (reviewed by the maintainer at merge):
-# - crates/optid/Cargo.toml: added [features] experimental-capability-sealing
-#   (compile-time, never enabled in shipped optid). Added [[bin]] for
-#   optid-capability-seal-test with required-features.
-# - crates/optid/src/bin/optid-capability-seal-test.rs (new): main binary.
-#   Detects Landlock ABI, creates synthetic temp-dir targets, opens write
-#   descriptors BEFORE Landlock, installs Landlock (default-deny all writes),
-#   runs 5 seal checks, reports results. Exit 0=all-pass, 1=fail, 75=topology.
-# - crates/optid/src/capability_seal_test/landlock_syscall.rs (new): raw
-#   libc::syscall wrappers for landlock_create_ruleset (SYS 444),
-#   landlock_add_rule (SYS 445), landlock_restrict_self (SYS 446).
-#   detect_landlock_abi(), install_landlock_restrictions() (default-deny
-#   all write rights), add_path_rule(), kernel_version().
-# - crates/optid/src/capability_seal_test/seal_test.rs (new): 5 checks:
-#   (1) pre-opened writes succeed, (2) new write opens denied (EACCES/EPERM),
-#   (3) new read opens still succeed, (4) child thread inherits restrictions,
-#   (5) removed-file handling (clean error, no panic).
-# - packaging/systemd/optid-capability-seal-test.service (new): test-only
-#   systemd unit proving supervisor-managed cold restart (Restart=on-failure,
-#   exit 75 = topology-rebuild). Not installed in shipped image.
-# - cargo check -p optid: default build (no feature flag) clean
-# - cargo check -p optid --features experimental-capability-sealing --bin
-#   optid-capability-seal-test: clean
-# - cargo test -p optid: 367 passed, 0 failed (319 unit + 13 integration +
-#   16 PPD + 16 GameMode + 3 write-site)
-# - cargo fmt --all -- --check: clean
-# - cargo clippy --workspace --all-targets -- -D warnings: clean
-# - bash tools/checks.sh: PASS
-# Note: the binary validates Landlock on the running kernel. CI uses
-# synthetic files; hardware receipts are stored separately. The binary
-# does NOT connect to production actuation and does NOT select an unsealed
-# fallback (exits non-zero if Landlock unavailable).
+pr = "328"
+blocking_reason = "The prototype lacks valid removed-object, child-process/exec, exit-75, recovery-order, ABI-rights, no-new-privileges, feature-build CI, and cold-kernel proof."
 completion_evidence = []
 
 [[package]]

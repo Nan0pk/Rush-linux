@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
 > **Code is not evidence.** This file describes what exists in the repository.
 > Release and hardware-verification truth comes from
@@ -28,8 +28,9 @@ The active optid sources are:
 - [`docs/plans/optid-package-status.toml`](plans/optid-package-status.toml) —
   machine-readable current package state.
 
-F1 is the next general construction package. D0 is the next safety-lane
-package.
+F1 is the active general repair package. D0 is the active safety repair
+package. PRs #324–#328 merged partial F1–F4/D0 code, but none met its package
+end state; the ledger records all five as `merged_incomplete`.
 
 ## Optid: implemented
 
@@ -116,12 +117,19 @@ part of X1/security work.
 The active completion plan owns these gaps; this list is a summary, not a
 second work queue.
 
-- **F1–F4:** per-domain `off|observe|actuate` configuration, injectable test
-  boundaries, versioned outcomes, and complete transition reconciliation.
-- **D0, S1D–S5D:** prove Landlock/sysfs capability sealing; define rollback vs
-  stabilization; add persistent verified transactions; build independent
-  recovery/watchdog ordering; move writes to exact sealed descriptors; add
-  domain circuit breakers.
+- **F1:** configuration scaffolding exists, but observe evidence, cgroup
+  domain gating, and fail-closed future-domain defaults are incomplete.
+- **F2:** kernel I/O seams exist, but do not yet cover the complete in-memory,
+  short-write, journal, recovery, marker, log, and atomic-write boundary.
+- **F3/F4:** versioned-envelope and reconciler modules exist but are dormant;
+  the live daemon/CLI path does not consume them or perform their claimed
+  transition restoration.
+- **D0:** an experimental Landlock test exists, but valid removed-object,
+  process/exec inheritance, exit-75, ABI-rights, no-new-privileges,
+  recovery-order, feature-build CI, and cold-kernel proof remain missing.
+- **S1D–S5D:** define rollback vs stabilization; add persistent verified
+  transactions; build independent recovery/watchdog ordering; move writes to
+  exact sealed descriptors; add domain circuit breakers.
 - **C1:** measured/provenance-aware latency contracts instead of treating PM
   QoS constraints as measurements.
 - **E1/O1/O2:** event-driven reevaluation, runtime-state observability, and
