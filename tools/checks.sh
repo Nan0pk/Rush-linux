@@ -123,7 +123,12 @@ fi
 
 if matches '^\.github/workflows/.*\.ya?ml$'; then
     if need actionlint "GitHub Actions workflow"; then
-        attempt run "R5 — a workflow cannot execute as written" actionlint
+        WORKFLOW_FILES=()
+        while IFS= read -r file; do
+            [[ -f "$file" ]] && WORKFLOW_FILES+=("$file")
+        done < <(files_matching '^\.github/workflows/.*\.ya?ml$')
+        attempt run "R5 — a changed workflow cannot execute as written" \
+            actionlint -shellcheck= "${WORKFLOW_FILES[@]}"
     elif $STRICT; then
         FAILURES=$((FAILURES + 1))
     fi
@@ -153,6 +158,8 @@ if matches '\.ps1$'; then
     if need pwsh "PowerShell parser"; then
         while IFS= read -r file; do
             [[ -f "$file" ]] || continue
+            # shellcheck disable=SC2016
+            # PowerShell must receive its own $variables literally.
             attempt run "R5 — a changed Windows entry point cannot parse" \
                 env RUSH_PS_FILE="$file" pwsh -NoProfile -Command \
                 '$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:RUSH_PS_FILE,[ref]$tokens,[ref]$errors); if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'

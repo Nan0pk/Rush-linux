@@ -19,7 +19,6 @@ Exit code: 0 = all pass, 1 = errors found.
 """
 
 import argparse
-import os
 import re
 import sys
 import tomllib

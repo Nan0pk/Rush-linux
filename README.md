@@ -25,6 +25,9 @@ This is an early beta. Dry-run is the safe default. The boot/update path and
 benchmark tooling are usable; automatic hardware actuation and crash-safe
 handback are still under active construction.
 
+**Rush LiveDev is the quickest way to try the project:** one smart command
+chooses the useful VM, USB, or results-resume path for the machine it runs on.
+
 <!-- RUSH_FRONTPAGE:START -->
 ### Current repository truth
 
@@ -107,6 +110,9 @@ evidence PR.
 
 The full operator procedure is in the
 [LiveDev runbook](docs/livedev/OPERATOR_RUNBOOK.md).
+
+testOS remains the current boot backend and manual fallback for real-hardware
+USB testing.
 
 ## What optid does
 

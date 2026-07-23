@@ -26,14 +26,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 _TOOLS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_TOOLS_DIR))
@@ -119,7 +116,6 @@ def make_evidence_branch_name(run_dir: Path, timestamp: str | None = None) -> st
     """
     if timestamp is None:
         timestamp = "20260704-120000Z"  # deterministic for tests
-    run_dir_name = run_dir.name
     h = hashlib.sha256(str(run_dir).encode()).hexdigest()[:8]
     return f"evidence/livedev-{timestamp}-{h}"
 
