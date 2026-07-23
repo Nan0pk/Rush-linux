@@ -55,7 +55,7 @@ Detects an existing results USB, QEMU, or a USB-preparation path and chooses the
 curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\livedev-bootstrap.ps1
 ```
 
-Administrator access is needed only for raw USB writing and temporary ESP mounting.
+Open PowerShell as Administrator. Elevation is needed only for raw USB writing and temporary ESP mounting.
 
 #### Compare optid on an existing Linux install — Linux
 

@@ -19,7 +19,7 @@ platform = "Windows PowerShell (Administrator)"
 language = "powershell"
 command = "curl.exe -fL -o livedev-bootstrap.ps1 https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -ExecutionPolicy Bypass -File .\\livedev-bootstrap.ps1"
 targets = ["tools/livedev-bootstrap.ps1"]
-note = "Administrator access is needed only for raw USB writing and temporary ESP mounting."
+note = "Open PowerShell as Administrator. Elevation is needed only for raw USB writing and temporary ESP mounting."
 
 [[command]]
 id = "host-benchmark"
