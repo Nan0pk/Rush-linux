@@ -95,6 +95,7 @@ connected to a row, it should not block a pull request.
 | R6: Evidence leaks a token or private machine data | LiveDev/testOS threat model | Privacy and evidence checks when evidence tooling or bundles change | Keep the local bundle; redact and resubmit |
 | R7: A dependency becomes unsafe or legally unsuitable | Supply-chain policy | Dependency policy on dependency changes and scheduled maintenance | Changes with no dependency impact are not blocked |
 | R8: Public docs contradict the repo | Repeated stale README and version drift | Version/doc checks and generated front-page check | Internal experiments may be labeled experimental instead of advertised |
+| R9: Package-shaped code is merged and treated as a finished dependency without runtime integration | F3/F4 dormant-module incident in PRs #326/#327; stale F1–D0 ledger after #324–#328 | One-package ledger update per optid code PR; candidate proof paths; cold-verification receipt before `completed`; reject new dead-code suppression | Merge useful partial code as `candidate` or `merged_incomplete`; repair and verify it before downstream work |
 
 ## Pull-request checks
 
@@ -107,6 +108,9 @@ files changed:
 - Evidence or release truth changed: evidence integrity checks.
 - Documentation or public project data changed: doc registry, version, and
   generated front-page checks.
+- Optid code changed: exactly one package claim changes; candidates name
+  production entry points, integration tests, and evidence; only a cold
+  verifier may record `completed`.
 
 External-link scanning and newly published dependency advisories run on a
 schedule. They remain visible, but an unreliable website does not block an

@@ -289,7 +289,15 @@ def check_optid_plan_activation(entries):
     packages = ledger.get("package", [])
     ids = [p.get("id") for p in packages]
     known = set(ids)
-    valid_statuses = {"next", "ready_parallel", "planned", "completed", "blocked"}
+    valid_statuses = {
+        "next",
+        "ready_parallel",
+        "planned",
+        "candidate",
+        "merged_incomplete",
+        "completed",
+        "blocked",
+    }
 
     if len(packages) != 30:
         err(f"optid package ledger must contain 30 active packages, found {len(packages)}")
@@ -310,14 +318,18 @@ def check_optid_plan_activation(entries):
                 err(f"optid package {package_id} depends on itself")
 
     by_id = {p.get("id"): p for p in packages}
-    for key, expected in (("active_general", "F1"), ("active_safety", "D0")):
+    actionable_statuses = {"next", "ready_parallel", "candidate", "merged_incomplete"}
+    for key in ("active_general", "active_safety"):
         actual = ledger.get(key)
-        if actual != expected:
-            err(f"optid ledger {key} must be {expected}, found {actual!r}")
-        elif by_id.get(actual, {}).get("status") != "next":
-            err(f"optid ledger {key}={actual} is not marked next")
+        if actual not in by_id:
+            err(f"optid ledger {key} names unknown package {actual!r}")
+        elif by_id[actual].get("status") not in actionable_statuses:
+            err(
+                f"optid ledger {key}={actual} is not actionable "
+                f"(status {by_id[actual].get('status')!r})"
+            )
         else:
-            ok(f"{key} is {actual} and marked next")
+            ok(f"{key} is {actual} ({by_id[actual].get('status')})")
 
     if ledger.get("safety_architecture") != "D2-fail-passive":
         err("optid ledger must record safety_architecture = D2-fail-passive")
@@ -331,8 +343,9 @@ def check_optid_plan_activation(entries):
         ok("D2 is accepted and superseded S1-S3 package headings are absent")
 
     required_readme = (
-        "F1 is next for general construction",
-        "D0 is next for the safety lane",
+        "F1 is the active general repair",
+        "D0 is the active safety repair",
+        "F2–F4 are also merged but incomplete",
         "docs/architecture/optid-d2-amendment.md",
         "docs/plans/optid-package-status.toml",
     )
@@ -340,7 +353,7 @@ def check_optid_plan_activation(entries):
     if missing:
         err(f"README is missing active optid truth: {', '.join(missing)}")
     else:
-        ok("README names F1, D0, D2, and the package ledger")
+        ok("README names the F1/D0 repair lanes, incomplete F2-F4, D2, and the ledger")
 
 
 def check_optid_doc_sync(entries):

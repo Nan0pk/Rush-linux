@@ -49,39 +49,43 @@ For safety work, read the amendment first. Consult the full plan and its cited l
 - Foreground/compositor integration is still a stub, so GameMode's per-PID
   effect path is incomplete.
 - `sched_ext` is SPEC-blocked until WP-B1 evidence exists.
+- PRs #324–#328 merged partial F1–F4 and D0 code. None satisfies its package
+  end state. F3/F4 are dormant, F2 has incomplete injection seams, F1 retains
+  fail-open/gating defects, and D0 lacks a valid cold capability-sealing proof.
+- The ledger records these packages as `merged_incomplete`; their dependencies
+  remain locked.
 
 ## Next Task
 
-There are two independent lanes:
+Pause new downstream optid packages. There are two repair lanes:
 
-### F1 — next general construction package
+### F1 — active general repair
 
-Implement validated per-domain configuration:
+Repair and verify the merged per-domain configuration:
 
-- `DomainMode { Off, Observe, Actuate }`;
-- typed configuration for every domain;
-- strict mixed/legacy-key validation;
-- a visible `EffectiveConfig` through `optctl`; and
-- compatibility for old boolean keys for one release with warnings, while
-  rejecting conflicting old/new keys.
+- preserve the complete suppressed action in observe mode;
+- assign `SystemdSetProperty` to an explicit gated domain;
+- make every new/future domain fail closed to `off`; and
+- test all-off and observe behavior through the production decision/status
+  surface.
 
 F1 changes no hardware-write behavior.
 
-### D0 — next safety-lane package
+### D0 — active safety repair
 
-Build an experimental proof for:
+Repair the experimental proof so it actually demonstrates:
 
 - pre-opened sysfs descriptors remaining usable after Landlock;
 - prohibited new write opens failing;
-- restrictions applying before worker threads and remaining inherited;
-- removed sysfs objects failing safely;
+- `PR_SET_NO_NEW_PRIVS`, ABI-aware rights, and process/exec inheritance;
+- a genuinely removed object failing safely;
 - a dedicated topology-rebuild exit status; and
 - systemd recovery completing before cold restart rebuilds the descriptor
   table.
 
-D0 does not connect to production actuation. It gates S4D only. If the proof
-fails on a supported kernel, record the exact kernel/ABI/object/syscall result
-and stop S4D; do not invent a silent unsealed fallback.
+D0 does not connect to production actuation. Required CI must compile and test
+the feature-gated binary. A cold real-kernel receipt is required before D0 can
+be completed.
 
 ## Accepted D2 safety lane
 
@@ -136,6 +140,12 @@ bash tools/finish-work.sh --dry-run
 
 Agents may commit, push a branch, and open a draft pull request. They never
 merge or enable auto-merge. The human maintainer merges.
+
+For optid package work, a builder records one package as `candidate`; only a
+cold verifier may add the verification receipt and mark it `completed`.
+Compilation, isolated module tests, a merged PR, or prose comments are not
+package completion. New production `allow(dead_code)` suppressions are
+forbidden.
 
 ## Forbidden Shortcuts
 

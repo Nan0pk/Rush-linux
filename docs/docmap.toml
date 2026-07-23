@@ -26,7 +26,7 @@ owner_area = "area:docs"
 covers_code = ["Cargo.toml", "crates/*", "config/optid/policy.toml"]
 deps = ["docs/PROJECT_BRIEF.md", "docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = []
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
 validator = "no_stale_next_step"
 
 [docs."CONTRIBUTING.md"]
@@ -52,7 +52,7 @@ owner_area = "area:docs"
 covers_code = ["crates/optid/src/main.rs", "crates/optctl/src/main.rs", "tools/rush-builder.py", "tools/build-vm-final.sh", "tools/validate-uefi-boot.sh"]
 deps = ["VERSION", "ROADMAP.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = ["README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
 validator = "version_matches:VERSION"
 
 [docs."docs/AI_CONTINUATION.md"]
@@ -61,7 +61,7 @@ owner_area = "area:docs"
 covers_code = []
 deps = ["docs/IMPLEMENTATION_STATUS.md", "ROADMAP.md", "VERSION", "AGENTS.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = []
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
 validator = "version_matches:VERSION"
 
 [docs."ROADMAP.md"]
@@ -821,7 +821,7 @@ owner_area = "area:project"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh", "tools/check-workflow-safety.py", ".github/workflows/"]
 deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/agent-protocol.md", "OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = ["CONTRIBUTING.md", "docs/how-rush-is-built.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
 
 [docs."docs/SUMMARY.md"]
 purpose = "Complete reader-facing documentation index, including every research paper"
@@ -837,7 +837,7 @@ owner_area = "area:optid"
 covers_code = ["crates/optid/", "crates/optctl/", "packaging/systemd/optid*.service", "config/optid/"]
 deps = ["AGENTS.md", "docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
 freshens = ["README.md", "docs/IMPLEMENTATION_STATUS.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
 
 [docs."docs/architecture/optid-d2-amendment.md"]
 purpose = "Owner-approved fail-passive optid safety architecture: capability sealing, verified recovery, cold restart, and circuit breakers"
@@ -851,9 +851,17 @@ last_verified = "2026-07-22"
 purpose = "Machine-readable optid package ledger with active packages, dependencies, PRs, and completion evidence"
 owner_area = "area:optid"
 covers_code = []
-deps = ["OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md"]
+deps = ["OPTID-COMPLETION-PLAN.md", "docs/architecture/optid-d2-amendment.md", "docs/plans/optid-verification/README.md"]
 freshens = ["AGENTS.md", "README.md", "docs/AI_CONTINUATION.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-07-23"
+
+[docs."docs/plans/optid-verification/README.md"]
+purpose = "Cold-verification receipt contract required before an optid package can be completed"
+owner_area = "area:optid"
+covers_code = ["tools/validate-optid-packages.py"]
+deps = ["AGENTS.md", "docs/plans/optid-package-status.toml"]
+freshens = []
+last_verified = "2026-07-23"
 
 [docs."docs/plans/corrected-path-forward-v0.6-to-v1.md"]
 purpose = "Superseded implementation sequence retained as the v0.6 physical-hardware evidence and release-promotion plan"
@@ -887,7 +895,7 @@ owner_area = "area:project"
 covers_code = ["tools/checks.sh", ".github/workflows/ci.yml", ".github/workflows/maintenance.yml"]
 deps = ["docs/SPEC-northstar.md", "docs/agent-protocol.md", "docs/decisions/0009-optid-security-boundary.md", "docs/research/0006-hw-allowlist-db-design.md"]
 freshens = ["AGENTS.md", "CONTRIBUTING.md", "docs/how-rush-is-built.md"]
-last_verified = "2026-07-10"
+last_verified = "2026-07-23"
 
 [docs."docs/research/0004-telemetry-fidelity-rca-and-architecture.md"]
 purpose = "WIP research into benchmark telemetry failure and a replacement measurement architecture"

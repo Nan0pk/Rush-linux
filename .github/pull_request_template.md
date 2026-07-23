@@ -33,6 +33,21 @@ or explain the problem it solves.
       acceptance `transcript` and `python3 tools/dragnet.py --observe` is GREEN
       with zero `pending` ledger rows for that milestone. (See `docs/dragnet-protocol.md`.)
 
+### Optid package contract
+
+- Package ID (or `not optid`): ___
+- [ ] This optid code PR updates exactly one entry in
+      `docs/plans/optid-package-status.toml`.
+- [ ] The package is `candidate` or honestly `merged_incomplete`; the builder
+      did not self-certify it as `completed`.
+- [ ] Ledger paths identify production runtime entry points, integration tests,
+      and committed evidence (required for `candidate`).
+- [ ] Integration tests enter through a production daemon/CLI/service surface,
+      not only through a newly added module.
+- [ ] No new production `allow(dead_code)` or module-only wiring hides
+      incomplete integration.
+- [ ] `python3 tools/validate-optid-packages.py --base origin/main` passes.
+
 ## Documentation
 
 **Documentation updates are required for changes to behavior, defaults,

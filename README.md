@@ -279,12 +279,17 @@ CPU wakeup latency is the hard floor — written to `/dev/cpu_dma_latency`, the 
 ### Current optid construction
 
 The active [capability-completion plan](OPTID-COMPLETION-PLAN.md) separates
-building code from promoting it on real hardware:
+merged code, completed packages, and promotion on real hardware:
 
-- **F1 is next for general construction:** validated per-domain
-  `off|observe|actuate` configuration and visible effective state.
-- **D0 is next for the safety lane:** prove pre-opened sysfs descriptors,
-  Landlock capability sealing, and supervisor-managed cold restart.
+- **F1 is the active general repair:** PR #324 merged useful configuration
+  scaffolding, but observe evidence, cgroup gating, and fail-closed defaults
+  remain incomplete.
+- **D0 is the active safety repair:** PR #328 merged an experimental Landlock
+  test, but it does not yet provide the required capability-sealing and
+  supervisor-recovery proof.
+- **F2–F4 are also merged but incomplete:** their partial code does not unlock
+  downstream packages. In particular, F3/F4 are not wired into the live
+  daemon path.
 - The accepted [D2 architecture](docs/architecture/optid-d2-amendment.md) uses
   one daemon, no permanent actuation broker, no steady-state write-path IPC,
   persistent verified recovery, an independent one-shot recovery program, and
@@ -292,8 +297,10 @@ building code from promoting it on real hardware:
 - Physical hardware nomination gates promotion and v0.6 evidence claims. It
   does not block observation, simulation, dry-run, F1, or D0.
 
-Current dependency and PR state is machine-readable in
+Current dependency, defect, evidence, and PR state is machine-readable in
 [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).
+CI rejects optid code that does not update exactly one package claim and rejects
+`completed` without production-path proof and a cold-verification receipt.
 
 ---
 
@@ -485,6 +492,7 @@ rush-* are the LiveDev tools):
 |---|---|---|
 | `optid-apply.service` | Rush Linux optimization daemon (apply mode) | `packaging/systemd/optid-apply.service` |
 | `optid-boot-assess.service` | Rush Linux boot assessment marker | `packaging/systemd/optid-boot-assess.service` |
+| `optid-capability-seal-test.service` | optid D0 capability-sealing prototype (test-only, not shipped) | `packaging/systemd/optid-capability-seal-test.service` |
 | `optid.service` | Rush Linux optimization daemon (dry-run) | `packaging/systemd/optid.service` |
 | `rush-autopilot.service` | Rush LiveDev autopilot planner/runner | `packaging/systemd/rush-autopilot.service` |
 | `rush-capture.service` | Rush LiveDev capture session manager | `packaging/systemd/rush-capture.service` |
@@ -562,6 +570,7 @@ python3 -m pytest \
   tools/test-livedev-orchestrator.py \
   tools/test-livedev-smoke.py \
   tools/test-livedev-state.py \
+  tools/test-optid-package-contract.py \
   tools/test-reboot-submission-contract.py \
   tools/test-rush-agent.py \
   tools/test-rush-autopilot.py \
