@@ -57,13 +57,16 @@ jobs:
             fi
           }
 
-          classify rust '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'
-          classify python '(^|/).*\.py$|^pyproject\.toml$|^schemas/'
-          classify shell '\.sh$|^tools/|^testos/'
-          classify windows '\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
+          # A change to this workflow exercises every lane once. Otherwise the
+          # code that selects a supposedly "required" lane could merge without
+          # ever running that lane.
+          classify rust '^\.github/workflows/ci\.yml$|^(Cargo\.(toml|lock)|crates/|rust-toolchain)'
+          classify python '^\.github/workflows/ci\.yml$|(^|/).*\.py$|^pyproject\.toml$|^schemas/'
+          classify shell '^\.github/workflows/ci\.yml$|\.sh$|^tools/|^testos/'
+          classify windows '^\.github/workflows/ci\.yml$|\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
           classify workflow '^\.github/workflows/.*\.ya?ml$'
-          classify image '^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
-          classify dependencies '^Cargo\.(toml|lock)$'
+          classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
+          classify dependencies '^\.github/workflows/ci\.yml$|^Cargo\.(toml|lock)$'
 
   linux:
     name: Linux and repository checks
