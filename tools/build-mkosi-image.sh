@@ -52,7 +52,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MKOSI_DIR="${REPO_ROOT}/mkosi"
 EXTRA_DIR="${MKOSI_DIR}/mkosi.extra"
 VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.5.0-beta.1")"
-VERSION_ID="$(echo "${VERSION}" | sed 's/-.*//' )"
+VERSION_ID="${VERSION%%-*}"
 
 echo "════════════════════════════════════════════════════"
 echo "  Rush Linux mkosi Builder"
@@ -215,6 +215,8 @@ EOF
 
     # PYTHONPATH for rush-* tools to find their support libraries
     mkdir -p "${EXTRA_DIR}/etc/profile.d"
+    # shellcheck disable=SC2016
+    # PYTHONPATH must expand when a user sources the generated profile.
     echo 'export PYTHONPATH="/usr/lib/rush:${PYTHONPATH}"' > "${EXTRA_DIR}/etc/profile.d/rush-livedev.sh"
 
     echo "   Done."
