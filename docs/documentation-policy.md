@@ -6,9 +6,14 @@ and what future maintainers must not break.
 
 ## Doc Management System
 
-The project uses `docs/docmap.toml` as a **doc registry** that tracks every
-documentation file, its purpose, the code it covers, its dependencies on other
-docs, and when it was last verified against the codebase.
+The project uses `docs/docmap.toml` as an **active documentation map**. It
+tracks maintained user, architecture, workflow, and release documents—not
+every research paper, archived audit, historical plan, or machine-readable
+fixture.
+
+Individual ADRs are indexed by `docs/decisions/README.md`; research papers are
+indexed by `docs/research/README.md`. Archives and `docs/inbox/` are deliberately
+outside the active map.
 
 The automated sync validator (`tools/validate-doc-sync.py`) runs in CI and
 catches drift, broken links, version mismatches, stale patterns, and
@@ -64,6 +69,9 @@ Before committing:
 - Behavior changes without status/roadmap updates.
 - Silent safety changes to privileged services or sysfs writes.
 - Release-gate changes without updating machine-readable release manifests.
+- Provider-specific instructions that duplicate `AGENTS.md` or the canonical
+  check commands.
+- Historical reports at the repository root.
 
 ## Root Directory Hygiene
 
@@ -72,13 +80,19 @@ convention requires there. Everything else belongs in `docs/`.
 
 **Permitted at root:** `README.md`, `LICENSE`, `CONTRIBUTING.md`,
 `CODE_OF_CONDUCT.md`, `SECURITY.md`, `RELEASES.md`, `ROADMAP.md`,
-`AUTHORS`, `VERSION`, `AGENTS.md`, `CLAUDE.md`, `Cargo.toml`,
+`SUPPORT.md`, `AUTHORS`, `VERSION`, `AGENTS.md`, `CLAUDE.md`,
+`OPTID-COMPLETION-PLAN.md`, `Cargo.toml`,
 `Cargo.lock`, and dotfiles (`.gitignore`, `.gitattributes`, etc.).
 
 **Must live under `docs/`:** status reports, strategy documents,
 reanalysis reports, work plans, research notes, implementation status,
 project brief, agent handoff context, and any other prose not required
 by GitHub or external tooling at the root.
+
+Completed audits belong in `docs/audit-archive/`. A short compatibility pointer
+may remain only when source comments still cite an old root path. Git history
+preserves deleted superseded handoffs; they do not remain active merely for
+historical context.
 
 **Inbox for unsorted drafts:** drop transient notes and in-progress
 reports in `docs/inbox/`. Files there are not registered in

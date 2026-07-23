@@ -85,6 +85,9 @@ project blocker, interpret that statement as a v0.6 evidence blocker only.
 Package dependencies and current work state come from the active plan and
 ledger.
 
+For safety work, read the amendment first. Use the long-form research only
+when the amendment or package packet needs deeper justification.
+
 ## 4. Human-Effort Rule
 
 The human's time, attention, money, hardware, and patience are scarce project
@@ -186,6 +189,17 @@ Do not rewrite systems casually. Do not add abstractions because they feel
 elegant. Do not expand scope without explaining why the current task requires
 it. A prototype from unfinished research must remain off by default and clearly
 marked experimental.
+
+### Simplicity check
+
+Before adding code, tooling, a workflow, or an instruction layer:
+
+1. Confirm the project needs it now.
+2. Prefer the language standard library, the platform, or an existing
+   dependency.
+3. Extend the canonical entry point instead of adding a parallel wrapper.
+4. Name the real consumer and the test that would fail without it.
+5. If no current consumer or distinct protection exists, do not add it.
 
 ### Package completion contract
 

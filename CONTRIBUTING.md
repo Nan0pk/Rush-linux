@@ -44,8 +44,7 @@ cd Rush-linux
 bash tools/start-work.sh "fix typo in adaptive-engine.md"
 ```
 
-This validates the repo is in a good state and sets a dirty flag so
-others know you're working.
+This validates the starting state and creates a work branch when needed.
 
 ### 3. Build
 
@@ -64,11 +63,15 @@ step-by-step walkthrough.
 ### 5. Validate and finish
 
 ```sh
-bash tools/finish-work.sh "docs: fix typo in adaptive-engine"
+bash tools/finish-work.sh --dry-run
 ```
 
-This runs all validators, syncs docs, removes the dirty flag, commits, and pushes.
-See the manual validation commands below if you prefer to run checks individually.
+This runs the same change-aware checks selected by CI without committing or
+pushing. When they pass, publish deliberately with:
+
+```sh
+bash tools/finish-work.sh "docs: fix typo in adaptive-engine"
+```
 
 If you need to leave mid-work, edit `DIRTY_STATE.md` to describe what's
 done and what's left. The next contributor will see it.
@@ -93,7 +96,7 @@ or comment on the issue — we're happy to help.
 Before making significant changes, read these to understand the architecture:
 
 **Essential (read first):**
-- [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md) — what Rush Linux is and why it exists
+- [docs/SPEC-northstar.md](docs/SPEC-northstar.md) — product intent and invariants
 - [docs/architecture.md](docs/architecture.md) — the four-layer system design
 
 **For your area:**
@@ -115,8 +118,8 @@ Before making significant changes, read these to understand the architecture:
 3. **Update documentation.** If your change affects behavior, defaults, policy,
    boot flow, kernel config, recipes, or services — update the relevant docs
    in the same PR. See [docs/documentation-policy.md](docs/documentation-policy.md).
-4. **Run all checks.** `cargo fmt`, `cargo test`, `cargo clippy`,
-   `validate-repo.ps1`, and `validate-doc-sync.py` must all pass.
+4. **Run relevant checks.** `bash tools/finish-work.sh --dry-run` selects the
+   same checks as the pull-request gate.
 5. **Open the PR.** Fill out the PR template completely.
 6. **Respond to review.** We aim for initial review within 7 days.
 
@@ -124,10 +127,11 @@ Before making significant changes, read these to understand the architecture:
 
 Docs are part of acceptance criteria. Changes to behavior, defaults, policy,
 boot/update flow, kernel fragments, recipes, or tests **must** update the
-relevant docs in the same change. The doc registry (`docs/docmap.toml`) maps
-every doc to its purpose and dependencies — check it to find which docs cover
-the code you're changing. See [documentation-policy.md](docs/documentation-policy.md)
-for the full list of what must be documented per change type.
+relevant docs in the same change. The active documentation map
+(`docs/docmap.toml`) identifies maintained docs and the code they describe;
+research and decisions have their own indexes. See
+[documentation-policy.md](docs/documentation-policy.md) for the full list of
+what must be documented per change type.
 
 ### Review Criteria
 
