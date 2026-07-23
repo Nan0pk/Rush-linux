@@ -262,7 +262,9 @@ echo ""
 
 # ── Step 5: Fix permissions and report ───────────────────────────
 echo ">> [5/5] Fixing permissions of build artifacts..."
-chown -R "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "${REPO_ROOT}/build" 2>/dev/null || true
+if [[ -n "${SUDO_USER:-}" ]]; then
+    chown -R "${SUDO_USER}:${SUDO_USER}" "${REPO_ROOT}/build" 2>/dev/null || true
+fi
 
 DISK="${REPO_ROOT}/build/rush-linux.raw"
 if [[ ! -f "${DISK}" ]]; then
