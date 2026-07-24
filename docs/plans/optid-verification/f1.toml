@@ -1,0 +1,22 @@
+schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "001515bef45a0a5f9842d9831154ae9d0573d361"
+verifier = "arena-cold-review-019f93e2"
+result = "pass"
+commands = [
+  "python3 tools/validate-optid-packages.py --base HEAD~0",
+  "gh api repos/Nan0pk/Rush-linux/commits/001515bef45a0a5f9842d9831154ae9d0573d361/check-runs",
+]
+runtime_proofs = [
+  "crates/optid/src/main.rs:368 calls Policy::decide_resolved and writes the rendered Decision to /run/optid/status and decisions.log; decision.actions (post-domain-gate) is what reaches actuator.apply, confirmed by direct source read of the merged commit",
+  "Decision::render (crates/optid/src/decision.rs) emits a real suppressed_actions:/would_act= block populated by decide_resolved's observe-mode filter in crates/optid/src/policy.rs:1104-1141, not a test-only path",
+  "Action::domain() (crates/optid/src/action.rs:126) returns Some(Domain::CgroupReweight) for SystemdSetProperty, closing the prior fail-open gap; verified against the live decide_resolved filter that consumes Action::domain()",
+  "Domain::default_mode() (crates/optid/src/policy.rs:166-179) is an exhaustive match with no wildcard arm over all 10 Domain variants, which is a stronger fail-closed guarantee than the PR description's stated '_ => Off' fallthrough: a future domain omitted from the match is a compile error, not a silent default",
+  "GitHub Actions check-runs for merge commit 001515b (queried independently via `gh api`, not copied from the PR body) show Rust, PR Gate, Repository policy, Documentation sync, and Evidence integrity (Dragnet) all `success`",
+  "tools/validate-optid-packages.py passes against the current tree (ledger schema, proof paths, and one-package-per-PR invariants hold)",
+]
+unresolved = [
+  "This sandbox has no Rust toolchain and cannot reach static.rust-lang.org/crates.io, so `cargo test`/`cargo clippy`/`cargo fmt` were not re-executed locally by this verifier. Verification instead relied on direct reading of the merged production source plus GitHub's own CI results for the exact merged commit. A verifier with local cargo access should still independently re-run `cargo test --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` before this receipt is treated as fully equivalent to a from-scratch reproduction.",
+  "PR body describes Domain::default_mode as having a '_ => DomainMode::Off' fallthrough arm; the actual merged code has no wildcard arm at all (exhaustive match over named variants). The safety property holds and is arguably stronger, but the PR description is imprecise and should be corrected.",
+]
