@@ -1141,7 +1141,10 @@ impl Policy {
         suppressed_actions.dedup();
         let mut seen_observe_reasons: std::collections::BTreeSet<&'static str> =
             std::collections::BTreeSet::new();
-        for (d, _) in &suppressed_actions {
+        // Iterate by reference; each element is `&(Domain, String)`,
+        // so the pattern must be `&(d, _)` (Rust does not implicitly
+        // deref tuple patterns inside `for` loops).
+        for &(d, _) in &suppressed_actions {
             if seen_observe_reasons.insert(d.as_str()) {
                 reasons.push(format!(
                     "domain {} in observe mode: action suppressed, would-act logged",
@@ -2151,10 +2154,12 @@ mode = "observe"
         let decision = f1_decide(&policy, &snapshot);
 
         // Both runtime_pm and pci_aspm would-be actions must be captured.
+        // `iter()` yields `&(Domain, String)`, so the closure must
+        // destructure the reference.
         let suppressed_domains: Vec<Domain> = decision
             .suppressed_actions
             .iter()
-            .map(|(d, _)| *d)
+            .map(|&(d, _)| d)
             .collect();
         assert!(
             suppressed_domains.contains(&Domain::RuntimePm),
@@ -2172,7 +2177,9 @@ mode = "observe"
         // produced by `Action::describe`), but the description must
         // contain the autosuspend delay value used by the default
         // actuator — operators need to see *what* optid would have set.
-        for (d, desc) in &decision.suppressed_actions {
+        // Iterating by reference yields `&(Domain, String)`, so the
+        // pattern must be `&(d, desc)`.
+        for &(d, ref desc) in &decision.suppressed_actions {
             assert!(
                 !desc.is_empty(),
                 "suppressed action for domain {} has empty description",
@@ -2241,7 +2248,7 @@ mode = "off"
         let has_runtime_pm = decision
             .suppressed_actions
             .iter()
-            .any(|(d, _)| *d == Domain::RuntimePm);
+            .any(|&(d, _)| d == Domain::RuntimePm);
         assert!(
             !has_runtime_pm,
             "off-mode suppression must NOT capture would-be actions, suppressed: {:?}",
@@ -2521,7 +2528,7 @@ mode = "observe"
         let has_suppressed = decision_observe
             .suppressed_actions
             .iter()
-            .any(|(d, _)| *d == Domain::CgroupReweight);
+            .any(|&(d, _)| d == Domain::CgroupReweight);
         assert!(
             has_suppressed,
             "SystemdSetProperty would-be action must be in suppressed_actions when cgroup_reweight=observe, suppressed: {:?}",

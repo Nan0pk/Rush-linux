@@ -82,7 +82,9 @@ impl Decision {
         // invisible by design.
         if !self.suppressed_actions.is_empty() {
             out.push_str("suppressed_actions:\n");
-            for (domain, description) in &self.suppressed_actions {
+            // `&self.suppressed_actions` iterates as `&(Domain, String)`,
+            // so the pattern must be `&(domain, description)`.
+            for &(domain, ref description) in &self.suppressed_actions {
                 out.push_str(&format!(
                     "- domain={} would_act={}\n",
                     domain.as_str(),
