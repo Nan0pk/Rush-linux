@@ -1,5 +1,5 @@
 schema_version = 2
-updated = "2026-07-23"
+updated = "2026-07-24"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
@@ -27,7 +27,7 @@ lane = "foundation"
 title = "Freeze capability states and domain configuration"
 status = "candidate"
 depends = []
-pr = "324"
+pr = "332"
 blocking_reason = ""
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -270,7 +270,7 @@ completion_evidence = []
 id = "R2"
 lane = "research"
 title = "Specify remaining platform primitives before implementation"
-status = "ready_parallel"
+status = "planned"
 depends = []
 pr = ""
 completion_evidence = []
