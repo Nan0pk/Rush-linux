@@ -107,12 +107,14 @@ impl Action {
         }
     }
 
-    /// F1 — The actuation domain this `Action` belongs to. `SystemdSetProperty`
-    /// returns `None` because it invokes `systemctl` (cgroup reweight) rather
-    /// than writing to sysfs/procfs/devfs and is therefore not subject to the
-    /// per-domain `DomainMode` gate. Every other variant returns its domain,
-    /// which `Policy::decide_resolved` uses to filter actions by effective
-    /// mode before they reach the actuator.
+    /// F1 — The actuation domain this `Action` belongs to. Every variant
+    /// returns its domain so the per-domain `DomainMode` gate applies
+    /// uniformly. Prior to the F1 package-completion repair, the
+    /// `SystemdSetProperty` variant returned `None` (a fail-open hole:
+    /// cgroup reweighting was not subject to the per-domain gate). It now
+    /// returns `Some(Domain::CgroupReweight)`, and `decide_resolved` will
+    /// filter it like every other variant when the operator sets
+    /// `[domains.cgroup_reweight] mode = "off"` or `"observe"`.
     ///
     /// Keep this in lockstep with `crate::capability::Capability::allowlist_domain`
     /// and `crate::policy::Domain::as_str`. The `action_domain_matches_capability`
@@ -121,7 +123,7 @@ impl Action {
         match self {
             Action::CpuEpp { .. } => Some(Domain::CpuEpp),
             Action::PlatformProfile { .. } => Some(Domain::PlatformProfile),
-            Action::SystemdSetProperty { .. } => None,
+            Action::SystemdSetProperty { .. } => Some(Domain::CgroupReweight),
             Action::VmSysctl { .. } => Some(Domain::VmSysctl),
             Action::CpuDmaLatency { .. } => Some(Domain::CpuDmaLatency),
             Action::DeviceResumeLatency { .. } => Some(Domain::DeviceResumeLatency),
@@ -189,8 +191,10 @@ impl Action {
                 enable,
                 reason,
             } => {
+                // Prefix matches Domain::PcieAspm.as_str() ("pci_aspm") so
+                // Decision::render would_act= lines and domain keys stay aligned.
                 format!(
-                    "pcie_aspm {} l1_aspm={} ({reason})",
+                    "pci_aspm {} l1_aspm={} ({reason})",
                     device_dir.display(),
                     if *enable { 1 } else { 0 }
                 )
