@@ -134,8 +134,7 @@ fn f1_production_default_mode_is_fail_closed_for_future_domains() {
     // type-level fail-closed invariant. The string check below is
     // a belt-and-suspenders check on the implementation file.
     assert!(
-        POLICY_RS.contains("Domain::CpuEpp")
-            && POLICY_RS.contains("Domain::CgroupReweight"),
+        POLICY_RS.contains("Domain::CpuEpp") && POLICY_RS.contains("Domain::CgroupReweight"),
         "Domain::default_mode must explicitly enumerate every known domain \
          variant; the compiler then enforces fail-closed on any future variant"
     );
@@ -173,7 +172,8 @@ fn f1_production_effective_config_render_is_called_from_decision_render() {
     // actually called from `Decision::render`. The F1 plan calls this
     // out as the operator-visible surface (`optctl status`).
     assert!(
-        DECISION_RS.contains("effective_config:") && DECISION_RS.contains("self.effective_config.render()"),
+        DECISION_RS.contains("effective_config:")
+            && DECISION_RS.contains("self.effective_config.render()"),
         "Decision::render must call EffectiveConfig::render and label the output \
          with `effective_config:` so optctl status prints the effective state"
     );
