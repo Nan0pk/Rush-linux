@@ -191,8 +191,10 @@ impl Action {
                 enable,
                 reason,
             } => {
+                // Prefix matches Domain::PcieAspm.as_str() ("pci_aspm") so
+                // Decision::render would_act= lines and domain keys stay aligned.
                 format!(
-                    "pcie_aspm {} l1_aspm={} ({reason})",
+                    "pci_aspm {} l1_aspm={} ({reason})",
                     device_dir.display(),
                     if *enable { 1 } else { 0 }
                 )
