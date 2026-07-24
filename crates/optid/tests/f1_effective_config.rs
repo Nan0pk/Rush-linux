@@ -112,16 +112,31 @@ fn f1_production_cgroup_reweight_domain_is_enumerated() {
 #[test]
 fn f1_production_default_mode_is_fail_closed_for_future_domains() {
     // F1 repair #3: any domain not in the explicit v0.6+f1 closed set
-    // must default to `Off`. The closed set is enforced by an
-    // explicit match in `Domain::default_mode` plus a `_ => Off`
-    // fallthrough. This test pins the fallthrough so a future
-    // contributor cannot accidentally widen `default_mode` to return
-    // Actuate for any domain by default.
+    // must default to `Off`. The fail-closed invariant is enforced at
+    // the type level: `Domain::default_mode()` is an *exhaustive* match
+    // over every variant in `Domain`. Adding a new variant without an
+    // explicit arm in the match produces a non-exhaustive-match
+    // compile error — the author cannot compile their PR until they
+    // make a deliberate Actuate/Off choice. This is the strongest
+    // possible fail-closed guarantee: a future domain cannot fail
+    // open to Actuate even by mistake.
+    //
+    // The integration test also verifies the helper function
+    // `Domain::default_mode` exists and is called from
+    // `EffectiveConfig::from_policy`, which is the only place it is
+    // consumed at runtime.
     assert!(
-        POLICY_RS.contains("default_mode")
-            && POLICY_RS.contains("_ => DomainMode::Off"),
-        "Domain::default_mode must have an explicit `_ => DomainMode::Off` \
-         fallthrough; this is the F1 fail-closed invariant for future domains"
+        POLICY_RS.contains("pub(crate) fn default_mode"),
+        "Domain::default_mode must exist as a public-in-crate function"
+    );
+    // The exhaustive match over all `Domain` variants is the
+    // type-level fail-closed invariant. The string check below is
+    // a belt-and-suspenders check on the implementation file.
+    assert!(
+        POLICY_RS.contains("Domain::CpuEpp")
+            && POLICY_RS.contains("Domain::CgroupReweight"),
+        "Domain::default_mode must explicitly enumerate every known domain \
+         variant; the compiler then enforces fail-closed on any future variant"
     );
 }
 

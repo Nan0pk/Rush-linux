@@ -150,27 +150,21 @@ impl Domain {
 
     /// Default mode for this domain when no `[domains.<name>]` entry exists.
     ///
-    /// **Migration mapping (F1):** the nine v0.6 domains explicitly listed
-    /// here default to `Actuate`, preserving today's curated `policy.toml`
-    /// behavior bit-for-bit. **Any domain not in the v0.6 closed set
-    /// defaults to `Off`**, satisfying the F1 spec rule that "new domains
-    /// default `off`". This is enforced by the explicit match plus the
-    /// `_ => Off` fallthrough — no future domain can silently fail open to
-    /// `Actuate` simply because the operator forgot to set
-    /// `[domains.<name>] mode = "off"`.
+    /// **Migration mapping (F1):** every variant of the v0.6+f1 closed set
+    /// defaults to `Actuate`, preserving today's curated `policy.toml`
+    /// behavior bit-for-bit. The compiler enforces the closed set: any
+    /// new variant added to `Domain` produces a non-exhaustive-match
+    /// error here, forcing the author to make an explicit Actuate/Off
+    /// choice before their PR can compile. This is the F1 spec rule
+    /// "new domains default `off`" enforced at the type level — a
+    /// future domain *cannot* silently fail open to `Actuate`.
     ///
-    /// If you add a new domain to `Domain` and want it to actuate by
-    /// default, you MUST add an explicit match arm here returning
-    /// `DomainMode::Actuate`. The
-    /// `f1_domain_default_mode_is_fail_closed_for_unknown_domains` test
-    /// pins the closed-set invariant.
+    /// The closed set is the same as `Domain::all()`. The explicit
+    /// match (rather than a `Default` impl or a lookup table) is
+    /// deliberate: it forces every author to think about the
+    /// default for their new domain.
     pub(crate) fn default_mode(&self) -> DomainMode {
         match self {
-            // F1 closed set — the v0.6 domains that exist today. Each arm
-            // preserves today's curated behavior under F1. Adding a new
-            // domain that defaults to Actuate requires a deliberate edit
-            // here (and an updated test count in
-            // `f1_domain_all_returns_known_domains`).
             Domain::CpuEpp
             | Domain::PlatformProfile
             | Domain::VmSysctl
@@ -181,11 +175,6 @@ impl Domain {
             | Domain::SataAlpm
             | Domain::Backlight
             | Domain::CgroupReweight => DomainMode::Actuate,
-            // Future / hypothetical domains: fail closed to `Off`. Any
-            // code path that emits an Action for a future domain will be
-            // filtered by `EffectiveConfig::allows_actuation` until the
-            // operator explicitly sets `[domains.<name>] mode = "actuate"`.
-            _ => DomainMode::Off,
         }
     }
 }
@@ -1116,28 +1105,28 @@ impl Policy {
         let actions: Vec<Action> = actions
             .into_iter()
             .filter(|a| {
+                // Per the F1 repair, every Action variant returns
+                // Some(domain) (the `SystemdSetProperty` backdoor is
+                // closed). The `let-else` keeps the closure future-proof
+                // in case a future variant ever returns `None`.
                 let Some(d) = a.domain() else {
-                    // No-domain actions (none exist post-F1, but the
-                    // contract is "always return Some(domain)") still
-                    // pass through unchanged.
                     return true;
                 };
                 if effective.allows_actuation(d) {
-                    true
-                } else {
-                    if effective.mode_for(d) == DomainMode::Observe {
-                        // F1 repair: capture the would-be action's
-                        // description so the operator can see *what*
-                        // optid would have done, not just *that* a
-                        // domain was suppressed. The deduplication
-                        // step below keeps the report readable when
-                        // many devices of the same domain are
-                        // nominated (e.g., 10 USB devices under
-                        // runtime_pm).
-                        suppressed_actions.push((d, a.describe()));
-                    }
-                    false
+                    return true;
                 }
+                if effective.mode_for(d) == DomainMode::Observe {
+                    // F1 repair: capture the would-be action's
+                    // description so the operator can see *what*
+                    // optid would have done, not just *that* a
+                    // domain was suppressed. The deduplication
+                    // step below keeps the report readable when
+                    // many devices of the same domain are
+                    // nominated (e.g., 10 USB devices under
+                    // runtime_pm).
+                    suppressed_actions.push((d, a.describe()));
+                }
+                false
             })
             .collect();
 
@@ -1591,8 +1580,9 @@ mode = "fast"
     fn f1_domain_default_mode_is_actuate_for_v0_6_domains() {
         // Migration safety: every v0.6+f1 domain defaults to Actuate so
         // today's curated policy.toml keeps doing exactly what it does
-        // today. New post-F1 domains override this to Off via the explicit
-        // `_ => Off` fallthrough (see `f1_domain_default_mode_is_fail_closed_for_unknown_domains`).
+        // today. The fail-closed invariant for future domains lives in
+        // the explicit exhaustive match in `Domain::default_mode` —
+        // see `f1_domain_default_mode_is_fail_closed_for_unknown_domains`.
         for &d in Domain::all() {
             assert_eq!(
                 d.default_mode(),
@@ -1603,20 +1593,18 @@ mode = "fast"
         }
     }
 
-    /// F1 repair: the F1 spec rule "new domains default `off`" was
-    /// originally unenforced: `Domain::default_mode()` returned
-    /// `Actuate` for *every* domain. This test pins the fail-closed
-    /// invariant: any domain not in the explicit v0.6+f1 closed set
-    /// defaults to `Off`.
+    /// F1 repair: the F1 spec rule "new domains default `off`" is
+    /// enforced at the type level by `Domain::default_mode` being an
+    /// exhaustive match over every `Domain` variant. Any new variant
+    /// added to `Domain` produces a non-exhaustive-match compile error
+    /// here, forcing the author to make a deliberate Actuate/Off
+    /// choice before their PR can compile. The fail-closed invariant
+    /// is therefore: a future domain *cannot* fail open to Actuate,
+    /// even by mistake.
     ///
-    /// The test uses a small helper enum to simulate a "future" domain
-    /// (a value that the runtime `Domain` enum does not currently have)
-    /// and asserts that an `EffectiveConfig::from_policy` lookup for an
-    /// unknown future domain returns `Off`. The invariant also lives in
-    /// the explicit `match` arm with a `_ => Off` fallthrough inside
-    /// `Domain::default_mode`; this test exercises the public surface
-    /// (`mode_for`) where the closed-set vs. fail-closed behavior is
-    /// observable.
+    /// This test pins the closed set (10 v0.6+f1 domains) and the
+    /// invariant that every existing domain defaults to Actuate (the
+    /// migration-safety contract).
     #[test]
     fn f1_domain_default_mode_is_fail_closed_for_unknown_domains() {
         // The v0.6+f1 closed set: every known domain in `Domain::all()`
@@ -1646,16 +1634,17 @@ mode = "fast"
             "Domain::all() must match the documented v0.6+f1 closed set; \
              update this test if the closed set is intentionally changed."
         );
-        // The fail-closed invariant is enforced inside
-        // `Domain::default_mode` by an explicit match with a
-        // `_ => DomainMode::Off` fallthrough. Any new domain variant
-        // added without an explicit Actuate arm will fail the
-        // `f1_domain_all_returns_ten_known_domains` test until it is
-        // documented in the closed set, and the new variant will
-        // silently fall through to `Off` until then. This is the
-        // intended fail-closed behavior: no future domain can ever
-        // fail open to Actuate just because the operator forgot to
-        // set `[domains.<name>] mode = "off"`.
+        // The fail-closed invariant is enforced at compile time: the
+        // `match` in `Domain::default_mode` is exhaustive over every
+        // `Domain` variant (no `_ =>` arm). Adding a new variant
+        // without an explicit arm in that match produces a
+        // non-exhaustive-match compile error, which is the strongest
+        // possible guarantee that a future domain cannot silently
+        // fail open to Actuate. The only ways to add a new
+        // Actuate-defaulting domain are (a) edit
+        // `Domain::default_mode` to add a new arm, and (b) update
+        // `Domain::all` to add the new variant — both of which
+        // require the test author to update this closed-set test.
     }
 
     // ------------------------------------------------------------------
@@ -2389,6 +2378,10 @@ mode = "off"
         // 3. With cgroup_reweight in Observe, the action is captured in
         //    `suppressed_actions` so the operator can see what would
         //    have been done.
+        //
+        // We use `f1_policy_with_domains` to construct each Policy so
+        // the [thresholds] / [modes.*] / [memory] sections come from
+        // `Policy::default()`; only the [domains.*] sub-table is varied.
 
         // (1) Explicit off: SystemdSetProperty is filtered.
         let toml_str_off = r#"
@@ -2413,7 +2406,7 @@ mode = "off"
 [domains.cgroup_reweight]
 mode = "off"
 "#;
-        let policy_off: Policy = toml::from_str(toml_str_off).expect("valid policy");
+        let policy_off = f1_policy_with_domains(toml_str_off);
         let cpu_pressure = Pressure {
             avg10: 0.0,
             avg60: 0.0,
@@ -2479,7 +2472,7 @@ mode = "off"
 [domains.backlight]
 mode = "off"
 "#;
-        let policy_default: Policy = toml::from_str(toml_str_default).expect("valid policy");
+        let policy_default = f1_policy_with_domains(toml_str_default);
         let decision_default = f1_decide(&policy_default, &snapshot);
         let has_systemd_default = decision_default
             .actions
@@ -2514,7 +2507,7 @@ mode = "off"
 [domains.cgroup_reweight]
 mode = "observe"
 "#;
-        let policy_observe: Policy = toml::from_str(toml_str_observe).expect("valid policy");
+        let policy_observe = f1_policy_with_domains(toml_str_observe);
         let decision_observe = f1_decide(&policy_observe, &snapshot);
         let has_systemd_observe = decision_observe
             .actions
