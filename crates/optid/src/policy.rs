@@ -1930,6 +1930,16 @@ mode = "off"
                 },
                 Domain::Backlight,
             ),
+            // F1 repair: SystemdSetProperty is now mapped to a real
+            // domain (CgroupReweight) so the per-domain gate applies.
+            (
+                Action::systemd_set_property(
+                    "user.slice".to_string(),
+                    vec!["CPUWeight=150".to_string()],
+                    "r".to_string(),
+                ),
+                Domain::CgroupReweight,
+            ),
         ];
         for (action, expected) in cases {
             assert_eq!(

@@ -25,11 +25,25 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-status = "merged_incomplete"
+status = "candidate"
 depends = []
 pr = "324"
-blocking_reason = "Observe mode loses the would-be action; SystemdSetProperty bypasses domain gating; future domains fail open to actuate."
-completion_evidence = []
+blocking_reason = ""
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/decision.rs",
+  "crates/optid/src/action.rs",
+]
+integration_tests = [
+  "crates/optid/tests/f1_effective_config.rs",
+]
+completion_evidence = [
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/decision.rs",
+  "crates/optid/src/action.rs",
+  "crates/optid/tests/f1_effective_config.rs",
+]
 
 [[package]]
 id = "F2"
