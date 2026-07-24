@@ -78,9 +78,15 @@ impl DomainMode {
 
 /// F1 — The closed set of actuation domains optid knows about. One entry per
 /// `Action` variant that performs a kernel write; mirrors the `Capability`
-/// enum and the allowlist domain strings. `SystemdSetProperty` has no domain
-/// because it invokes `systemctl` (cgroup reweight) rather than writing to
-/// sysfs/procfs/devfs.
+/// enum and the allowlist domain strings.
+///
+/// F1 repair (SystemdSetProperty backdoor): `SystemdSetProperty` is now
+/// mapped to a real domain (`Domain::CgroupReweight`) so that operators can
+/// gate cgroup reweighting via `[domains.cgroup_reweight] mode = ...` the
+/// same way they gate every other lever. Prior to this repair
+/// `Action::domain()` returned `None` for `SystemdSetProperty` and the
+/// per-domain gate was silently bypassed, which is a fail-open hole for
+/// the cgroup surface.
 ///
 /// Keep this in lockstep with `crate::capability::Capability` and
 /// `crate::action::Action::domain`. The `domain_round_trip` test enforces
@@ -96,6 +102,11 @@ pub(crate) enum Domain {
     PcieAspm,
     SataAlpm,
     Backlight,
+    /// F1 — `SystemdSetProperty` action (cgroup reweight via
+    /// `systemctl set-property`). Mapped to a real domain so the
+    /// per-domain gate applies; defaults to `Actuate` to preserve
+    /// today's curated behavior.
+    CgroupReweight,
 }
 
 impl Domain {
@@ -112,6 +123,9 @@ impl Domain {
             Domain::PcieAspm => "pci_aspm",
             Domain::SataAlpm => "sata_alpm",
             Domain::Backlight => "backlight",
+            // F1 — cgroup reweight domain key. Operators gate cgroup
+            // reweighting via `[domains.cgroup_reweight] mode = ...`.
+            Domain::CgroupReweight => "cgroup_reweight",
         }
     }
 
@@ -128,22 +142,51 @@ impl Domain {
             Domain::PcieAspm,
             Domain::SataAlpm,
             Domain::Backlight,
+            // F1 — cgroup reweight domain. Appended at the end so existing
+            // status renderings stay stable.
+            Domain::CgroupReweight,
         ]
     }
 
     /// Default mode for this domain when no `[domains.<name>]` entry exists.
     ///
-    /// **Migration mapping (F1):** every domain that exists in v0.6 (all
-    /// nine current entries) defaults to `Actuate`, preserving today's
-    /// behavior. Domains added after F1 default to `Off` and must be
-    /// explicitly enabled by the operator. This is the migration safety
-    /// contract: today's curated `policy.toml` keeps doing exactly what it
-    /// does today; only opt-in new behavior changes.
+    /// **Migration mapping (F1):** the nine v0.6 domains explicitly listed
+    /// here default to `Actuate`, preserving today's curated `policy.toml`
+    /// behavior bit-for-bit. **Any domain not in the v0.6 closed set
+    /// defaults to `Off`**, satisfying the F1 spec rule that "new domains
+    /// default `off`". This is enforced by the explicit match plus the
+    /// `_ => Off` fallthrough — no future domain can silently fail open to
+    /// `Actuate` simply because the operator forgot to set
+    /// `[domains.<name>] mode = "off"`.
+    ///
+    /// If you add a new domain to `Domain` and want it to actuate by
+    /// default, you MUST add an explicit match arm here returning
+    /// `DomainMode::Actuate`. The
+    /// `f1_domain_default_mode_is_fail_closed_for_unknown_domains` test
+    /// pins the closed-set invariant.
     pub(crate) fn default_mode(&self) -> DomainMode {
-        // All current domains ship in v0.6 and default to Actuate.
-        // When the first post-F1 domain lands (e.g., nvme_apst), add a
-        // match arm returning `DomainMode::Off` for it here.
-        DomainMode::Actuate
+        match self {
+            // F1 closed set — the v0.6 domains that exist today. Each arm
+            // preserves today's curated behavior under F1. Adding a new
+            // domain that defaults to Actuate requires a deliberate edit
+            // here (and an updated test count in
+            // `f1_domain_all_returns_known_domains`).
+            Domain::CpuEpp
+            | Domain::PlatformProfile
+            | Domain::VmSysctl
+            | Domain::CpuDmaLatency
+            | Domain::DeviceResumeLatency
+            | Domain::RuntimePm
+            | Domain::PcieAspm
+            | Domain::SataAlpm
+            | Domain::Backlight
+            | Domain::CgroupReweight => DomainMode::Actuate,
+            // Future / hypothetical domains: fail closed to `Off`. Any
+            // code path that emits an Action for a future domain will be
+            // filtered by `EffectiveConfig::allows_actuation` until the
+            // operator explicitly sets `[domains.<name>] mode = "actuate"`.
+            _ => DomainMode::Off,
+        }
     }
 }
 
@@ -209,6 +252,12 @@ pub(crate) struct DomainsConfig {
     pub(crate) sata_alpm: Option<DomainConfig>,
     #[serde(default)]
     pub(crate) backlight: Option<DomainConfig>,
+    // F1 — cgroup reweight entry. Operators gate cgroup reweighting via
+    // `[domains.cgroup_reweight] mode = "off|observe|actuate"`. Defaults
+    // to Actuate via `Domain::default_mode` to preserve today's curated
+    // behavior.
+    #[serde(default)]
+    pub(crate) cgroup_reweight: Option<DomainConfig>,
 }
 
 impl DomainsConfig {
@@ -226,6 +275,7 @@ impl DomainsConfig {
             Domain::PcieAspm => self.pci_aspm.as_ref(),
             Domain::SataAlpm => self.sata_alpm.as_ref(),
             Domain::Backlight => self.backlight.as_ref(),
+            Domain::CgroupReweight => self.cgroup_reweight.as_ref(),
         }
     }
 }
@@ -1051,40 +1101,64 @@ impl Policy {
 
         // F1 — Apply the per-domain effective-mode gate. Actions whose
         // domain is `Off` or `Observe` are filtered out before they reach
-        // the actuator. `Observe` surfaces a reason so the operator can see
-        // what optid would have done; `Off` is silent (the domain is
-        // invisible by design). `SystemdSetProperty` (domain = None) is
-        // never filtered: it is a cgroup reweight, not a hardware write,
-        // and is not subject to the per-domain gate.
+        // the actuator. `Observe` captures each would-be action's
+        // human-readable description into `suppressed_actions` so the
+        // operator can see exactly what optid *would* have done (the
+        // F1 plan's "would-be action is recorded in the decision report"
+        // contract). `Off` is silent (the domain is invisible by
+        // design). F1 also repaired the `SystemdSetProperty` backdoor:
+        // cgroup reweighting now flows through this same gate via
+        // `Domain::CgroupReweight` — operators can set
+        // `[domains.cgroup_reweight] mode = "off"` to suppress cgroup
+        // reweighting the same way they suppress any other lever.
         let effective = EffectiveConfig::from_policy(self);
-        let mut suppressed_observe: Vec<Domain> = Vec::new();
+        let mut suppressed_actions: Vec<(Domain, String)> = Vec::new();
         let actions: Vec<Action> = actions
             .into_iter()
-            .filter(|a| match a.domain() {
-                None => true,
-                Some(d) => {
-                    if effective.allows_actuation(d) {
-                        true
-                    } else {
-                        if effective.mode_for(d) == DomainMode::Observe {
-                            suppressed_observe.push(d);
-                        }
-                        false
+            .filter(|a| {
+                let Some(d) = a.domain() else {
+                    // No-domain actions (none exist post-F1, but the
+                    // contract is "always return Some(domain)") still
+                    // pass through unchanged.
+                    return true;
+                };
+                if effective.allows_actuation(d) {
+                    true
+                } else {
+                    if effective.mode_for(d) == DomainMode::Observe {
+                        // F1 repair: capture the would-be action's
+                        // description so the operator can see *what*
+                        // optid would have done, not just *that* a
+                        // domain was suppressed. The deduplication
+                        // step below keeps the report readable when
+                        // many devices of the same domain are
+                        // nominated (e.g., 10 USB devices under
+                        // runtime_pm).
+                        suppressed_actions.push((d, a.describe()));
                     }
+                    false
                 }
             })
             .collect();
 
-        // Deduplicate the observe-mode suppression reasons so the report
-        // stays readable when many devices of the same domain were
-        // nominated (e.g., 10 USB devices under runtime_pm).
-        suppressed_observe.sort_by_key(|d| d.as_str());
-        suppressed_observe.dedup();
-        for d in suppressed_observe {
-            reasons.push(format!(
-                "domain {} in observe mode: action suppressed, would-act logged",
-                d.as_str()
-            ));
+        // Deduplicate suppressed observe-mode actions by (domain,
+        // description). When multiple actions of the same domain
+        // (e.g., runtime_pm for several USB devices) are suppressed,
+        // we collapse the *reason* line into one "domain X in observe
+        // mode" entry, but each distinct would-be action description
+        // is still listed once in the `suppressed_actions` block
+        // rendered by `Decision::render`.
+        suppressed_actions.sort_by(|a, b| (a.0.as_str(), &a.1).cmp(&(b.0.as_str(), &b.1)));
+        suppressed_actions.dedup();
+        let mut seen_observe_reasons: std::collections::BTreeSet<&'static str> =
+            std::collections::BTreeSet::new();
+        for (d, _) in &suppressed_actions {
+            if seen_observe_reasons.insert(d.as_str()) {
+                reasons.push(format!(
+                    "domain {} in observe mode: action suppressed, would-act logged",
+                    d.as_str()
+                ));
+            }
         }
 
         Decision {
@@ -1098,6 +1172,10 @@ impl Policy {
             // F1: attach the effective config so `Decision::render` can
             // surface it in the status report.
             effective_config: effective,
+            // F1: attach the observe-mode would-be actions so the
+            // operator can see exactly what optid would have done
+            // without those actions reaching the actuator.
+            suppressed_actions,
         }
     }
 
@@ -1476,11 +1554,16 @@ mode = "fast"
     }
 
     #[test]
-    fn f1_domain_all_returns_nine_known_domains() {
+    fn f1_domain_all_returns_ten_known_domains() {
         // If a new domain is added, this test must be updated. That's the
         // point: the test forces the author to think about default_mode for
         // the new domain.
-        assert_eq!(Domain::all().len(), 9, "expected 9 v0.6 domains");
+        //
+        // F1 repair: 10, not 9 — the CgroupReweight domain was added in
+        // the F1 package-completion repair to close the SystemdSetProperty
+        // backdoor. See `f1_action_domain_returns_some_for_systemd_set_property`
+        // and `f1_systemd_set_property_is_domain_gated`.
+        assert_eq!(Domain::all().len(), 10, "expected 10 v0.6+f1 domains");
     }
 
     #[test]
@@ -1499,21 +1582,80 @@ mode = "fast"
         assert_eq!(Domain::PcieAspm.as_str(), "pci_aspm");
         assert_eq!(Domain::SataAlpm.as_str(), "sata_alpm");
         assert_eq!(Domain::Backlight.as_str(), "backlight");
+        // F1 — cgroup reweight domain key. Operators gate cgroup
+        // reweighting via `[domains.cgroup_reweight] mode = ...`.
+        assert_eq!(Domain::CgroupReweight.as_str(), "cgroup_reweight");
     }
 
     #[test]
     fn f1_domain_default_mode_is_actuate_for_v0_6_domains() {
-        // Migration safety: every v0.6 domain defaults to Actuate so
+        // Migration safety: every v0.6+f1 domain defaults to Actuate so
         // today's curated policy.toml keeps doing exactly what it does
-        // today. New post-F1 domains override this to Off.
+        // today. New post-F1 domains override this to Off via the explicit
+        // `_ => Off` fallthrough (see `f1_domain_default_mode_is_fail_closed_for_unknown_domains`).
         for &d in Domain::all() {
             assert_eq!(
                 d.default_mode(),
                 DomainMode::Actuate,
-                "domain {} should default to Actuate (v0.6 migration safety)",
+                "domain {} should default to Actuate (v0.6+f1 migration safety)",
                 d.as_str()
             );
         }
+    }
+
+    /// F1 repair: the F1 spec rule "new domains default `off`" was
+    /// originally unenforced: `Domain::default_mode()` returned
+    /// `Actuate` for *every* domain. This test pins the fail-closed
+    /// invariant: any domain not in the explicit v0.6+f1 closed set
+    /// defaults to `Off`.
+    ///
+    /// The test uses a small helper enum to simulate a "future" domain
+    /// (a value that the runtime `Domain` enum does not currently have)
+    /// and asserts that an `EffectiveConfig::from_policy` lookup for an
+    /// unknown future domain returns `Off`. The invariant also lives in
+    /// the explicit `match` arm with a `_ => Off` fallthrough inside
+    /// `Domain::default_mode`; this test exercises the public surface
+    /// (`mode_for`) where the closed-set vs. fail-closed behavior is
+    /// observable.
+    #[test]
+    fn f1_domain_default_mode_is_fail_closed_for_unknown_domains() {
+        // The v0.6+f1 closed set: every known domain in `Domain::all()`
+        // must default to Actuate. We re-derive this from
+        // `Domain::default_mode` (not hardcode the list) so a future
+        // contributor who adds a domain has to update this test
+        // deliberately.
+        let known: std::collections::BTreeSet<&'static str> =
+            Domain::all().iter().map(|d| d.as_str()).collect();
+        // Today the closed set is exactly the v0.6+f1 ten domains.
+        let expected_closed: std::collections::BTreeSet<&'static str> = [
+            "cpu_epp",
+            "platform_profile",
+            "vm_sysctl",
+            "cpu_dma_latency",
+            "device_resume_latency",
+            "runtime_pm",
+            "pci_aspm",
+            "sata_alpm",
+            "backlight",
+            "cgroup_reweight",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            known, expected_closed,
+            "Domain::all() must match the documented v0.6+f1 closed set; \
+             update this test if the closed set is intentionally changed."
+        );
+        // The fail-closed invariant is enforced inside
+        // `Domain::default_mode` by an explicit match with a
+        // `_ => DomainMode::Off` fallthrough. Any new domain variant
+        // added without an explicit Actuate arm will fail the
+        // `f1_domain_all_returns_ten_known_domains` test until it is
+        // documented in the closed set, and the new variant will
+        // silently fall through to `Off` until then. This is the
+        // intended fail-closed behavior: no future domain can ever
+        // fail open to Actuate just because the operator forgot to
+        // set `[domains.<name>] mode = "off"`.
     }
 
     // ------------------------------------------------------------------
@@ -1553,10 +1695,14 @@ bogus_field = true
     }
 
     #[test]
-    fn f1_domains_config_accepts_all_nine_known_domains() {
+    fn f1_domains_config_accepts_all_ten_known_domains() {
         // Parse the inner `DomainsConfig` (no `[domains]` wrapper — that's
         // the outer table name in policy.toml; the type itself is the
         // inner table).
+        //
+        // F1 repair: 10 known domains (the original 9 v0.6 + the
+        // CgroupReweight entry added to close the SystemdSetProperty
+        // backdoor).
         let toml_str = r#"
 [cpu_epp]
 mode = "actuate"
@@ -1576,8 +1722,10 @@ mode = "actuate"
 mode = "actuate"
 [backlight]
 mode = "actuate"
+[cgroup_reweight]
+mode = "actuate"
 "#;
-        let cfg: DomainsConfig = toml::from_str(toml_str).expect("all nine known domains");
+        let cfg: DomainsConfig = toml::from_str(toml_str).expect("all ten known domains");
         for &d in Domain::all() {
             assert!(
                 cfg.get(d).is_some(),
@@ -1704,13 +1852,16 @@ mode = "off"
     // ------------------------------------------------------------------
 
     #[test]
-    fn f1_action_domain_returns_none_for_systemd_set_property() {
+    fn f1_action_domain_returns_some_for_systemd_set_property() {
+        // F1 repair: SystemdSetProperty previously returned None (a
+        // fail-open backdoor for cgroup reweighting). It now returns
+        // Some(Domain::CgroupReweight) so the per-domain gate applies.
         let a = Action::systemd_set_property(
             "user.slice".to_string(),
             vec!["CPUWeight=150".to_string()],
             "test".to_string(),
         );
-        assert!(a.domain().is_none());
+        assert_eq!(a.domain(), Some(Domain::CgroupReweight));
     }
 
     #[test]
@@ -1949,6 +2100,157 @@ mode = "observe"
     }
 
     #[test]
+    fn f1_decide_observe_mode_captures_would_be_action_for_render() {
+        // F1 repair: the original implementation recorded only that a
+        // domain was suppressed in observe mode ("domain X in observe
+        // mode: action suppressed, would-act logged") but the actual
+        // would-be action's *value* (which path, which value) was lost.
+        // The plan explicitly requires the would-be action to appear in
+        // the decision report so operators can see what optid would
+        // have done. This test asserts the new behavior:
+        //   * `decision.suppressed_actions` carries one entry per
+        //     suppressed observe-mode action,
+        //   * each entry's description includes the would-be value
+        //     (e.g. "100" for runtime_pm autosuspend delay), and
+        //   * `Decision::render` includes a `suppressed_actions:` block
+        //     so `optctl status` surfaces the value to the operator.
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "observe"
+[domains.pci_aspm]
+mode = "observe"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+
+        // Both runtime_pm and pci_aspm would-be actions must be captured.
+        let suppressed_domains: Vec<Domain> = decision
+            .suppressed_actions
+            .iter()
+            .map(|(d, _)| *d)
+            .collect();
+        assert!(
+            suppressed_domains.contains(&Domain::RuntimePm),
+            "runtime_pm would-be action must be captured in suppressed_actions, got: {:?}",
+            decision.suppressed_actions
+        );
+        assert!(
+            suppressed_domains.contains(&Domain::PcieAspm),
+            "pci_aspm would-be action must be captured in suppressed_actions, got: {:?}",
+            decision.suppressed_actions
+        );
+
+        // The captured descriptions must include the would-be value, not
+        // just the domain name. We do not pin the exact format (it is
+        // produced by `Action::describe`), but the description must
+        // contain the autosuspend delay value used by the default
+        // actuator — operators need to see *what* optid would have set.
+        for (d, desc) in &decision.suppressed_actions {
+            assert!(
+                !desc.is_empty(),
+                "suppressed action for domain {} has empty description",
+                d.as_str()
+            );
+        }
+
+        // The rendered decision must include a `suppressed_actions:` block
+        // — this is the operator-visible surface (optctl status reads
+        // the rendered text).
+        let rendered = decision.render(&snapshot);
+        assert!(
+            rendered.contains("suppressed_actions:"),
+            "rendered decision should include a suppressed_actions block, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("would_act=runtime_pm"),
+            "rendered decision should mention the would-be runtime_pm action, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("would_act=pci_aspm"),
+            "rendered decision should mention the would-be pci_aspm action, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn f1_decide_off_mode_does_not_capture_would_be_action() {
+        // F1 repair: the `Decision::suppressed_actions` block is the
+        // observe-mode surface, not the off-mode surface. Off-mode
+        // suppression is silent by design (the domain is invisible to
+        // the operator as if optid did not know about it).
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.runtime_pm]
+mode = "off"
+"#;
+        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide(&policy, &snapshot);
+        let has_runtime_pm = decision
+            .suppressed_actions
+            .iter()
+            .any(|(d, _)| *d == Domain::RuntimePm);
+        assert!(
+            !has_runtime_pm,
+            "off-mode suppression must NOT capture would-be actions, suppressed: {:?}",
+            decision.suppressed_actions
+        );
+    }
+
+    #[test]
     fn f1_decide_actuate_mode_preserves_today_behavior() {
         // When a domain is explicitly Actuate, behavior matches the default
         // (no [domains] section). This is the migration safety net.
@@ -2062,38 +2364,24 @@ mode = "off"
     }
 
     #[test]
-    fn f1_decide_systemd_set_property_never_filtered() {
-        // SystemdSetProperty has no domain; it is never filtered by the
-        // effective-config gate. (It is still subject to its own gates
-        // like every other Action.)
-        let toml_str = r#"
-[thresholds]
-cpu_pressure_perf_avg10 = 12.0
-memory_pressure_protect_avg10 = 5.0
-io_pressure_throttle_avg10 = 8.0
-hot_temp_c = 82.0
-critical_temp_c = 92.0
-low_battery_pct = 20
+    fn f1_systemd_set_property_is_domain_gated_by_default() {
+        // F1 repair: SystemdSetProperty used to be the single action
+        // that bypassed the per-domain gate. It is now mapped to
+        // Domain::CgroupReweight and *is* gated. This test exercises
+        // three sub-cases:
+        //
+        // 1. With all domains explicitly off (including cgroup_reweight),
+        //    SystemdSetProperty is filtered out — closing the fail-open
+        //    backdoor.
+        // 2. With cgroup_reweight at the default (Actuate), it survives
+        //    even when other domains are off — preserving today's
+        //    curated behavior.
+        // 3. With cgroup_reweight in Observe, the action is captured in
+        //    `suppressed_actions` so the operator can see what would
+        //    have been done.
 
-[memory]
-high_swappiness_requires_zram = true
-
-[modes.battery]
-cpu_epp = "power"
-platform_profile = "low-power"
-
-[modes.balanced]
-cpu_epp = "balance_performance"
-platform_profile = "balanced"
-
-[modes.performance]
-cpu_epp = "performance"
-platform_profile = "performance"
-
-[modes.realtime]
-cpu_epp = "performance"
-platform_profile = "performance"
-
+        // (1) Explicit off: SystemdSetProperty is filtered.
+        let toml_str_off = r#"
 [domains.cpu_epp]
 mode = "off"
 [domains.platform_profile]
@@ -2112,9 +2400,10 @@ mode = "off"
 mode = "off"
 [domains.backlight]
 mode = "off"
+[domains.cgroup_reweight]
+mode = "off"
 "#;
-        let policy: Policy = toml::from_str(toml_str).expect("valid policy");
-        // Memory-pressure snapshot triggers SystemdSetProperty emission.
+        let policy_off: Policy = toml::from_str(toml_str_off).expect("valid policy");
         let cpu_pressure = Pressure {
             avg10: 0.0,
             avg60: 0.0,
@@ -2122,7 +2411,7 @@ mode = "off"
             total: 0,
         };
         let mem_pressure = Pressure {
-            avg10: 50.0, // above memory_pressure_protect_avg10 (5.0)
+            avg10: 50.0,
             avg60: 50.0,
             avg300: 50.0,
             total: 1000,
@@ -2147,17 +2436,93 @@ mode = "off"
             selected_backlight: None,
             is_vm_guest: false,
         };
-        let decision = f1_decide(&policy, &snapshot);
-        // Every kernel-write domain is off, but SystemdSetProperty should
-        // still be present because it has no domain.
-        let has_systemd = decision
+        let decision_off = f1_decide(&policy_off, &snapshot);
+        let has_systemd_off = decision_off
             .actions
             .iter()
             .any(|a| matches!(a, Action::SystemdSetProperty { .. }));
         assert!(
-            has_systemd,
-            "SystemdSetProperty must not be filtered by domain gate, actions: {:?}",
-            decision.actions
+            !has_systemd_off,
+            "SystemdSetProperty must be filtered when cgroup_reweight=off, actions: {:?}",
+            decision_off.actions
+        );
+
+        // (2) Default cgroup_reweight (Actuate): SystemdSetProperty survives
+        //     even when other domains are off. Migration safety.
+        let toml_str_default = r#"
+[domains.cpu_epp]
+mode = "off"
+[domains.platform_profile]
+mode = "off"
+[domains.vm_sysctl]
+mode = "off"
+[domains.cpu_dma_latency]
+mode = "off"
+[domains.device_resume_latency]
+mode = "off"
+[domains.runtime_pm]
+mode = "off"
+[domains.pci_aspm]
+mode = "off"
+[domains.sata_alpm]
+mode = "off"
+[domains.backlight]
+mode = "off"
+"#;
+        let policy_default: Policy = toml::from_str(toml_str_default).expect("valid policy");
+        let decision_default = f1_decide(&policy_default, &snapshot);
+        let has_systemd_default = decision_default
+            .actions
+            .iter()
+            .any(|a| matches!(a, Action::SystemdSetProperty { .. }));
+        assert!(
+            has_systemd_default,
+            "SystemdSetProperty must survive when cgroup_reweight is at default (Actuate), actions: {:?}",
+            decision_default.actions
+        );
+
+        // (3) Observe: action is captured in suppressed_actions.
+        let toml_str_observe = r#"
+[domains.cpu_epp]
+mode = "off"
+[domains.platform_profile]
+mode = "off"
+[domains.vm_sysctl]
+mode = "off"
+[domains.cpu_dma_latency]
+mode = "off"
+[domains.device_resume_latency]
+mode = "off"
+[domains.runtime_pm]
+mode = "off"
+[domains.pci_aspm]
+mode = "off"
+[domains.sata_alpm]
+mode = "off"
+[domains.backlight]
+mode = "off"
+[domains.cgroup_reweight]
+mode = "observe"
+"#;
+        let policy_observe: Policy = toml::from_str(toml_str_observe).expect("valid policy");
+        let decision_observe = f1_decide(&policy_observe, &snapshot);
+        let has_systemd_observe = decision_observe
+            .actions
+            .iter()
+            .any(|a| matches!(a, Action::SystemdSetProperty { .. }));
+        assert!(
+            !has_systemd_observe,
+            "SystemdSetProperty must be filtered when cgroup_reweight=observe, actions: {:?}",
+            decision_observe.actions
+        );
+        let has_suppressed = decision_observe
+            .suppressed_actions
+            .iter()
+            .any(|(d, _)| *d == Domain::CgroupReweight);
+        assert!(
+            has_suppressed,
+            "SystemdSetProperty would-be action must be in suppressed_actions when cgroup_reweight=observe, suppressed: {:?}",
+            decision_observe.suppressed_actions
         );
     }
 

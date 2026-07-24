@@ -3,7 +3,7 @@
 //! `optctl status` / `optctl explain` read.
 
 use crate::action::Action;
-use crate::policy::EffectiveConfig;
+use crate::policy::{Domain, EffectiveConfig};
 use crate::sensors::{fmt_pressure, Snapshot};
 use crate::workload::{Mode, WorkloadClass};
 
@@ -20,6 +20,17 @@ pub(crate) struct Decision {
     /// actions. Rendered into the status report so `optctl status` shows
     /// exactly what optid is allowed to do per domain.
     pub(crate) effective_config: EffectiveConfig,
+    /// F1 — Actions suppressed by the effective-mode gate when their
+    /// domain was in `Observe` mode. Each entry is `(domain, description)`
+    /// so the operator can see what optid *would* have done without
+    /// those actions reaching the actuator. The `Decision::render` method
+    /// emits a `suppressed_actions:` block that lists each would-be
+    /// action's domain and human-readable description.
+    ///
+    /// `Off`-mode suppressions are deliberately not recorded here: the
+    /// domain is invisible by design. `Observe` is the only mode that
+    /// surfaces the would-be action.
+    pub(crate) suppressed_actions: Vec<(Domain, String)>,
 }
 
 impl Decision {
@@ -62,6 +73,22 @@ impl Decision {
         out.push_str("actions:\n");
         for action in &self.actions {
             out.push_str(&format!("- {}\n", action.describe()));
+        }
+        // F1 — surface observe-mode would-be actions so the operator
+        // can see exactly what optid would have done. This is the
+        // repair for the F1 merged_incomplete blocking reason
+        // "Observe mode loses the would-be action". Off-mode
+        // suppressions are intentionally absent: the domain is
+        // invisible by design.
+        if !self.suppressed_actions.is_empty() {
+            out.push_str("suppressed_actions:\n");
+            for (domain, description) in &self.suppressed_actions {
+                out.push_str(&format!(
+                    "- domain={} would_act={}\n",
+                    domain.as_str(),
+                    description
+                ));
+            }
         }
         // F1 — append the effective per-domain config so `optctl status`
         // surfaces the runtime mode of every domain. This is the
