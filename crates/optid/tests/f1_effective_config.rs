@@ -38,7 +38,8 @@ const POLICY_RS: &str = include_str!("../src/policy.rs");
 const DECISION_RS: &str = include_str!("../src/decision.rs");
 const ACTION_RS: &str = include_str!("../src/action.rs");
 const MAIN_RS: &str = include_str!("../src/main.rs");
-const POLICY_TOML: &str = include_str!("../../config/optid/policy.toml");
+// crates/optid/tests/ -> repo root is three levels up.
+const POLICY_TOML: &str = include_str!("../../../config/optid/policy.toml");
 
 #[test]
 fn f1_production_decide_resolved_is_called_from_daemon_main_loop() {
