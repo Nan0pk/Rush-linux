@@ -595,6 +595,8 @@ Downstream dependencies unlock only from `completed`. Partial merged code is
 
 **Modularity.** Depends on F2–F3. Independent of the D2 safety packages and hardware nomination.
 
+**Ledger alignment.** `docs/plans/optid-package-status.toml` records T1 `depends = ["F2", "F3"]` and status `merged_incomplete` until F2/F3 complete and cold verification passes.
+
 **Spec gaps.** Zone selection, weights, and thresholds require an accepted policy. Recommend conservative max-of-eligible-zones for v1, with no fan writes.
 
 **Scope/risk.** Medium, 6–10 files, 500–900 LOC. Risk tier 1.

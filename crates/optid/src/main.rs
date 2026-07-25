@@ -328,15 +328,47 @@ fn run(args: Args) -> io::Result<()> {
     // change are reverted rather than left applied until shutdown.
     let mut active_keys: HashSet<String> = HashSet::new();
 
+    // T1 — retain previous thermal budget across loop iterations for
+    // hysteresis (no globals). Config reloads affect future calculations
+    // because Policy::load runs each tick and feeds ThermalConfig in.
+    let mut previous_thermal_budget: Option<thermal::ThermalBudget> = None;
+
+    // One-shot baseline via Snapshot::collect (default thermal config) so the
+    // F2 collect entry stays on the production binary surface; the loop below
+    // uses collect_with_thermal for hysteresis + reloaded config.
+    {
+        let baseline = Snapshot::collect();
+        append_log(
+            &args.state_dir.join("decisions.log"),
+            &format!(
+                "optid: thermal baseline state={:?} derating={:.2} sensors={}\n",
+                baseline.thermal_budget.state,
+                baseline.thermal_budget.derating_ratio,
+                baseline.thermal_sensors.len()
+            ),
+        )?;
+    }
+
+    // F4 shadow: operational reconciler observes transitions in parallel
+    // with active_keys restore. Does not replace production restore yet.
+    let mut reconciler =
+        reconciler::Reconciler::new().with_mode(reconciler::ReconcilerMode::Shadow);
+
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
-        let mut snapshot = Snapshot::collect();
+        let policy = Policy::load(&args.config_path);
+        let kernel = kernel_io::RealKernel::new();
+        let mut snapshot = Snapshot::collect_with_thermal(
+            &kernel,
+            &kernel,
+            &policy.thermal,
+            previous_thermal_budget.as_ref(),
+        );
+        previous_thermal_budget = Some(snapshot.thermal_budget.clone());
         snapshot.global_pinned_class = read_global_pinned_class(&args.state_dir);
         if let Some(ref app) = snapshot.foreground_app {
             snapshot.pinned_class = read_pinned_class(&args.state_dir, app);
         }
-
-        let policy = Policy::load(&args.config_path);
         let (raw_class, class_reason) = policy.classify(&snapshot);
         let (committed_class, _) =
             hysteresis.update(raw_class, snapshot.timestamp, DEFAULT_DWELL_WINDOW_SEC);
@@ -390,6 +422,40 @@ fn run(args: Args) -> io::Result<()> {
 
         fs::write(args.state_dir.join("status"), &report)?;
         append_log(&args.state_dir.join("decisions.log"), &report)?;
+
+        // F4 shadow: detect transitions and compute restore plan without
+        // applying (production path remains active_keys + revert_key).
+        {
+            let mut domain_modes = std::collections::HashMap::new();
+            for &d in policy::Domain::all() {
+                domain_modes.insert(d, decision.effective_config.mode_for(d));
+            }
+            let transitions = reconciler.detect_transitions(
+                snapshot.on_ac,
+                committed_class,
+                resolved_mode,
+                &domain_modes,
+            );
+            for t in &transitions {
+                let shadow_actions = reconciler.reconcile(t);
+                if !shadow_actions.is_empty() {
+                    append_log(
+                        &args.state_dir.join("decisions.log"),
+                        &format!(
+                            "reconciler_shadow: transition={} would_restore={}\n",
+                            t.describe(),
+                            shadow_actions.len()
+                        ),
+                    )?;
+                }
+            }
+            // Track desired keys by target identity for shadow parity.
+            for action in &decision.actions {
+                if let Some(key) = action.journal_key() {
+                    reconciler.set_desired_target(&key, Some(action.describe()));
+                }
+            }
+        }
 
         if args.apply {
             for action in &decision.actions {

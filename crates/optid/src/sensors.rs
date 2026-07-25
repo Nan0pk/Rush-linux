@@ -79,7 +79,9 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    /// F2: production path — delegates to `RealKernel`.
+    /// F2: production path — delegates to `RealKernel` with default thermal config.
+    /// The daemon main loop uses [`Self::collect_with_thermal`] so hysteresis and
+    /// reloaded config apply.
     pub(crate) fn collect() -> Self {
         let kernel = RealKernel::new();
         Self::collect_with(&kernel, &kernel)
@@ -89,15 +91,19 @@ impl Snapshot {
     /// `clock` parameters so a test can mix-and-match (e.g. a `FaultKernel`
     /// for reads with a `RealKernel` clock).
     pub(crate) fn collect_with(read: &dyn KernelRead, clock: &dyn Clock) -> Self {
-        let thermal_sensors = crate::thermal::discover_thermal_sensors_with(read);
-        let fan_sensors = crate::thermal::discover_fan_sensors_with(read);
-        let thermal_config = crate::thermal::ThermalConfig::default();
-        let thermal_budget = crate::thermal::compute_thermal_budget(
-            &thermal_config,
-            &thermal_sensors,
-            &fan_sensors,
-            None,
-        );
+        Self::collect_with_thermal(read, clock, &crate::thermal::ThermalConfig::default(), None)
+    }
+
+    /// Production thermal path: snapshot collection with injected thermal
+    /// config and previous budget (for hysteresis across loop iterations).
+    pub(crate) fn collect_with_thermal(
+        read: &dyn KernelRead,
+        clock: &dyn Clock,
+        thermal_config: &crate::thermal::ThermalConfig,
+        previous_budget: Option<&crate::thermal::ThermalBudget>,
+    ) -> Self {
+        let (thermal_sensors, fan_sensors, thermal_budget) =
+            crate::thermal::collect_thermal_budget_with(read, thermal_config, previous_budget);
 
         Self {
             timestamp: clock.now_unix(),

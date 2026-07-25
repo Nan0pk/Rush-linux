@@ -80,7 +80,7 @@ title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
 depends = ["F2", "F3"]
 pr = "327"
-blocking_reason = "The reconciler is dormant, duplicates F3 types, cannot represent multiple devices per domain, and performs no production readback. Transition restore is now partly covered outside the reconciler: the daemon loop diffs journal keys between ticks and Actuator::revert_key restores per-device depth-enablers whose action disappears after a context change. That is a defect fix in the actuator path, not the reconciled desired-state model this package requires, so the package remains incomplete."
+blocking_reason = "Reconciler shadow mode is now operational in the daemon loop (transition detection + target-identity desired tracking + parity tests for multi-device/drift/coalesce/bounded retry), but production restore still uses active_keys + Actuator::revert_key rather than reconciler v1 apply. Remaining blockers: (1) production cutover from active_keys to target-keyed restore with readback-equals-last-confirmed; (2) F3 envelope alignment (reconciler still has local Ownership/ApplyResult types); (3) full systemd property and VM/sysctl restore through the reconciler rather than only journal keys; (4) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
 completion_evidence = []
 
 [[package]]
@@ -241,15 +241,17 @@ completion_evidence = []
 id = "T1"
 lane = "thermal"
 title = "Build thermal sensing and a pure budget model"
-status = "candidate"
-depends = []
+status = "merged_incomplete"
+# Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
+depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = ""
+blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) Domain::Thermal is observe-only and T2/T3 actuation is out of scope. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
   "crates/optid/src/policy.rs",
   "crates/optid/src/thermal.rs",
+  "crates/optid/src/decision.rs",
 ]
 integration_tests = [
   "crates/optid/tests/t1_thermal_budget.rs",
