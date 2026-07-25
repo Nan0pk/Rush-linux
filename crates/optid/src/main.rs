@@ -36,6 +36,7 @@ mod policy;
 mod reconciler;
 mod sensors;
 mod shim;
+mod thermal;
 #[cfg(test)]
 mod tests;
 mod workload;

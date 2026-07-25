@@ -107,6 +107,8 @@ pub(crate) enum Domain {
     /// per-domain gate applies; defaults to `Actuate` to preserve
     /// today's curated behavior.
     CgroupReweight,
+    /// T1 — Read-only thermal sensing and budget model domain.
+    Thermal,
 }
 
 impl Domain {
@@ -126,6 +128,8 @@ impl Domain {
             // F1 — cgroup reweight domain key. Operators gate cgroup
             // reweighting via `[domains.cgroup_reweight] mode = ...`.
             Domain::CgroupReweight => "cgroup_reweight",
+            // T1 — thermal sensing and budget domain key.
+            Domain::Thermal => "thermal",
         }
     }
 
@@ -145,24 +149,12 @@ impl Domain {
             // F1 — cgroup reweight domain. Appended at the end so existing
             // status renderings stay stable.
             Domain::CgroupReweight,
+            // T1 — thermal domain.
+            Domain::Thermal,
         ]
     }
 
     /// Default mode for this domain when no `[domains.<name>]` entry exists.
-    ///
-    /// **Migration mapping (F1):** every variant of the v0.6+f1 closed set
-    /// defaults to `Actuate`, preserving today's curated `policy.toml`
-    /// behavior bit-for-bit. The compiler enforces the closed set: any
-    /// new variant added to `Domain` produces a non-exhaustive-match
-    /// error here, forcing the author to make an explicit Actuate/Off
-    /// choice before their PR can compile. This is the F1 spec rule
-    /// "new domains default `off`" enforced at the type level — a
-    /// future domain *cannot* silently fail open to `Actuate`.
-    ///
-    /// The closed set is the same as `Domain::all()`. The explicit
-    /// match (rather than a `Default` impl or a lookup table) is
-    /// deliberate: it forces every author to think about the
-    /// default for their new domain.
     pub(crate) fn default_mode(&self) -> DomainMode {
         match self {
             Domain::CpuEpp
@@ -175,6 +167,7 @@ impl Domain {
             | Domain::SataAlpm
             | Domain::Backlight
             | Domain::CgroupReweight => DomainMode::Actuate,
+            Domain::Thermal => DomainMode::Observe,
         }
     }
 }
