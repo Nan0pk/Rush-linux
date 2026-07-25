@@ -333,18 +333,29 @@ fn run(args: Args) -> io::Result<()> {
     // because Policy::load runs each tick and feeds ThermalConfig in.
     let mut previous_thermal_budget: Option<thermal::ThermalBudget> = None;
 
-    // One-shot baseline via Snapshot::collect (default thermal config) so the
-    // F2 collect entry stays on the production binary surface; the loop below
-    // uses collect_with_thermal for hysteresis + reloaded config.
+    // Post-#337 repair: the unconditional thermal baseline scan was
+    // removed. The previous code called `Snapshot::collect()` (which
+    // uses `ThermalConfig::default()` → mode=Observe) before loading or
+    // applying the configured thermal mode, bypassing operator
+    // configuration. When `[thermal] mode = "off"`, the daemon must
+    // perform no thermal sysfs or legacy thermal-zone reads at startup
+    // or in the loop. The loop below uses `Snapshot::collect_with_thermal`
+    // with the configured policy's thermal config, which already
+    // short-circuits discovery when mode=off (see `thermal.rs` and the
+    // `t1_production_pipeline_off_mode_zero_thermal_reads` test).
+    //
+    // The startup diagnostic below logs the *configured* thermal mode
+    // without performing any thermal sysfs reads. This preserves useful
+    // startup visibility (the operator can see what mode optid will run
+    // in) without bypassing the operator's `mode = "off"` choice.
     {
-        let baseline = Snapshot::collect();
+        let startup_policy = Policy::load(&args.config_path);
+        let thermal_mode = startup_policy.thermal.mode;
         append_log(
             &args.state_dir.join("decisions.log"),
             &format!(
-                "optid: thermal baseline state={:?} derating={:.2} sensors={}\n",
-                baseline.thermal_budget.state,
-                baseline.thermal_budget.derating_ratio,
-                baseline.thermal_sensors.len()
+                "optid: thermal startup mode={:?} (no baseline scan; loop uses configured policy)\n",
+                thermal_mode
             ),
         )?;
     }
@@ -436,24 +447,61 @@ fn run(args: Args) -> io::Result<()> {
                 resolved_mode,
                 &domain_modes,
             );
+            // Planning is mode-independent: shadow and v1 compute the
+            // same plan. Shadow logs the plan but performs no writes; v1
+            // (not yet wired in) would apply it. The daemon logs the
+            // would-restore count and the stale target set so operators
+            // can see what the reconciler would do.
             for t in &transitions {
-                let shadow_actions = reconciler.reconcile(t);
-                if !shadow_actions.is_empty() {
+                let plan = reconciler.plan_restore(t);
+                if !plan.is_empty() {
                     append_log(
                         &args.state_dir.join("decisions.log"),
                         &format!(
-                            "reconciler_shadow: transition={} would_restore={}\n",
+                            "reconciler_shadow: transition={} would_restore={} plan={}\n",
                             t.describe(),
-                            shadow_actions.len()
+                            plan.len(),
+                            plan.iter()
+                                .map(|a| format!("{}->{}", a.domain.as_str(), a.value))
+                                .collect::<Vec<_>>()
+                                .join(",")
                         ),
                     )?;
                 }
             }
-            // Track desired keys by target identity for shadow parity.
+            // Replace the per-tick desired set. Targets absent from the
+            // current decision become desired=None (stale/restore-
+            // eligible); targets present are updated. This mirrors the
+            // active_keys set replacement below and keeps shadow and
+            // production tracking the same target set for equivalent
+            // decisions. Actions whose journal_key() is None (e.g.
+            // SystemdSetProperty, which has no property-level
+            // restoration) are excluded from tracking — the reconciler
+            // must not pretend to restore them.
+            let mut desired_by_key: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             for action in &decision.actions {
                 if let Some(key) = action.journal_key() {
-                    reconciler.set_desired_target(&key, Some(action.describe()));
+                    desired_by_key.insert(key, action.describe());
                 }
+            }
+            reconciler.replace_desired_targets(&desired_by_key);
+
+            // Log the stale (desired=None, previously confirmed) target
+            // set so operators can see which targets the reconciler
+            // would restore on the next transition. Production restore
+            // still uses active_keys + Actuator::revert_key until the
+            // F4 cutover; this log line makes the shadow plan
+            // operator-visible without coupling to internal state.
+            let stale = reconciler.stale_target_ids();
+            if !stale.is_empty() {
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    &format!(
+                        "reconciler_shadow: stale_targets={} (production restore still uses active_keys)\n",
+                        stale.len()
+                    ),
+                )?;
             }
         }
 

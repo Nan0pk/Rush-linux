@@ -571,19 +571,24 @@ impl Reconciler {
         state.baseline = Some(value);
     }
 
-    /// Generate restore actions for a transition. For each domain whose
-    /// desired value changed or whose domain was disabled, emit a
-    /// restore action that reverts to the baseline.
+    /// Compute the restore plan for a transition **without applying it**.
     ///
-    /// In shadow mode, this returns an empty vector (no writes emitted).
-    /// The caller still receives the restore outcomes for logging.
-    pub(crate) fn reconcile(&mut self, transition: &Transition) -> Vec<ReconcileAction> {
+    /// This is the planning half of the shadow/v1 separation (post-#337
+    /// repair). The plan is identical in `Shadow` and `V1` modes — only
+    /// `reconcile()` (the apply path) differs: `Shadow` discards the
+    /// plan and performs no writes; `V1` may later apply it.
+    ///
+    /// For each domain whose desired value changed or whose domain was
+    /// disabled, the plan contains a restore action that reverts to the
+    /// baseline. The plan is sorted by `Domain::as_str()` so output
+    /// order is deterministic across runs and across modes.
+    ///
+    /// Production restore still uses `active_keys + Actuator::revert_key`
+    /// (see `main.rs`); the reconciler does not own production restore
+    /// until the F4 cutover. The daemon logs the shadow plan size so
+    /// operators can see what the reconciler *would* restore.
+    pub(crate) fn plan_restore(&self, transition: &Transition) -> Vec<ReconcileAction> {
         let mut actions = Vec::new();
-
-        if self.mode == ReconcilerMode::Shadow {
-            // Shadow mode: compute but don't emit.
-            return actions;
-        }
 
         match transition {
             Transition::DomainDisabled { domain } => {
@@ -613,23 +618,30 @@ impl Reconciler {
                 // For these transitions, restore every domain whose
                 // desired value is None (optid wants baseline) but whose
                 // last confirmed is not None (optid previously wrote).
-                for (domain, state) in &self.states {
-                    if state.desired.is_none()
-                        && state.last_confirmed.is_some()
-                        && state.ownership == Ownership::Optid
-                    {
-                        if let Some(baseline) = &state.baseline {
-                            actions.push(ReconcileAction {
-                                domain: *domain,
-                                value: baseline.clone(),
-                                reason: format!(
-                                    "restore baseline on {} (transition: {})",
-                                    domain.as_str(),
-                                    transition.describe()
-                                ),
-                                transition: transition.clone(),
-                            });
-                        }
+                let mut stale: Vec<(Domain, &DomainReconcileState)> = self
+                    .states
+                    .iter()
+                    .filter(|(_, s)| {
+                        s.desired.is_none()
+                            && s.last_confirmed.is_some()
+                            && s.ownership == Ownership::Optid
+                    })
+                    .map(|(d, s)| (*d, s))
+                    .collect();
+                // Deterministic ordering: sort by domain's canonical key.
+                stale.sort_by_key(|(d, _)| d.as_str());
+                for (domain, state) in stale {
+                    if let Some(baseline) = &state.baseline {
+                        actions.push(ReconcileAction {
+                            domain,
+                            value: baseline.clone(),
+                            reason: format!(
+                                "restore baseline on {} (transition: {})",
+                                domain.as_str(),
+                                transition.describe()
+                            ),
+                            transition: transition.clone(),
+                        });
                     }
                 }
             }
@@ -641,6 +653,88 @@ impl Reconciler {
         }
 
         actions
+    }
+
+    /// Apply a restore plan in `V1` mode. In `Shadow` mode this is a
+    /// no-op (the caller logs the plan via `plan_restore` but no writes
+    /// are emitted). Production restore still uses `active_keys +
+    /// Actuator::revert_key` until the F4 cutover; this method is the
+    /// eventual V1 apply path and is not yet wired into the daemon.
+    pub(crate) fn reconcile(&mut self, transition: &Transition) -> Vec<ReconcileAction> {
+        if self.mode == ReconcilerMode::Shadow {
+            // Shadow mode: log the plan but perform no writes. The plan
+            // is still computed via `plan_restore` so the caller can
+            // report the would-restore count.
+            return Vec::new();
+        }
+        // V1 mode: apply the plan. The V1 apply path is not yet wired
+        // into the daemon (F4 cutover is a separate change); the plan
+        // is returned so a future caller can apply it.
+        self.plan_restore(transition)
+    }
+
+    /// Replace the per-tick desired set for tracked targets.
+    ///
+    /// The daemon must call this **every tick** with the complete set of
+    /// journal keys the current decision emits. Targets that were
+    /// present on the previous tick but are absent from the current
+    /// decision become `desired = None` (stale / restore-eligible).
+    /// Targets that remain desired are updated to the new value. This
+    /// mirrors the `active_keys` set replacement in `main.rs` so shadow
+    /// and production track the same target set for equivalent
+    /// decisions.
+    ///
+    /// `desired_by_key` maps each action's `journal_key()` (when
+    /// `Some`) to its describe() string. Actions whose `journal_key()`
+    /// is `None` (e.g. `SystemdSetProperty`, which has no
+    /// property-level restoration) are excluded from tracking — the
+    /// reconciler must not pretend to restore them.
+    pub(crate) fn replace_desired_targets(
+        &mut self,
+        desired_by_key: &std::collections::HashMap<String, String>,
+    ) {
+        // Step 1: mark every currently-tracked target whose key is not
+        // in the new desired set as `desired = None`. This makes the
+        // target stale / restore-eligible on the next transition.
+        for (target_id, state) in &mut self.targets {
+            if !desired_by_key.contains_key(target_id) && state.desired.is_some() {
+                state.desired = None;
+                state.retries = 0;
+            }
+        }
+        // Step 2: insert or update desired for every key in the new
+        // set. Reset retries when the desired value changes.
+        for (key, describe) in desired_by_key {
+            let state = self
+                .targets
+                .entry(key.clone())
+                .or_insert_with(|| TargetReconcileState {
+                    target_id: key.clone(),
+                    ..Default::default()
+                });
+            if state.desired.as_deref() != Some(describe.as_str()) {
+                state.desired = Some(describe.clone());
+                state.retries = 0;
+            }
+        }
+    }
+
+    /// Snapshot of the current target IDs that are stale (desired =
+    /// None) and were previously confirmed (last_confirmed is Some).
+    /// Used by the daemon to log the would-restore set in shadow mode
+    /// without coupling to internal state. The returned vector is
+    /// sorted for deterministic output.
+    pub(crate) fn stale_target_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .targets
+            .iter()
+            .filter(|(_, s)| {
+                s.desired.is_none() && s.last_confirmed.is_some() && s.ownership == Ownership::Optid
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.sort();
+        ids
     }
 
     /// Should optid write `value` to `domain`? Returns false if the
@@ -846,8 +940,234 @@ mod tests {
         let transition = Transition::DomainDisabled {
             domain: Domain::RuntimePm,
         };
+        // Planning is mode-independent: shadow computes the same plan
+        // as v1 so the daemon can log what *would* be restored.
+        let plan = r.plan_restore(&transition);
+        assert_eq!(
+            plan.len(),
+            1,
+            "shadow plan_restore must compute the same non-empty plan as v1"
+        );
+        // Apply path returns empty in shadow — no writes are emitted.
         let actions = r.reconcile(&transition);
         assert!(actions.is_empty(), "shadow mode must not emit writes");
+    }
+
+    // ── Post-#337: shadow planning truthfulness ────────────────────────
+
+    /// Shadow and V1 must compute the same restore plan for the same
+    /// state + transition. This is the core parity invariant: shadow
+    /// logs the plan; v1 (when wired in) applies it. If the plans
+    /// diverge, shadow is lying about what v1 would do.
+    #[test]
+    fn f4_shadow_and_v1_compute_same_plan() {
+        let make_reconciler = |mode| {
+            let mut r = Reconciler::new().with_mode(mode);
+            r.capture_baseline(Domain::RuntimePm, "on".to_string());
+            r.set_desired(Domain::RuntimePm, Some("auto".to_string()));
+            r.record_confirmed(Domain::RuntimePm, "auto".to_string());
+            r.set_desired(Domain::RuntimePm, None);
+            r
+        };
+        let transition = Transition::AcChanged {
+            from: Some(false),
+            to: Some(true),
+        };
+        let shadow_plan = make_reconciler(ReconcilerMode::Shadow).plan_restore(&transition);
+        let v1_plan = make_reconciler(ReconcilerMode::V1).plan_restore(&transition);
+        assert_eq!(shadow_plan, v1_plan);
+        assert_eq!(shadow_plan.len(), 1);
+        assert_eq!(shadow_plan[0].domain, Domain::RuntimePm);
+        assert_eq!(shadow_plan[0].value, "on");
+    }
+
+    /// A target present on tick one and absent on tick two becomes
+    /// stale (desired = None, last_confirmed = Some). The next
+    /// transition's plan_restore must include it.
+    #[test]
+    fn f4_target_absent_on_tick_two_becomes_stale() {
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+
+        // Tick one: target is desired and confirmed.
+        let mut tick_one = std::collections::HashMap::new();
+        tick_one.insert(
+            "rpm:/sys/bus/usb/devices/1-1".to_string(),
+            "auto".to_string(),
+        );
+        r.replace_desired_targets(&tick_one);
+        r.record_confirmed_target("rpm:/sys/bus/usb/devices/1-1", "auto".to_string());
+        r.capture_baseline_target("rpm:/sys/bus/usb/devices/1-1", "on".to_string());
+
+        // Tick two: target disappears from the decision.
+        let tick_two = std::collections::HashMap::new();
+        r.replace_desired_targets(&tick_two);
+
+        // The target is now stale.
+        let stale = r.stale_target_ids();
+        assert_eq!(stale, vec!["rpm:/sys/bus/usb/devices/1-1".to_string()]);
+    }
+
+    /// Targets that remain desired are NOT marked stale.
+    #[test]
+    fn f4_target_that_remains_desired_is_not_stale() {
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+        let key = "rpm:/sys/bus/usb/devices/1-1".to_string();
+
+        let mut tick_one = std::collections::HashMap::new();
+        tick_one.insert(key.clone(), "auto".to_string());
+        r.replace_desired_targets(&tick_one);
+        r.record_confirmed_target(&key, "auto".to_string());
+
+        // Tick two: same key still desired.
+        r.replace_desired_targets(&tick_one);
+
+        assert!(r.stale_target_ids().is_empty());
+    }
+
+    /// Two devices in one domain are tracked independently — restoring
+    /// one must not affect the other.
+    #[test]
+    fn f4_two_devices_in_one_domain_tracked_independently() {
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+        let key_a = "rpm:/sys/bus/usb/devices/1-1".to_string();
+        let key_b = "rpm:/sys/bus/usb/devices/1-2".to_string();
+
+        let mut tick_one = std::collections::HashMap::new();
+        tick_one.insert(key_a.clone(), "auto".to_string());
+        tick_one.insert(key_b.clone(), "auto".to_string());
+        r.replace_desired_targets(&tick_one);
+        r.record_confirmed_target(&key_a, "auto".to_string());
+        r.record_confirmed_target(&key_b, "auto".to_string());
+        r.capture_baseline_target(&key_a, "on".to_string());
+        r.capture_baseline_target(&key_b, "on".to_string());
+
+        // Tick two: only device A disappears; device B remains.
+        let mut tick_two = std::collections::HashMap::new();
+        tick_two.insert(key_b.clone(), "auto".to_string());
+        r.replace_desired_targets(&tick_two);
+
+        let stale = r.stale_target_ids();
+        assert_eq!(stale, vec![key_a]);
+        // B is not stale.
+        assert!(!stale.contains(&key_b));
+    }
+
+    /// Drifted/external targets are excluded from the stale set: optid
+    /// no longer owns them, so the reconciler must not pretend to
+    /// restore them.
+    #[test]
+    fn f4_drifted_targets_excluded_from_stale() {
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+        let key = "rpm:/sys/bus/usb/devices/1-1".to_string();
+
+        let mut tick_one = std::collections::HashMap::new();
+        tick_one.insert(key.clone(), "auto".to_string());
+        r.replace_desired_targets(&tick_one);
+        r.record_confirmed_target(&key, "auto".to_string());
+        r.capture_baseline_target(&key, "on".to_string());
+
+        // An external manager changes the value; optid relinquishes.
+        let _ = r.may_restore_target(&key, "on").unwrap_err();
+
+        // Tick two: target disappears from the decision.
+        r.replace_desired_targets(&std::collections::HashMap::new());
+
+        // The target is drifted (External), not stale/restore-eligible.
+        let stale = r.stale_target_ids();
+        assert!(
+            stale.is_empty(),
+            "drifted target must not be stale: {stale:?}"
+        );
+    }
+
+    /// `plan_restore` output order is deterministic across runs (sorted
+    /// by `Domain::as_str()`).
+    #[test]
+    fn f4_plan_restore_order_is_deterministic() {
+        let make_reconciler = || {
+            let mut r = Reconciler::new().with_mode(ReconcilerMode::V1);
+            // Insert in non-canonical order: Backlight, CpuEpp, RuntimePm.
+            for (domain, baseline) in [
+                (Domain::Backlight, "80".to_string()),
+                (Domain::CpuEpp, "performance".to_string()),
+                (Domain::RuntimePm, "auto".to_string()),
+            ] {
+                r.capture_baseline(domain, baseline);
+                r.set_desired(domain, Some("x".to_string()));
+                r.record_confirmed(domain, "x".to_string());
+                r.set_desired(domain, None);
+            }
+            r
+        };
+        let transition = Transition::ConfigReloaded;
+        let plan_a = make_reconciler().plan_restore(&transition);
+        let plan_b = make_reconciler().plan_restore(&transition);
+        assert_eq!(plan_a, plan_b);
+        // Domains appear in canonical (as_str) sorted order.
+        let domains: Vec<&str> = plan_a.iter().map(|a| a.domain.as_str()).collect();
+        let mut sorted = domains.clone();
+        sorted.sort();
+        assert_eq!(domains, sorted);
+    }
+
+    /// Shadow target IDs match the current `active_keys` set for
+    /// equivalent decisions. The daemon builds `active_keys` from
+    /// `Action::journal_key()`; `replace_desired_targets` builds the
+    /// reconciler's target set from the same keys. The two sets must
+    /// agree so shadow and production track the same surface.
+    #[test]
+    fn f4_shadow_target_ids_match_active_keys() {
+        use crate::action::Action;
+        use std::collections::HashSet;
+        use std::path::PathBuf;
+
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+
+        // Build a decision's action set the same way the daemon does.
+        let actions = vec![
+            Action::RuntimePm {
+                device_dir: PathBuf::from("/sys/bus/usb/devices/1-1"),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            },
+            Action::CpuEpp {
+                value: "power".to_string(),
+                reason: "test".to_string(),
+            },
+            Action::SystemdSetProperty {
+                unit: "user.slice".to_string(),
+                properties: vec!["CPUWeight=100".to_string()],
+                reason: "test".to_string(),
+            },
+        ];
+
+        // active_keys: the production set the daemon builds.
+        let active_keys: HashSet<String> = actions.iter().filter_map(|a| a.journal_key()).collect();
+
+        // desired_by_key: the same map the daemon passes to
+        // replace_desired_targets.
+        let mut desired_by_key = std::collections::HashMap::new();
+        for action in &actions {
+            if let Some(key) = action.journal_key() {
+                desired_by_key.insert(key, action.describe());
+            }
+        }
+        r.replace_desired_targets(&desired_by_key);
+
+        // The reconciler's active target IDs must equal active_keys.
+        let shadow_active: HashSet<String> = r.active_target_ids().into_iter().collect();
+        assert_eq!(
+            shadow_active, active_keys,
+            "shadow target IDs must match active_keys for equivalent decisions"
+        );
+
+        // SystemdSetProperty's journal_key is None, so it must NOT
+        // appear in either set — the reconciler must not pretend to
+        // restore an action with no property-level restoration.
+        assert!(
+            !shadow_active.iter().any(|k| k.starts_with("systemd_")),
+            "systemd keys must not be tracked (no property-level restoration)"
+        );
     }
 
     #[test]
