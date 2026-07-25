@@ -240,6 +240,8 @@ pub(crate) struct DomainsConfig {
     // behavior.
     #[serde(default)]
     pub(crate) cgroup_reweight: Option<DomainConfig>,
+    #[serde(default)]
+    pub(crate) thermal: Option<DomainConfig>,
 }
 
 impl DomainsConfig {
@@ -258,6 +260,7 @@ impl DomainsConfig {
             Domain::SataAlpm => self.sata_alpm.as_ref(),
             Domain::Backlight => self.backlight.as_ref(),
             Domain::CgroupReweight => self.cgroup_reweight.as_ref(),
+            Domain::Thermal => self.thermal.as_ref(),
         }
     }
 }
@@ -1266,6 +1269,9 @@ mod tests {
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
             is_vm_guest: true,
+            thermal_sensors: Vec::new(),
+            fan_sensors: Vec::new(),
+            thermal_budget: crate::thermal::ThermalBudget::default(),
         }
     }
 
@@ -1480,6 +1486,9 @@ mod f1_tests {
             sata_alpm_host_paths: vec![PathBuf::from("/sys/class/scsi_host/host0")],
             selected_backlight: Some(PathBuf::from("/sys/class/backlight/intel_backlight")),
             is_vm_guest: false,
+            thermal_sensors: Vec::new(),
+            fan_sensors: Vec::new(),
+            thermal_budget: crate::thermal::ThermalBudget::default(),
         }
     }
 
@@ -2438,6 +2447,9 @@ mode = "off"
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
             is_vm_guest: false,
+            thermal_sensors: Vec::new(),
+            fan_sensors: Vec::new(),
+            thermal_budget: crate::thermal::ThermalBudget::default(),
         };
         let decision_off = f1_decide(&policy_off, &snapshot);
         let has_systemd_off = decision_off

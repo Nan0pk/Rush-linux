@@ -78,6 +78,34 @@ pub(crate) struct Snapshot {
     pub(crate) thermal_budget: crate::thermal::ThermalBudget,
 }
 
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self {
+            timestamp: 0,
+            on_ac: None,
+            battery_pct: None,
+            max_temp_millic: None,
+            loadavg_1: None,
+            cpu_pressure: None,
+            memory_pressure: None,
+            io_pressure: None,
+            zram_swap_active: false,
+            foreground_app: None,
+            pinned_class: None,
+            global_pinned_class: None,
+            pm_qos_device_paths: Vec::new(),
+            runtime_pm_device_paths: Vec::new(),
+            pcie_aspm_device_paths: Vec::new(),
+            sata_alpm_host_paths: Vec::new(),
+            selected_backlight: None,
+            is_vm_guest: false,
+            thermal_sensors: Vec::new(),
+            fan_sensors: Vec::new(),
+            thermal_budget: crate::thermal::ThermalBudget::default(),
+        }
+    }
+}
+
 impl Snapshot {
     /// F2: production path — delegates to `RealKernel`.
     pub(crate) fn collect() -> Self {
@@ -92,7 +120,12 @@ impl Snapshot {
         let thermal_sensors = crate::thermal::discover_thermal_sensors_with(read);
         let fan_sensors = crate::thermal::discover_fan_sensors_with(read);
         let thermal_config = crate::thermal::ThermalConfig::default();
-        let thermal_budget = crate::thermal::compute_thermal_budget(&thermal_config, &thermal_sensors, &fan_sensors, None);
+        let thermal_budget = crate::thermal::compute_thermal_budget(
+            &thermal_config,
+            &thermal_sensors,
+            &fan_sensors,
+            None,
+        );
 
         Self {
             timestamp: clock.now_unix(),
@@ -122,7 +155,9 @@ impl Snapshot {
     }
 
     pub(crate) fn thermal_c(&self) -> Option<f32> {
-        self.thermal_budget.max_die_temp_c.or_else(|| self.max_temp_millic.map(|temp| temp as f32 / 1000.0))
+        self.thermal_budget
+            .max_die_temp_c
+            .or_else(|| self.max_temp_millic.map(|temp| temp as f32 / 1000.0))
     }
 }
 
