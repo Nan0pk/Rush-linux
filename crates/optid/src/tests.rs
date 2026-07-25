@@ -24,7 +24,28 @@ use crate::load_state::{BootState, LoadState};
 use crate::policy::Policy;
 use crate::run;
 use crate::sensors::{Pressure, Snapshot};
+use crate::thermal::{ThermalBudget, ThermalBudgetState};
 use crate::workload::{Mode, WorkloadClass};
+
+/// Test helper: budget that exposes `temp_c` via `thermal_c()` (non-Unavailable).
+fn budget_at_temp_c(temp_c: f32) -> ThermalBudget {
+    ThermalBudget {
+        state: if temp_c >= 95.0 {
+            ThermalBudgetState::Constrained
+        } else if temp_c >= 60.0 {
+            ThermalBudgetState::Derating
+        } else {
+            ThermalBudgetState::Cool
+        },
+        derating_ratio: 0.0,
+        selected_die_id: Some("test:die".into()),
+        max_die_temp_c: Some(temp_c),
+        selected_skin_id: None,
+        skin_temp_c: None,
+        max_fan_rpm: None,
+        reasons: vec![],
+    }
+}
 
 #[cfg(test)]
 mod integration_tests {
@@ -545,6 +566,8 @@ mod integration_tests {
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
             is_vm_guest: false,
+            // Explicit budget temp — Unavailable default must not mask critical thermals.
+            thermal_budget: budget_at_temp_c(95.0),
             ..Default::default()
         };
 
@@ -1226,9 +1249,8 @@ device_resume_latency = 100000
         dev
     }
 
-    /// A 2000 ms autosuspend delay is a 2,000,000 µs exit latency, which
-    /// exceeds a 1,000,000 µs floor — the write must be refused, and must
-    /// leave no mutation and no journal behind.
+    /// Runtime-PM without measured/hardware-proven exit latency fails
+    /// closed. Autosuspend delay is not converted into exit latency.
     #[test]
     fn test_contract_gate_blocks_runtime_pm_over_floor() {
         let temp =
@@ -1249,7 +1271,7 @@ device_resume_latency = 100000
         actuator
             .apply(&Action::RuntimePm {
                 device_dir: dev.clone(),
-                autosuspend_delay_ms: 2000, // 2_000_000 us > 1_000_000 us floor
+                autosuspend_delay_ms: 2000,
                 reason: "battery idle".to_string(),
             })
             .unwrap();
@@ -1275,22 +1297,26 @@ device_resume_latency = 100000
         assert!(!temp.join(format!("applied_rpm_{hash}")).exists());
         assert!(!actuator.last_runtime_pm.contains_key(&dev));
 
-        // Blocked with the documented log line.
+        // Blocked: unknown exit latency (autosuspend delay is not evidence).
         let log = fs::read_to_string(temp.join("actions.log")).unwrap();
         assert!(
             log.contains("contract gate BLOCKED"),
             "expected a contract gate BLOCKED line, got: {log}"
         );
         assert!(
-            log.contains("exit_latency=2000000us") && log.contains("floor=1000000us"),
-            "log must report the exit latency and the floor, got: {log}"
+            log.contains("unknown") || log.contains("not exit latency"),
+            "log must report unknown/no evidence, not invented latency, got: {log}"
+        );
+        assert!(
+            !log.contains("exit_latency=2000000us"),
+            "must not invent exit latency from autosuspend delay, got: {log}"
         );
 
         let _ = fs::remove_dir_all(&temp);
     }
 
-    /// The same 2000 ms delay fits a 2,000,000 µs floor exactly, so it is
-    /// allowed (the predicate is `<=`).
+    /// Even a small autosuspend delay does not prove compliance without
+    /// C1 exit-latency evidence — runtime-PM stays denied.
     #[test]
     fn test_contract_gate_allows_runtime_pm_within_floor() {
         let temp =
@@ -1311,26 +1337,28 @@ device_resume_latency = 100000
         actuator
             .apply(&Action::RuntimePm {
                 device_dir: dev.clone(),
-                autosuspend_delay_ms: 2000, // exactly at the floor
+                autosuspend_delay_ms: 2000,
                 reason: "battery idle".to_string(),
             })
             .unwrap();
 
+        // Without C1 evidence, runtime-PM is denied regardless of delay.
         assert_eq!(
             fs::read_to_string(power.join("control")).unwrap().trim(),
-            "auto"
+            "on",
+            "runtime-PM without proven exit latency must not actuate"
         );
         assert_eq!(
             fs::read_to_string(power.join("autosuspend_delay_ms"))
                 .unwrap()
                 .trim(),
-            "2000"
+            "100"
         );
-        let hash = get_path_hash(&dev);
-        assert!(temp.join(format!("original_rpm_{hash}")).exists());
-
         let log = fs::read_to_string(temp.join("actions.log")).unwrap();
-        assert!(!log.contains("contract gate BLOCKED"), "{log}");
+        assert!(
+            log.contains("contract gate BLOCKED"),
+            "expected deny without C1 evidence, got: {log}"
+        );
 
         let _ = fs::remove_dir_all(&temp);
     }
@@ -1374,9 +1402,9 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
-    /// Negative values must not wrap into small valid latencies. `-1` is
-    /// the kernel's "unset" sentinel and must be treated as unconstrained,
-    /// not as u64::MAX (blocked by everything) nor as a tiny latency.
+    /// Negative autosuspend delay is still not exit-latency evidence:
+    /// runtime-PM remains fail-closed. Negative PM QoS values are
+    /// non-latency sentinels and pass the device-resume constraint gate.
     #[test]
     fn test_contract_gate_handles_negative_values_safely() {
         let temp = std::env::temp_dir().join(format!("optid_contract_neg_{}", std::process::id()));
@@ -1388,7 +1416,6 @@ device_resume_latency = 100000
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
         actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
-        // A tight floor that u64::MAX would certainly violate.
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             device_resume_latency: 1_000,
@@ -1402,23 +1429,23 @@ device_resume_latency = 100000
             })
             .unwrap();
 
-        // Not blocked by the gate: -1 is "no constraint", so the action
-        // proceeds to the normal actuation path.
+        // Runtime-PM is denied without C1 evidence; delay is never
+        // wrapped into a fake exit latency (including from -1 → u64::MAX).
         let log = fs::read_to_string(temp.join("actions.log")).unwrap();
         assert!(
-            !log.contains("contract gate BLOCKED"),
-            "negative delay must not be wrapped into a blocked latency: {log}"
+            log.contains("contract gate BLOCKED"),
+            "runtime-PM without evidence must be blocked: {log}"
+        );
+        assert!(
+            !log.contains(&u64::MAX.to_string()),
+            "must not wrap -1 into u64::MAX latency: {log}"
         );
         assert_eq!(
             fs::read_to_string(power.join("control")).unwrap().trim(),
-            "auto"
+            "on"
         );
 
-        // Same for a negative PM QoS value. Use a separate actuator with
-        // the hardware allowlist left disabled: this synthetic attribute
-        // path has no modalias, so an enabled allowlist would default-deny
-        // it and mask what this test is actually asserting about the
-        // contract gate.
+        // Negative PM QoS value is a non-latency sentinel and may pass.
         let qos_power = temp.join("0000:00:15.0").join("power");
         fs::create_dir_all(&qos_power).unwrap();
         let dev_path = qos_power.join("pm_qos_resume_latency_us");
@@ -3399,7 +3426,18 @@ mod f2_fault_injection_tests {
     /// owns the Box<dyn KernelIo>. Tests configure fault rules BEFORE
     /// constructing the actuator, then pass the configured kernel in.
     fn f2_actuator_with_faults(fault_kernel: FaultKernel) -> (Actuator, PathBuf) {
-        let temp_dir = std::env::temp_dir().join(format!("optid_f2_fault_{}", std::process::id()));
+        // Unique per call so parallel/sequential F2 tests do not share
+        // journal files (e.g. original_vm_swappiness) and pollute hide-path
+        // assertions.
+        let temp_dir = std::env::temp_dir().join(format!(
+            "optid_f2_fault_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
         let _ = fs::create_dir_all(&temp_dir);
         let actuator = Actuator::new_with_kernel(temp_dir.clone(), Box::new(fault_kernel));
         (actuator, temp_dir)
@@ -3539,9 +3577,13 @@ mod f2_fault_injection_tests {
     /// return an empty vector, not panic.
     #[test]
     fn f2_fault_hidden_dir_returns_empty_discovery() {
-        let bus = PathBuf::from("/sys/bus/pci/devices");
+        let pci = PathBuf::from("/sys/bus/pci/devices");
+        let usb = PathBuf::from("/sys/bus/usb/devices");
         let fk = FaultKernel::new(Box::new(RealKernel::new()));
-        fk.hide_path(bus.clone());
+        // Runtime-PM scans both PCI and USB; hide both buses so the
+        // assertion is environment-independent.
+        fk.hide_path(pci.clone());
+        fk.hide_path(usb);
 
         let paths = crate::sensors::discover_pcie_aspm_device_paths_with(&fk);
         assert!(

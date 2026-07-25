@@ -160,6 +160,24 @@ struct DomainReconcileState {
     retries: u32,
 }
 
+/// Per-target reconcile state keyed by stable target identity (not only
+/// broad domain). Supports multiple devices in one domain.
+#[derive(Debug, Clone, Default)]
+struct TargetReconcileState {
+    /// Target identity (journal key / device path / sysctl name / systemd unit+property).
+    target_id: String,
+    /// Domain this target belongs to (when known).
+    domain: Option<Domain>,
+    baseline: Option<String>,
+    desired: Option<String>,
+    last_attempted: Option<String>,
+    last_confirmed: Option<String>,
+    ownership: Ownership,
+    retries: u32,
+    /// Pending restore after a failed attempt (bounded by MAX_RETRIES).
+    restore_pending: bool,
+}
+
 /// The desired state for one domain, as exposed to the status surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DesiredDomainState {
@@ -224,12 +242,15 @@ pub(crate) struct RestoreOutcome {
     pub correlation_id: String,
 }
 
-/// The reconciler. Holds per-domain state and generates restore actions
-/// on transitions.
+/// The reconciler. Holds per-domain and per-target state and generates
+/// restore actions on transitions.
 #[derive(Debug, Clone)]
 pub(crate) struct Reconciler {
-    /// Per-domain state, keyed by `Domain`.
+    /// Per-domain state, keyed by `Domain` (legacy path; kept for parity).
     states: HashMap<Domain, DomainReconcileState>,
+    /// Per-target state, keyed by target identity (device path, sysctl,
+    /// systemd unit+property, etc.). Supports multi-device domains.
+    targets: HashMap<String, TargetReconcileState>,
     /// The reconciler's operating mode (shadow or v1).
     mode: ReconcilerMode,
     /// The last observed AC state (for transition detection).
@@ -249,6 +270,7 @@ impl Reconciler {
     pub(crate) fn new() -> Self {
         Self {
             states: HashMap::new(),
+            targets: HashMap::new(),
             mode: ReconcilerMode::Shadow,
             last_ac: None,
             last_workload: WorkloadClass::Idle,
@@ -351,6 +373,142 @@ impl Reconciler {
             state.desired = value;
             state.retries = 0;
         }
+    }
+
+    /// Update desired state for a specific target identity (multi-device
+    /// domains, systemd properties, vm/sysctl knobs). Shadow and v1 share
+    /// this path so parity tests can compare against active_keys.
+    pub(crate) fn set_desired_target(&mut self, target_id: &str, value: Option<String>) {
+        let state = self
+            .targets
+            .entry(target_id.to_string())
+            .or_insert_with(|| TargetReconcileState {
+                target_id: target_id.to_string(),
+                ..Default::default()
+            });
+        if state.desired != value {
+            state.desired = value;
+            state.retries = 0;
+        }
+    }
+
+    /// Capture baseline for a target identity.
+    pub(crate) fn capture_baseline_target(&mut self, target_id: &str, value: String) {
+        let state = self
+            .targets
+            .entry(target_id.to_string())
+            .or_insert_with(|| TargetReconcileState {
+                target_id: target_id.to_string(),
+                ..Default::default()
+            });
+        state.baseline = Some(value);
+    }
+
+    /// Record confirmed write for a target (ownership → Optid).
+    pub(crate) fn record_confirmed_target(&mut self, target_id: &str, confirmed_value: String) {
+        let state = self
+            .targets
+            .entry(target_id.to_string())
+            .or_insert_with(|| TargetReconcileState {
+                target_id: target_id.to_string(),
+                ..Default::default()
+            });
+        state.last_confirmed = Some(confirmed_value);
+        state.retries = 0;
+        state.restore_pending = false;
+        if state.ownership == Ownership::Unowned {
+            state.ownership = Ownership::Optid;
+        }
+    }
+
+    /// Record a failed restore: keep pending for bounded retry.
+    pub(crate) fn record_restore_failure_target(
+        &mut self,
+        target_id: &str,
+        error: String,
+    ) -> Ownership {
+        let state = self
+            .targets
+            .entry(target_id.to_string())
+            .or_insert_with(|| TargetReconcileState {
+                target_id: target_id.to_string(),
+                ..Default::default()
+            });
+        state.retries += 1;
+        state.restore_pending = true;
+        if state.retries >= MAX_RETRIES {
+            state.ownership = Ownership::External {
+                reason: format!("restore failed {} times: {}", state.retries, error),
+            };
+            state.restore_pending = false;
+        } else if state.ownership == Ownership::Unowned {
+            state.ownership = Ownership::Optid;
+        }
+        state.ownership.clone()
+    }
+
+    /// Evaluate whether optid may restore `target_id` to `baseline`.
+    ///
+    /// Restore only when readback still equals optid's last confirmed value.
+    /// If another manager changed the value, relinquish ownership and report drift.
+    pub(crate) fn may_restore_target(
+        &mut self,
+        target_id: &str,
+        readback: &str,
+    ) -> Result<String, Ownership> {
+        let state = match self.targets.get_mut(target_id) {
+            Some(s) => s,
+            None => {
+                return Err(Ownership::Unowned);
+            }
+        };
+        if state.ownership != Ownership::Optid {
+            return Err(state.ownership.clone());
+        }
+        match (&state.last_confirmed, &state.baseline) {
+            (Some(confirmed), Some(baseline)) => {
+                if readback == confirmed.as_str() {
+                    Ok(baseline.clone())
+                } else {
+                    state.ownership = Ownership::External {
+                        reason: format!("drift: readback {readback} != last_confirmed {confirmed}"),
+                    };
+                    Err(state.ownership.clone())
+                }
+            }
+            _ => Err(Ownership::Unowned),
+        }
+    }
+
+    /// Coalesce: skip write when desired already equals last confirmed.
+    pub(crate) fn should_write_target(&self, target_id: &str, value: &str) -> bool {
+        if let Some(state) = self.targets.get(target_id) {
+            if let Some(confirmed) = &state.last_confirmed {
+                return confirmed != value;
+            }
+        }
+        true
+    }
+
+    /// Targets currently pending restore (failed restore, retries remaining).
+    pub(crate) fn pending_restore_targets(&self) -> Vec<String> {
+        self.targets
+            .iter()
+            .filter(|(_, s)| s.restore_pending && s.retries < MAX_RETRIES)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Shadow/production parity: set of target ids with non-None desired.
+    pub(crate) fn active_target_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .targets
+            .iter()
+            .filter(|(_, s)| s.desired.is_some())
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.sort();
+        ids
     }
 
     /// Record that optid attempted a write to `domain` with `value`.
@@ -934,5 +1092,100 @@ mod tests {
         assert_eq!(outcome.domain, "runtime_pm");
         assert_eq!(outcome.correlation_id, "corr-43");
         assert_eq!(outcome.timestamp, 2000);
+    }
+
+    // ── Target-identity tracking (multi-device, drift, coalesce) ────
+
+    #[test]
+    fn f4_target_tracks_multiple_devices_per_domain() {
+        let mut r = Reconciler::new();
+        r.set_desired_target("rpm:/sys/devices/pci0/00:1.0", Some("auto".into()));
+        r.set_desired_target("rpm:/sys/devices/pci0/00:2.0", Some("auto".into()));
+        r.record_confirmed_target("rpm:/sys/devices/pci0/00:1.0", "auto".into());
+        r.record_confirmed_target("rpm:/sys/devices/pci0/00:2.0", "auto".into());
+        let active = r.active_target_ids();
+        assert_eq!(active.len(), 2);
+        assert!(active.iter().any(|id| id.contains("00:1.0")));
+        assert!(active.iter().any(|id| id.contains("00:2.0")));
+    }
+
+    #[test]
+    fn f4_target_restore_only_if_last_confirmed() {
+        let mut r = Reconciler::new();
+        r.capture_baseline_target("rpm:dev1", "on".into());
+        r.record_confirmed_target("rpm:dev1", "auto".into());
+        // Readback still matches last confirmed → restore to baseline allowed.
+        let baseline = r.may_restore_target("rpm:dev1", "auto").unwrap();
+        assert_eq!(baseline, "on");
+    }
+
+    #[test]
+    fn f4_target_drift_relinquishes() {
+        let mut r = Reconciler::new();
+        r.capture_baseline_target("rpm:dev1", "on".into());
+        r.record_confirmed_target("rpm:dev1", "auto".into());
+        // External manager changed value to "on" without optid.
+        let err = r.may_restore_target("rpm:dev1", "on").unwrap_err();
+        assert!(matches!(err, Ownership::External { .. }));
+    }
+
+    #[test]
+    fn f4_target_coalesce_identical_writes() {
+        let mut r = Reconciler::new();
+        r.record_confirmed_target("sysctl:vm.swappiness", "100".into());
+        assert!(!r.should_write_target("sysctl:vm.swappiness", "100"));
+        assert!(r.should_write_target("sysctl:vm.swappiness", "60"));
+    }
+
+    #[test]
+    fn f4_target_failed_restore_stays_pending_bounded() {
+        let mut r = Reconciler::new();
+        r.capture_baseline_target("rpm:dev1", "on".into());
+        r.record_confirmed_target("rpm:dev1", "auto".into());
+        r.record_restore_failure_target("rpm:dev1", "EBUSY".into());
+        assert_eq!(r.pending_restore_targets().len(), 1);
+        for _ in 0..MAX_RETRIES {
+            r.record_restore_failure_target("rpm:dev1", "EBUSY".into());
+        }
+        // After MAX_RETRIES, no longer pending; ownership External.
+        assert!(r.pending_restore_targets().is_empty());
+        let st = r.targets.get("rpm:dev1").unwrap();
+        assert!(matches!(st.ownership, Ownership::External { .. }));
+    }
+
+    #[test]
+    fn f4_shadow_active_targets_parity_with_key_set() {
+        // Shadow tracks the same journal keys active_keys would.
+        let mut r = Reconciler::new().with_mode(ReconcilerMode::Shadow);
+        let keys = ["rpm:a", "rpm:b", "sysctl:vm.swappiness"];
+        for k in keys {
+            r.set_desired_target(k, Some("v".into()));
+        }
+        let active = r.active_target_ids();
+        assert_eq!(active, {
+            let mut v = keys.to_vec();
+            v.sort();
+            v.into_iter().map(str::to_string).collect::<Vec<_>>()
+        });
+        // Clearing desired mirrors active_keys removal.
+        r.set_desired_target("rpm:a", None);
+        assert!(!r.active_target_ids().iter().any(|id| id == "rpm:a"));
+    }
+
+    #[test]
+    fn f4_target_supports_systemd_and_sysctl_identities() {
+        let mut r = Reconciler::new();
+        r.set_desired_target("systemd:user@1000.service:CPUWeight", Some("100".into()));
+        r.set_desired_target("sysctl:vm.dirty_bytes", Some("134217728".into()));
+        r.capture_baseline_target("systemd:user@1000.service:CPUWeight", "100".into());
+        r.record_confirmed_target("systemd:user@1000.service:CPUWeight", "200".into());
+        r.capture_baseline_target("sysctl:vm.dirty_bytes", "0".into());
+        r.record_confirmed_target("sysctl:vm.dirty_bytes", "134217728".into());
+        assert_eq!(r.active_target_ids().len(), 2);
+        // Drift on systemd property.
+        let err = r
+            .may_restore_target("systemd:user@1000.service:CPUWeight", "50")
+            .unwrap_err();
+        assert!(matches!(err, Ownership::External { .. }));
     }
 }

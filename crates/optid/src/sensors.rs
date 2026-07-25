@@ -79,7 +79,9 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    /// F2: production path — delegates to `RealKernel`.
+    /// F2: production path — delegates to `RealKernel` with default thermal config.
+    /// The daemon main loop uses [`Self::collect_with_thermal`] so hysteresis and
+    /// reloaded config apply.
     pub(crate) fn collect() -> Self {
         let kernel = RealKernel::new();
         Self::collect_with(&kernel, &kernel)
@@ -89,21 +91,33 @@ impl Snapshot {
     /// `clock` parameters so a test can mix-and-match (e.g. a `FaultKernel`
     /// for reads with a `RealKernel` clock).
     pub(crate) fn collect_with(read: &dyn KernelRead, clock: &dyn Clock) -> Self {
-        let thermal_sensors = crate::thermal::discover_thermal_sensors_with(read);
-        let fan_sensors = crate::thermal::discover_fan_sensors_with(read);
-        let thermal_config = crate::thermal::ThermalConfig::default();
-        let thermal_budget = crate::thermal::compute_thermal_budget(
-            &thermal_config,
-            &thermal_sensors,
-            &fan_sensors,
-            None,
-        );
+        Self::collect_with_thermal(read, clock, &crate::thermal::ThermalConfig::default(), None)
+    }
+
+    /// Production thermal path: snapshot collection with injected thermal
+    /// config and previous budget (for hysteresis across loop iterations).
+    pub(crate) fn collect_with_thermal(
+        read: &dyn KernelRead,
+        clock: &dyn Clock,
+        thermal_config: &crate::thermal::ThermalConfig,
+        previous_budget: Option<&crate::thermal::ThermalBudget>,
+    ) -> Self {
+        let (thermal_sensors, fan_sensors, thermal_budget) =
+            crate::thermal::collect_thermal_budget_with(read, thermal_config, previous_budget);
+
+        // When thermal mode is off, skip legacy thermal-zone max-temp
+        // discovery so policy does not observe temps through a back door.
+        let max_temp_millic = if thermal_config.mode == crate::thermal::ThermalMode::Off {
+            None
+        } else {
+            read_max_thermal_millic_with(read)
+        };
 
         Self {
             timestamp: clock.now_unix(),
             on_ac: read_on_ac_with(read),
             battery_pct: read_battery_pct_with(read),
-            max_temp_millic: read_max_thermal_millic_with(read),
+            max_temp_millic,
             loadavg_1: read_loadavg_1_with(read),
             cpu_pressure: Pressure::read_with(read, "/proc/pressure/cpu"),
             memory_pressure: Pressure::read_with(read, "/proc/pressure/memory"),
@@ -126,10 +140,18 @@ impl Snapshot {
         }
     }
 
+    /// Operator- and policy-facing temperature. Never invents a temperature
+    /// when thermal sensing is disabled or telemetry is unavailable — the
+    /// legacy `max_temp_millic` path must not override those states.
     pub(crate) fn thermal_c(&self) -> Option<f32> {
-        self.thermal_budget
-            .max_die_temp_c
-            .or_else(|| self.max_temp_millic.map(|temp| temp as f32 / 1000.0))
+        use crate::thermal::ThermalBudgetState;
+        match self.thermal_budget.state {
+            ThermalBudgetState::Disabled | ThermalBudgetState::Unavailable => None,
+            _ => self
+                .thermal_budget
+                .max_die_temp_c
+                .or_else(|| self.max_temp_millic.map(|temp| temp as f32 / 1000.0)),
+        }
     }
 }
 

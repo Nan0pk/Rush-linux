@@ -409,6 +409,11 @@ pub(crate) struct Policy {
     #[serde(default)]
     #[allow(dead_code)]
     pub(crate) foreground: crate::foreground::ForegroundConfig,
+    /// T1 — top-level `[thermal]` table. Mode is `off|observe` only;
+    /// thresholds feed the pure budget model. Defaults to observe with
+    /// research-aligned thresholds when the section is absent.
+    #[serde(default)]
+    pub(crate) thermal: crate::thermal::ThermalConfig,
 }
 
 /// v0.6 Phase B1: the `[shim]` top-level section of
@@ -613,6 +618,10 @@ impl Default for Policy {
             // v0.6 Phase C1: default foreground config (game_class =
             // "latency-critical"). Operators override via [foreground].
             foreground: crate::foreground::ForegroundConfig::default(),
+            // T1: thermal sensing defaults (observe, research thresholds).
+            // Validated via from_toml_str so the strict parser stays linked.
+            thermal: crate::thermal::ThermalConfig::from_toml_str("mode = \"observe\"\n")
+                .unwrap_or_default(),
         }
     }
 }
@@ -1473,6 +1482,17 @@ mod tests {
         let policy = Policy::default();
         let mut snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(true));
         snapshot.max_temp_millic = Some(95_000);
+        // Explicit die temp — Unavailable default must not mask critical thermals.
+        snapshot.thermal_budget = crate::thermal::ThermalBudget {
+            state: crate::thermal::ThermalBudgetState::Constrained,
+            derating_ratio: 1.0,
+            selected_die_id: Some("test:die".into()),
+            max_die_temp_c: Some(95.0),
+            selected_skin_id: None,
+            skin_temp_c: None,
+            max_fan_rpm: None,
+            reasons: vec![],
+        };
         assert_eq!(policy.auto_mode(&snapshot), Mode::Balanced);
     }
 

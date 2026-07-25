@@ -148,10 +148,24 @@ pub(crate) fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
 /// `read_dir` returns a `Vec<PathBuf>` rather than `fs::ReadDir` so the
 /// mock impl can synthesize directory listings without touching the
 /// filesystem.
+///
+/// `read_link` / `canonicalize` are a narrow extension for stable device
+/// identity (T1 thermal sensors) without a device database.
 pub(crate) trait KernelRead {
     fn read_to_string(&self, path: &Path) -> io::Result<String>;
     fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn exists(&self, path: &Path) -> bool;
+
+    /// Read a symlink target (relative or absolute). Used for hwmon `device`
+    /// links so sensor identity does not depend on volatile `hwmonN` names.
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::read_link(path)
+    }
+
+    /// Canonicalize a path. Default uses `std::fs::canonicalize`.
+    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::canonicalize(path)
+    }
 }
 
 /// Write-side kernel I/O. The `write` method enforces the centralized
@@ -224,6 +238,14 @@ impl KernelRead for RealKernel {
 
     fn exists(&self, path: &Path) -> bool {
         path.exists()
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::read_link(path)
+    }
+
+    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::canonicalize(path)
     }
 }
 
@@ -438,6 +460,26 @@ impl KernelRead for FaultKernel {
         }
         self.inner.exists(path)
     }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        if self.path_is_hidden(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("FaultKernel: path hidden for test: {}", path.display()),
+            ));
+        }
+        self.inner.read_link(path)
+    }
+
+    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        if self.path_is_hidden(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("FaultKernel: path hidden for test: {}", path.display()),
+            ));
+        }
+        self.inner.canonicalize(path)
+    }
 }
 
 impl KernelWrite for FaultKernel {
@@ -480,6 +522,212 @@ impl Clock for FaultKernel {
 // Note: FaultKernel does NOT implement EventSource because KernelIo
 // (the combined trait used by the actuator) is Read + Write + Clock only.
 // The main-loop event reactor is package E1's job.
+
+// ─────────────────────────────────────────────────────────────────────
+// MemoryKernel — in-memory KernelIo for unit tests (crate-wide under cfg(test))
+// ─────────────────────────────────────────────────────────────────────
+
+/// Minimal in-memory kernel. Stores file contents and directory listings.
+/// Available to all optid unit tests (thermal, sensors, F2).
+///
+/// **Note:** `write` still enforces the allowlist. Tests that need to
+/// populate arbitrary sysfs fixtures should use `write_raw` / `add_dir`.
+#[cfg(test)]
+pub(crate) struct MemoryKernel {
+    files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
+    dirs: std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<PathBuf>>>,
+    links: std::sync::Mutex<std::collections::HashMap<PathBuf, PathBuf>>,
+    clock: std::sync::atomic::AtomicU64,
+}
+
+#[cfg(test)]
+impl MemoryKernel {
+    pub(crate) fn new() -> Self {
+        Self {
+            files: std::sync::Mutex::new(std::collections::HashMap::new()),
+            dirs: std::sync::Mutex::new(std::collections::HashMap::new()),
+            links: std::sync::Mutex::new(std::collections::HashMap::new()),
+            clock: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    /// Advance the in-memory clock by `secs`.
+    pub(crate) fn advance_clock(&self, secs: u64) {
+        self.clock
+            .fetch_add(secs, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Test-only raw write that bypasses the allowlist.
+    pub(crate) fn write_raw(&self, path: &Path, value: &str) {
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), value.to_string());
+    }
+
+    /// Record a symlink at `path` pointing to `target`.
+    pub(crate) fn write_link(&self, path: &Path, target: &Path) {
+        self.links
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), target.to_path_buf());
+    }
+
+    /// Register `child` as an entry of directory `parent` (creates parent listing).
+    pub(crate) fn add_dir(&self, parent: &Path, child: &Path) {
+        self.dirs
+            .lock()
+            .unwrap()
+            .entry(parent.to_path_buf())
+            .or_default()
+            .push(child.to_path_buf());
+    }
+
+    /// Register a file path as a directory listing entry under its parent
+    /// directory already present, or under `dir` explicitly.
+    pub(crate) fn add_dir_entry(&self, dir: &Path, entry: &Path) {
+        self.dirs
+            .lock()
+            .unwrap()
+            .entry(dir.to_path_buf())
+            .or_default()
+            .push(entry.to_path_buf());
+    }
+}
+
+#[cfg(test)]
+impl KernelRead for MemoryKernel {
+    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        self.files
+            .lock()
+            .unwrap()
+            .get(path)
+            .cloned()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("MemoryKernel: no such file: {}", path.display()),
+                )
+            })
+    }
+
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        Ok(self
+            .dirs
+            .lock()
+            .unwrap()
+            .get(path)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.files.lock().unwrap().contains_key(path)
+            || self.dirs.lock().unwrap().contains_key(path)
+            || self.links.lock().unwrap().contains_key(path)
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        self.links
+            .lock()
+            .unwrap()
+            .get(path)
+            .cloned()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("MemoryKernel: no such link: {}", path.display()),
+                )
+            })
+    }
+
+    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        // Normalize `..` and `.` without touching the real filesystem.
+        let mut out = PathBuf::new();
+        for c in path.components() {
+            match c {
+                Component::ParentDir => {
+                    out.pop();
+                }
+                Component::CurDir => {}
+                other => out.push(other.as_os_str()),
+            }
+        }
+        if out.as_os_str().is_empty() {
+            out.push("/");
+        }
+        Ok(out)
+    }
+}
+
+#[cfg(test)]
+impl KernelWrite for MemoryKernel {
+    fn write(&self, path: &Path, value: &str) -> io::Result<()> {
+        is_allowlisted_write_path(path)?;
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), value.to_string());
+        Ok(())
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        self.dirs
+            .lock()
+            .unwrap()
+            .entry(path.to_path_buf())
+            .or_default();
+        Ok(())
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        let mut files = self.files.lock().unwrap();
+        if let Some(content) = files.remove(from) {
+            files.insert(to.to_path_buf(), content);
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "MemoryKernel: rename source not found",
+            ))
+        }
+    }
+
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.files
+            .lock()
+            .unwrap()
+            .remove(path)
+            .map(|_| ())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "MemoryKernel: remove_file not found",
+                )
+            })
+    }
+
+    fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        let mut files = self.files.lock().unwrap();
+        let entry = files.entry(path.to_path_buf()).or_default();
+        entry.push_str(text);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl Clock for MemoryKernel {
+    fn now_unix(&self) -> u64 {
+        self.clock.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+impl EventSource for MemoryKernel {
+    fn wait(&self, _duration: Duration) -> bool {
+        false
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Tests for the kernel_io seam itself
@@ -678,8 +926,6 @@ mod tests {
     }
 
     /// A simple in-memory kernel for pure unit tests (no filesystem).
-    /// Not used by the F2 fault-injection tests (which wrap RealKernel),
-    /// but provided as a building block for future packages (F3, S2D).
     #[test]
     fn memory_kernel_round_trip() {
         let k = MemoryKernel::new();
@@ -693,141 +939,13 @@ mod tests {
         assert_eq!(k.read_to_string(path).unwrap(), "100");
     }
 
-    // ── MemoryKernel: minimal in-memory impl for pure unit tests ──────
-
-    /// Minimal in-memory kernel. Stores file contents in a `HashMap`.
-    /// **Note:** `write` still enforces the allowlist so that path-shape
-    /// bugs are caught even in pure unit tests. Tests that need to write
-    /// arbitrary paths should use `write_raw` (test-only).
-    pub(crate) struct MemoryKernel {
-        files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
-        dirs: std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<PathBuf>>>,
-        clock: std::sync::atomic::AtomicU64,
-    }
-
-    impl MemoryKernel {
-        pub(crate) fn new() -> Self {
-            Self {
-                files: std::sync::Mutex::new(std::collections::HashMap::new()),
-                dirs: std::sync::Mutex::new(std::collections::HashMap::new()),
-                clock: std::sync::atomic::AtomicU64::new(0),
-            }
-        }
-
-        /// Advance the in-memory clock by `secs`.
-        #[allow(dead_code)]
-        pub(crate) fn advance_clock(&self, secs: u64) {
-            self.clock
-                .fetch_add(secs, std::sync::atomic::Ordering::Relaxed);
-        }
-
-        /// Test-only raw write that bypasses the allowlist. For setting
-        /// up fixture state in pure unit tests.
-        #[allow(dead_code)]
-        pub(crate) fn write_raw(&self, path: &Path, value: &str) {
-            self.files
-                .lock()
-                .unwrap()
-                .insert(path.to_path_buf(), value.to_string());
-        }
-    }
-
-    impl KernelRead for MemoryKernel {
-        fn read_to_string(&self, path: &Path) -> io::Result<String> {
-            self.files
-                .lock()
-                .unwrap()
-                .get(path)
-                .cloned()
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!("MemoryKernel: no such file: {}", path.display()),
-                    )
-                })
-        }
-
-        fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
-            Ok(self
-                .dirs
-                .lock()
-                .unwrap()
-                .get(path)
-                .cloned()
-                .unwrap_or_default())
-        }
-
-        fn exists(&self, path: &Path) -> bool {
-            self.files.lock().unwrap().contains_key(path)
-                || self.dirs.lock().unwrap().contains_key(path)
-        }
-    }
-
-    impl KernelWrite for MemoryKernel {
-        fn write(&self, path: &Path, value: &str) -> io::Result<()> {
-            is_allowlisted_write_path(path)?;
-            self.files
-                .lock()
-                .unwrap()
-                .insert(path.to_path_buf(), value.to_string());
-            Ok(())
-        }
-
-        fn create_dir_all(&self, path: &Path) -> io::Result<()> {
-            self.dirs
-                .lock()
-                .unwrap()
-                .entry(path.to_path_buf())
-                .or_default();
-            Ok(())
-        }
-
-        fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
-            let mut files = self.files.lock().unwrap();
-            if let Some(content) = files.remove(from) {
-                files.insert(to.to_path_buf(), content);
-                Ok(())
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "MemoryKernel: rename source not found",
-                ))
-            }
-        }
-
-        fn remove_file(&self, path: &Path) -> io::Result<()> {
-            self.files
-                .lock()
-                .unwrap()
-                .remove(path)
-                .map(|_| ())
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "MemoryKernel: remove_file not found",
-                    )
-                })
-        }
-
-        fn append(&self, path: &Path, text: &str) -> io::Result<()> {
-            let mut files = self.files.lock().unwrap();
-            let entry = files.entry(path.to_path_buf()).or_default();
-            entry.push_str(text);
-            Ok(())
-        }
-    }
-
-    impl Clock for MemoryKernel {
-        fn now_unix(&self) -> u64 {
-            self.clock.load(std::sync::atomic::Ordering::Relaxed)
-        }
-    }
-
-    impl EventSource for MemoryKernel {
-        fn wait(&self, _duration: Duration) -> bool {
-            // In-memory: no real waiting. Tests that need event behavior
-            // will use a dedicated mock in E1.
-            false
-        }
+    #[test]
+    fn memory_kernel_advance_clock() {
+        let k = MemoryKernel::new();
+        assert_eq!(k.now_unix(), 0);
+        k.advance_clock(42);
+        assert_eq!(k.now_unix(), 42);
+        k.advance_clock(8);
+        assert_eq!(k.now_unix(), 50);
     }
 }

@@ -36,7 +36,7 @@ chooses the useful VM, USB, or results-resume path for the machine it runs on.
 - **Build profiles:** `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos`
 - **Active general repair:** `F3` — Version observations, decisions, and action outcomes (`merged_incomplete`)
 - **Active safety repair:** `D0` — Prototype capability sealing and supervisor-managed cold restart (`merged_incomplete`)
-- **Other merged but incomplete packages:** `F2`, `F4`
+- **Other merged but incomplete packages:** `F2`, `F4`, `T1`
 - **Safety architecture:** [D2 fail-passive](docs/architecture/optid-d2-amendment.md)
 - **Canonical work state:** [optid package ledger](docs/plans/optid-package-status.toml)
 

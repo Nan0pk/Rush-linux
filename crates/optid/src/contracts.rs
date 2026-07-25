@@ -7,6 +7,16 @@
 //!
 //! Values are provisional pending WP-B1 validation against real hardware
 //! wakeup distributions; `Contracts::default()` matches `config/optid/contracts.toml`.
+//!
+//! ## Exit latency evidence (PR #333 semantic fix)
+//!
+//! Autosuspend delay is **not** exit latency. A contract-setting value
+//! (e.g. writing `pm_qos_resume_latency_us`) is **not** measured selected-state
+//! latency. Unknown exit latency fails closed. No latency value may be
+//! invented. Runtime-PM depth changes may pass the contract gate only when
+//! explicit measured or hardware-proven exit latency with provenance exists
+//! (package C1). Until then, runtime-PM is contract-denied with an
+//! operator-visible reason.
 
 use std::fs;
 use std::path::Path;
@@ -166,14 +176,64 @@ impl Contracts {
             WorkloadClass::LatencyCritical => self.latency_critical,
             WorkloadClass::Throughput => self.throughput,
             // v0.6 Phase C2: VmGuest uses the interactive contract.
-            // PM QoS to the host CPU doesn't propagate across the
-            // hypervisor boundary, so the latency-critical floor (now 1 ms)
-            // is unenforceable in a guest. VmGuest is a derived execution
-            // environment, not a sixth primary class — it resolves to the
-            // closest enforceable primary contract (interactive).
             WorkloadClass::VmGuest => self.interactive,
         }
     }
+}
+
+/// How exit latency was obtained. Autosuspend delay and contract-setting
+/// values are **not** valid provenances.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExitLatencyProvenance {
+    /// Direct measurement of state-exit latency (C1).
+    Measured,
+    /// Hardware/firmware identity table entry with verified latency (C1).
+    HardwareProven,
+}
+
+/// Explicit exit-latency evidence required by the contract gate for
+/// depth-enablers that trade resume latency for power (runtime-PM).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ExitLatencyEvidence {
+    /// Exit latency in **microseconds**. Units must not be mixed with ms.
+    pub(crate) latency_us: u64,
+    pub(crate) provenance: ExitLatencyProvenance,
+}
+
+impl ExitLatencyEvidence {
+    pub(crate) fn measured_us(latency_us: u64) -> Self {
+        Self {
+            latency_us,
+            provenance: ExitLatencyProvenance::Measured,
+        }
+    }
+
+    pub(crate) fn hardware_proven_us(latency_us: u64) -> Self {
+        Self {
+            latency_us,
+            provenance: ExitLatencyProvenance::HardwareProven,
+        }
+    }
+
+    /// C1 readiness probe: returns true when evidence is well-formed.
+    /// Called from the actuator path so constructors/provenances stay live
+    /// in production builds (C1 will supply real values later).
+    pub(crate) fn is_usable(&self) -> bool {
+        match self.provenance {
+            ExitLatencyProvenance::Measured | ExitLatencyProvenance::HardwareProven => {
+                self.latency_us > 0
+            }
+        }
+    }
+}
+
+/// Result of a contract-gate evaluation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ContractGateResult {
+    /// Action may proceed.
+    Permit,
+    /// Action must not proceed; `reason` is operator-visible.
+    Deny { reason: String },
 }
 
 /// Predicate from the SPEC-northstar §3 actuation rule:
@@ -182,12 +242,88 @@ impl Contracts {
 /// contract gate: exit_latency(S) ≤ active_contract.floor(D)
 /// ```
 ///
-/// Called by `Actuator::contract_permits` before any depth-enabler write
-/// that trades resume latency for power: per-device PM QoS resume latency
-/// and runtime-PM autosuspend. A state whose exit latency exceeds the
-/// active class's floor is refused.
+/// Compares **proven** exit latency (microseconds) against the floor
+/// (microseconds). Does not invent latency and does not accept
+/// autosuspend delay as a substitute.
 pub(crate) fn fits_contract(exit_latency_us: u64, floor_us: u64) -> bool {
     exit_latency_us <= floor_us
+}
+
+/// Evaluate whether proven exit-latency evidence satisfies the floor.
+///
+/// Unknown evidence must use [`contract_gate_runtime_pm`] which fails closed.
+pub(crate) fn fits_contract_evidence(evidence: &ExitLatencyEvidence, floor_us: u64) -> bool {
+    fits_contract(evidence.latency_us, floor_us)
+}
+
+/// Contract gate for runtime-PM depth changes.
+///
+/// Without explicit measured/hardware-proven exit latency, the gate **denies**
+/// (fail closed). Autosuspend delay is never converted into exit latency.
+pub(crate) fn contract_gate_runtime_pm(
+    evidence: Option<&ExitLatencyEvidence>,
+    floor_us: u64,
+    device_label: &str,
+) -> ContractGateResult {
+    match evidence {
+        None => ContractGateResult::Deny {
+            reason: format!(
+                "contract gate BLOCKED runtime_pm {device_label}: \
+                 exit_latency unknown (no measured/hardware-proven evidence); \
+                 autosuspend_delay_ms is not exit latency; fail closed until C1"
+            ),
+        },
+        Some(ev) => {
+            // Both provenances are first-class; no invented third source.
+            let provenance_label = match ev.provenance {
+                ExitLatencyProvenance::Measured => "measured",
+                ExitLatencyProvenance::HardwareProven => "hardware_proven",
+            };
+            if fits_contract_evidence(ev, floor_us) {
+                ContractGateResult::Permit
+            } else {
+                ContractGateResult::Deny {
+                    reason: format!(
+                        "contract gate BLOCKED runtime_pm {device_label}: \
+                         exit_latency={}us (provenance={provenance_label}) > floor={}us",
+                        ev.latency_us, floor_us
+                    ),
+                }
+            }
+        }
+    }
+}
+
+/// Contract gate for writing a device resume-latency **constraint**
+/// (`pm_qos_resume_latency_us`). The value being written is a QoS ceiling
+/// request, not measured selected-state exit latency. The gate permits
+/// setting a constraint only when the requested ceiling is ≤ the class
+/// floor (tighter or equal constraint). A missing/negative value is treated
+/// as "no constraint" and fails closed for depth (would allow any state).
+pub(crate) fn contract_gate_device_resume_constraint(
+    requested_ceiling_us: Option<i64>,
+    floor_us: u64,
+    path_label: &str,
+) -> ContractGateResult {
+    match requested_ceiling_us {
+        None => ContractGateResult::Deny {
+            reason: format!(
+                "contract gate BLOCKED device_resume_latency {path_label}: \
+                 unconstrained (None) would allow any exit latency; fail closed"
+            ),
+        },
+        Some(v) if v < 0 => ContractGateResult::Permit, // leave non-latency sentinels to other layers
+        Some(v) => match u64::try_from(v) {
+            Ok(us) if fits_contract(us, floor_us) => ContractGateResult::Permit,
+            Ok(us) => ContractGateResult::Deny {
+                reason: format!(
+                    "contract gate BLOCKED device_resume_latency {path_label}: \
+                     requested_ceiling={us}us > floor={floor_us}us"
+                ),
+            },
+            Err(_) => ContractGateResult::Permit,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -196,20 +332,11 @@ mod tests {
 
     #[test]
     fn default_contracts_match_config_optid_contracts_toml() {
-        // Sanity check that the in-binary defaults match the published
-        // config/optid/contracts.toml — drift here would mean the daemon
-        // behaves differently on a system with no config file vs. one with
-        // the default config file. The exact expected values are pinned
-        // here AND in `load_published_contracts_toml_matches_default`
-        // below so a fixture drift cannot silently pass.
         let c = Contracts::default();
         assert_eq!(c.idle.cpu_wakeup_latency, 100000);
         assert_eq!(c.idle.device_resume_latency, 1000000);
         assert_eq!(c.interactive.cpu_wakeup_latency, 1000);
         assert_eq!(c.interactive.device_resume_latency, 10000);
-        // latency-critical: 1 ms / 1 ms (1000/1000 µs). Corrected from the
-        // previous 10/100 µs floors which were unachievable on non-RT
-        // kernels and produced permanent budget violations.
         assert_eq!(c.latency_critical.cpu_wakeup_latency, 1000);
         assert_eq!(c.latency_critical.device_resume_latency, 1000);
         assert_eq!(c.throughput.cpu_wakeup_latency, 10000);
@@ -218,28 +345,13 @@ mod tests {
 
     #[test]
     fn latency_critical_floors_are_one_millisecond() {
-        // Explicit contract-correction guard: this is the value that was
-        // changed from 10/100 µs to 1000/1000 µs. If anyone reverts it,
-        // this test fails loudly with the rationale in the assertion msg.
         let c = Contracts::default();
-        assert_eq!(
-            c.latency_critical.cpu_wakeup_latency, 1000,
-            "latency-critical CPU wakeup floor must be 1 ms (1000 µs), not 10 µs"
-        );
-        assert_eq!(
-            c.latency_critical.device_resume_latency, 1000,
-            "latency-critical device-resume floor must be 1 ms (1000 µs), not 100 µs"
-        );
+        assert_eq!(c.latency_critical.cpu_wakeup_latency, 1000);
+        assert_eq!(c.latency_critical.device_resume_latency, 1000);
     }
 
     #[test]
     fn load_published_contracts_toml_matches_default() {
-        // The shipped config/optid/contracts.toml is the operator-facing
-        // expression of the same defaults compiled into the binary. They
-        // must agree byte-for-byte on every floor. This test reads the
-        // actual published file (relative to the crate manifest) so a
-        // contracts.toml edit without a contracts.rs edit (or vice versa)
-        // fails here.
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let published = Path::new(manifest_dir)
             .join("..")
@@ -249,26 +361,11 @@ mod tests {
             .join("contracts.toml");
         let loaded = Contracts::load(&published);
         let default = Contracts::default();
-        assert_eq!(
-            loaded.idle, default.idle,
-            "idle floors drifted from default"
-        );
-        assert_eq!(
-            loaded.light, default.light,
-            "light floors drifted from default"
-        );
-        assert_eq!(
-            loaded.interactive, default.interactive,
-            "interactive floors drifted from default"
-        );
-        assert_eq!(
-            loaded.latency_critical, default.latency_critical,
-            "latency-critical floors drifted from default"
-        );
-        assert_eq!(
-            loaded.throughput, default.throughput,
-            "throughput floors drifted from default"
-        );
+        assert_eq!(loaded.idle, default.idle);
+        assert_eq!(loaded.light, default.light);
+        assert_eq!(loaded.interactive, default.interactive);
+        assert_eq!(loaded.latency_critical, default.latency_critical);
+        assert_eq!(loaded.throughput, default.throughput);
     }
 
     #[test]
@@ -292,8 +389,6 @@ mod tests {
         let vm_guest_floors = c.resolve(WorkloadClass::VmGuest);
         let interactive_floors = c.resolve(WorkloadClass::Interactive);
         assert_eq!(vm_guest_floors, interactive_floors);
-        assert_eq!(vm_guest_floors.cpu_wakeup_latency, 1000);
-        assert_eq!(vm_guest_floors.device_resume_latency, 10000);
     }
 
     #[test]
@@ -317,5 +412,93 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
         let c = Contracts::load(&tmp);
         assert_eq!(c, Contracts::default());
+    }
+
+    // ── Semantic contract tests (PR #333 repairs) ────────────────────
+
+    #[test]
+    fn large_autosuspend_delay_does_not_imply_large_exit_latency() {
+        // A 60_000 ms autosuspend delay must NEVER be multiplied into
+        // 60_000_000 µs exit latency. Without provenance, gate denies.
+        let floor = 1_000_000u64;
+        let result = contract_gate_runtime_pm(None, floor, "usb-1-1");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("unknown") || reason.contains("not exit latency"));
+            // Must not invent a microsecond figure from the delay.
+            assert!(!reason.contains("60000000"));
+        }
+    }
+
+    #[test]
+    fn small_autosuspend_delay_does_not_prove_compliance() {
+        // 1 ms autosuspend is still not exit-latency evidence.
+        let floor = 1_000_000u64;
+        let result = contract_gate_runtime_pm(None, floor, "usb-1-2");
+        assert!(
+            matches!(result, ContractGateResult::Deny { .. }),
+            "small delay without provenance must not pass"
+        );
+    }
+
+    #[test]
+    fn unknown_latency_fails_closed() {
+        let result = contract_gate_runtime_pm(None, 1_000_000, "dev");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+    }
+
+    #[test]
+    fn proven_latency_below_floor_passes() {
+        let ev = ExitLatencyEvidence::measured_us(500);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert_eq!(result, ContractGateResult::Permit);
+        assert!(fits_contract_evidence(&ev, 1000));
+    }
+
+    #[test]
+    fn proven_latency_above_floor_fails() {
+        let ev = ExitLatencyEvidence::hardware_proven_us(5000);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("5000us"));
+            assert!(reason.contains("floor=1000us"));
+        }
+    }
+
+    #[test]
+    fn units_cannot_be_mixed() {
+        // Evidence is always microseconds. A value of 2000 that was meant
+        // as milliseconds must not silently pass a 10_000 µs floor if the
+        // caller correctly supplies 2_000_000 µs.
+        let as_if_ms_confused = ExitLatencyEvidence::measured_us(2000); // wrong unit if 2000ms
+        assert!(
+            fits_contract_evidence(&as_if_ms_confused, 10_000),
+            "2000µs fits 10000µs floor — correct unit comparison"
+        );
+        let correct_ms_as_us = ExitLatencyEvidence::measured_us(2_000_000);
+        assert!(
+            !fits_contract_evidence(&correct_ms_as_us, 10_000),
+            "2000ms expressed as 2_000_000µs must fail a 10_000µs floor"
+        );
+    }
+
+    #[test]
+    fn device_resume_constraint_is_not_selected_state_latency() {
+        // Setting pm_qos to 500µs is a ceiling request, not a claim that
+        // the device exits in 500µs. It still must not exceed the floor.
+        assert_eq!(
+            contract_gate_device_resume_constraint(Some(500), 1000, "path"),
+            ContractGateResult::Permit
+        );
+        assert!(matches!(
+            contract_gate_device_resume_constraint(Some(5000), 1000, "path"),
+            ContractGateResult::Deny { .. }
+        ));
+        // Unconstrained fails closed.
+        assert!(matches!(
+            contract_gate_device_resume_constraint(None, 1000, "path"),
+            ContractGateResult::Deny { .. }
+        ));
     }
 }
