@@ -129,6 +129,168 @@ diff --git a/crates/optid/src/new.rs b/crates/optid/src/new.rs
             ["crates/optid/src/new.rs: #![allow(dead_code)]"],
         )
 
+    # ── Post-#337: evidence-pointer rejection ──────────────────────────
+
+    def test_pointer_only_test_file_is_detected(self):
+        # A file that only contains a &[&str] constant naming tests in
+        # other files plus a list-length assertion is a pointer file,
+        # not behavioral evidence.
+        pointer_text = """\
+const TESTS: &[&str] = &["real_test_one", "real_test_two"];
+
+#[test]
+fn matrix_has_required_cases() {
+    assert!(TESTS.len() >= 2);
+    for name in TESTS {
+        assert!(!name.is_empty());
+    }
+}
+"""
+        self.assertTrue(validator._is_pointer_only_test_file(pointer_text))
+
+    def test_behavioral_test_file_is_not_pointer(self):
+        # A file that calls a production-path function (Policy::, etc.)
+        # is real behavioral evidence, not a pointer file.
+        behavioral_text = """\
+#[test]
+fn real_test_one() {
+    let policy = Policy::default();
+    let snapshot = Snapshot::collect();
+    let decision = policy.decide_resolved(&snapshot, Mode::Auto, WorkloadClass::Idle, "reason".into(), &Contracts::default(), Some(Mode::Balanced), None);
+    assert!(!decision.actions.is_empty());
+}
+"""
+        self.assertFalse(validator._is_pointer_only_test_file(behavioral_text))
+
+    def test_candidate_rejects_pointer_only_integration_test(self):
+        # A candidate that declares a pointer file as integration_tests
+        # is rejected even if an acceptance_tests mapping exists,
+        # because the pointer file is not behavioral evidence.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            (tmp_root / "crates" / "optid" / "tests").mkdir(parents=True)
+            pointer = tmp_root / "crates" / "optid" / "tests" / "pointer.rs"
+            pointer.write_text(
+                """\
+const TESTS: &[&str] = &["real_test_one"];
+
+#[test]
+fn matrix_has_required_cases() {
+    assert!(TESTS.len() >= 1);
+}
+""",
+                encoding="utf-8",
+            )
+            first = package(
+                "F1",
+                status="candidate",
+                pr="324",
+                runtime_entrypoints=["crates/optid/src/main.rs"],
+                integration_tests=["crates/optid/tests/pointer.rs"],
+                completion_evidence=["crates/optid/tests/pointer.rs"],
+                acceptance_tests={"behavior": "real_test_one"},
+            )
+            data = ledger(first)
+            errors = validator.validate_ledger(data, tmp_root)
+            self.assertTrue(
+                any("pointer file" in error for error in errors),
+                f"expected pointer-file rejection, got: {errors}",
+            )
+
+    def test_candidate_rejects_missing_acceptance_mapping(self):
+        # A candidate without an explicit acceptance_tests mapping is
+        # rejected — the loose "any #[test] fn exists" fallback was
+        # removed in the post-#337 repair.
+        first = package(
+            "F1",
+            status="candidate",
+            pr="324",
+            runtime_entrypoints=["crates/optid/src/main.rs"],
+            integration_tests=["crates/optid/tests/real.rs"],
+            completion_evidence=["crates/optid/tests/real.rs"],
+        )
+        data = ledger(first)
+        errors = validator.validate_ledger(data, ROOT)
+        self.assertTrue(
+            any("acceptance_tests mapping" in error for error in errors),
+            f"expected missing-mapping rejection, got: {errors}",
+        )
+
+    def test_candidate_rejects_acceptance_name_not_test_fn(self):
+        # An acceptance_tests mapping that names a bare fn (not a
+        # #[test] fn) is rejected.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            (tmp_root / "crates" / "optid" / "tests").mkdir(parents=True)
+            test_file = tmp_root / "crates" / "optid" / "tests" / "real.rs"
+            test_file.write_text(
+                """\
+fn helper_not_a_test() {}
+
+#[test]
+fn real_test_one() {
+    assert!(true);
+}
+""",
+                encoding="utf-8",
+            )
+            first = package(
+                "F1",
+                status="candidate",
+                pr="324",
+                runtime_entrypoints=["crates/optid/src/main.rs"],
+                integration_tests=["crates/optid/tests/real.rs"],
+                completion_evidence=["crates/optid/tests/real.rs"],
+                acceptance_tests={"behavior": "helper_not_a_test"},
+            )
+            data = ledger(first)
+            errors = validator.validate_ledger(data, tmp_root)
+            self.assertTrue(
+                any("not a #[test] fn" in error for error in errors),
+                f"expected not-a-test-fn rejection, got: {errors}",
+            )
+
+    # ── Post-#337: stale receipt freshness rule ───────────────────────
+
+    def test_stale_receipt_is_flagged_when_proof_path_changed(self):
+        """A completed package's receipt must be invalidated when a
+        later change modifies any declared proof path. This test uses
+        the real repository history: F1's receipt (PR #332, commit
+        001515b) is stale because subsequent PRs modified F1's runtime
+        entrypoints. The validator must flag it if F1 were still
+        `completed`.
+        """
+        # Build a synthetic ledger with F1 as `completed` using the real
+        # receipt. The freshness check should flag it.
+        first = package(
+            "F1",
+            status="completed",
+            pr="332",
+            runtime_entrypoints=[
+                "crates/optid/src/main.rs",
+                "crates/optid/src/policy.rs",
+                "crates/optid/src/decision.rs",
+                "crates/optid/src/action.rs",
+            ],
+            integration_tests=["crates/optid/src/policy.rs"],
+            completion_evidence=[
+                "crates/optid/src/policy.rs",
+                "docs/plans/optid-verification/f1.toml",
+            ],
+            verification_receipt="docs/plans/optid-verification/f1.toml",
+        )
+        data = ledger(first)
+        errors = validator.validate_ledger(data, ROOT)
+        stale_errors = [e for e in errors if "stale" in e.lower()]
+        self.assertTrue(
+            stale_errors,
+            f"expected stale-receipt error for F1 (real repo history), got: {errors}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

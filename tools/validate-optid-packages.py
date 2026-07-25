@@ -52,6 +52,18 @@ INTEGRATION_TEST_PREFIXES = (
     "tools/test-",
     "testos/",
 )
+# Binary-crate exception: `optid` is a `[[bin]]`-only crate, so production
+# paths are `pub(crate)` and cannot be reached from `tests/` integration
+# tests. Behavioral coverage for these packages lives inside the source
+# modules under `#[cfg(test)] mod tests`. The validator accepts source
+# modules listed in `runtime_entrypoints` or `completion_evidence` as
+# integration-test locations for this reason — but only when an explicit
+# `acceptance_tests` mapping proves the named `#[test] fn` definitions
+# actually exist there (see `validate_acceptance_test_mapping`).
+BINARY_CRATE_SOURCE_PREFIXES = (
+    "crates/optid/src/",
+    "crates/optctl/src/",
+)
 PR_RE = re.compile(r"^[1-9][0-9]*$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -134,6 +146,103 @@ def validate_verification_receipt(
     if receipt.get("unresolved"):
         errors.append(f"{package_id}: completed receipt cannot have unresolved findings")
 
+    # Post-#337 freshness check: a completed package's receipt must be
+    # invalidated when a later change modifies any declared proof path.
+    # See `validate_receipt_freshness` for the full rule.
+    validate_receipt_freshness(package_id, package, receipt, root, errors)
+
+
+def _git_ancestry_contains(verified_commit: str, descendant: str, root: Path) -> bool:
+    """Return True if `verified_commit` is an ancestor of `descendant`
+    (or equal to it). Uses `git merge-base --is-ancestor`.
+    """
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", verified_commit, descendant],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        timeout=30,
+    )
+    return result.returncode == 0
+
+
+def _files_changed_since_commit(
+    verified_commit: str, paths: list[str], root: Path
+) -> list[str]:
+    """Return the subset of `paths` that were modified between
+    `verified_commit` (exclusive) and HEAD (inclusive). Uses
+    `git diff --name-only verified_commit..HEAD -- <paths>`.
+    """
+    if not paths:
+        return []
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{verified_commit}..HEAD", "--", *paths],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        # If the commit is not in the repo (e.g. shallow clone), fail
+        # closed: treat every declared path as potentially stale.
+        return list(paths)
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def validate_receipt_freshness(
+    package_id: str,
+    package: dict[str, Any],
+    receipt: dict[str, Any],
+    root: Path,
+    errors: list[str],
+) -> None:
+    """Post-#337 rule: a completed package's receipt must be invalidated
+    when a later change modifies any declared runtime_entrypoint,
+    integration_test, or completion_evidence implementation file, unless
+    a newer receipt verifies a commit containing that change.
+
+    Uses Git ancestry: if `verified_commit` is an ancestor of HEAD and
+    any declared proof path changed between `verified_commit` and HEAD,
+    the receipt is stale and the package cannot be `completed`.
+
+    This rule catches the F1 stale-receipt defect: PR #332's receipt
+    verified commit `001515b`, but subsequent PRs (#333, #334, #336,
+    #337) modified `policy.rs`, `action.rs`, `actuator.rs`, etc. — all
+    declared F1 runtime entrypoints. The receipt continued to assert
+    `result = "pass"` against an older commit, masking the regression.
+    """
+    verified_commit = str(receipt.get("verified_commit", "")).strip()
+    if not SHA_RE.fullmatch(verified_commit):
+        return  # already flagged by `validate_verification_receipt`
+
+    # If the verified commit is not an ancestor of HEAD (e.g. it lives
+    # on an unmerged branch), the freshness check is moot — the receipt
+    # is for a divergent history. Skip rather than false-positive.
+    if not _git_ancestry_contains(verified_commit, "HEAD", root):
+        return
+
+    # Collect every declared proof path. A change to any of them after
+    # the verified commit invalidates the receipt.
+    proof_paths: list[str] = []
+    for field in ("runtime_entrypoints", "integration_tests", "completion_evidence"):
+        for value in package.get(field, []) or []:
+            if isinstance(value, str) and value.strip():
+                proof_paths.append(value.strip())
+    if not proof_paths:
+        return
+
+    stale = _files_changed_since_commit(verified_commit, proof_paths, root)
+    if stale:
+        errors.append(
+            f"{package_id}: verification receipt is stale — verified_commit "
+            f"{verified_commit[:12]} is an ancestor of HEAD but the following "
+            f"declared proof paths were modified after it: {', '.join(stale)}. "
+            "A fresh cold verification receipt is required before this package "
+            "may remain `completed`. Demote to `merged_incomplete` and record "
+            "the precise blocker in `blocking_reason`."
+        )
+
 
 def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
     errors: list[str] = []
@@ -204,7 +313,21 @@ def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
                     "daemon, CLI, service, or executable surface"
                 )
             for value in integration_tests:
-                if not value.startswith(INTEGRATION_TEST_PREFIXES):
+                if not (
+                    value.startswith(INTEGRATION_TEST_PREFIXES)
+                    # Binary-crate exception: source modules under
+                    # crates/optid/src/ (or optctl/src/) may be declared
+                    # as integration_tests when the package has an
+                    # explicit acceptance_tests mapping proving the
+                    # named #[test] fn definitions exist there. The
+                    # mapping is validated below; the prefix exemption
+                    # only allows the file to be *listed*.
+                    or (
+                        value.startswith(BINARY_CRATE_SOURCE_PREFIXES)
+                        and isinstance(package.get("acceptance_tests"), dict)
+                        and package.get("acceptance_tests")
+                    )
+                ):
                     errors.append(
                         f"{package_id}: integration test is not outside the "
                         f"implementation module: {value}"
@@ -413,43 +536,83 @@ def detect_structural_integration_test(
         )
 
 
+def _is_pointer_only_test_file(text: str) -> bool:
+    """Detect a file that claims to be behavioral evidence but only
+    contains name strings and list-length assertions.
+
+    A pointer file has all of:
+      - one or more `&[&str]` constants naming tests in *other* files;
+      - one or more `assert!(... .len() >= N)` or `assert!(!name.is_empty())`
+        style checks;
+      - no `#[test] fn` definitions of its own that exercise production
+        behavior (the only `#[test] fn` it has is the length/uniqueness
+        assertion itself).
+
+    Such a file is not behavioral evidence — it is a claim about evidence
+    that lives elsewhere. The post-#337 repair rejects this pattern.
+    """
+    has_str_array = bool(re.search(r"&\[&str\]|Vec<&str>", text))
+    has_length_assert = bool(re.search(r"\.len\(\)\s*>=\s*\d+", text))
+    # Count #[test] fn definitions in the file.
+    test_fns = re.findall(r"#\[test\]\s*(?:async\s+)?fn\s+(\w+)", text)
+    # A real behavioral test file has at least one #[test] fn whose body
+    # calls a production-path function (Policy::, Snapshot::, Actuator::,
+    # compute_thermal_budget, contract_gate_*, etc.). A pointer file's
+    # only #[test] fn is the length/uniqueness assertion, whose body
+    # contains no production-path call.
+    behavioral_signals = (
+        "collect_with",
+        "compute_thermal_budget",
+        "discover_thermal",
+        "fits_contract",
+        "contract_gate",
+        "MemoryKernel",
+        "FaultKernel",
+        "Actuator::",
+        "Policy::",
+        "Snapshot::",
+        "decide_resolved",
+        "EffectiveConfig::",
+        "Decision::render",
+    )
+    has_behavioral_test = any(
+        sig in text for sig in behavioral_signals
+    ) and len(test_fns) >= 1
+    return has_str_array and has_length_assert and not has_behavioral_test
+
+
 def validate_acceptance_test_mapping(
     package_id: str,
     package: dict[str, Any],
     root: Path,
     errors: list[str],
 ) -> None:
-    """Candidate packages need a minimal acceptance→test name mapping
-    whose referenced tests exist (in listed integration tests or src).
+    """Candidate packages must declare an explicit acceptance→test name
+    mapping whose referenced `#[test] fn` definitions actually exist in
+    the declared evidence/integration-test/runtime-entrypoint files.
+
+    Post-#337 strengthening:
+      - The loose "any `#[test] fn` exists" fallback is removed. A
+        pointer file (only name strings + list-length assertions) cannot
+        satisfy the mapping.
+      - Each named test must be a real `#[test] fn` (not just any `fn`)
+        in one of the declared files.
+      - Source-text `.contains(...)` tests remain rejected by
+        `detect_structural_integration_test`.
     """
     mapping = package.get("acceptance_tests", {})
     if not isinstance(mapping, dict) or not mapping:
-        # Allow mapping embedded in completion_evidence files as a simple
-        # alternative: require at least one integration test file that
-        # defines `#[test] fn` names (existence check only).
-        tests = package.get("integration_tests", [])
-        if not isinstance(tests, list) or not tests:
-            errors.append(
-                f"{package_id}: candidate requires acceptance_tests mapping "
-                "or integration_tests with real #[test] functions"
-            )
-            return
-        found_any = False
-        for test_path in tests:
-            absolute = root / str(test_path)
-            if absolute.is_file():
-                text = absolute.read_text(encoding="utf-8", errors="replace")
-                if re.search(r"#\[test\]\s*(?:async\s+)?fn\s+\w+", text):
-                    found_any = True
-                    break
-        if not found_any:
-            errors.append(
-                f"{package_id}: candidate integration_tests must contain "
-                "at least one #[test] fn (behavioral mapping)"
-            )
+        errors.append(
+            f"{package_id}: candidate requires an explicit acceptance_tests "
+            "mapping (acceptance requirement → #[test] fn name); the loose "
+            "'any #[test] fn exists' fallback was removed in the post-#337 "
+            "repair because pointer files satisfied it without exercising "
+            "production behavior"
+        )
         return
 
-    # Explicit mapping: acceptance requirement → test function name.
+    # Build a per-file corpus so we can both (a) confirm each named test
+    # is a real #[test] fn and (b) reject pointer-only files.
     search_roots: list[Path] = []
     for field in ("integration_tests", "completion_evidence", "runtime_entrypoints"):
         for value in package.get(field, []) or []:
@@ -459,12 +622,27 @@ def validate_acceptance_test_mapping(
             elif p.is_dir():
                 search_roots.extend(p.rglob("*.rs"))
 
-    corpus = ""
+    file_texts: list[tuple[str, str]] = []
     for path in search_roots:
         try:
-            corpus += path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+            file_texts.append((str(path.relative_to(root)), path.read_text(encoding="utf-8", errors="replace")))
+        except (OSError, ValueError):
             continue
+
+    corpus = "\n".join(text for _, text in file_texts)
+
+    # Reject pointer-only files declared as integration_tests or
+    # completion_evidence. A pointer file claims to be behavioral
+    # evidence but only contains name strings and list-length assertions.
+    for rel, text in file_texts:
+        if _is_pointer_only_test_file(text):
+            errors.append(
+                f"{package_id}: declared evidence {rel} is a pointer file "
+                "(only name strings and list-length assertions, no "
+                "production-path behavioral calls); replace with real "
+                "behavioral tests or point at the source module that "
+                "contains the #[test] fn definitions"
+            )
 
     for requirement, test_name in mapping.items():
         if not isinstance(test_name, str) or not test_name.strip():
@@ -472,12 +650,27 @@ def validate_acceptance_test_mapping(
                 f"{package_id}: acceptance_tests[{requirement!r}] must name a test"
             )
             continue
-        pattern = rf"fn\s+{re.escape(test_name.strip())}\s*\("
-        if not re.search(pattern, corpus):
-            errors.append(
-                f"{package_id}: acceptance requirement {requirement!r} maps to "
-                f"test {test_name!r} which was not found in declared evidence paths"
-            )
+        name = test_name.strip()
+        # The named test must be a real #[test] fn (not just any fn) in
+        # the corpus. A bare `fn name(...)` definition that is not a
+        # #[test] fn does not satisfy acceptance evidence.
+        test_pattern = rf"#\[test\]\s*(?:async\s+)?fn\s+{re.escape(name)}\s*\("
+        if not re.search(test_pattern, corpus):
+            # Distinguish "name not found at all" from "name found but
+            # not a #[test] fn" so the error message is actionable.
+            bare_pattern = rf"\bfn\s+{re.escape(name)}\s*\("
+            if re.search(bare_pattern, corpus):
+                errors.append(
+                    f"{package_id}: acceptance requirement {requirement!r} maps to "
+                    f"{name!r} but it is not a #[test] fn (a bare fn does not "
+                    "satisfy acceptance evidence)"
+                )
+            else:
+                errors.append(
+                    f"{package_id}: acceptance requirement {requirement!r} maps to "
+                    f"test {name!r} which was not found as a #[test] fn in declared "
+                    "evidence paths"
+                )
 
 
 def validate_change(base: str, root: Path = ROOT) -> list[str]:

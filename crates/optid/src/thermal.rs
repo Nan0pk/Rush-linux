@@ -1019,6 +1019,18 @@ mod tests {
         k.add_dir_entry(&base, &base.join("temp"));
     }
 
+    fn install_fan(k: &MemoryKernel, hwmon: &str, name: &str, fan: &str, rpm: u32) {
+        let base = PathBuf::from(format!("/sys/class/hwmon/{hwmon}"));
+        k.add_dir(Path::new("/sys/class/hwmon"), &base);
+        k.write_raw(&base.join("name"), &format!("{name}\n"));
+        let dev = PathBuf::from(format!("/sys/devices/platform/{name}"));
+        k.write_link(&base.join("device"), &dev);
+        k.write_raw(&base.join(format!("{fan}_input")), &format!("{rpm}\n"));
+        k.add_dir_entry(&base, &base.join("name"));
+        k.add_dir_entry(&base, &base.join("device"));
+        k.add_dir_entry(&base, &base.join(format!("{fan}_input")));
+    }
+
     #[test]
     fn discover_hwmon_cpu_temp() {
         let k = MemoryKernel::new();
@@ -1331,5 +1343,113 @@ mod tests {
         let mut sorted = ids.clone();
         sorted.sort();
         assert_eq!(ids, sorted);
+    }
+
+    /// T1 production-path pipeline test (post-#337 behavioral evidence).
+    ///
+    /// Exercises the full chain the daemon runs each tick:
+    ///
+    /// ```text
+    /// Snapshot::collect_with_thermal
+    ///   → discover_thermal_sensors_with / discover_fan_sensors_with
+    ///   → compute_thermal_budget (hysteresis via previous)
+    ///   → render_thermal_status
+    /// ```
+    ///
+    /// This replaces the deleted `tests/t1_thermal_budget.rs` pointer
+    /// file, which only asserted that a list of test names had length
+    /// ≥15. The pointer file could not detect a regression that broke
+    /// the pipeline; this test exercises the real production path
+    /// through injected `MemoryKernel` I/O.
+    #[test]
+    fn t1_production_pipeline_collect_to_render() {
+        use crate::sensors::Snapshot;
+        let k = MemoryKernel::new();
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 72000, Some(105000))],
+        );
+        install_fan(&k, "hwmon1", "thinkpad", "fan1", 3200);
+
+        let config = ThermalConfig::default();
+        // First iteration: no previous budget.
+        let snap = Snapshot::collect_with_thermal(&k, &k, &config, None);
+
+        // Sensor discovery ran through the production path.
+        assert!(
+            !snap.thermal_sensors.is_empty(),
+            "sensor discovery must run"
+        );
+        assert!(
+            snap.thermal_sensors
+                .iter()
+                .any(|s| s.is_die && s.temp_c == 72.0),
+            "die sensor must be discovered: {:?}",
+            snap.thermal_sensors
+        );
+        assert_eq!(snap.fan_sensors.len(), 1);
+        assert_eq!(snap.fan_sensors[0].rpm, 3200);
+
+        // Thermal budget computation ran through the production path.
+        assert_eq!(snap.thermal_budget.state, ThermalBudgetState::Derating);
+        assert!(snap.thermal_budget.derating_ratio > 0.0);
+        assert!(snap.thermal_budget.derating_ratio < 1.0);
+        assert_eq!(snap.thermal_budget.max_die_temp_c, Some(72.0));
+        assert_eq!(snap.thermal_budget.max_fan_rpm, Some(3200));
+
+        // Status rendering ran through the production path.
+        let rendered = render_thermal_status(&snap.thermal_budget);
+        assert!(rendered.contains("thermal_state=Derating"));
+        assert!(rendered.contains("thermal_derating_ratio="));
+        assert!(rendered.contains("Package id 0"));
+
+        // Second iteration: hysteresis via previous budget. The pipeline
+        // must carry the previous budget through and produce a stable
+        // (or hysteresis-adjusted) result.
+        let snap2 = Snapshot::collect_with_thermal(&k, &k, &config, Some(&snap.thermal_budget));
+        assert_eq!(snap2.thermal_budget.state, ThermalBudgetState::Derating);
+    }
+
+    /// T1 production-path test: when `mode = "off"`, the pipeline
+    /// performs **zero** thermal sysfs reads (no hwmon discovery, no
+    /// ACPI thermal-zone discovery, no legacy `/sys/class/thermal`
+    /// max-temp fallback). This is the post-#337 startup-scan removal
+    /// invariant — the daemon must not bypass operator configuration.
+    #[test]
+    fn t1_production_pipeline_off_mode_zero_thermal_reads() {
+        use crate::sensors::Snapshot;
+        let k = MemoryKernel::new();
+        // Install thermal sources that *would* be discovered if the
+        // pipeline ignored mode=off.
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 72000, Some(105000))],
+        );
+        install_acpi_zone(&k, "thermal_zone0", "x86_pkg_temp", 92000);
+
+        let config = ThermalConfig {
+            mode: ThermalMode::Off,
+            ..ThermalConfig::default()
+        };
+        let snap = Snapshot::collect_with_thermal(&k, &k, &config, None);
+
+        // Zero sensors discovered — mode=off skips discovery entirely.
+        assert!(
+            snap.thermal_sensors.is_empty(),
+            "mode=off must skip sensor discovery: {:?}",
+            snap.thermal_sensors
+        );
+        // Budget state is Disabled.
+        assert_eq!(snap.thermal_budget.state, ThermalBudgetState::Disabled);
+        // Legacy max-temp fallback is also skipped.
+        assert!(snap.max_temp_millic.is_none());
+        // thermal_c() returns None for Disabled state.
+        assert!(snap.thermal_c().is_none());
     }
 }
