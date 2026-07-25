@@ -291,6 +291,32 @@ fn real_test_one() {
             f"expected stale-receipt error for F1 (real repo history), got: {errors}",
         )
 
+    # ── Post-#337: multi-package repair PR exemption ──────────────────
+
+    def test_demotion_does_not_count_as_advancement(self):
+        """A corrective PR that demotes a package (completed →
+        merged_incomplete) and corrects evidence paths for another
+        non-proof-status package (merged_incomplete → merged_incomplete
+        with corrected integration_tests) is not 'multi-package
+        advancement'. The rule's intent is to prevent silent
+        promotion; demotion and evidence correction are honest
+        corrections.
+        """
+        # This test uses the real repo history: F1 was completed and is
+        # now merged_incomplete (demotion); T1 stayed merged_incomplete
+        # but its integration_tests/completion_evidence changed
+        # (evidence correction). The validator's --base origin/main
+        # check must not flag this as multi-package advancement.
+        errors = validator.validate_change("origin/main", ROOT)
+        advancement_errors = [
+            e for e in errors if "may advance only one package" in e
+        ]
+        self.assertFalse(
+            advancement_errors,
+            f"corrective PR (F1 demotion + T1 evidence correction) must not be "
+            f"flagged as multi-package advancement: {advancement_errors}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,38 @@
-# F1 — Cold Verification Receipt
+# F1 — Cold Verification Receipt (HISTORICAL — post-#337 repair)
+#
+# STATUS: This receipt is preserved as historical evidence only. The F1
+# package was demoted from `completed` to `merged_incomplete` in the
+# post-#337 repair because the receipt is stale:
+#
+#   - The verified commit (001515b, merge of PR #332) is an ancestor of
+#     HEAD, but subsequent PRs (#333, #334, #336, #337) modified F1's
+#     declared runtime_entrypoints (crates/optid/src/policy.rs,
+#     crates/optid/src/action.rs, crates/optid/src/actuator.rs,
+#     crates/optid/src/main.rs, crates/optid/src/decision.rs).
+#   - PR #337 deleted the integration test file this receipt referenced
+#     (crates/optid/tests/f1_effective_config.rs) and replaced it with a
+#     pointer file (crates/optid/tests/f1_behavior.rs) that contained
+#     only name strings and list-length assertions. The post-#337 repair
+#     deleted the pointer file too and replaced it with real #[test] fn
+#     coverage in crates/optid/src/policy.rs
+#     (f1_production_pipeline_policy_to_render,
+#     f1_production_pipeline_rejects_unknown_domain, plus the existing
+#     f1_* behavioral matrix).
+#
+# The `validate_receipt_freshness` rule in
+# tools/validate-optid-packages.py now enforces this invariant: a
+# completed package's receipt is invalidated when a later change
+# modifies any declared runtime_entrypoint / integration_test /
+# completion_evidence file, unless a newer receipt verifies a commit
+# containing that change.
+#
+# A fresh independent cold verification receipt is required before F1
+# may return to `completed`. Do NOT re-use this receipt for the current
+# F1 surface — it verifies an older commit against a deleted test file.
+#
+# ---
+#
+# Original receipt (preserved verbatim for historical provenance):
 #
 # Verifier: independent worker (separate session from the F1 builder,
 # arena-ai-coding-agent[bot], which authored PR #332).

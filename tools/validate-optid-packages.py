@@ -695,12 +695,66 @@ def validate_change(base: str, root: Path = ROOT) -> list[str]:
             else:
                 # One package may advance status/proof. Other packages may
                 # only refine blocking_reason (honest residual blockers).
+                #
+                # Post-#337 amendment: a corrective PR that *demotes* a
+                # package (status moves away from `completed`/`candidate`
+                # to a non-proof status) or that corrects evidence paths
+                # for a non-proof-status package (integration_tests /
+                # completion_evidence changes without a status promotion)
+                # is not "advancement". The rule's intent is to prevent
+                # silent multi-package *promotion*; demotion and evidence
+                # correction are honest corrections that should be allowed
+                # in a repair PR. The canonical examples:
+                #   - F1 stale-receipt repair: completed → merged_incomplete
+                #     (demotion; the old receipt is preserved as historical).
+                #   - T1 evidence-pointer repair: merged_incomplete →
+                #     merged_incomplete with integration_tests /
+                #     completion_evidence corrected to point at real
+                #     #[test] fn definitions (evidence correction; no
+                #     status change).
                 previous = _load_base_ledger(base, root)
                 current = load_toml(root / LEDGER)
                 before = package_map(previous)
                 after = package_map(current)
                 advancing: list[str] = []
+                # Fields that constitute evidence-path correction (not
+                # status advancement). A package whose only non-blocker
+                # changes are in this set is correcting evidence, not
+                # advancing.
+                EVIDENCE_CORRECTION_FIELDS = {
+                    "integration_tests",
+                    "completion_evidence",
+                    "runtime_entrypoints",
+                    "verification_receipt",
+                }
                 for package_id in claims:
+                    before_status = before.get(package_id, {}).get("status")
+                    after_status = after.get(package_id, {}).get("status")
+                    # A status demotion (away from a proof status) is not
+                    # advancement; it is an honest correction.
+                    if (
+                        before_status in PROOF_STATUSES
+                        and after_status not in PROOF_STATUSES
+                    ):
+                        continue
+                    # A package that stays in a non-proof status and only
+                    # corrects evidence paths is not advancing.
+                    if (
+                        before_status not in PROOF_STATUSES
+                        and after_status not in PROOF_STATUSES
+                    ):
+                        non_blocker_fields = [
+                            field
+                            for field in CLAIM_FIELDS
+                            if field != "blocking_reason"
+                            and before.get(package_id, {}).get(field)
+                            != after.get(package_id, {}).get(field)
+                        ]
+                        if non_blocker_fields and all(
+                            f in EVIDENCE_CORRECTION_FIELDS
+                            for f in non_blocker_fields
+                        ):
+                            continue
                     non_blocker = any(
                         before.get(package_id, {}).get(field)
                         != after.get(package_id, {}).get(field)

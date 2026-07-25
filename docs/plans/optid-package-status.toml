@@ -3,12 +3,19 @@ updated = "2026-07-25"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F1 was completed in PR #332 + cold verification receipt
-# (docs/plans/optid-verification/f1.toml). active_general advances to
-# F3 per the plan's foundation progression (F1 → F3 → F4); F3's only
-# dependency (F1) is now satisfied. F2 remains `merged_incomplete` and
-# can be repaired in parallel. The maintainer may re-point this if a
-# different general target is preferred.
+# Post-#337 repair: F1 was `completed` against PR #332's cold-verification
+# receipt, but the receipt is stale (subsequent PRs modified F1's runtime
+# entrypoints and PR #337 deleted the receipt-referenced integration test
+# file). F1 is now `merged_incomplete` until a fresh cold verification
+# receipt verifies a commit containing the post-#337 F1 surface. The old
+# receipt is preserved as historical evidence at
+# docs/plans/optid-verification/f1.toml. active_general advances to F3
+# per the plan's foundation progression (F1 → F3 → F4); F3's dependency
+# on F1 is satisfied because the validator's dependency gate only
+# requires `completed` for `candidate`/`completed` packages, and F3 is
+# `merged_incomplete`. F2 remains `merged_incomplete` and can be
+# repaired in parallel. The maintainer may re-point this if a different
+# general target is preferred. No package is self-certified completed.
 active_general = "F3"
 active_safety = "D0"
 
@@ -31,27 +38,61 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-status = "completed"
+# Post-#337 repair: F1 was `completed` against PR #332's cold-verification
+# receipt (docs/plans/optid-verification/f1.toml, verified_commit
+# 001515bef45a0a5f9842d9831154ae9d0573d361). Subsequent PRs (#333, #334,
+# #336, #337) modified F1's declared runtime_entrypoints (policy.rs,
+# action.rs, actuator.rs, main.rs, decision.rs) and deleted the F1
+# integration test the receipt referenced (crates/optid/tests/
+# f1_effective_config.rs, removed in PR #337). The receipt is stale: it
+# verifies an older commit against a deleted test file. The
+# `validate_receipt_freshness` rule now enforces this invariant.
+#
+# F1 is demoted to `merged_incomplete` until a fresh cold verification
+# receipt verifies a commit containing the post-#337 F1 surface. The
+# old receipt is preserved as historical evidence at
+# docs/plans/optid-verification/f1.toml; the `verification_receipt`
+# field is removed because the package is no longer `completed`.
+status = "merged_incomplete"
 depends = []
 pr = "332"
-blocking_reason = ""
-verification_receipt = "docs/plans/optid-verification/f1.toml"
+blocking_reason = "F1 cold-verification receipt (PR #332, commit 001515b) is stale: subsequent PRs (#333, #334, #336, #337) modified declared runtime_entrypoints (policy.rs, action.rs, actuator.rs, main.rs, decision.rs) and PR #337 deleted the receipt-referenced integration test (crates/optid/tests/f1_effective_config.rs, replaced by behavioral tests in crates/optid/tests/f1_behavior.rs which PR #337 also reduced to a pointer file — that pointer file is now deleted and replaced with real #[test] fn coverage in crates/optid/src/policy.rs). A fresh independent cold verification of the current F1 implementation is required before F1 may return to `completed`. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/policy.rs",
   "crates/optid/src/decision.rs",
   "crates/optid/src/action.rs",
+  "crates/optid/src/actuator.rs",
 ]
+# Binary-crate exception: `optid` is `[[bin]]`-only, so production paths
+# are `pub(crate)` and cannot be reached from `tests/` integration tests.
+# The F1 behavioral coverage lives inside `crates/optid/src/policy.rs`
+# under `#[cfg(test)] mod f1_tests`. The `acceptance_tests` mapping
+# below names the real `#[test] fn` definitions that live there.
 integration_tests = [
-  "crates/optid/tests/f1_behavior.rs",
+  "crates/optid/src/policy.rs",
 ]
 completion_evidence = [
   "crates/optid/src/policy.rs",
   "crates/optid/src/decision.rs",
   "crates/optid/src/action.rs",
-  "crates/optid/tests/f1_behavior.rs",
+  "crates/optid/src/actuator.rs",
   "docs/plans/optid-verification/f1.toml",
 ]
+# Post-#337: explicit acceptance_tests mapping. Each value names a real
+# `#[test] fn` in the declared integration_tests / completion_evidence
+# files. The validator confirms the named function exists as a
+# `#[test] fn` (not just any `fn`); a pointer file cannot satisfy this.
+[package.acceptance_tests]
+domain_mode_parsing = "f1_domain_mode_serde_accepts_lowercase_off_observe_actuate"
+unknown_field_rejection = "f1_domains_config_rejects_unknown_domain_key"
+systemd_action_domain_gating = "f1_systemd_set_property_is_domain_gated_by_default"
+observe_mode_preserves_would_be_actions = "f1_decide_observe_mode_captures_would_be_action_for_render"
+off_mode_suppresses_actions = "f1_decide_off_mode_suppresses_domain_actions_silently"
+effective_config_in_rendered_status = "f1_decision_render_includes_effective_config_block"
+new_domains_cannot_silently_fail_open = "f1_domain_default_mode_is_fail_closed_for_unknown_domains"
+production_pipeline_policy_to_render = "f1_production_pipeline_policy_to_render"
+production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unknown_domain"
 
 [[package]]
 id = "F2"
@@ -80,7 +121,7 @@ title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
 depends = ["F2", "F3"]
 pr = "327"
-blocking_reason = "Reconciler shadow mode is now operational in the daemon loop (transition detection + target-identity desired tracking + parity tests for multi-device/drift/coalesce/bounded retry), but production restore still uses active_keys + Actuator::revert_key rather than reconciler v1 apply. Remaining blockers: (1) production cutover from active_keys to target-keyed restore with readback-equals-last-confirmed; (2) F3 envelope alignment (reconciler still has local Ownership/ApplyResult types); (3) full systemd property and VM/sysctl restore through the reconciler rather than only journal keys; (4) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
+blocking_reason = "Reconciler shadow mode is now operational in the daemon loop (transition detection + plan_restore computes the same plan in Shadow and V1; replace_desired_targets mirrors active_keys set replacement each tick; stale_target_ids surfaces restore-eligible targets; parity tests cover multi-device/drift/coalesce/bounded-retry/deterministic-ordering), but production restore still uses active_keys + Actuator::revert_key rather than reconciler v1 apply. The ledger must clearly state that production still uses active_keys. Remaining blockers: (1) production cutover from active_keys to target-keyed restore with readback-equals-last-confirmed; (2) F3 envelope alignment (reconciler still has local Ownership/ApplyResult types); (3) full systemd property restore — the post-#337 repair reverted the fake Systemd journal key (Action::SystemdSetProperty::journal_key() now returns None) because the Systemd apply path captures no original properties and has no property-level restoration; a real implementation must enumerate each changed property, read its original runtime value, distinguish absent from explicit, restore each, verify readback, and avoid overwriting external changes; (4) VM/sysctl restore through the reconciler rather than only journal keys; (5) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
 completion_evidence = []
 
 [[package]]
@@ -245,7 +286,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) Domain::Thermal is observe-only and T2/T3 actuation is out of scope. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added a real production-path pipeline test (t1_production_pipeline_collect_to_render) and a zero-thermal-reads test for mode=off (t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
@@ -253,13 +294,36 @@ runtime_entrypoints = [
   "crates/optid/src/thermal.rs",
   "crates/optid/src/decision.rs",
 ]
+# Binary-crate exception: `optid` is `[[bin]]`-only, so production paths
+# are `pub(crate)` and cannot be reached from `tests/` integration tests.
+# T1 behavioral coverage lives inside `crates/optid/src/thermal.rs`
+# under `#[cfg(test)] mod tests`. The `acceptance_tests` mapping below
+# names the real `#[test] fn` definitions that live there.
 integration_tests = [
-  "crates/optid/tests/t1_thermal_budget.rs",
+  "crates/optid/src/thermal.rs",
 ]
 completion_evidence = [
   "crates/optid/src/thermal.rs",
-  "crates/optid/tests/t1_thermal_budget.rs",
+  "crates/optid/src/sensors.rs",
 ]
+# Post-#337: explicit acceptance_tests mapping. Each value names a real
+# `#[test] fn` in the declared integration_tests / completion_evidence
+# files. The pipeline test exercises Snapshot::collect_with_thermal →
+# discover → compute_thermal_budget → render_thermal_status.
+[package.acceptance_tests]
+sensor_discovery_hwmon = "discover_hwmon_cpu_temp"
+sensor_discovery_acpi_thermal_zone = "discover_acpi_thermal_zone"
+fan_discovery = "discover_fan_rpm"
+thermal_budget_unavailable_without_sensors = "thermal_budget_unavailable_without_sensors"
+thermal_budget_linear_derating = "thermal_budget_linear_derating"
+hysteresis_via_previous = "two_iterations_hysteresis_via_previous"
+collect_off_skips_observation = "collect_off_skips_observation"
+snapshot_off_skips_thermal_zone_discovery = "snapshot_off_skips_thermal_zone_discovery_and_thermal_c"
+collect_config_changes_results = "collect_config_changes_results"
+render_includes_sensor_state = "render_includes_sensor_state_ratio_reasons"
+deterministic_ordering = "deterministic_ordering"
+production_pipeline_collect_to_render = "t1_production_pipeline_collect_to_render"
+production_pipeline_off_mode_zero_thermal_reads = "t1_production_pipeline_off_mode_zero_thermal_reads"
 
 [[package]]
 id = "T2"
