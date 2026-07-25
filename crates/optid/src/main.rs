@@ -371,6 +371,11 @@ fn run(args: Args) -> io::Result<()> {
             .unwrap_or_else(|| PathBuf::from("contracts.toml"));
         let contracts = Contracts::load(&contracts_path);
 
+        // SPEC §3: install this tick's contract floors on the actuator
+        // before applying the decision, so depth-enabler writes are gated
+        // by the class the daemon actually committed to.
+        actuator.set_active_floors(contracts.resolve(committed_class));
+
         let decision = policy.decide_resolved(
             &snapshot,
             override_mode,

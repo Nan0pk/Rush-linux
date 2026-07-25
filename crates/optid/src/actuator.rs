@@ -20,6 +20,7 @@ use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
 use crate::capability::Capability;
+use crate::contracts::{fits_contract, ContractFloors};
 use crate::io_util::{
     append_log, atomic_write_state_file, clear_journal, get_path_hash, mark_applied,
 };
@@ -105,6 +106,13 @@ pub(crate) struct Actuator {
     /// `boot_state.apply_armed`. The curated baseline is gated by
     /// `boot_state.baseline_armed` and applied via `apply_baseline`.
     pub(crate) boot_state: Option<BootState>,
+    /// SPEC §3 contract gate. The `ContractFloors` resolved from the
+    /// committed workload class for this tick. `None` ⇒ no contract has
+    /// been installed (legacy callers and unit tests that construct an
+    /// `Actuator` directly), in which case the gate is open and the
+    /// actuator behaves exactly as before. `main` calls
+    /// `set_active_floors` every tick before applying the decision.
+    pub(crate) active_floors: Option<ContractFloors>,
     /// F2: injectable kernel I/O. Defaults to `RealKernel` for production
     /// and existing tests. New fault-injection tests construct the actuator
     /// via `new_with_kernel` and pass a `FaultKernel` to simulate missing
@@ -143,6 +151,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            active_floors: None,
             kernel,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
@@ -166,6 +175,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            active_floors: None,
             kernel: Box::new(RealKernel::new()),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
@@ -176,6 +186,88 @@ impl Actuator {
     /// allowlist. Called from `main` when `--allowlist` is set.
     pub(crate) fn enable_allowlist(&mut self, allowlist: Allowlist) {
         self.allowlist = Some(allowlist);
+    }
+
+    /// SPEC §3: install the contract floors for the current tick. `main`
+    /// calls this after resolving `committed_class` and before applying
+    /// the decision, so the gate always evaluates against the class the
+    /// daemon actually committed to this cycle.
+    pub(crate) fn set_active_floors(&mut self, floors: ContractFloors) {
+        self.active_floors = Some(floors);
+    }
+
+    /// SPEC §3 contract gate:
+    ///
+    /// ```text
+    /// exit_latency(S) ≤ active_contract.floor(D)
+    /// ```
+    ///
+    /// Returns `Ok(true)` when the action may proceed. Only the two
+    /// depth-enablers that trade resume latency for power are gated:
+    ///
+    /// - `DeviceResumeLatency` — the action value *is* the resume latency
+    ///   in microseconds. `None` means "no constraint" (the PM QoS default),
+    ///   which cannot violate a floor.
+    /// - `RuntimePm` — autosuspend delay is expressed in milliseconds, so
+    ///   the exit latency is `autosuspend_delay_ms × 1000` µs.
+    ///
+    /// Every other variant is ungated and returns `true`: CPU EPP,
+    /// platform profile and cgroup weights do not change a device's exit
+    /// latency, and CPU DMA latency is itself a latency *floor* request
+    /// rather than a state with an exit cost.
+    ///
+    /// Negative values are treated as "no constraint" rather than being
+    /// cast to `u64`, where `-1` would wrap to `u64::MAX` and be blocked
+    /// by every floor, or a negative delay would wrap into a small
+    /// apparently-valid latency. `-1` is the kernel's own sentinel for an
+    /// unset `autosuspend_delay_ms`.
+    fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
+        let Some(floors) = self.active_floors else {
+            return Ok(true); // gate not installed
+        };
+        // A non-positive floor cannot be satisfied by any real state and
+        // most likely means a misconfigured contracts.toml; treat it as
+        // "no contract" rather than blocking all depth-enablers.
+        let floor_us: u64 = match u64::try_from(floors.device_resume_latency) {
+            Ok(f) if f > 0 => f,
+            _ => return Ok(true),
+        };
+
+        let (exit_latency_us, label) = match action {
+            Action::DeviceResumeLatency { path, value, .. } => match value {
+                // No PM QoS constraint requested ⇒ nothing to gate.
+                None => return Ok(true),
+                Some(v) => match u64::try_from(*v) {
+                    Ok(us) => (us, format!("device_resume_latency {}", path.display())),
+                    // Negative ⇒ not a real latency; leave it to the
+                    // capability/allowlist layers rather than wrapping.
+                    Err(_) => return Ok(true),
+                },
+            },
+            Action::RuntimePm {
+                device_dir,
+                autosuspend_delay_ms,
+                ..
+            } => {
+                // -1 is the kernel sentinel for "unset"; negative values
+                // are not a latency budget.
+                let Ok(delay_ms) = u64::try_from(*autosuspend_delay_ms) else {
+                    return Ok(true);
+                };
+                // Saturate rather than overflow on an absurd delay.
+                let us = delay_ms.saturating_mul(1000);
+                (us, format!("runtime_pm {}", device_dir.display()))
+            }
+            _ => return Ok(true),
+        };
+
+        if fits_contract(exit_latency_us, floor_us) {
+            return Ok(true);
+        }
+        self.log(&format!(
+            "contract gate BLOCKED {label}: exit_latency={exit_latency_us}us > floor={floor_us}us"
+        ))?;
+        Ok(false)
     }
 
     /// optid-safety: install the boot-time decision surface. After this call,
@@ -374,6 +466,13 @@ impl Actuator {
         // with a logged reason. The curated baseline is applied separately
         // via apply_baseline(), gated by baseline_armed.
         if !self.dynamic_writes_armed()? {
+            return Ok(());
+        }
+        // SPEC §3 contract gate. Evaluated before capability validation,
+        // the hardware allowlist, journaling and any mutation, so a
+        // blocked action leaves no trace on the device or in the state
+        // directory.
+        if !self.contract_permits(action)? {
             return Ok(());
         }
         match action {

@@ -1188,6 +1188,314 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
+    // ── Defect 3: SPEC §3 contract gate in the actuator ─────────────────────
+
+    /// Build an allowlisted synthetic runtime-PM device for contract tests.
+    fn contract_rpm_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let dev = temp.join(name);
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"contract gate test\"\n"),
+        )
+        .unwrap();
+        dev
+    }
+
+    /// A 2000 ms autosuspend delay is a 2,000,000 µs exit latency, which
+    /// exceeds a 1,000,000 µs floor — the write must be refused, and must
+    /// leave no mutation and no journal behind.
+    #[test]
+    fn test_contract_gate_blocks_runtime_pm_over_floor() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_block_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0090d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-1", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 100_000,
+            device_resume_latency: 1_000_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000, // 2_000_000 us > 1_000_000 us floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        // No mutation.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "blocked action must not write power/control"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "100",
+            "blocked action must not write autosuspend_delay_ms"
+        );
+
+        // No journal, no applied marker, no cache entry.
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        assert!(!temp.join(format!("intended_rpm_{hash}")).exists());
+        assert!(!temp.join(format!("applied_rpm_{hash}")).exists());
+        assert!(actuator.last_runtime_pm.get(&dev).is_none());
+
+        // Blocked with the documented log line.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED"),
+            "expected a contract gate BLOCKED line, got: {log}"
+        );
+        assert!(
+            log.contains("exit_latency=2000000us") && log.contains("floor=1000000us"),
+            "log must report the exit latency and the floor, got: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// The same 2000 ms delay fits a 2,000,000 µs floor exactly, so it is
+    /// allowed (the predicate is `<=`).
+    #[test]
+    fn test_contract_gate_allows_runtime_pm_within_floor() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_allow_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0091d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-2", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 100_000,
+            device_resume_latency: 2_000_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000, // exactly at the floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(temp.join(format!("original_rpm_{hash}")).exists());
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(!log.contains("contract gate BLOCKED"), "{log}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// PM QoS resume latency is gated on the same floor, and a blocked
+    /// action must not reach the sink.
+    #[test]
+    fn test_contract_gate_blocks_device_resume_latency_over_floor() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_dev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let power = temp.join("0000:00:14.0").join("power");
+        fs::create_dir_all(&power).unwrap();
+        let dev_path = power.join("pm_qos_resume_latency_us");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 10_000,
+        });
+
+        actuator
+            .apply(&Action::DeviceResumeLatency {
+                path: dev_path.clone(),
+                value: Some(50_000), // 50_000 us > 10_000 us floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        // Never reached the sink, so the mock still reports its default.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "0"
+        );
+        let key = format!("dev_{}", get_path_hash(&dev_path));
+        assert!(!temp.join(format!("original_{key}")).exists());
+        assert!(!actuator.last_device_latencies.contains_key(&dev_path));
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(log.contains("contract gate BLOCKED"), "{log}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Negative values must not wrap into small valid latencies. `-1` is
+    /// the kernel's "unset" sentinel and must be treated as unconstrained,
+    /// not as u64::MAX (blocked by everything) nor as a tiny latency.
+    #[test]
+    fn test_contract_gate_handles_negative_values_safely() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_neg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0092d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-3", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        // A tight floor that u64::MAX would certainly violate.
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 1_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: -1,
+                reason: "unset sentinel".to_string(),
+            })
+            .unwrap();
+
+        // Not blocked by the gate: -1 is "no constraint", so the action
+        // proceeds to the normal actuation path.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "negative delay must not be wrapped into a blocked latency: {log}"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+
+        // Same for a negative PM QoS value. Use a separate actuator with
+        // the hardware allowlist left disabled: this synthetic attribute
+        // path has no modalias, so an enabled allowlist would default-deny
+        // it and mask what this test is actually asserting about the
+        // contract gate.
+        let qos_power = temp.join("0000:00:15.0").join("power");
+        fs::create_dir_all(&qos_power).unwrap();
+        let dev_path = qos_power.join("pm_qos_resume_latency_us");
+
+        let mut qos_actuator =
+            Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        qos_actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 1_000,
+        });
+        qos_actuator
+            .apply(&Action::DeviceResumeLatency {
+                path: dev_path.clone(),
+                value: Some(-1),
+                reason: "unset sentinel".to_string(),
+            })
+            .unwrap();
+        assert_eq!(
+            qos_actuator
+                .pmqos_sink
+                .read_device_latency(&dev_path)
+                .unwrap(),
+            "-1",
+            "negative PM QoS value should pass the gate and reach the sink"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// With no floors installed the gate is open — preserves behaviour for
+    /// every existing test and legacy caller that builds an Actuator
+    /// directly.
+    #[test]
+    fn test_contract_gate_open_when_no_floors_installed() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_none_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0093d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-4", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        // No set_active_floors call.
+        assert!(actuator.active_floors.is_none());
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 60_000, // would violate every real floor
+                reason: "no contract installed".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Ungated variants are unaffected by a tight floor.
+    #[test]
+    fn test_contract_gate_ignores_non_latency_actions() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_other_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1,
+            device_resume_latency: 1,
+        });
+
+        // CpuEpp has no discoverable paths in the test environment, so it
+        // logs a skip rather than writing — the point is that the contract
+        // gate does not block it.
+        actuator
+            .apply(&Action::CpuEpp {
+                value: "power".to_string(),
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap_or_default();
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "CPU EPP must not be contract-gated: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     // ── Defect 2: inverse restore on context change ─────────────────────────
 
     /// A runtime-PM action applied on one tick must be reverted when the
