@@ -35,15 +35,27 @@ PrivateTmp=yes
 # Setting PrivateDevices=yes would hide /dev entirely and break that actuator.
 PrivateDevices=no
 
-# ReadWritePaths grants only the four statically-known system-wide knob
-# subtrees. Per-device depth-enablers (runtime PM, PCIe ASPM, SATA ALPM,
-# backlight, per-device PM Qos resume latency) write to dynamic paths under
-# /sys/devices that CANNOT be statically enumerated at packaging time. Those
-# actuators soft-fail (log + skip) under this service rather than weakening
-# the sandbox with a broad /sys/devices grant. A finer privilege boundary
-# (per-device bind paths at startup, or a minimal privileged helper) is
-# tracked as follow-up work.
-ReadWritePaths=/run/optid /sys/devices/system/cpu /sys/firmware/acpi/platform_profile /proc/sys/vm /dev/cpu_dma_latency
+# ProtectKernelTunables makes /sys, /proc/sys, etc. read-only. Without it,
+# the entire /sys tree is writable regardless of ReadWritePaths, which
+# defeats the sandbox. With it, ReadWritePaths becomes the actual gate.
+ProtectKernelTunables=yes
+
+# ReadWritePaths: statically-known system knobs + the dynamic-device
+# subtrees that depth-enablers (runtime PM, PCIe ASPM, SATA ALPM,
+# backlight, PM QoS resume latency) write to. Per-file granularity is
+# enforced by the software allowlist in kernel_io.rs
+# (is_allowlisted_write_path), which validates path SHAPE — not by
+# systemd, which can only grant path PREFIXES.
+ReadWritePaths=/run/optid \
+    /sys/devices/system/cpu \
+    /sys/firmware/acpi/platform_profile \
+    /sys/devices \
+    /sys/bus/pci \
+    /sys/bus/usb \
+    /sys/class/backlight \
+    /sys/class/scsi_host \
+    /proc/sys/vm \
+    /dev/cpu_dma_latency
 
 # Network: the daemon does not need network access. AF_UNIX is needed for
 # D-Bus (system bus socket). AF_NETLINK is needed for reading netlink
@@ -85,4 +97,3 @@ ProtectProc=invisible
 
 [Install]
 WantedBy=multi-user.target
-
