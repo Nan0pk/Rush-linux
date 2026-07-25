@@ -41,6 +41,27 @@ impl Decision {
         out.push_str(&format!("on_ac={:?}\n", snapshot.on_ac));
         out.push_str(&format!("battery_pct={:?}\n", snapshot.battery_pct));
         out.push_str(&format!("thermal_c={:?}\n", snapshot.thermal_c()));
+        // T1 — surface the thermal budget state and sensor count so the
+        // operator can see what optid observed. The fields are populated
+        // by `Snapshot::collect_with`; rendering them here is their
+        // production-surface consumer and the operator-trustable surface
+        // for T1 (see `crates/optid/tests/t1_thermal_budget.rs`).
+        out.push_str(&format!(
+            "thermal_budget_state={:?}\n",
+            snapshot.thermal_budget.state
+        ));
+        out.push_str(&format!(
+            "thermal_derating_ratio={:.2}\n",
+            snapshot.thermal_budget.derating_ratio
+        ));
+        out.push_str(&format!(
+            "thermal_sensors={}\n",
+            snapshot.thermal_sensors.len()
+        ));
+        out.push_str(&format!("fan_sensors={}\n", snapshot.fan_sensors.len()));
+        if let Some(max_fan_rpm) = snapshot.thermal_budget.max_fan_rpm {
+            out.push_str(&format!("max_fan_rpm={}\n", max_fan_rpm));
+        }
         out.push_str(&format!("loadavg_1={:?}\n", snapshot.loadavg_1));
         out.push_str(&format!(
             "cpu_pressure={}\n",

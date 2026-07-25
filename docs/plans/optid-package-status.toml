@@ -243,7 +243,7 @@ lane = "thermal"
 title = "Build thermal sensing and a pure budget model"
 status = "candidate"
 depends = []
-pr = "333"
+pr = "334"
 blocking_reason = ""
 runtime_entrypoints = [
   "crates/optid/src/main.rs",

@@ -196,8 +196,7 @@ pub(crate) fn compute_thermal_budget(
     };
 
     // 4. Hysteresis adjustment for lower threshold
-    let was_derating_or_constrained =
-        previous.map_or(false, |p| p.state != ThermalBudgetState::Cool);
+    let was_derating_or_constrained = previous.is_some_and(|p| p.state != ThermalBudgetState::Cool);
     let effective_lo_c = if was_derating_or_constrained {
         let lo_hys = config.thermal_lo_c - config.hysteresis_c;
         reasons.push(format!(

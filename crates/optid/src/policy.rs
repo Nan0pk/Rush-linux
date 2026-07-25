@@ -155,6 +155,28 @@ impl Domain {
     }
 
     /// Default mode for this domain when no `[domains.<name>]` entry exists.
+    ///
+    /// **Migration mapping (F1):** every variant of the v0.6+f1 closed set
+    /// defaults to `Actuate`, preserving today's curated `policy.toml`
+    /// behavior bit-for-bit. The compiler enforces the closed set: any
+    /// new variant added to `Domain` produces a non-exhaustive-match
+    /// error here, forcing the author to make an explicit Actuate/Off
+    /// choice before their PR can compile. This is the F1 spec rule
+    /// "new domains default `off`" enforced at the type level — a
+    /// future domain *cannot* silently fail open to `Actuate`.
+    ///
+    /// The closed set is the same as `Domain::all()`. The explicit
+    /// match (rather than a `Default` impl or a lookup table) is
+    /// deliberate: it forces every author to think about the
+    /// default for their new domain.
+    ///
+    /// **T1 exception (sensor-only domain):** the F1 plan states
+    /// "new sensor-only domains default `observe` only when reads are
+    /// side-effect-free". `Thermal` is read-only (hwmon/thermal_zone
+    /// reads only, no actuation), so it defaults to `Observe` rather
+    /// than `Actuate`. Adding a future sensor-only domain requires the
+    /// same justification: prove the reads are side-effect-free, then
+    /// default to `Observe`.
     pub(crate) fn default_mode(&self) -> DomainMode {
         match self {
             Domain::CpuEpp
@@ -169,6 +191,38 @@ impl Domain {
             | Domain::CgroupReweight => DomainMode::Actuate,
             Domain::Thermal => DomainMode::Observe,
         }
+    }
+
+    /// The v0.6+f1 actuate closed set: domains whose default mode is
+    /// `Actuate` because they perform kernel writes and preserve today's
+    /// curated `policy.toml` behavior. Used by F1 contract tests so they
+    /// can assert the migration-safety invariant without conflating it
+    /// with sensor-only domains (which default to `Observe`).
+    ///
+    /// Adding a new actuate domain to this list requires updating the
+    /// F1 contract tests — that's deliberate.
+    #[cfg(test)]
+    pub(crate) fn actuate_domains() -> &'static [Domain] {
+        &[
+            Domain::CpuEpp,
+            Domain::PlatformProfile,
+            Domain::VmSysctl,
+            Domain::CpuDmaLatency,
+            Domain::DeviceResumeLatency,
+            Domain::RuntimePm,
+            Domain::PcieAspm,
+            Domain::SataAlpm,
+            Domain::Backlight,
+            Domain::CgroupReweight,
+        ]
+    }
+
+    /// Sensor-only domains: read-only observations with no kernel writes.
+    /// The F1 plan permits these to default to `Observe` when reads are
+    /// side-effect-free. `Thermal` (T1) is the first such domain.
+    #[cfg(test)]
+    pub(crate) fn sensor_only_domains() -> &'static [Domain] {
+        &[Domain::Thermal]
     }
 }
 
@@ -1557,7 +1611,21 @@ mode = "fast"
         // the F1 package-completion repair to close the SystemdSetProperty
         // backdoor. See `f1_action_domain_returns_some_for_systemd_set_property`
         // and `f1_systemd_set_property_is_domain_gated`.
-        assert_eq!(Domain::all().len(), 10, "expected 10 v0.6+f1 domains");
+        //
+        // T1 update: `Domain::all()` now also contains `Thermal`, a
+        // sensor-only domain that defaults to `Observe`. The 10-domain
+        // *actuate* closed set is asserted via `Domain::actuate_domains()`;
+        // `Domain::all()` is 11 (10 actuate + 1 sensor-only).
+        assert_eq!(
+            Domain::actuate_domains().len(),
+            10,
+            "expected 10 v0.6+f1 actuate domains"
+        );
+        assert_eq!(
+            Domain::all().len(),
+            11,
+            "expected 11 total domains (10 actuate + 1 sensor-only Thermal)"
+        );
     }
 
     #[test]
@@ -1583,16 +1651,39 @@ mode = "fast"
 
     #[test]
     fn f1_domain_default_mode_is_actuate_for_v0_6_domains() {
-        // Migration safety: every v0.6+f1 domain defaults to Actuate so
-        // today's curated policy.toml keeps doing exactly what it does
+        // Migration safety: every v0.6+f1 actuate domain defaults to Actuate
+        // so today's curated policy.toml keeps doing exactly what it does
         // today. The fail-closed invariant for future domains lives in
         // the explicit exhaustive match in `Domain::default_mode` —
         // see `f1_domain_default_mode_is_fail_closed_for_unknown_domains`.
-        for &d in Domain::all() {
+        //
+        // T1 update: this test now iterates `Domain::actuate_domains()`
+        // rather than `Domain::all()`, because `Thermal` (a sensor-only
+        // domain) defaults to `Observe` per the F1 plan's sensor-only
+        // exception. The sensor-only default is asserted in
+        // `f1_sensor_only_domains_default_to_observe`.
+        for &d in Domain::actuate_domains() {
             assert_eq!(
                 d.default_mode(),
                 DomainMode::Actuate,
-                "domain {} should default to Actuate (v0.6+f1 migration safety)",
+                "actuate domain {} should default to Actuate (v0.6+f1 migration safety)",
+                d.as_str()
+            );
+        }
+    }
+
+    /// T1 — sensor-only domains (read-only observations) default to `Observe`
+    /// rather than `Actuate`, per the F1 plan's exception: "new sensor-only
+    /// domains default `observe` only when reads are side-effect-free".
+    /// `Thermal` is the first such domain; adding another requires proving
+    /// the reads are side-effect-free.
+    #[test]
+    fn f1_sensor_only_domains_default_to_observe() {
+        for &d in Domain::sensor_only_domains() {
+            assert_eq!(
+                d.default_mode(),
+                DomainMode::Observe,
+                "sensor-only domain {} should default to Observe (F1 sensor-only exception)",
                 d.as_str()
             );
         }
@@ -1607,19 +1698,23 @@ mode = "fast"
     /// is therefore: a future domain *cannot* fail open to Actuate,
     /// even by mistake.
     ///
-    /// This test pins the closed set (10 v0.6+f1 domains) and the
-    /// invariant that every existing domain defaults to Actuate (the
-    /// migration-safety contract).
+    /// This test pins the closed set (10 v0.6+f1 actuate domains) and
+    /// the invariant that every existing actuate domain defaults to
+    /// Actuate (the migration-safety contract). Sensor-only domains
+    /// (T1 `Thermal`) are pinned separately by
+    /// `f1_sensor_only_domains_default_to_observe`.
     #[test]
     fn f1_domain_default_mode_is_fail_closed_for_unknown_domains() {
-        // The v0.6+f1 closed set: every known domain in `Domain::all()`
-        // must default to Actuate. We re-derive this from
-        // `Domain::default_mode` (not hardcode the list) so a future
-        // contributor who adds a domain has to update this test
-        // deliberately.
-        let known: std::collections::BTreeSet<&'static str> =
-            Domain::all().iter().map(|d| d.as_str()).collect();
-        // Today the closed set is exactly the v0.6+f1 ten domains.
+        // The v0.6+f1 actuate closed set: every domain in
+        // `Domain::actuate_domains()` must default to Actuate. We
+        // re-derive this from `Domain::default_mode` (not hardcode the
+        // list) so a future contributor who adds an actuate domain has
+        // to update this test deliberately.
+        let known: std::collections::BTreeSet<&'static str> = Domain::actuate_domains()
+            .iter()
+            .map(|d| d.as_str())
+            .collect();
+        // Today the actuate closed set is exactly the v0.6+f1 ten domains.
         let expected_closed: std::collections::BTreeSet<&'static str> = [
             "cpu_epp",
             "platform_profile",
@@ -1694,9 +1789,10 @@ bogus_field = true
         // the outer table name in policy.toml; the type itself is the
         // inner table).
         //
-        // F1 repair: 10 known domains (the original 9 v0.6 + the
+        // F1 repair: 10 actuate domains (the original 9 v0.6 + the
         // CgroupReweight entry added to close the SystemdSetProperty
-        // backdoor).
+        // backdoor). T1 added `Thermal` as an 11th, sensor-only domain;
+        // it is asserted separately below.
         let toml_str = r#"
 [cpu_epp]
 mode = "actuate"
@@ -1718,8 +1814,10 @@ mode = "actuate"
 mode = "actuate"
 [cgroup_reweight]
 mode = "actuate"
+[thermal]
+mode = "observe"
 "#;
-        let cfg: DomainsConfig = toml::from_str(toml_str).expect("all ten known domains");
+        let cfg: DomainsConfig = toml::from_str(toml_str).expect("all known domains");
         for &d in Domain::all() {
             assert!(
                 cfg.get(d).is_some(),
@@ -1749,15 +1847,24 @@ mode = "actuate"
     #[test]
     fn f1_effective_config_default_policy_all_actuate() {
         // The migration safety contract: `Policy::default()` (no [domains]
-        // section) yields Actuate for every v0.6 domain. This preserves
-        // today's behavior.
+        // section) yields Actuate for every v0.6+f1 actuate domain. This
+        // preserves today's behavior. Sensor-only domains (T1 `Thermal`)
+        // default to `Observe` and are asserted separately.
         let policy = Policy::default();
         let effective = EffectiveConfig::from_policy(&policy);
-        for &d in Domain::all() {
+        for &d in Domain::actuate_domains() {
             assert_eq!(
                 effective.mode_for(d),
                 DomainMode::Actuate,
-                "domain {} should be Actuate under default policy",
+                "actuate domain {} should be Actuate under default policy",
+                d.as_str()
+            );
+        }
+        for &d in Domain::sensor_only_domains() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Observe,
+                "sensor-only domain {} should be Observe under default policy",
                 d.as_str()
             );
         }
@@ -1829,10 +1936,12 @@ mode = "off"
 
     #[test]
     fn f1_effective_config_render_lists_all_domains_in_canonical_order() {
+        // Every actuate domain renders `domains.<name>=actuate` under the
+        // default policy. Sensor-only domains render `=observe`.
         let policy = Policy::default();
         let effective = EffectiveConfig::from_policy(&policy);
         let rendered = effective.render();
-        for &d in Domain::all() {
+        for &d in Domain::actuate_domains() {
             let line = format!("domains.{}={}", d.as_str(), DomainMode::Actuate.as_str());
             assert!(
                 rendered.contains(&line),
@@ -2628,7 +2737,8 @@ mode = "actuate"
     fn f1_curated_policy_toml_still_parses() {
         // The shipped config/optid/policy.toml must still parse under F1.
         // The [domains] section is optional and defaults to Actuate for
-        // every v0.6 domain, so today's file keeps doing what it does.
+        // every v0.6 actuate domain and Observe for sensor-only domains
+        // (T1 Thermal), so today's file keeps doing what it does.
         let curated = include_str!("../../../config/optid/policy.toml");
         let result: Result<Policy, _> = toml::from_str(curated);
         assert!(
@@ -2638,11 +2748,22 @@ mode = "actuate"
         );
         let policy = result.expect("parsed");
         let effective = EffectiveConfig::from_policy(&policy);
-        for &d in Domain::all() {
+        // Actuate domains keep Actuate (migration safety).
+        for &d in Domain::actuate_domains() {
             assert_eq!(
                 effective.mode_for(d),
                 DomainMode::Actuate,
-                "curated policy should leave domain {} at Actuate",
+                "curated policy should leave actuate domain {} at Actuate",
+                d.as_str()
+            );
+        }
+        // Sensor-only domains (T1 Thermal) default to Observe unless
+        // the curated file explicitly overrides them.
+        for &d in Domain::sensor_only_domains() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Observe,
+                "curated policy should leave sensor-only domain {} at Observe",
                 d.as_str()
             );
         }
@@ -2651,14 +2772,23 @@ mode = "actuate"
     #[test]
     fn f1_curated_baseline_still_uses_actuate_for_all_domains() {
         // The safety-floor curated_baseline() must also preserve today's
-        // behavior under F1.
+        // behavior under F1 for actuate domains. Sensor-only domains (T1
+        // Thermal) default to Observe.
         let policy = Policy::curated_baseline();
         let effective = EffectiveConfig::from_policy(&policy);
-        for &d in Domain::all() {
+        for &d in Domain::actuate_domains() {
             assert_eq!(
                 effective.mode_for(d),
                 DomainMode::Actuate,
-                "curated_baseline should leave domain {} at Actuate",
+                "curated_baseline should leave actuate domain {} at Actuate",
+                d.as_str()
+            );
+        }
+        for &d in Domain::sensor_only_domains() {
+            assert_eq!(
+                effective.mode_for(d),
+                DomainMode::Observe,
+                "curated_baseline should leave sensor-only domain {} at Observe",
                 d.as_str()
             );
         }

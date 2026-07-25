@@ -40,7 +40,7 @@ impl Pressure {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Snapshot {
     pub(crate) timestamp: u64,
     pub(crate) on_ac: Option<bool>,
@@ -76,34 +76,6 @@ pub(crate) struct Snapshot {
     pub(crate) fan_sensors: Vec<crate::thermal::FanSensor>,
     /// T1 — Pure deterministic thermal budget.
     pub(crate) thermal_budget: crate::thermal::ThermalBudget,
-}
-
-impl Default for Snapshot {
-    fn default() -> Self {
-        Self {
-            timestamp: 0,
-            on_ac: None,
-            battery_pct: None,
-            max_temp_millic: None,
-            loadavg_1: None,
-            cpu_pressure: None,
-            memory_pressure: None,
-            io_pressure: None,
-            zram_swap_active: false,
-            foreground_app: None,
-            pinned_class: None,
-            global_pinned_class: None,
-            pm_qos_device_paths: Vec::new(),
-            runtime_pm_device_paths: Vec::new(),
-            pcie_aspm_device_paths: Vec::new(),
-            sata_alpm_host_paths: Vec::new(),
-            selected_backlight: None,
-            is_vm_guest: false,
-            thermal_sensors: Vec::new(),
-            fan_sensors: Vec::new(),
-            thermal_budget: crate::thermal::ThermalBudget::default(),
-        }
-    }
 }
 
 impl Snapshot {
