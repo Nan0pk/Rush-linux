@@ -40,7 +40,7 @@ impl Pressure {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Snapshot {
     pub(crate) timestamp: u64,
     pub(crate) on_ac: Option<bool>,
@@ -70,6 +70,12 @@ pub(crate) struct Snapshot {
     pub(crate) selected_backlight: Option<PathBuf>,
     /// v0.6 Phase C2: `true` when DMI reports a hypervisor vendor.
     pub(crate) is_vm_guest: bool,
+    /// T1 — Discovered thermal sensors (°C).
+    pub(crate) thermal_sensors: Vec<crate::thermal::ThermalSensor>,
+    /// T1 — Discovered fan sensors (RPM).
+    pub(crate) fan_sensors: Vec<crate::thermal::FanSensor>,
+    /// T1 — Pure deterministic thermal budget.
+    pub(crate) thermal_budget: crate::thermal::ThermalBudget,
 }
 
 impl Snapshot {
@@ -83,6 +89,16 @@ impl Snapshot {
     /// `clock` parameters so a test can mix-and-match (e.g. a `FaultKernel`
     /// for reads with a `RealKernel` clock).
     pub(crate) fn collect_with(read: &dyn KernelRead, clock: &dyn Clock) -> Self {
+        let thermal_sensors = crate::thermal::discover_thermal_sensors_with(read);
+        let fan_sensors = crate::thermal::discover_fan_sensors_with(read);
+        let thermal_config = crate::thermal::ThermalConfig::default();
+        let thermal_budget = crate::thermal::compute_thermal_budget(
+            &thermal_config,
+            &thermal_sensors,
+            &fan_sensors,
+            None,
+        );
+
         Self {
             timestamp: clock.now_unix(),
             on_ac: read_on_ac_with(read),
@@ -104,11 +120,16 @@ impl Snapshot {
                 &discover_backlight_devices_with(read),
             ),
             is_vm_guest: detect_vm_guest_with(read),
+            thermal_sensors,
+            fan_sensors,
+            thermal_budget,
         }
     }
 
     pub(crate) fn thermal_c(&self) -> Option<f32> {
-        self.max_temp_millic.map(|temp| temp as f32 / 1000.0)
+        self.thermal_budget
+            .max_die_temp_c
+            .or_else(|| self.max_temp_millic.map(|temp| temp as f32 / 1000.0))
     }
 }
 

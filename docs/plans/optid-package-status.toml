@@ -241,10 +241,23 @@ completion_evidence = []
 id = "T1"
 lane = "thermal"
 title = "Build thermal sensing and a pure budget model"
-status = "ready_parallel"
+status = "candidate"
 depends = []
-pr = ""
-completion_evidence = []
+pr = "334"
+blocking_reason = ""
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/sensors.rs",
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/thermal.rs",
+]
+integration_tests = [
+  "crates/optid/tests/t1_thermal_budget.rs",
+]
+completion_evidence = [
+  "crates/optid/src/thermal.rs",
+  "crates/optid/tests/t1_thermal_budget.rs",
+]
 
 [[package]]
 id = "T2"

@@ -38,6 +38,7 @@ mod sensors;
 mod shim;
 #[cfg(test)]
 mod tests;
+mod thermal;
 mod workload;
 
 use actuator::Actuator;
