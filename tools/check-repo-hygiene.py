@@ -68,6 +68,11 @@ PRIVATE_KEY_FIXTURE_ALLOWLIST: frozenset[str] = frozenset(
         "tools/test-repo-hygiene.py",
         # Log-capture redactor that strips private key material from logs.
         "tools/rush_capture_lib.py",
+        # Documentation that names the marker strings the scanner detects.
+        # The boot-and-updates doc records the private-key-marker list so
+        # operators can see what the scanner rejects without grepping the
+        # scanner source.
+        "docs/boot-and-updates.md",
     }
 )
 

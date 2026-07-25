@@ -298,16 +298,23 @@ pub(crate) fn contract_gate_runtime_pm(
 /// (`pm_qos_resume_latency_us`). The value being written is a QoS ceiling
 /// request, not measured selected-state exit latency. The gate permits
 /// setting a constraint only when the requested ceiling is ≤ the class
-/// floor (tighter or equal constraint). Missing, negative, or
-/// overflowed values are denied — fail-closed — because they would
-/// otherwise allow any exit latency.
+/// floor (tighter or equal constraint). Missing or negative values are
+/// denied — fail-closed — because they would otherwise allow any exit
+/// latency.
 ///
-/// Prior to the post-#337 repair this gate was fail-open on three
-/// edges: a negative requested value returned `Permit` ("leave
-/// non-latency sentinels to other layers"), an overflowed value
-/// returned `Permit`, and a missing value was the only denial. All
-/// three are now denials; the actuator no longer relies on a separate
-/// layer to reject malformed constraints.
+/// Prior to the post-#337 repair this gate was fail-open on two edges:
+/// a negative requested value returned `Permit` ("leave non-latency
+/// sentinels to other layers"), and a missing value was the only
+/// denial. Both are now denials; the actuator no longer relies on a
+/// separate layer to reject malformed constraints.
+///
+/// Note on the `i64` parameter: the actuator calls this with
+/// `value.map(i64::from)` from `Option<i32>`. A positive `i32` always
+/// fits in `u64`, so the conversion never fails for valid caller input.
+/// There is no separate "overflow" branch — a negative `i64` is caught
+/// by the `v < 0` arm, and the `u64::try_from` for a non-negative `i64`
+/// always succeeds. The post-#338 review removed the unreachable
+/// `Err(_)` branch and its misleading "overflows u64" narrative.
 pub(crate) fn contract_gate_device_resume_constraint(
     requested_ceiling_us: Option<i64>,
     floor_us: u64,
@@ -326,25 +333,22 @@ pub(crate) fn contract_gate_device_resume_constraint(
                  requested_ceiling={v}us is negative; fail closed (no sentinels bypass the gate)"
             ),
         },
-        Some(v) => match u64::try_from(v) {
-            Ok(us) if fits_contract(us, floor_us) => ContractGateResult::Permit,
-            Ok(us) => ContractGateResult::Deny {
-                reason: format!(
-                    "contract gate BLOCKED device_resume_latency {path_label}: \
-                     requested_ceiling={us}us > floor={floor_us}us"
-                ),
-            },
-            // The i64 value does not fit in u64 — it is either negative
-            // (caught above) or so large it exceeds the u64 range. Either
-            // way, treating it as a permitted ceiling would allow any
-            // exit latency. Fail closed.
-            Err(_) => ContractGateResult::Deny {
-                reason: format!(
-                    "contract gate BLOCKED device_resume_latency {path_label}: \
-                     requested_ceiling={v}us overflows u64; fail closed"
-                ),
-            },
-        },
+        Some(v) => {
+            // v >= 0 here, so u64::try_from always succeeds. Use
+            // match to keep the compiler-checked exhaustiveness in case
+            // a future caller passes a wider integer type.
+            let us = u64::try_from(v).unwrap_or(u64::MAX);
+            if fits_contract(us, floor_us) {
+                ContractGateResult::Permit
+            } else {
+                ContractGateResult::Deny {
+                    reason: format!(
+                        "contract gate BLOCKED device_resume_latency {path_label}: \
+                         requested_ceiling={us}us > floor={floor_us}us"
+                    ),
+                }
+            }
+        }
     }
 }
 
@@ -547,30 +551,24 @@ mod tests {
     }
 
     #[test]
-    fn device_resume_constraint_overflowing_positive_denies() {
-        // A positive i64 that overflows u64 cannot be constructed directly
-        // (i64::MAX = 2^63-1 fits in u64). The overflow branch is reached
-        // only when the caller passes a value larger than u64::MAX, which
-        // is impossible from `Option<i32>` (the actuator path) but is
-        // reachable from a future `Option<i64>` caller. We exercise the
-        // branch by passing a value that does not fit in u64 — the only
-        // such i64 values are negative, which the negative branch catches.
-        //
-        // To prove the overflow branch is unreachable from the actuator
-        // path (which uses `Option<i32>`), we assert that i64::MAX is
-        // treated as a valid (huge) ceiling that exceeds any reasonable
-        // floor and is denied as "above floor", not as "overflows".
+    fn device_resume_constraint_huge_positive_denied_as_above_floor() {
+        // A huge positive ceiling (i64::MAX) exceeds any reasonable floor
+        // and must be denied as "above floor". There is no separate
+        // "overflow" branch: a positive i64 always fits in u64, so
+        // u64::try_from always succeeds. The post-#338 review removed
+        // the unreachable overflow narrative; this test pins the honest
+        // behavior — huge ceilings are denied by the floor comparison,
+        // not by an impossible overflow check.
         let result = contract_gate_device_resume_constraint(Some(i64::MAX), 1000, "path");
         assert!(matches!(result, ContractGateResult::Deny { .. }));
         if let ContractGateResult::Deny { reason } = result {
-            // i64::MAX fits in u64, so the denial reason is "above floor"
-            // (the ceiling exceeds the floor), not "overflows". The
-            // overflow branch is a defensive guard for a future caller
-            // that passes a value larger than u64::MAX; it cannot be
-            // reached from the current `Option<i32>` actuator path.
             assert!(
-                reason.contains("above floor") || reason.contains("> floor"),
-                "i64::MAX must be denied as 'above floor' (it fits in u64): {reason}"
+                reason.contains("> floor="),
+                "huge ceiling must be denied as 'above floor': {reason}"
+            );
+            assert!(
+                !reason.contains("overflow"),
+                "no overflow narrative (positive i64 always fits in u64): {reason}"
             );
         }
     }

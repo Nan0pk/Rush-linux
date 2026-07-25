@@ -2860,21 +2860,37 @@ mode = "actuate"
         }
     }
 
-    /// F1 production-path pipeline test (post-#337 behavioral evidence).
+    /// F1 in-crate behavioral test (post-#338 review).
     ///
-    /// Exercises the full chain the daemon runs each tick:
+    /// This is an **in-crate behavioral test**, not a full daemon
+    /// integration test. It constructs a `Policy` via the test helper
+    /// `f1_policy_with_domains` (which parses a TOML string with
+    /// `toml::from_str`), then exercises `EffectiveConfig::from_policy`,
+    /// `decide_resolved`, and `Decision::render`. It does NOT enter
+    /// through the daemon's file-loading path (`main.rs` →
+    /// `Policy::load(&args.config_path)`); the file-loading path is
+    /// exercised by the integration tests in `crates/optid/tests/`
+    /// (when present).
     ///
-    /// ```text
-    /// Policy::load_with_state
-    ///   → EffectiveConfig::from_policy (domain mode parsing)
-    ///   → decide_resolved (domain gating, observe/off suppression)
-    ///   → Decision::render (effective_config block in optctl status)
-    /// ```
+    /// What this test proves:
+    /// - Domain mode parsing: `[domains.cpu_epp] mode = "actuate"`,
+    ///   `[domains.runtime_pm] mode = "observe"`,
+    ///   `[domains.cgroup_reweight] mode = "off"` are reflected in the
+    ///   effective config.
+    /// - Unconfigured domains default to `Actuate` (migration safety).
+    /// - `decide_resolved` applies the per-domain gate:
+    ///   `CgroupReweight=off` suppresses `SystemdSetProperty`;
+    ///   `RuntimePm=observe` captures would-be actions in
+    ///   `suppressed_actions`.
+    /// - `Decision::render` surfaces the `effective_config:` block with
+    ///   all three configured modes.
     ///
-    /// This replaces the deleted `tests/f1_behavior.rs` pointer file,
-    /// which only asserted that a list of test names had length ≥3. The
-    /// pointer file could not detect a regression that broke the F1
-    /// chain; this test exercises the real production path.
+    /// What this test does NOT prove:
+    /// - That the daemon's file-loading path parses the curated
+    ///   `config/optid/policy.toml` (that is proven by
+    ///   `f1_curated_policy_toml_still_parses`).
+    /// - That the daemon wires the rendered status to
+    ///   `/run/optid/status` (that is a `main.rs` integration concern).
     #[test]
     fn f1_production_pipeline_policy_to_render() {
         // Build a policy with mixed domain modes so the pipeline

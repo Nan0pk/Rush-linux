@@ -1345,22 +1345,37 @@ mod tests {
         assert_eq!(ids, sorted);
     }
 
-    /// T1 production-path pipeline test (post-#337 behavioral evidence).
+    /// T1 in-crate behavioral test (post-#338 review).
     ///
-    /// Exercises the full chain the daemon runs each tick:
+    /// This is an **in-crate behavioral test**, not a full daemon
+    /// integration test. It exercises the production functions
+    /// (`Snapshot::collect_with_thermal`, `discover_thermal_sensors_with`,
+    /// `compute_thermal_budget`, `render_thermal_status`) through
+    /// injected `MemoryKernel` I/O, but it does not enter through the
+    /// daemon's file-loading/startup path (`main.rs` → `Policy::load` →
+    /// `Snapshot::collect_with_thermal`). The daemon path is exercised
+    /// by the integration tests in `crates/optid/tests/` (when present)
+    /// and by the `f1_production_pipeline_policy_to_render` test in
+    /// `policy.rs` for the policy/decision chain.
     ///
-    /// ```text
-    /// Snapshot::collect_with_thermal
-    ///   → discover_thermal_sensors_with / discover_fan_sensors_with
-    ///   → compute_thermal_budget (hysteresis via previous)
-    ///   → render_thermal_status
-    /// ```
+    /// What this test proves:
+    /// - `Snapshot::collect_with_thermal` discovers hwmon + fan sensors
+    ///   through the injected kernel I/O.
+    /// - `compute_thermal_budget` produces a `Derating` state for a
+    ///   72°C die temp with the default config (lo=60, hi=95).
+    /// - `render_thermal_status` includes the state, ratio, and sensor
+    ///   ID in its output.
+    /// - Hysteresis via the previous budget produces a stable result.
     ///
-    /// This replaces the deleted `tests/t1_thermal_budget.rs` pointer
-    /// file, which only asserted that a list of test names had length
-    /// ≥15. The pointer file could not detect a regression that broke
-    /// the pipeline; this test exercises the real production path
-    /// through injected `MemoryKernel` I/O.
+    /// What this test does NOT prove:
+    /// - That the daemon's startup path loads the configured thermal
+    ///   mode before the first `collect_with_thermal` call (that is
+    ///   proven by the `t1_production_pipeline_off_mode_zero_thermal_reads`
+    ///   test below for the mode=off case, and by `main.rs`'s
+    ///   post-#337 removal of the unconditional `Snapshot::collect()`
+    ///   baseline scan).
+    /// - That the daemon's loop wires the rendered status to
+    ///   `/run/optid/status` (that is a `main.rs` integration concern).
     #[test]
     fn t1_production_pipeline_collect_to_render() {
         use crate::sensors::Snapshot;
@@ -1413,11 +1428,28 @@ mod tests {
         assert_eq!(snap2.thermal_budget.state, ThermalBudgetState::Derating);
     }
 
-    /// T1 production-path test: when `mode = "off"`, the pipeline
-    /// performs **zero** thermal sysfs reads (no hwmon discovery, no
-    /// ACPI thermal-zone discovery, no legacy `/sys/class/thermal`
-    /// max-temp fallback). This is the post-#337 startup-scan removal
-    /// invariant — the daemon must not bypass operator configuration.
+    /// T1 in-crate behavioral test (post-#338 review): when
+    /// `mode = "off"`, the pipeline skips sensor discovery and the
+    /// legacy max-temp fallback, producing an empty sensor list and a
+    /// `Disabled` budget.
+    ///
+    /// **Honest scope (post-#338 review):** this test verifies that
+    /// `Snapshot::collect_with_thermal` with `mode = Off` returns an
+    /// empty `thermal_sensors` vector, a `Disabled` budget state, and
+    /// `None` for `max_temp_millic` and `thermal_c()`. It does NOT
+    /// count or reject actual sysfs reads at the kernel-I/O layer —
+    /// `MemoryKernel` does not record read calls. A future test that
+    /// instruments the `KernelRead` trait to count reads would be
+    /// stronger; this test proves the production code's mode=off
+    /// short-circuit branches are reached and produce the documented
+    /// output, which is sufficient to catch a regression that removes
+    /// the short-circuit.
+    ///
+    /// This is the post-#337 startup-scan removal invariant: the
+    /// daemon must not bypass operator configuration. The daemon-level
+    /// invariant (no `Snapshot::collect()` with default config at
+    /// startup) is enforced by `main.rs`'s post-#337 structure and is
+    /// not re-tested here.
     #[test]
     fn t1_production_pipeline_off_mode_zero_thermal_reads() {
         use crate::sensors::Snapshot;

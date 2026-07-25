@@ -292,7 +292,7 @@ def cmd_rootfs_create(args):
         
     repodata_path = repo_dir / "repodata.json"
     if not repodata_path.exists():
-        print(f"Error: repodata.json not found in repository. Run repo-init first.", file=sys.stderr)
+        print("Error: repodata.json not found in repository. Run repo-init first.", file=sys.stderr)
         sys.exit(1)
         
     with open(repodata_path, "r") as f:
@@ -656,7 +656,7 @@ exec switch_root /mnt/root /sbin/init
         if res_obj.returncode == 0:
             print("UKI compiled successfully using objcopy.")
         else:
-            print(f"Error: failed to compile UKI. Both ukify and objcopy failed.", file=sys.stderr)
+            print("Error: failed to compile UKI. Both ukify and objcopy failed.", file=sys.stderr)
             print(f"ukify stderr: {res.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
             print(f"objcopy stderr: {res_obj.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
             sys.exit(1)

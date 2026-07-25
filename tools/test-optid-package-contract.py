@@ -258,38 +258,220 @@ fn real_test_one() {
 
     def test_stale_receipt_is_flagged_when_proof_path_changed(self):
         """A completed package's receipt must be invalidated when a
-        later change modifies any declared proof path. This test uses
-        the real repository history: F1's receipt (PR #332, commit
-        001515b) is stale because subsequent PRs modified F1's runtime
-        entrypoints. The validator must flag it if F1 were still
-        `completed`.
+        later change modifies any declared proof path. Uses a synthetic
+        temporary Git repository so the test does not depend on the
+        real repository's history being available (which fails in
+        shallow CI checkouts).
         """
-        # Build a synthetic ledger with F1 as `completed` using the real
-        # receipt. The freshness check should flag it.
-        first = package(
-            "F1",
-            status="completed",
-            pr="332",
-            runtime_entrypoints=[
-                "crates/optid/src/main.rs",
-                "crates/optid/src/policy.rs",
-                "crates/optid/src/decision.rs",
-                "crates/optid/src/action.rs",
-            ],
-            integration_tests=["crates/optid/src/policy.rs"],
-            completion_evidence=[
-                "crates/optid/src/policy.rs",
-                "docs/plans/optid-verification/f1.toml",
-            ],
-            verification_receipt="docs/plans/optid-verification/f1.toml",
-        )
-        data = ledger(first)
-        errors = validator.validate_ledger(data, ROOT)
-        stale_errors = [e for e in errors if "stale" in e.lower()]
-        self.assertTrue(
-            stale_errors,
-            f"expected stale-receipt error for F1 (real repo history), got: {errors}",
-        )
+        import tempfile
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            # Initialize a synthetic git repo with the structure the
+            # validator expects.
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"], cwd=tmp_root, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"], cwd=tmp_root, check=True
+            )
+            # Create the proof paths the package declares.
+            proof_dir = tmp_root / "crates" / "optid" / "src"
+            proof_dir.mkdir(parents=True)
+            (proof_dir / "policy.rs").write_text("// v1\n", encoding="utf-8")
+            # Commit the initial version → this is the verified commit.
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "initial"], cwd=tmp_root, check=True
+            )
+            verified = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+            ).stdout.strip()
+            # Modify a declared proof path after the verified commit.
+            (proof_dir / "policy.rs").write_text("// v2 (modified)\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "modify proof path"], cwd=tmp_root, check=True
+            )
+
+            # Write a receipt that verifies the initial commit.
+            receipt_dir = tmp_root / "docs" / "plans" / "optid-verification"
+            receipt_dir.mkdir(parents=True)
+            receipt_path = receipt_dir / "f1.toml"
+            receipt_path.write_text(
+                f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{verified}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+                encoding="utf-8",
+            )
+
+            first = package(
+                "F1",
+                status="completed",
+                pr="332",
+                runtime_entrypoints=["crates/optid/src/policy.rs"],
+                integration_tests=["crates/optid/src/policy.rs"],
+                completion_evidence=[
+                    "crates/optid/src/policy.rs",
+                    "docs/plans/optid-verification/f1.toml",
+                ],
+                verification_receipt="docs/plans/optid-verification/f1.toml",
+            )
+            data = ledger(first)
+            errors = validator.validate_ledger(data, tmp_root)
+            stale_errors = [e for e in errors if "stale" in e.lower()]
+            self.assertTrue(
+                stale_errors,
+                f"expected stale-receipt error, got: {errors}",
+            )
+
+    def test_receipt_freshness_fails_closed_when_commit_unavailable(self):
+        """When the verified commit is unavailable (e.g. shallow clone,
+        typo'd SHA, pruned object), the freshness check must FAIL CLOSED
+        rather than skip. The previous revision treated 'unavailable'
+        the same as 'divergent' (skip), which was fail-open: a shallow
+        CI checkout could not compare the verified commit against HEAD
+        and silently passed.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            # Write a receipt with a verified_commit that does not exist
+            # in any repo (40-char hex but not a real object). The
+            # validator's _git_ancestry_contains will return rc >= 2
+            # (git error) because the commit is unavailable.
+            receipt_dir = tmp_root / "docs" / "plans" / "optid-verification"
+            receipt_dir.mkdir(parents=True)
+            receipt_path = receipt_dir / "f1.toml"
+            # A syntactically valid SHA that does not exist in the repo.
+            fake_sha = "0" * 40
+            receipt_path.write_text(
+                f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{fake_sha}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+                encoding="utf-8",
+            )
+            first = package(
+                "F1",
+                status="completed",
+                pr="332",
+                runtime_entrypoints=["crates/optid/src/policy.rs"],
+                integration_tests=["crates/optid/src/policy.rs"],
+                completion_evidence=[
+                    "crates/optid/src/policy.rs",
+                    "docs/plans/optid-verification/f1.toml",
+                ],
+                verification_receipt="docs/plans/optid-verification/f1.toml",
+            )
+            data = ledger(first)
+            errors = validator.validate_ledger(data, tmp_root)
+            unavailable_errors = [e for e in errors if "unavailable" in e.lower()]
+            self.assertTrue(
+                unavailable_errors,
+                f"expected unavailable-commit fail-closed error, got: {errors}",
+            )
+
+    def test_receipt_freshness_skips_for_divergent_commit(self):
+        """When the verified commit exists but is NOT an ancestor of
+        HEAD (divergent history, e.g. an unmerged branch), the
+        freshness check SKIPS rather than false-positive. This is the
+        legitimate skip case.
+        """
+        import tempfile
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"], cwd=tmp_root, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"], cwd=tmp_root, check=True
+            )
+            proof_dir = tmp_root / "crates" / "optid" / "src"
+            proof_dir.mkdir(parents=True)
+            (proof_dir / "policy.rs").write_text("// v1\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "initial"], cwd=tmp_root, check=True
+            )
+            verified = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+            ).stdout.strip()
+            # Create a divergent branch: reset main to a different commit
+            # so `verified` is no longer an ancestor of HEAD.
+            subprocess.run(
+                ["git", "checkout", "-q", "--orphan", "divergent"],
+                cwd=tmp_root,
+                check=True,
+            )
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "divergent"], cwd=tmp_root, check=True
+            )
+            # Now HEAD is on `divergent`; `verified` (on the old main
+            # branch) is NOT an ancestor of HEAD.
+
+            receipt_dir = tmp_root / "docs" / "plans" / "optid-verification"
+            receipt_dir.mkdir(parents=True)
+            receipt_path = receipt_dir / "f1.toml"
+            receipt_path.write_text(
+                f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{verified}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+                encoding="utf-8",
+            )
+            first = package(
+                "F1",
+                status="completed",
+                pr="332",
+                runtime_entrypoints=["crates/optid/src/policy.rs"],
+                integration_tests=["crates/optid/src/policy.rs"],
+                completion_evidence=[
+                    "crates/optid/src/policy.rs",
+                    "docs/plans/optid-verification/f1.toml",
+                ],
+                verification_receipt="docs/plans/optid-verification/f1.toml",
+            )
+            data = ledger(first)
+            errors = validator.validate_ledger(data, tmp_root)
+            # Divergent → skip. The only errors should be from other
+            # validator checks (e.g. the receipt file existing), not
+            # from the freshness rule.
+            freshness_errors = [
+                e
+                for e in errors
+                if "stale" in e.lower() or "unavailable" in e.lower()
+            ]
+            self.assertFalse(
+                freshness_errors,
+                f"divergent commit must skip freshness, not error: {freshness_errors}",
+            )
 
     # ── Post-#337: multi-package repair PR exemption ──────────────────
 

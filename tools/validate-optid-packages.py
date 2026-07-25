@@ -152,9 +152,22 @@ def validate_verification_receipt(
     validate_receipt_freshness(package_id, package, receipt, root, errors)
 
 
-def _git_ancestry_contains(verified_commit: str, descendant: str, root: Path) -> bool:
-    """Return True if `verified_commit` is an ancestor of `descendant`
-    (or equal to it). Uses `git merge-base --is-ancestor`.
+def _git_ancestry_contains(
+    verified_commit: str, descendant: str, root: Path
+) -> tuple[bool, str]:
+    """Return (is_ancestor, reason) where `is_ancestor` is True if
+    `verified_commit` is an ancestor of `descendant` (or equal to it).
+
+    `reason` distinguishes the three outcomes so the caller can fail
+    closed when the commit is unavailable:
+    - "ancestor" — verified_commit is an ancestor of descendant (rc=0).
+    - "divergent" — verified_commit exists but is NOT an ancestor (rc=1).
+      This is the legitimate "skip" case (the receipt is for a
+      divergent history, e.g. an unmerged branch).
+    - "unavailable" — git could not find verified_commit (rc>=2 or git
+      error). This is the fail-closed case (e.g. shallow clone without
+      the verified commit, or a typo'd SHA). The previous revision
+      treated this as "divergent" (skip), which was fail-open.
     """
     result = subprocess.run(
         ["git", "merge-base", "--is-ancestor", verified_commit, descendant],
@@ -163,7 +176,13 @@ def _git_ancestry_contains(verified_commit: str, descendant: str, root: Path) ->
         capture_output=True,
         timeout=30,
     )
-    return result.returncode == 0
+    if result.returncode == 0:
+        return (True, "ancestor")
+    if result.returncode == 1:
+        return (False, "divergent")
+    # rc >= 2: git error (commit not found, shallow clone, etc.).
+    stderr = result.stderr.decode("utf-8", errors="replace").strip()
+    return (False, f"unavailable: {stderr}" if stderr else "unavailable")
 
 
 def _files_changed_since_commit(
@@ -202,9 +221,18 @@ def validate_receipt_freshness(
     integration_test, or completion_evidence implementation file, unless
     a newer receipt verifies a commit containing that change.
 
-    Uses Git ancestry: if `verified_commit` is an ancestor of HEAD and
-    any declared proof path changed between `verified_commit` and HEAD,
-    the receipt is stale and the package cannot be `completed`.
+    Fail-closed semantics (post-#338 review):
+    - **ancestor + proof paths changed** → STALE (deny `completed`).
+    - **divergent** (verified commit exists but is not an ancestor of
+      HEAD) → skip (legitimate; the receipt is for a divergent history,
+      e.g. an unmerged branch).
+    - **unavailable** (git cannot find the verified commit — shallow
+      clone, typo'd SHA, pruned object) → FAIL CLOSED. The previous
+      revision treated this as "divergent" (skip), which was fail-open:
+      a shallow CI checkout could not compare the verified commit
+      against HEAD and silently passed. Now the validator demands a
+      fresh receipt when the verified commit is unavailable, because it
+      cannot prove the receipt is still valid.
 
     This rule catches the F1 stale-receipt defect: PR #332's receipt
     verified commit `001515b`, but subsequent PRs (#333, #334, #336,
@@ -216,12 +244,33 @@ def validate_receipt_freshness(
     if not SHA_RE.fullmatch(verified_commit):
         return  # already flagged by `validate_verification_receipt`
 
-    # If the verified commit is not an ancestor of HEAD (e.g. it lives
-    # on an unmerged branch), the freshness check is moot — the receipt
-    # is for a divergent history. Skip rather than false-positive.
-    if not _git_ancestry_contains(verified_commit, "HEAD", root):
+    is_ancestor, reason = _git_ancestry_contains(verified_commit, "HEAD", root)
+
+    if reason == "divergent":
+        # The verified commit exists but is not an ancestor of HEAD.
+        # The receipt is for a divergent history (e.g. an unmerged
+        # branch); skip rather than false-positive.
         return
 
+    if reason.startswith("unavailable"):
+        # FAIL CLOSED: git cannot find the verified commit (shallow
+        # clone, typo'd SHA, pruned object). The validator cannot prove
+        # the receipt is still valid, so it must not let the package
+        # remain `completed`. Demote to `merged_incomplete` until a
+        # fresh receipt verifies a commit that is available in the
+        # checkout.
+        errors.append(
+            f"{package_id}: verification receipt verified_commit "
+            f"{verified_commit[:12]} is unavailable in this checkout ({reason}). "
+            "The freshness check cannot prove the receipt is still valid. "
+            "Either fetch sufficient history (e.g. `git fetch --unshallow`), "
+            "or demote to `merged_incomplete` and record the precise blocker "
+            "in `blocking_reason` until a fresh cold verification receipt "
+            "verifies a commit that is available in CI."
+        )
+        return
+
+    # reason == "ancestor": the verified commit is an ancestor of HEAD.
     # Collect every declared proof path. A change to any of them after
     # the verified commit invalidates the receipt.
     proof_paths: list[str] = []

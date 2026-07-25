@@ -360,10 +360,15 @@ fn run(args: Args) -> io::Result<()> {
         )?;
     }
 
-    // F4 shadow: operational reconciler observes transitions in parallel
-    // with active_keys restore. Does not replace production restore yet.
-    let mut reconciler =
-        reconciler::Reconciler::new().with_mode(reconciler::ReconcilerMode::Shadow);
+    // F4 shadow: the reconciler tracks target-set parity (which journal
+    // keys the current decision desires vs the previous tick) and
+    // detects transitions for operator-visible logging. It does NOT
+    // plan or apply restores — production restore still uses
+    // `active_keys + Actuator::revert_key` (see below). Shadow mode is
+    // honestly dormant; a future F4 cutover will wire target state from
+    // journal observations and reintroduce a target-based restore
+    // planner. See `crates/optid/src/reconciler.rs` module docs.
+    let mut reconciler = reconciler::Reconciler::new();
 
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
@@ -434,8 +439,11 @@ fn run(args: Args) -> io::Result<()> {
         fs::write(args.state_dir.join("status"), &report)?;
         append_log(&args.state_dir.join("decisions.log"), &report)?;
 
-        // F4 shadow: detect transitions and compute restore plan without
-        // applying (production path remains active_keys + revert_key).
+        // F4 shadow: detect transitions for operator-visible logging and
+        // track target-set parity. The reconciler does NOT plan or apply
+        // restores — production restore still uses `active_keys +
+        // Actuator::revert_key` (see below). Shadow mode is honestly
+        // dormant; see `crates/optid/src/reconciler.rs` module docs.
         {
             let mut domain_modes = std::collections::HashMap::new();
             for &d in policy::Domain::all() {
@@ -447,31 +455,20 @@ fn run(args: Args) -> io::Result<()> {
                 resolved_mode,
                 &domain_modes,
             );
-            // Planning is mode-independent: shadow and v1 compute the
-            // same plan. Shadow logs the plan but performs no writes; v1
-            // (not yet wired in) would apply it. The daemon logs the
-            // would-restore count and the stale target set so operators
-            // can see what the reconciler would do.
+            // Log transitions for operator visibility. The reconciler
+            // does not act on them; this is a diagnostic surface so
+            // operators can see context changes that the production
+            // restore path (active_keys + Actuator::revert_key) handles.
             for t in &transitions {
-                let plan = reconciler.plan_restore(t);
-                if !plan.is_empty() {
-                    append_log(
-                        &args.state_dir.join("decisions.log"),
-                        &format!(
-                            "reconciler_shadow: transition={} would_restore={} plan={}\n",
-                            t.describe(),
-                            plan.len(),
-                            plan.iter()
-                                .map(|a| format!("{}->{}", a.domain.as_str(), a.value))
-                                .collect::<Vec<_>>()
-                                .join(",")
-                        ),
-                    )?;
-                }
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    &format!(
+                        "reconciler_shadow: transition={} (production restore uses active_keys)\n",
+                        t.describe()
+                    ),
+                )?;
             }
-            // Replace the per-tick desired set. Targets absent from the
-            // current decision become desired=None (stale/restore-
-            // eligible); targets present are updated. This mirrors the
+            // Replace the per-tick desired set. This mirrors the
             // active_keys set replacement below and keeps shadow and
             // production tracking the same target set for equivalent
             // decisions. Actions whose journal_key() is None (e.g.
@@ -487,12 +484,12 @@ fn run(args: Args) -> io::Result<()> {
             }
             reconciler.replace_desired_targets(&desired_by_key);
 
-            // Log the stale (desired=None, previously confirmed) target
-            // set so operators can see which targets the reconciler
-            // would restore on the next transition. Production restore
-            // still uses active_keys + Actuator::revert_key until the
-            // F4 cutover; this log line makes the shadow plan
-            // operator-visible without coupling to internal state.
+            // Log the stale target set (desired on the previous tick,
+            // absent from the current decision) so operators can see
+            // which targets the production restore path
+            // (active_keys + Actuator::revert_key) will revert this
+            // tick. This is shadow target-set comparison, not a
+            // reconciler-owned restore plan.
             let stale = reconciler.stale_target_ids();
             if !stale.is_empty() {
                 append_log(

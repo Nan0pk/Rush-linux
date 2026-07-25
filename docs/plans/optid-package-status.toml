@@ -3,20 +3,23 @@ updated = "2026-07-25"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Post-#337 repair: F1 was `completed` against PR #332's cold-verification
+# Post-#338 review: F1 was `completed` against PR #332's cold-verification
 # receipt, but the receipt is stale (subsequent PRs modified F1's runtime
 # entrypoints and PR #337 deleted the receipt-referenced integration test
 # file). F1 is now `merged_incomplete` until a fresh cold verification
 # receipt verifies a commit containing the post-#337 F1 surface. The old
 # receipt is preserved as historical evidence at
-# docs/plans/optid-verification/f1.toml. active_general advances to F3
-# per the plan's foundation progression (F1 → F3 → F4); F3's dependency
-# on F1 is satisfied because the validator's dependency gate only
-# requires `completed` for `candidate`/`completed` packages, and F3 is
-# `merged_incomplete`. F2 remains `merged_incomplete` and can be
-# repaired in parallel. The maintainer may re-point this if a different
-# general target is preferred. No package is self-certified completed.
-active_general = "F3"
+# docs/plans/optid-verification/f1.toml.
+#
+# active_general is F2 (not F3) because F3 explicitly depends on F1, and
+# F1 is `merged_incomplete`. The repository's own rule is that
+# dependencies unlock only from `completed`; pointing active_general at
+# a package whose dependency is incomplete would be dishonest. F2 has
+# no dependency on F1 and can proceed independently. The maintainer may
+# re-point active_general to F1 once F1's fresh verification lands, or
+# to F3 once F1 returns to `completed`. No package is self-certified
+# completed.
+active_general = "F2"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
@@ -121,7 +124,7 @@ title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
 depends = ["F2", "F3"]
 pr = "327"
-blocking_reason = "Reconciler shadow mode is now operational in the daemon loop (transition detection + plan_restore computes the same plan in Shadow and V1; replace_desired_targets mirrors active_keys set replacement each tick; stale_target_ids surfaces restore-eligible targets; parity tests cover multi-device/drift/coalesce/bounded-retry/deterministic-ordering), but production restore still uses active_keys + Actuator::revert_key rather than reconciler v1 apply. The ledger must clearly state that production still uses active_keys. Remaining blockers: (1) production cutover from active_keys to target-keyed restore with readback-equals-last-confirmed; (2) F3 envelope alignment (reconciler still has local Ownership/ApplyResult types); (3) full systemd property restore — the post-#337 repair reverted the fake Systemd journal key (Action::SystemdSetProperty::journal_key() now returns None) because the Systemd apply path captures no original properties and has no property-level restoration; a real implementation must enumerate each changed property, read its original runtime value, distinguish absent from explicit, restore each, verify readback, and avoid overwriting external changes; (4) VM/sysctl restore through the reconciler rather than only journal keys; (5) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
+blocking_reason = "Reconciler shadow mode is honestly dormant: it tracks target-set parity (which journal keys the current decision desires vs the previous tick) via replace_desired_targets + stale_target_ids, and detects transitions for operator-visible logging. It does NOT plan or apply restores. The post-#338-review repair removed the disconnected Domain-keyed states model and plan_restore/reconcile methods that production never populated; the target-keyed V1 helpers (baseline/confirmed/ownership/may_restore) are retained under #[cfg(test)] for the future cutover. Production restore still uses active_keys + Actuator::revert_key in main.rs; the ledger must clearly state this. Remaining blockers: (1) wire target state (baseline, last_confirmed, ownership) from real journal observations (original_<key> / applied_<key> files the actuator writes) so may_restore_target can evaluate real restores; (2) reintroduce a target-based restore planner that reads the wired target state (the old Domain-keyed plan_restore was removed because it read a model production never populated); (3) F3 envelope alignment (reconciler still has local Ownership type); (4) full systemd property restore — Action::SystemdSetProperty::journal_key() returns None because the Systemd apply path captures no original properties and has no property-level restoration; a real implementation must enumerate each changed property, read its original runtime value, distinguish absent from explicit, restore each, verify readback, and avoid overwriting external changes; (5) VM/sysctl restore through the reconciler rather than only journal keys; (6) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
 completion_evidence = []
 
 [[package]]
@@ -286,7 +289,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added a real production-path pipeline test (t1_production_pipeline_collect_to_render) and a zero-thermal-reads test for mode=off (t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",

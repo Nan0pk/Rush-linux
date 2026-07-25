@@ -81,7 +81,9 @@ cmd_sign() {
     # Record the public key path relative to the repo root so verifiers
     # can locate it regardless of whether the operator kept the legacy
     # config/keys/ location or migrated to build/test-signing/keys/.
-    pub_rel="${PUBLIC_KEY#${ROOT}/}"
+    # (shellcheck SC2295: avoid nesting ${...} inside ${...}; strip the
+    # ROOT prefix with a separate parameter expansion.)
+    pub_rel="${PUBLIC_KEY#"$ROOT"/}"
     cat > "${repo_dir}.sig" <<EOF
 {
   "algorithm": "Ed25519",
