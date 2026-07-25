@@ -20,7 +20,10 @@ use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
 use crate::capability::Capability;
-use crate::contracts::{fits_contract, ContractFloors};
+use crate::contracts::{
+    contract_gate_device_resume_constraint, contract_gate_runtime_pm, ContractFloors,
+    ContractGateResult, ExitLatencyEvidence,
+};
 use crate::io_util::{
     append_log, atomic_write_state_file, clear_journal, get_path_hash, mark_applied,
 };
@@ -205,22 +208,16 @@ impl Actuator {
     /// Returns `Ok(true)` when the action may proceed. Only the two
     /// depth-enablers that trade resume latency for power are gated:
     ///
-    /// - `DeviceResumeLatency` — the action value *is* the resume latency
-    ///   in microseconds. `None` means "no constraint" (the PM QoS default),
-    ///   which cannot violate a floor.
-    /// - `RuntimePm` — autosuspend delay is expressed in milliseconds, so
-    ///   the exit latency is `autosuspend_delay_ms × 1000` µs.
+    /// - `DeviceResumeLatency` — the written value is a **QoS ceiling
+    ///   constraint**, not measured selected-state exit latency. Setting
+    ///   unconstrained (`None`) fails closed; a ceiling above the class
+    ///   floor is denied.
+    /// - `RuntimePm` — autosuspend delay is **not** exit latency and is
+    ///   never converted to microseconds for this gate. Without measured
+    ///   or hardware-proven [`ExitLatencyEvidence`] (C1), runtime-PM is
+    ///   denied with an operator-visible reason.
     ///
-    /// Every other variant is ungated and returns `true`: CPU EPP,
-    /// platform profile and cgroup weights do not change a device's exit
-    /// latency, and CPU DMA latency is itself a latency *floor* request
-    /// rather than a state with an exit cost.
-    ///
-    /// Negative values are treated as "no constraint" rather than being
-    /// cast to `u64`, where `-1` would wrap to `u64::MAX` and be blocked
-    /// by every floor, or a negative delay would wrap into a small
-    /// apparently-valid latency. `-1` is the kernel's own sentinel for an
-    /// unset `autosuspend_delay_ms`.
+    /// Every other variant is ungated and returns `true`.
     fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
         let Some(floors) = self.active_floors else {
             return Ok(true); // gate not installed
@@ -233,42 +230,39 @@ impl Actuator {
             _ => return Ok(true),
         };
 
-        let (exit_latency_us, label) = match action {
-            Action::DeviceResumeLatency {
-                path,
-                value: Some(v),
-                ..
-            } => match u64::try_from(*v) {
-                Ok(us) => (us, format!("device_resume_latency {}", path.display())),
-                // Negative ⇒ not a real latency; leave it to the
-                // capability/allowlist layers rather than wrapping.
-                Err(_) => return Ok(true),
-            },
-            Action::DeviceResumeLatency { value: None, .. } => return Ok(true),
-            Action::RuntimePm {
-                device_dir,
-                autosuspend_delay_ms,
-                ..
-            } => {
-                // -1 is the kernel sentinel for "unset"; negative values
-                // are not a latency budget.
-                let Ok(delay_ms) = u64::try_from(*autosuspend_delay_ms) else {
-                    return Ok(true);
-                };
-                // Saturate rather than overflow on an absurd delay.
-                let us = delay_ms.saturating_mul(1000);
-                (us, format!("runtime_pm {}", device_dir.display()))
+        let result = match action {
+            Action::DeviceResumeLatency { path, value, .. } => {
+                contract_gate_device_resume_constraint(
+                    value.map(i64::from),
+                    floor_us,
+                    &path.display().to_string(),
+                )
+            }
+            Action::RuntimePm { device_dir, .. } => {
+                // Until C1 supplies per-device ExitLatencyEvidence, evidence
+                // is always None → fail closed. Autosuspend delay is ignored.
+                // Keep the evidence constructors referenced so C1 can plug in
+                // without the gate API rotting; values are not used for gating.
+                let _c1_api_surface = (
+                    ExitLatencyEvidence::measured_us,
+                    ExitLatencyEvidence::hardware_proven_us,
+                );
+                let evidence: Option<&ExitLatencyEvidence> = None;
+                if let Some(ev) = evidence {
+                    let _ = ev.is_usable();
+                }
+                contract_gate_runtime_pm(evidence, floor_us, &device_dir.display().to_string())
             }
             _ => return Ok(true),
         };
 
-        if fits_contract(exit_latency_us, floor_us) {
-            return Ok(true);
+        match result {
+            ContractGateResult::Permit => Ok(true),
+            ContractGateResult::Deny { reason } => {
+                self.log(&reason)?;
+                Ok(false)
+            }
         }
-        self.log(&format!(
-            "contract gate BLOCKED {label}: exit_latency={exit_latency_us}us > floor={floor_us}us"
-        ))?;
-        Ok(false)
     }
 
     /// optid-safety: install the boot-time decision surface. After this call,
