@@ -6,8 +6,8 @@
 //!
 //! No hardware actuation or fan writes are performed by this module.
 
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 use crate::kernel_io::KernelRead;
 use crate::policy::DomainMode;
@@ -140,9 +140,17 @@ pub(crate) fn compute_thermal_budget(
     // 1. Find max CPU die temperature and highest critical limit
     let die_sensors: Vec<&ThermalSensor> = sensors.iter().filter(|s| s.is_die).collect();
     let max_die_sensor = if !die_sensors.is_empty() {
-        die_sensors.into_iter().max_by(|a, b| a.temp_c.partial_cmp(&b.temp_c).unwrap())
+        die_sensors.into_iter().max_by(|a, b| {
+            a.temp_c
+                .partial_cmp(&b.temp_c)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     } else {
-        sensors.iter().max_by(|a, b| a.temp_c.partial_cmp(&b.temp_c).unwrap())
+        sensors.iter().max_by(|a, b| {
+            a.temp_c
+                .partial_cmp(&b.temp_c)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     };
 
     let max_die_temp_c = max_die_sensor.map(|s| s.temp_c);
@@ -153,7 +161,10 @@ pub(crate) fn compute_thermal_budget(
         Some(crit) => {
             let clamped_hi = (crit - 10.0).max(config.thermal_lo_c + 5.0);
             if clamped_hi < config.thermal_hi_c {
-                reasons.push(format!("clamped thermal_hi to {:.1}°C based on hardware T_crit {:.1}°C - 10°C", clamped_hi, crit));
+                reasons.push(format!(
+                    "clamped thermal_hi to {:.1}°C based on hardware T_crit {:.1}°C - 10°C",
+                    clamped_hi, crit
+                ));
                 clamped_hi
             } else {
                 config.thermal_hi_c
@@ -164,10 +175,7 @@ pub(crate) fn compute_thermal_budget(
 
     // 2. Check skin temperature constraint
     let skin_sensors: Vec<&ThermalSensor> = sensors.iter().filter(|s| s.is_skin).collect();
-    let max_skin_temp_c = skin_sensors.iter().map(|s| s.temp_c).fold(None, |acc, t| match acc {
-        None => Some(t),
-        Some(prev) => Some(prev.max(t)),
-    });
+    let max_skin_temp_c = skin_sensors.iter().map(|s| s.temp_c).reduce(f32::max);
 
     // 3. Collect max fan RPM
     let max_fan_rpm = fans.iter().map(|f| f.rpm).max();
@@ -188,10 +196,14 @@ pub(crate) fn compute_thermal_budget(
     };
 
     // 4. Hysteresis adjustment for lower threshold
-    let was_derating_or_constrained = previous.map_or(false, |p| p.state != ThermalBudgetState::Cool);
+    let was_derating_or_constrained =
+        previous.map_or(false, |p| p.state != ThermalBudgetState::Cool);
     let effective_lo_c = if was_derating_or_constrained {
         let lo_hys = config.thermal_lo_c - config.hysteresis_c;
-        reasons.push(format!("applying hysteresis lower threshold {:.1}°C", lo_hys));
+        reasons.push(format!(
+            "applying hysteresis lower threshold {:.1}°C",
+            lo_hys
+        ));
         lo_hys
     } else {
         config.thermal_lo_c
@@ -217,19 +229,31 @@ pub(crate) fn compute_thermal_budget(
             let skin_derating = ((skin_t - limit) / 5.0).clamp(0.2, 1.0);
             if skin_derating > derating_ratio {
                 derating_ratio = skin_derating;
-                reasons.push(format!("skin temp {:.1}°C exceeds limit {:.1}°C; elevated derating ratio to {:.2}", skin_t, limit, derating_ratio));
+                reasons.push(format!(
+                    "skin temp {:.1}°C exceeds limit {:.1}°C; elevated derating ratio to {:.2}",
+                    skin_t, limit, derating_ratio
+                ));
             }
         }
     }
 
     let state = if derating_ratio <= 0.0 {
-        reasons.push(format!("die temp {:.1}°C <= lo threshold {:.1}°C; state = cool", die_temp, effective_lo_c));
+        reasons.push(format!(
+            "die temp {:.1}°C <= lo threshold {:.1}°C; state = cool",
+            die_temp, effective_lo_c
+        ));
         ThermalBudgetState::Cool
     } else if derating_ratio >= 1.0 {
-        reasons.push(format!("die temp {:.1}°C >= hi threshold {:.1}°C; state = constrained", die_temp, effective_hi_c));
+        reasons.push(format!(
+            "die temp {:.1}°C >= hi threshold {:.1}°C; state = constrained",
+            die_temp, effective_hi_c
+        ));
         ThermalBudgetState::Constrained
     } else {
-        reasons.push(format!("die temp {:.1}°C within [{:.1}°C, {:.1}°C]; derating ratio = {:.2}", die_temp, effective_lo_c, effective_hi_c, derating_ratio));
+        reasons.push(format!(
+            "die temp {:.1}°C within [{:.1}°C, {:.1}°C]; derating ratio = {:.2}",
+            die_temp, effective_lo_c, effective_hi_c, derating_ratio
+        ));
         ThermalBudgetState::Derating
     };
 
@@ -250,7 +274,9 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
     // 1. Discover hwmon temperature sensors
     if let Ok(entries) = read.read_dir(Path::new("/sys/class/hwmon")) {
         for hwmon_dir in entries {
-            let name = read.read_to_string(&hwmon_dir.join("name")).unwrap_or_default();
+            let name = read
+                .read_to_string(&hwmon_dir.join("name"))
+                .unwrap_or_default();
             let name = name.trim();
             if name.is_empty() {
                 continue;
@@ -284,13 +310,22 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
 
                         // Read crit temp if present
                         let crit_path = hwmon_dir.join(format!("{}_crit", prefix));
-                        let crit_temp_c = read.read_to_string(&crit_path)
+                        let crit_temp_c = read
+                            .read_to_string(&crit_path)
                             .ok()
                             .and_then(|t| t.trim().parse::<i64>().ok())
                             .map(|m| m as f32 / 1000.0);
 
-                        let hwmon_id = hwmon_dir.file_name().and_then(|n| n.to_str()).unwrap_or("hwmon");
-                        let id = format!("{}:{}:{}", hwmon_id, name, if label.is_empty() { prefix } else { &label });
+                        let hwmon_id = hwmon_dir
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("hwmon");
+                        let id = format!(
+                            "{}:{}:{}",
+                            hwmon_id,
+                            name,
+                            if label.is_empty() { prefix } else { &label }
+                        );
 
                         let name_lower = name.to_ascii_lowercase();
                         let label_lower = label.to_ascii_lowercase();
@@ -308,7 +343,11 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
 
                         results.push(ThermalSensor {
                             id,
-                            label: if label.is_empty() { format!("{} {}", name, prefix) } else { label },
+                            label: if label.is_empty() {
+                                format!("{} {}", name, prefix)
+                            } else {
+                                label
+                            },
                             temp_c,
                             crit_temp_c,
                             is_die,
@@ -328,7 +367,9 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                 _ => continue,
             };
 
-            let kind = read.read_to_string(&tz_dir.join("type")).unwrap_or_default();
+            let kind = read
+                .read_to_string(&tz_dir.join("type"))
+                .unwrap_or_default();
             let kind = kind.trim().to_string();
 
             let temp_text = match read.read_to_string(&tz_dir.join("temp")) {
@@ -372,8 +413,13 @@ pub(crate) fn discover_fan_sensors_with(read: &dyn KernelRead) -> Vec<FanSensor>
     // 1. hwmon fan sensors
     if let Ok(entries) = read.read_dir(Path::new("/sys/class/hwmon")) {
         for hwmon_dir in entries {
-            let hwmon_id = hwmon_dir.file_name().and_then(|n| n.to_str()).unwrap_or("hwmon");
-            let name = read.read_to_string(&hwmon_dir.join("name")).unwrap_or_default();
+            let hwmon_id = hwmon_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("hwmon");
+            let name = read
+                .read_to_string(&hwmon_dir.join("name"))
+                .unwrap_or_default();
             let name = name.trim();
 
             if let Ok(hwmon_files) = read.read_dir(&hwmon_dir) {
@@ -543,4 +589,3 @@ mod tests {
         assert!(budget.derating_ratio > 0.0);
     }
 }
-
