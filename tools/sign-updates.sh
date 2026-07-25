@@ -10,17 +10,19 @@
 #   tools/sign-updates.sh sign <dir>    Sign repodata.json in <dir>
 #   tools/sign-updates.sh verify <dir>  Verify repodata.json signature in <dir>
 #
-# Key storage:
-#   config/keys/testing.private.pem  — Ed25519 private key (NEVER in production)
-#   config/keys/testing.public.pem   — Ed25519 public key (bundled in images)
+# Key storage (generated — never committed):
+#   build/test-signing/keys/testing.private.pem — Ed25519 private key
+#   build/test-signing/keys/testing.public.pem  — Ed25519 public key
+# The historical config/keys/ location is rejected by .gitignore for
+# private keys; new test runs must use build/test-signing/keys/.
 #
 # Environment:
-#   RUSH_KEY_DIR   Override key directory (default: config/keys)
+#   RUSH_KEY_DIR   Override key directory (default: build/test-signing/keys)
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KEY_DIR="${RUSH_KEY_DIR:-${ROOT}/config/keys}"
+KEY_DIR="${RUSH_KEY_DIR:-${ROOT}/build/test-signing/keys}"
 PRIVATE_KEY="${KEY_DIR}/testing.private.pem"
 PUBLIC_KEY="${KEY_DIR}/testing.public.pem"
 
@@ -76,12 +78,16 @@ cmd_sign() {
     local sig_b64
     sig_b64=$(base64 -w0 "${repo_dir}.sig.bin")
 
+    # Record the public key path relative to the repo root so verifiers
+    # can locate it regardless of whether the operator kept the legacy
+    # config/keys/ location or migrated to build/test-signing/keys/.
+    pub_rel="${PUBLIC_KEY#${ROOT}/}"
     cat > "${repo_dir}.sig" <<EOF
 {
   "algorithm": "Ed25519",
   "digest": "SHA-256:${digest}",
   "signature": "${sig_b64}",
-  "public_key_file": "config/keys/testing.public.pem",
+  "public_key_file": "${pub_rel}",
   "signed_at": "$(date -Iseconds)"
 }
 EOF
@@ -134,7 +140,7 @@ case "${1:-help}" in
         echo "Usage: sign-updates.sh {init-keys|sign <dir>|verify <dir>}"
         echo ""
         echo "Generate test signing keys and sign/verify update metadata."
-        echo "Uses Ed25519 keys stored in config/keys/."
+        echo "Uses Ed25519 keys stored in build/test-signing/keys/."
         ;;
     *)
         echo "Unknown command: ${1}" >&2

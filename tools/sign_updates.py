@@ -24,7 +24,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-KEY_DIR = Path(__file__).resolve().parent.parent / "config" / "keys"
+# Default test-key directory. Test signing keys are generated material —
+# never committed to the repository. The .gitignore rule
+# `*.private.pem` / `config/keys/*.private.pem` enforces this in
+# practice, but the default location is now under `build/test-signing/`
+# (the same path `tools/test-sign-updates.sh` cleans each run) so the
+# historical `config/keys/` directory stays free of private key
+# material even on a fresh checkout. Operators who already keep keys
+# elsewhere can still override via the `key_dir` argument.
+KEY_DIR = Path(__file__).resolve().parent.parent / "build" / "test-signing" / "keys"
 PRIVATE_KEY_PATH = KEY_DIR / "testing.private.pem"
 PUBLIC_KEY_PATH = KEY_DIR / "testing.public.pem"
 
@@ -140,12 +148,24 @@ def sign_repodata(
     sig_bin_path = repo_dir / "repodata.json.sig.bin"
     sig_bin_path.write_bytes(signature)
 
-    # Write JSON signature manifest
+    # Write JSON signature manifest. `public_key_file` is recorded
+    # relative to the repository root so verifiers can locate the
+    # matching public key regardless of where the test key directory
+    # lives (build/test-signing/keys/ by default; config/keys/ in
+    # legacy deployments).
+    try:
+        repo_root = Path(__file__).resolve().parent.parent
+        pub_rel = (key_dir / "testing.public.pem").resolve().relative_to(repo_root)
+        pub_key_file = pub_rel.as_posix()
+    except ValueError:
+        # Key dir lives outside the repo (operator override). Fall back
+        # to the absolute path so the manifest still names the key.
+        pub_key_file = str(key_dir / "testing.public.pem")
     sig_manifest = {
         "algorithm": "Ed25519",
         "digest": f"SHA-256:{digest}",
         "signature": sig_b64,
-        "public_key_file": "config/keys/testing.public.pem",
+        "public_key_file": pub_key_file,
         "signed_at": datetime.now(timezone.utc).isoformat(),
     }
     sig_path = repo_dir / "repodata.json.sig"
