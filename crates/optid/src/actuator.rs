@@ -218,16 +218,42 @@ impl Actuator {
     ///   denied with an operator-visible reason.
     ///
     /// Every other variant is ungated and returns `true`.
+    ///
+    /// **Floor validation (post-#337 repair):** a missing, zero, or
+    /// negative `device_resume_latency` floor is *not* "no contract" — it
+    /// is a malformed contract. The previous behavior opened the gate on
+    /// any non-positive floor, which let a misconfigured `contracts.toml`
+    /// silently disable the contract gate for every depth-enabler. The
+    /// gate now denies both depth-enablers when the floor is unusable,
+    /// logs the reason, and stays operator-visible.
     fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
         let Some(floors) = self.active_floors else {
             return Ok(true); // gate not installed
         };
-        // A non-positive floor cannot be satisfied by any real state and
-        // most likely means a misconfigured contracts.toml; treat it as
-        // "no contract" rather than blocking all depth-enablers.
+        // A non-positive or overflowed floor is a malformed contract, not
+        // an open gate. Deny both depth-enablers and log the reason so
+        // the operator can fix `contracts.toml` instead of silently
+        // shipping depth-enabling writes with no floor.
         let floor_us: u64 = match u64::try_from(floors.device_resume_latency) {
             Ok(f) if f > 0 => f,
-            _ => return Ok(true),
+            _ => {
+                // Only the two depth-enablers are gated; everything else
+                // is ungated and must not be blocked by a malformed floor.
+                let gated_label = match action {
+                    Action::DeviceResumeLatency { path, .. } => Some(path.display().to_string()),
+                    Action::RuntimePm { device_dir, .. } => Some(device_dir.display().to_string()),
+                    _ => None,
+                };
+                let Some(label) = gated_label else {
+                    return Ok(true);
+                };
+                self.log(&format!(
+                    "contract gate BLOCKED {}: floor={}us is missing/zero/negative/overflowed; \
+                     fail closed (fix [contracts] device_resume_latency for this class)",
+                    label, floors.device_resume_latency
+                ))?;
+                return Ok(false);
+            }
         };
 
         let result = match action {
