@@ -1155,6 +1155,84 @@ mod tests {
         assert_eq!(budget.state, ThermalBudgetState::Disabled);
     }
 
+    /// Production entrypoint: `Snapshot::collect_with_thermal` with mode=off
+    /// must not discover thermal zones (legacy max_temp_millic) and must
+    /// report thermal_c() = None so policy does not observe temps.
+    #[test]
+    fn snapshot_off_skips_thermal_zone_discovery_and_thermal_c() {
+        use crate::sensors::Snapshot;
+
+        let k = MemoryKernel::new();
+        // Hot hwmon + hot ACPI zone — would be visible if discovery ran.
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 90000, None)],
+        );
+        install_acpi_zone(&k, "thermal_zone0", "x86_pkg_temp", 92000);
+
+        let config = ThermalConfig {
+            mode: ThermalMode::Off,
+            ..ThermalConfig::default()
+        };
+        let snap = Snapshot::collect_with_thermal(&k, &k, &config, None);
+
+        assert!(
+            snap.thermal_sensors.is_empty(),
+            "off mode must not populate thermal_sensors"
+        );
+        assert!(snap.fan_sensors.is_empty());
+        assert_eq!(snap.thermal_budget.state, ThermalBudgetState::Disabled);
+        assert_eq!(
+            snap.max_temp_millic, None,
+            "off mode must skip legacy /sys/class/thermal max-temp discovery"
+        );
+        assert_eq!(
+            snap.thermal_c(),
+            None,
+            "thermal_c() must be None when budget is Disabled (no max_temp fallback)"
+        );
+    }
+
+    /// Production entrypoint: Unavailable budget must not fall back to
+    /// legacy max_temp_millic for thermal_c().
+    #[test]
+    fn snapshot_unavailable_thermal_c_is_none_despite_legacy_zone() {
+        use crate::sensors::Snapshot;
+
+        // Zone present for max_temp but with empty type so T1 discovery skips
+        // (requires non-empty type), while read_max_thermal_millic still sees temp.
+        let k = MemoryKernel::new();
+        let base = PathBuf::from("/sys/class/thermal/thermal_zone0");
+        k.add_dir(Path::new("/sys/class/thermal"), &base);
+        k.write_raw(&base.join("type"), "\n"); // empty after trim → skipped by discover
+        k.write_raw(&base.join("temp"), "99000\n");
+        k.add_dir_entry(&base, &base.join("type"));
+        k.add_dir_entry(&base, &base.join("temp"));
+
+        let config = ThermalConfig {
+            mode: ThermalMode::Observe,
+            ..ThermalConfig::default()
+        };
+        let snap = Snapshot::collect_with_thermal(&k, &k, &config, None);
+        // discover skips empty type → no sensors → Unavailable
+        assert_eq!(snap.thermal_budget.state, ThermalBudgetState::Unavailable);
+        // legacy max_temp may still read 99000 (read_max does not check type)
+        assert_eq!(
+            snap.max_temp_millic,
+            Some(99000),
+            "precondition: legacy max_temp must be populated to prove fallback is closed"
+        );
+        assert_eq!(
+            snap.thermal_c(),
+            None,
+            "Unavailable must not fall back to max_temp_millic={:?}",
+            snap.max_temp_millic
+        );
+    }
+
     #[test]
     fn collect_config_changes_results() {
         let k = MemoryKernel::new();

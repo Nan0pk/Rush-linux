@@ -552,7 +552,6 @@ impl MemoryKernel {
     }
 
     /// Advance the in-memory clock by `secs`.
-    #[allow(dead_code)]
     pub(crate) fn advance_clock(&self, secs: u64) {
         self.clock
             .fetch_add(secs, std::sync::atomic::Ordering::Relaxed);
@@ -938,5 +937,15 @@ mod tests {
         assert!(k.exists(path));
         k.write(path, "100").unwrap();
         assert_eq!(k.read_to_string(path).unwrap(), "100");
+    }
+
+    #[test]
+    fn memory_kernel_advance_clock() {
+        let k = MemoryKernel::new();
+        assert_eq!(k.now_unix(), 0);
+        k.advance_clock(42);
+        assert_eq!(k.now_unix(), 42);
+        k.advance_clock(8);
+        assert_eq!(k.now_unix(), 50);
     }
 }

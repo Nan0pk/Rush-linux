@@ -54,17 +54,18 @@ const T1_BEHAVIORAL_TESTS: &[&str] = &[
     "thermal_budget_skin_override",
     "two_iterations_hysteresis_via_previous",
     "collect_off_skips_observation",
+    "snapshot_off_skips_thermal_zone_discovery_and_thermal_c",
+    "snapshot_unavailable_thermal_c_is_none_despite_legacy_zone",
     "collect_config_changes_results",
     "render_includes_sensor_state_ratio_reasons",
     "deterministic_ordering",
 ];
 
 #[test]
-fn t1_behavioral_matrix_has_fifteen_cases() {
-    assert_eq!(
-        T1_BEHAVIORAL_TESTS.len(),
-        15,
-        "T1 behavioral matrix must list 15 cases covering the acceptance matrix"
+fn t1_behavioral_matrix_has_required_cases() {
+    assert!(
+        T1_BEHAVIORAL_TESTS.len() >= 15,
+        "T1 behavioral matrix must list at least 15 cases covering the acceptance matrix"
     );
     // Ensure names are unique and non-empty (mapping integrity).
     let mut seen = std::collections::BTreeSet::new();

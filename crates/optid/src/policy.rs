@@ -1482,6 +1482,17 @@ mod tests {
         let policy = Policy::default();
         let mut snapshot = vm_snapshot(Some(8.0), Some(50.0), Some(true));
         snapshot.max_temp_millic = Some(95_000);
+        // Explicit die temp — Unavailable default must not mask critical thermals.
+        snapshot.thermal_budget = crate::thermal::ThermalBudget {
+            state: crate::thermal::ThermalBudgetState::Constrained,
+            derating_ratio: 1.0,
+            selected_die_id: Some("test:die".into()),
+            max_die_temp_c: Some(95.0),
+            selected_skin_id: None,
+            skin_temp_c: None,
+            max_fan_rpm: None,
+            reasons: vec![],
+        };
         assert_eq!(policy.auto_mode(&snapshot), Mode::Balanced);
     }
 

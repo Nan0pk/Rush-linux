@@ -24,7 +24,28 @@ use crate::load_state::{BootState, LoadState};
 use crate::policy::Policy;
 use crate::run;
 use crate::sensors::{Pressure, Snapshot};
+use crate::thermal::{ThermalBudget, ThermalBudgetState};
 use crate::workload::{Mode, WorkloadClass};
+
+/// Test helper: budget that exposes `temp_c` via `thermal_c()` (non-Unavailable).
+fn budget_at_temp_c(temp_c: f32) -> ThermalBudget {
+    ThermalBudget {
+        state: if temp_c >= 95.0 {
+            ThermalBudgetState::Constrained
+        } else if temp_c >= 60.0 {
+            ThermalBudgetState::Derating
+        } else {
+            ThermalBudgetState::Cool
+        },
+        derating_ratio: 0.0,
+        selected_die_id: Some("test:die".into()),
+        max_die_temp_c: Some(temp_c),
+        selected_skin_id: None,
+        skin_temp_c: None,
+        max_fan_rpm: None,
+        reasons: vec![],
+    }
+}
 
 #[cfg(test)]
 mod integration_tests {
@@ -545,6 +566,8 @@ mod integration_tests {
             sata_alpm_host_paths: Vec::new(),
             selected_backlight: None,
             is_vm_guest: false,
+            // Explicit budget temp — Unavailable default must not mask critical thermals.
+            thermal_budget: budget_at_temp_c(95.0),
             ..Default::default()
         };
 
