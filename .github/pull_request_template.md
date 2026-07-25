@@ -29,4 +29,12 @@ Delete this section when the PR is not optid package work.
       are recorded when claiming `candidate`.
 - [ ] Cold verification is separate before `completed`.
 
+### Semantic review (numeric values, missing input, entrypoints)
+
+Answer these for every optid behavior change:
+
+1. What does each numeric value physically represent, and what is its unit?
+2. What happens when required input is missing, malformed, or stale?
+3. Which production entrypoint does each integration test execute?
+
 Automation never merges this PR.
