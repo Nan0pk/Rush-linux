@@ -1,9 +1,15 @@
 schema_version = 2
-updated = "2026-07-24"
+updated = "2026-07-25"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-active_general = "F1"
+# F1 was completed in PR #332 + cold verification receipt
+# (docs/plans/optid-verification/f1.toml). active_general advances to
+# F3 per the plan's foundation progression (F1 → F3 → F4); F3's only
+# dependency (F1) is now satisfied. F2 remains `merged_incomplete` and
+# can be repaired in parallel. The maintainer may re-point this if a
+# different general target is preferred.
+active_general = "F3"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
@@ -25,10 +31,11 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-status = "candidate"
+status = "completed"
 depends = []
 pr = "332"
 blocking_reason = ""
+verification_receipt = "docs/plans/optid-verification/f1.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/policy.rs",
@@ -43,6 +50,7 @@ completion_evidence = [
   "crates/optid/src/decision.rs",
   "crates/optid/src/action.rs",
   "crates/optid/tests/f1_effective_config.rs",
+  "docs/plans/optid-verification/f1.toml",
 ]
 
 [[package]]

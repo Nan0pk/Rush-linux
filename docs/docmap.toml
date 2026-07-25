@@ -17,28 +17,28 @@ purpose = "Practical user entry point and generated current status"
 owner_area = "area:docs"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/rush-host-bench.sh", "tools/start-work.sh", "tools/finish-work.sh", "tools/build-mkosi-image.sh"]
 deps = ["docs/frontpage/project.toml", "VERSION", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."CONTRIBUTING.md"]
 purpose = "Contributor entry path and pull-request expectations"
 owner_area = "area:docs"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh"]
 deps = ["AGENTS.md", "docs/project-workflow.md", "docs/documentation-policy.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."AGENTS.md"]
 purpose = "Canonical agent constitution and authority order"
 owner_area = "area:governance"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh"]
 deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."CLAUDE.md"]
 purpose = "Thin compatibility pointer to the canonical agent constitution"
 owner_area = "area:governance"
 covers_code = []
 deps = ["AGENTS.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/SPEC-northstar.md"]
 purpose = "Product objective and non-negotiable invariants"
@@ -52,21 +52,21 @@ purpose = "Detailed implemented, partial, and missing capability inventory"
 owner_area = "area:docs"
 covers_code = ["crates/", "packaging/", "mkosi/"]
 deps = ["VERSION", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."ROADMAP.md"]
 purpose = "Release sequence and current version"
 owner_area = "area:release"
 covers_code = []
 deps = ["VERSION", "release/milestones.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."RELEASES.md"]
 purpose = "Release history"
 owner_area = "area:release"
 covers_code = []
 deps = ["VERSION", "release/milestones.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."SECURITY.md"]
 purpose = "Security model and vulnerability reporting"
@@ -101,14 +101,14 @@ purpose = "Supported image-build commands and dependencies"
 owner_area = "area:packaging"
 covers_code = ["tools/build-mkosi-image.sh", "mkosi/", "testos/build-testos.sh"]
 deps = ["docs/packaging-and-builds.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/how-rush-is-built.md"]
 purpose = "Source-to-image overview"
 owner_area = "area:packaging"
 covers_code = ["Cargo.toml", "mkosi/", "packaging/", "distro/"]
 deps = ["docs/build-system.md", "docs/architecture.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/packaging-and-builds.md"]
 purpose = "Packaging layout, image composition, and release artifacts"
@@ -143,7 +143,7 @@ purpose = "Local and CI validation commands"
 owner_area = "area:testing"
 covers_code = ["tools/checks.sh", ".github/workflows/ci.yml"]
 deps = ["docs/project-workflow.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/versioning.md"]
 purpose = "Version-number rules"
@@ -171,21 +171,21 @@ purpose = "Documentation ownership, indexing, and root hygiene"
 owner_area = "area:docs"
 covers_code = ["tools/validate-doc-sync.py", "tools/check-docs-impact.py", "tools/check-repo-hygiene.py"]
 deps = ["docs/contributing/keeping-docs-synced.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/SUMMARY.md"]
 purpose = "Curated index of maintained documentation"
 owner_area = "area:docs"
 covers_code = []
 deps = ["README.md", "docs/research/README.md", "docs/decisions/README.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/research/README.md"]
 purpose = "Discoverability index for numbered research papers"
 owner_area = "area:research"
 covers_code = []
 deps = []
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/decisions/README.md"]
 purpose = "Architecture decision index and status rules"
@@ -199,14 +199,14 @@ purpose = "Risk-based path from intent to release"
 owner_area = "area:governance"
 covers_code = ["tools/checks.sh", ".github/workflows/ci.yml"]
 deps = ["AGENTS.md", "docs/agent-protocol.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/agent-protocol.md"]
 purpose = "Builder, verifier, and human claim boundaries"
 owner_area = "area:governance"
 covers_code = ["tools/validate-evidence.py", "tools/validate-optid-packages.py"]
 deps = ["AGENTS.md", "docs/project-workflow.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/automation-human-interface.md"]
 purpose = "LiveDev automation and human-control boundary"
@@ -227,67 +227,67 @@ purpose = "Authoritative LiveDev operator procedure"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/livedev-next"]
 deps = ["docs/livedev-user-guide.md", "testos/README.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/livedev-user-guide.md"]
 purpose = "LiveDev end-user guide"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1"]
 deps = ["docs/livedev/OPERATOR_RUNBOOK.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/livedev-developer-guide.md"]
 purpose = "LiveDev implementation and test guide"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-", "tools/rush_livedev_", "testos/"]
 deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."testos/README.md"]
 purpose = "testOS build and fallback operator guide"
 owner_area = "area:testos"
 covers_code = ["testos/", "mkosi/mkosi.profiles/testos/"]
 deps = ["docs/livedev/OPERATOR_RUNBOOK.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."OPTID-COMPLETION-PLAN.md"]
 purpose = "Active optid construction plan"
 owner_area = "area:optid"
 covers_code = ["crates/optid/", "crates/optctl/"]
 deps = ["docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/architecture/optid-d2-amendment.md"]
 purpose = "Accepted fail-passive safety architecture"
 owner_area = "area:optid"
 covers_code = ["crates/optid/"]
 deps = ["OPTID-COMPLETION-PLAN.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/plans/optid-package-status.toml"]
 purpose = "Machine-readable active package state and dependencies"
 owner_area = "area:optid"
 covers_code = ["crates/optid/", "crates/optctl/"]
 deps = ["OPTID-COMPLETION-PLAN.md", "docs/plans/optid-verification/README.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."docs/plans/optid-verification/README.md"]
 purpose = "Cold-verification receipt contract"
 owner_area = "area:optid"
 covers_code = ["tools/validate-optid-packages.py"]
 deps = ["docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."release/milestones.toml"]
 purpose = "Machine-readable release truth"
 owner_area = "area:release"
 covers_code = []
 deps = ["release/evidence/README.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"
 
 [docs."release/evidence/README.md"]
 purpose = "Evidence format and claim rules"
 owner_area = "area:release"
 covers_code = ["tools/validate-evidence.py", "tools/validate-hwtest-evidence.py"]
 deps = ["release/milestones.toml", "docs/agent-protocol.md"]
-last_verified = "2026-07-23"
+last_verified = "2026-07-25"

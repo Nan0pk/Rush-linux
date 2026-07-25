@@ -34,9 +34,9 @@ chooses the useful VM, USB, or results-resume path for the machine it runs on.
 - **Version:** `0.7.0-beta.4`
 - **Stage:** Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready.
 - **Build profiles:** `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos`
-- **Active general repair:** `F1` — Freeze capability states and domain configuration (`candidate`)
+- **Active general repair:** `F3` — Version observations, decisions, and action outcomes (`merged_incomplete`)
 - **Active safety repair:** `D0` — Prototype capability sealing and supervisor-managed cold restart (`merged_incomplete`)
-- **Other merged but incomplete packages:** `F2`, `F3`, `F4`
+- **Other merged but incomplete packages:** `F2`, `F4`
 - **Safety architecture:** [D2 fail-passive](docs/architecture/optid-d2-amendment.md)
 - **Canonical work state:** [optid package ledger](docs/plans/optid-package-status.toml)
 
