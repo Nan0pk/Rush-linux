@@ -43,13 +43,13 @@ runtime_entrypoints = [
   "crates/optid/src/action.rs",
 ]
 integration_tests = [
-  "crates/optid/tests/f1_effective_config.rs",
+  "crates/optid/tests/f1_behavior.rs",
 ]
 completion_evidence = [
   "crates/optid/src/policy.rs",
   "crates/optid/src/decision.rs",
   "crates/optid/src/action.rs",
-  "crates/optid/tests/f1_effective_config.rs",
+  "crates/optid/tests/f1_behavior.rs",
   "docs/plans/optid-verification/f1.toml",
 ]
 

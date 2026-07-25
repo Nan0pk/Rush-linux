@@ -145,15 +145,11 @@ impl Action {
     /// `get_path_hash`, and the context-change revert in `main` relies on
     /// these keys being exactly the ones the actuator journaled.
     ///
-    /// Returns `None` for `SystemdSetProperty`: it shells out to
-    /// `systemctl set-property --runtime`, writes no sysfs file and
-    /// journals nothing, so there is no key to revert. Its `--runtime`
-    /// properties are already dropped by systemd on reboot.
     pub(crate) fn journal_key(&self) -> Option<String> {
         match self {
             Action::CpuEpp { .. } => Some("cpu_epp".to_string()),
             Action::PlatformProfile { .. } => Some("platform_profile".to_string()),
-            Action::SystemdSetProperty { .. } => None,
+            Action::SystemdSetProperty { unit, .. } => Some(format!("systemd_{}", unit)),
             // vm sysctls journal per-knob, keyed by the sysctl file name
             // (e.g. `vm_swappiness`), matching the `vm_{filename}` key
             // the actuator builds.
@@ -331,14 +327,17 @@ mod tests {
             Some("vm_swappiness")
         );
 
-        // systemctl set-property journals nothing.
-        assert!(Action::systemd_set_property(
-            "user.slice".to_string(),
-            vec!["CPUWeight=100".to_string()],
-            "t".to_string(),
-        )
-        .journal_key()
-        .is_none());
+        // systemctl set-property uses unit name.
+        assert_eq!(
+            Action::systemd_set_property(
+                "user.slice".to_string(),
+                vec!["CPUWeight=100".to_string()],
+                "t".to_string(),
+            )
+            .journal_key()
+            .as_deref(),
+            Some("systemd_user.slice")
+        );
 
         // Per-device keys hash the same path the actuator hashes.
         let attr =
@@ -416,7 +415,7 @@ mod tests {
             ),
             (
                 Action::systemd_set_property("user.slice".to_string(), vec![], "t".to_string()),
-                false,
+                true,
             ),
             (
                 Action::vm_sysctl(
