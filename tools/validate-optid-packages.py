@@ -171,6 +171,22 @@ def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
             if not str(package.get("blocking_reason", "")).strip():
                 errors.append(f"{package_id}: merged_incomplete requires blocking_reason")
 
+        # Dependency gate: candidate/completed require all depends completed.
+        if status in PROOF_STATUSES:
+            incomplete_dependencies = [
+                dependency
+                for dependency in dependencies
+                if packages_by_id.get(dependency, {}).get("status") != "completed"
+            ]
+            if incomplete_dependencies:
+                errors.append(
+                    f"{package_id}: status {status!r} while dependencies are incomplete: "
+                    + ", ".join(incomplete_dependencies)
+                    + f" (package {package_id} depends on incomplete: "
+                    + ", ".join(incomplete_dependencies)
+                    + ")"
+                )
+
         if status in PROOF_STATUSES:
             entrypoints = _path_list(package_id, package, "runtime_entrypoints", errors)
             integration_tests = _path_list(
@@ -194,19 +210,19 @@ def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
                         f"implementation module: {value}"
                     )
 
+            # Candidate-only structural + acceptance gates. Completed packages
+            # retain their historical evidence model; new candidates must not
+            # claim production integration via include_str(src)+.contains.
+            if status == "candidate":
+                for value in integration_tests:
+                    detect_structural_integration_test(
+                        package_id, value, root, errors
+                    )
+                validate_acceptance_test_mapping(package_id, package, root, errors)
+
         if status == "completed":
             if not PR_RE.fullmatch(str(package.get("pr", ""))):
                 errors.append(f"{package_id}: completed status requires a numeric PR")
-            incomplete_dependencies = [
-                dependency
-                for dependency in dependencies
-                if packages_by_id.get(dependency, {}).get("status") != "completed"
-            ]
-            if incomplete_dependencies:
-                errors.append(
-                    f"{package_id}: completed while dependencies are incomplete: "
-                    + ", ".join(incomplete_dependencies)
-                )
             validate_verification_receipt(package_id, package, root, errors)
 
     for key in ("active_general", "active_safety"):
@@ -270,7 +286,33 @@ def added_dead_code_allows(base: str, root: Path = ROOT) -> list[str]:
     return dead_code_allows_in_diff(result.stdout)
 
 
-def ledger_claim_changes(base: str, root: Path = ROOT) -> list[str]:
+CLAIM_FIELDS = {
+    "status",
+    "pr",
+    "blocking_reason",
+    "runtime_entrypoints",
+    "integration_tests",
+    "completion_evidence",
+    "verification_receipt",
+}
+
+# Package identity / plan fields: may not change silently in an
+# implementation PR without an accepted plan/spec change in the same diff.
+PROTECTED_DEFINITION_FIELDS = {
+    "id",
+    "lane",
+    "title",
+    "depends",
+    "promotion",
+}
+
+PLAN_SPEC_PATHS = (
+    "OPTID-COMPLETION-PLAN.md",
+    "docs/architecture/optid-d2-amendment.md",
+)
+
+
+def _load_base_ledger(base: str, root: Path = ROOT) -> dict[str, Any]:
     result = subprocess.run(
         ["git", "show", f"{base}:{LEDGER.as_posix()}"],
         cwd=root,
@@ -282,28 +324,160 @@ def ledger_claim_changes(base: str, root: Path = ROOT) -> list[str]:
             result.stderr.decode(errors="replace").strip()
             or f"cannot read ledger from {base}"
         )
-    previous = tomllib.loads(result.stdout.decode())
+    return tomllib.loads(result.stdout.decode())
+
+
+def ledger_claim_changes(base: str, root: Path = ROOT) -> list[str]:
+    previous = _load_base_ledger(base, root)
     current = load_toml(root / LEDGER)
     before = package_map(previous)
     after = package_map(current)
-    claim_fields = {
-        "status",
-        "pr",
-        "blocking_reason",
-        "runtime_entrypoints",
-        "integration_tests",
-        "completion_evidence",
-        "verification_receipt",
-    }
     return sorted(
         package_id
         for package_id in set(before) | set(after)
         if any(
             before.get(package_id, {}).get(field)
             != after.get(package_id, {}).get(field)
-            for field in claim_fields
+            for field in CLAIM_FIELDS
         )
     )
+
+
+def ledger_definition_changes(base: str, root: Path = ROOT) -> list[str]:
+    """Return human-readable protected-field changes vs base."""
+    previous = _load_base_ledger(base, root)
+    current = load_toml(root / LEDGER)
+    before = package_map(previous)
+    after = package_map(current)
+    findings: list[str] = []
+    for package_id in sorted(set(before) | set(after)):
+        for field in PROTECTED_DEFINITION_FIELDS:
+            old = before.get(package_id, {}).get(field)
+            new = after.get(package_id, {}).get(field)
+            if old != new:
+                findings.append(f"{package_id}.{field}: {old!r} → {new!r}")
+    return findings
+
+
+def detect_structural_integration_test(
+    package_id: str,
+    test_path: str,
+    root: Path,
+    errors: list[str],
+) -> None:
+    """Reject integration tests that claim production integration via
+    include_str of src + .contains only (not parser fixtures / golden files).
+    """
+    path = root / test_path
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    # Narrow: only flag files under crates/optid/tests/ (or optctl) that
+    # include production source modules and assert with .contains on them.
+    include_src = re.findall(
+        r'include_str!\s*\(\s*"(?:\.\./)+src/[^"]+\.rs"\s*\)',
+        text,
+    )
+    if not include_src:
+        return
+
+    # Count .contains assertions on the included constants / source text.
+    contains_asserts = len(re.findall(r"\.contains\s*\(", text))
+    # Behavioral calls that indicate a real production-path test.
+    behavioral_signals = (
+        "collect_with",
+        "compute_thermal_budget",
+        "discover_thermal",
+        "fits_contract",
+        "contract_gate",
+        "MemoryKernel",
+        "FaultKernel",
+        "Actuator::",
+        "Policy::",
+        "Snapshot::",
+    )
+    has_behavioral = any(sig in text for sig in behavioral_signals)
+
+    # Primary structural pattern: multiple include_str of src + several
+    # .contains and no behavioral production-path exercise.
+    if len(include_src) >= 2 and contains_asserts >= 3 and not has_behavioral:
+        errors.append(
+            f"{package_id}: integration test {test_path} claims production "
+            "integration primarily via include_str(src)+.contains; replace "
+            "with behavioral tests through injected kernel I/O or real "
+            "production entrypoints"
+        )
+
+
+def validate_acceptance_test_mapping(
+    package_id: str,
+    package: dict[str, Any],
+    root: Path,
+    errors: list[str],
+) -> None:
+    """Candidate packages need a minimal acceptance→test name mapping
+    whose referenced tests exist (in listed integration tests or src).
+    """
+    mapping = package.get("acceptance_tests", {})
+    if not isinstance(mapping, dict) or not mapping:
+        # Allow mapping embedded in completion_evidence files as a simple
+        # alternative: require at least one integration test file that
+        # defines `#[test] fn` names (existence check only).
+        tests = package.get("integration_tests", [])
+        if not isinstance(tests, list) or not tests:
+            errors.append(
+                f"{package_id}: candidate requires acceptance_tests mapping "
+                "or integration_tests with real #[test] functions"
+            )
+            return
+        found_any = False
+        for test_path in tests:
+            absolute = root / str(test_path)
+            if absolute.is_file():
+                text = absolute.read_text(encoding="utf-8", errors="replace")
+                if re.search(r"#\[test\]\s*(?:async\s+)?fn\s+\w+", text):
+                    found_any = True
+                    break
+        if not found_any:
+            errors.append(
+                f"{package_id}: candidate integration_tests must contain "
+                "at least one #[test] fn (behavioral mapping)"
+            )
+        return
+
+    # Explicit mapping: acceptance requirement → test function name.
+    search_roots: list[Path] = []
+    for field in ("integration_tests", "completion_evidence", "runtime_entrypoints"):
+        for value in package.get(field, []) or []:
+            p = root / str(value)
+            if p.is_file():
+                search_roots.append(p)
+            elif p.is_dir():
+                search_roots.extend(p.rglob("*.rs"))
+
+    corpus = ""
+    for path in search_roots:
+        try:
+            corpus += path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+    for requirement, test_name in mapping.items():
+        if not isinstance(test_name, str) or not test_name.strip():
+            errors.append(
+                f"{package_id}: acceptance_tests[{requirement!r}] must name a test"
+            )
+            continue
+        pattern = rf"fn\s+{re.escape(test_name.strip())}\s*\("
+        if not re.search(pattern, corpus):
+            errors.append(
+                f"{package_id}: acceptance requirement {requirement!r} maps to "
+                f"test {test_name!r} which was not found in declared evidence paths"
+            )
 
 
 def validate_change(base: str, root: Path = ROOT) -> list[str]:
@@ -325,17 +499,54 @@ def validate_change(base: str, root: Path = ROOT) -> list[str]:
                 errors.append(
                     "optid code changed, but no package status/proof claim changed"
                 )
-            elif len(claims) > 1:
-                errors.append(
-                    "one optid implementation PR may advance only one package; "
-                    f"changed claims: {', '.join(claims)}"
-                )
+            else:
+                # One package may advance status/proof. Other packages may
+                # only refine blocking_reason (honest residual blockers).
+                previous = _load_base_ledger(base, root)
+                current = load_toml(root / LEDGER)
+                before = package_map(previous)
+                after = package_map(current)
+                advancing: list[str] = []
+                for package_id in claims:
+                    non_blocker = any(
+                        before.get(package_id, {}).get(field)
+                        != after.get(package_id, {}).get(field)
+                        for field in CLAIM_FIELDS
+                        if field != "blocking_reason"
+                    )
+                    if non_blocker:
+                        advancing.append(package_id)
+                if len(advancing) > 1:
+                    errors.append(
+                        "one optid implementation PR may advance only one package; "
+                        f"changed claims: {', '.join(advancing)}"
+                    )
 
         for finding in added_dead_code_allows(base, root):
             errors.append(
                 "new dead-code suppression is forbidden in production optid code: "
                 + finding
             )
+
+    # Package-definition protection: id/lane/title/depends/promotion
+    # require an explicit accepted plan/spec change in the same PR.
+    if LEDGER.as_posix() in files:
+        def_changes = ledger_definition_changes(base, root)
+        if def_changes:
+            plan_touched = any(
+                any(path == plan or path.startswith(plan + "/") for plan in PLAN_SPEC_PATHS)
+                or path == plan
+                for path in files
+                for plan in PLAN_SPEC_PATHS
+            )
+            # Also accept a direct edit note in OPTID-COMPLETION-PLAN.md
+            if not plan_touched:
+                errors.append(
+                    "package definition fields (id/lane/title/depends/promotion) "
+                    "changed without an accepted plan/spec change in the same PR "
+                    f"({', '.join(def_changes)}); touch OPTID-COMPLETION-PLAN.md "
+                    "or docs/architecture/optid-d2-amendment.md to record the decision"
+                )
 
     return errors
 
