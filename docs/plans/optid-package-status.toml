@@ -72,7 +72,7 @@ title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
 depends = ["F2", "F3"]
 pr = "327"
-blocking_reason = "The reconciler is dormant, duplicates F3 types, cannot represent multiple devices per domain, and performs no production readback or restore."
+blocking_reason = "The reconciler is dormant, duplicates F3 types, cannot represent multiple devices per domain, and performs no production readback. Transition restore is now partly covered outside the reconciler: the daemon loop diffs journal keys between ticks and Actuator::revert_key restores per-device depth-enablers whose action disappears after a context change. That is a defect fix in the actuator path, not the reconciled desired-state model this package requires, so the package remains incomplete."
 completion_evidence = []
 
 [[package]]

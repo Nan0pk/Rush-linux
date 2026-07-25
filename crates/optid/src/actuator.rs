@@ -20,7 +20,10 @@ use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
 use crate::capability::Capability;
-use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, mark_applied};
+use crate::contracts::{fits_contract, ContractFloors};
+use crate::io_util::{
+    append_log, atomic_write_state_file, clear_journal, get_path_hash, mark_applied,
+};
 use crate::kernel_io::{KernelIo, KernelWrite, RealKernel};
 use crate::load_state::BootState;
 use crate::sensors::discover_cpu_epp_paths_with;
@@ -103,6 +106,13 @@ pub(crate) struct Actuator {
     /// `boot_state.apply_armed`. The curated baseline is gated by
     /// `boot_state.baseline_armed` and applied via `apply_baseline`.
     pub(crate) boot_state: Option<BootState>,
+    /// SPEC §3 contract gate. The `ContractFloors` resolved from the
+    /// committed workload class for this tick. `None` ⇒ no contract has
+    /// been installed (legacy callers and unit tests that construct an
+    /// `Actuator` directly), in which case the gate is open and the
+    /// actuator behaves exactly as before. `main` calls
+    /// `set_active_floors` every tick before applying the decision.
+    pub(crate) active_floors: Option<ContractFloors>,
     /// F2: injectable kernel I/O. Defaults to `RealKernel` for production
     /// and existing tests. New fault-injection tests construct the actuator
     /// via `new_with_kernel` and pass a `FaultKernel` to simulate missing
@@ -141,6 +151,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            active_floors: None,
             kernel,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
@@ -164,6 +175,7 @@ impl Actuator {
             last_backlight: HashMap::new(),
             allowlist: None,
             boot_state: None,
+            active_floors: None,
             kernel: Box::new(RealKernel::new()),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
@@ -174,6 +186,89 @@ impl Actuator {
     /// allowlist. Called from `main` when `--allowlist` is set.
     pub(crate) fn enable_allowlist(&mut self, allowlist: Allowlist) {
         self.allowlist = Some(allowlist);
+    }
+
+    /// SPEC §3: install the contract floors for the current tick. `main`
+    /// calls this after resolving `committed_class` and before applying
+    /// the decision, so the gate always evaluates against the class the
+    /// daemon actually committed to this cycle.
+    pub(crate) fn set_active_floors(&mut self, floors: ContractFloors) {
+        self.active_floors = Some(floors);
+    }
+
+    /// SPEC §3 contract gate:
+    ///
+    /// ```text
+    /// exit_latency(S) ≤ active_contract.floor(D)
+    /// ```
+    ///
+    /// Returns `Ok(true)` when the action may proceed. Only the two
+    /// depth-enablers that trade resume latency for power are gated:
+    ///
+    /// - `DeviceResumeLatency` — the action value *is* the resume latency
+    ///   in microseconds. `None` means "no constraint" (the PM QoS default),
+    ///   which cannot violate a floor.
+    /// - `RuntimePm` — autosuspend delay is expressed in milliseconds, so
+    ///   the exit latency is `autosuspend_delay_ms × 1000` µs.
+    ///
+    /// Every other variant is ungated and returns `true`: CPU EPP,
+    /// platform profile and cgroup weights do not change a device's exit
+    /// latency, and CPU DMA latency is itself a latency *floor* request
+    /// rather than a state with an exit cost.
+    ///
+    /// Negative values are treated as "no constraint" rather than being
+    /// cast to `u64`, where `-1` would wrap to `u64::MAX` and be blocked
+    /// by every floor, or a negative delay would wrap into a small
+    /// apparently-valid latency. `-1` is the kernel's own sentinel for an
+    /// unset `autosuspend_delay_ms`.
+    fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
+        let Some(floors) = self.active_floors else {
+            return Ok(true); // gate not installed
+        };
+        // A non-positive floor cannot be satisfied by any real state and
+        // most likely means a misconfigured contracts.toml; treat it as
+        // "no contract" rather than blocking all depth-enablers.
+        let floor_us: u64 = match u64::try_from(floors.device_resume_latency) {
+            Ok(f) if f > 0 => f,
+            _ => return Ok(true),
+        };
+
+        let (exit_latency_us, label) = match action {
+            Action::DeviceResumeLatency {
+                path,
+                value: Some(v),
+                ..
+            } => match u64::try_from(*v) {
+                Ok(us) => (us, format!("device_resume_latency {}", path.display())),
+                // Negative ⇒ not a real latency; leave it to the
+                // capability/allowlist layers rather than wrapping.
+                Err(_) => return Ok(true),
+            },
+            Action::DeviceResumeLatency { value: None, .. } => return Ok(true),
+            Action::RuntimePm {
+                device_dir,
+                autosuspend_delay_ms,
+                ..
+            } => {
+                // -1 is the kernel sentinel for "unset"; negative values
+                // are not a latency budget.
+                let Ok(delay_ms) = u64::try_from(*autosuspend_delay_ms) else {
+                    return Ok(true);
+                };
+                // Saturate rather than overflow on an absurd delay.
+                let us = delay_ms.saturating_mul(1000);
+                (us, format!("runtime_pm {}", device_dir.display()))
+            }
+            _ => return Ok(true),
+        };
+
+        if fits_contract(exit_latency_us, floor_us) {
+            return Ok(true);
+        }
+        self.log(&format!(
+            "contract gate BLOCKED {label}: exit_latency={exit_latency_us}us > floor={floor_us}us"
+        ))?;
+        Ok(false)
     }
 
     /// optid-safety: install the boot-time decision surface. After this call,
@@ -372,6 +467,13 @@ impl Actuator {
         // with a logged reason. The curated baseline is applied separately
         // via apply_baseline(), gated by baseline_armed.
         if !self.dynamic_writes_armed()? {
+            return Ok(());
+        }
+        // SPEC §3 contract gate. Evaluated before capability validation,
+        // the hardware allowlist, journaling and any mutation, so a
+        // blocked action leaves no trace on the device or in the state
+        // directory.
+        if !self.contract_permits(action)? {
             return Ok(());
         }
         match action {
@@ -1043,6 +1145,173 @@ impl Actuator {
             }
         }
         Ok(())
+    }
+
+    /// Revert a single journaled action, identified by the journal key
+    /// that `Action::journal_key()` derives.
+    ///
+    /// This is the inverse-restore path for a *context change*: the
+    /// previous decision applied `key`, the new decision no longer
+    /// contains it, so the value must go back to its journaled original
+    /// now rather than lingering until shutdown. Before this existed, a
+    /// battery→AC transition left battery-idle sysfs values in place for
+    /// the rest of the uptime.
+    ///
+    /// Journal formats are the ones `apply` writes, and match the
+    /// shutdown reverts in `io_util`:
+    ///
+    /// - `rpm_<hash>`: three lines — device dir, original `power/control`,
+    ///   original `power/autosuspend_delay_ms` (or the literal `n/a`).
+    /// - `dev_<hash>`: two lines — attribute path, original value.
+    /// - `aspm_<hash>` / `alpm_<hash>` / `bl_<hash>`: two lines — base
+    ///   directory, original value.
+    ///
+    /// `cpu_epp`, `platform_profile`, `vm_*` and `cpu_dma_latency` are
+    /// deliberately **not** handled here. They are system-wide knobs that
+    /// every decision tick rewrites unconditionally, so the next tick
+    /// already overwrites them; adding a per-key restoration mechanism
+    /// would fight that loop and could bounce a value the new decision is
+    /// about to set. They keep their existing shutdown revert.
+    ///
+    /// Returns `Ok(true)` when a restoration ran and the journal was
+    /// cleared, `Ok(false)` when there was nothing to do (unknown or
+    /// non-revertible key, or no journal on disk). On a failed write the
+    /// journal is **retained** so the shutdown revert can retry, and
+    /// `Ok(false)` is returned.
+    pub(crate) fn revert_key(&mut self, key: &str) -> io::Result<bool> {
+        let orig_file = self.state_dir.join(format!("original_{key}"));
+        if !orig_file.exists() {
+            return Ok(false);
+        }
+        let Ok(content) = fs::read_to_string(&orig_file) else {
+            return Ok(false);
+        };
+        let mut lines = content.lines();
+
+        let restored = if key.starts_with("rpm_") {
+            // Three-line journal: device dir, control, delay.
+            let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let orig_delay = lines.next().unwrap_or("n/a").trim().to_string();
+            let dev_dir = PathBuf::from(dev_dir);
+            let control_path = dev_dir.join("power").join("control");
+            let orig_control = orig_control.trim().to_string();
+
+            match self.kernel.write(&control_path, &orig_control) {
+                Ok(()) => {
+                    // Restore the delay too, when the device had one.
+                    let mut ok = true;
+                    if orig_delay != "n/a" {
+                        let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
+                        if let Err(e) = self.kernel.write(&delay_path, &orig_delay) {
+                            self.log(&format!(
+                                "context-change revert {key}: failed to restore autosuspend_delay_ms for {}: {e}",
+                                dev_dir.display()
+                            ))?;
+                            ok = false;
+                        }
+                    }
+                    if ok {
+                        self.last_runtime_pm.remove(&dev_dir);
+                        self.log(&format!(
+                            "context-change revert {key}: restored {} control={orig_control} autosuspend_delay_ms={orig_delay}",
+                            dev_dir.display()
+                        ))?;
+                    }
+                    ok
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore control for {}: {e}",
+                        dev_dir.display()
+                    ))?;
+                    false
+                }
+            }
+        } else if key.starts_with("dev_") {
+            // Two-line journal: attribute path, original value.
+            let (Some(attr_path), Some(orig_val)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let attr_path = PathBuf::from(attr_path);
+            let orig_val = orig_val.trim().to_string();
+            // DeviceResumeLatency applies through the PM QoS sink, so the
+            // restore must go back through the same sink — not the raw
+            // kernel writer — or a mocked sink would diverge from what the
+            // apply path actually mutated.
+            match self.pmqos_sink.write_device_latency(&attr_path, &orig_val) {
+                Ok(()) => {
+                    self.last_device_latencies.remove(&attr_path);
+                    self.log(&format!(
+                        "context-change revert {key}: restored {} = {orig_val}",
+                        attr_path.display()
+                    ))?;
+                    true
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore {}: {e}",
+                        attr_path.display()
+                    ))?;
+                    false
+                }
+            }
+        } else if key.starts_with("aspm_") || key.starts_with("alpm_") || key.starts_with("bl_") {
+            // Two-line journal: base directory, original value. Only the
+            // attribute path relative to that base differs per domain.
+            let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let base = PathBuf::from(base);
+            let orig_val = orig_val.trim().to_string();
+            let target = if key.starts_with("aspm_") {
+                base.join("link").join("l1_aspm")
+            } else if key.starts_with("alpm_") {
+                base.join("link_power_management_policy")
+            } else {
+                base.join("brightness")
+            };
+
+            match self.kernel.write(&target, &orig_val) {
+                Ok(()) => {
+                    if key.starts_with("aspm_") {
+                        self.last_pcie_aspm.remove(&base);
+                    } else if key.starts_with("alpm_") {
+                        self.last_sata_alpm.remove(&base);
+                    } else {
+                        self.last_backlight.remove(&base);
+                    }
+                    self.log(&format!(
+                        "context-change revert {key}: restored {} = {orig_val}",
+                        target.display()
+                    ))?;
+                    true
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore {}: {e}",
+                        target.display()
+                    ))?;
+                    false
+                }
+            }
+        } else {
+            // System-wide knobs (cpu_epp, platform_profile, vm_*,
+            // cpu_dma_latency) are continuously overwritten by later
+            // ticks; nothing to do here.
+            return Ok(false);
+        };
+
+        if restored {
+            // Drop original_/intended_/applied_ together.
+            clear_journal(&self.state_dir, key);
+        } else {
+            self.log(&format!(
+                "context-change revert {key}: journal retained; restore did not complete"
+            ))?;
+        }
+        Ok(restored)
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {

@@ -182,11 +182,10 @@ impl Contracts {
 /// contract gate: exit_latency(S) ≤ active_contract.floor(D)
 /// ```
 ///
-/// Currently `#[allow(dead_code)]` because the device-level depth-enablers
-/// (WP-N5/N6: runtime PM autosuspend, NVMe APST, PCIe ASPM, SATA ALPM) that
-/// will call it are not implemented yet. Kept here so the WP implementation
-/// can land without redefining the contract semantics.
-#[allow(dead_code)]
+/// Called by `Actuator::contract_permits` before any depth-enabler write
+/// that trades resume latency for power: per-device PM QoS resume latency
+/// and runtime-PM autosuspend. A state whose exit latency exceeds the
+/// active class's floor is refused.
 pub(crate) fn fits_contract(exit_latency_us: u64, floor_us: u64) -> bool {
     exit_latency_us <= floor_us
 }

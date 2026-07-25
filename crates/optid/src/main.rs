@@ -6,6 +6,7 @@
 //! the snapshot → classify → decide → actuate loop. All substantive logic lives
 //! in the sibling modules so each can be reviewed and tested in isolation.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::os::fd::AsRawFd;
@@ -321,6 +322,11 @@ fn run(args: Args) -> io::Result<()> {
         );
     }
 
+    // Journal keys applied by the previous decision tick. Compared against
+    // the current tick's keys so actions that disappear after a context
+    // change are reverted rather than left applied until shutdown.
+    let mut active_keys: HashSet<String> = HashSet::new();
+
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let mut snapshot = Snapshot::collect();
@@ -365,6 +371,11 @@ fn run(args: Args) -> io::Result<()> {
             .unwrap_or_else(|| PathBuf::from("contracts.toml"));
         let contracts = Contracts::load(&contracts_path);
 
+        // SPEC §3: install this tick's contract floors on the actuator
+        // before applying the decision, so depth-enabler writes are gated
+        // by the class the daemon actually committed to.
+        actuator.set_active_floors(contracts.resolve(committed_class));
+
         let decision = policy.decide_resolved(
             &snapshot,
             override_mode,
@@ -383,6 +394,26 @@ fn run(args: Args) -> io::Result<()> {
             for action in &decision.actions {
                 actuator.apply(action)?;
             }
+
+            // Inverse restore on context change. Any key the previous
+            // decision applied that this decision no longer contains is
+            // reverted to its journaled original now, instead of
+            // lingering until shutdown. Without this a battery→AC
+            // transition left battery-idle sysfs values in place for the
+            // rest of the uptime.
+            //
+            // Only per-device depth-enabler keys are actually restored;
+            // Actuator::revert_key ignores the system-wide knobs, which
+            // every tick rewrites unconditionally.
+            let new_keys: HashSet<String> = decision
+                .actions
+                .iter()
+                .filter_map(|action| action.journal_key())
+                .collect();
+            for stale in active_keys.difference(&new_keys) {
+                actuator.revert_key(stale)?;
+            }
+            active_keys = new_keys;
         }
 
         if args.once || term.load(Ordering::Relaxed) {

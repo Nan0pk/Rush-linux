@@ -1188,6 +1188,585 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
+    // ── Defect 3: SPEC §3 contract gate in the actuator ─────────────────────
+
+    /// Build an allowlisted synthetic runtime-PM device for contract tests.
+    fn contract_rpm_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let dev = temp.join(name);
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"contract gate test\"\n"),
+        )
+        .unwrap();
+        dev
+    }
+
+    /// A 2000 ms autosuspend delay is a 2,000,000 µs exit latency, which
+    /// exceeds a 1,000,000 µs floor — the write must be refused, and must
+    /// leave no mutation and no journal behind.
+    #[test]
+    fn test_contract_gate_blocks_runtime_pm_over_floor() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_block_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0090d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-1", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 100_000,
+            device_resume_latency: 1_000_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000, // 2_000_000 us > 1_000_000 us floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        // No mutation.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "blocked action must not write power/control"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "100",
+            "blocked action must not write autosuspend_delay_ms"
+        );
+
+        // No journal, no applied marker, no cache entry.
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        assert!(!temp.join(format!("intended_rpm_{hash}")).exists());
+        assert!(!temp.join(format!("applied_rpm_{hash}")).exists());
+        assert!(!actuator.last_runtime_pm.contains_key(&dev));
+
+        // Blocked with the documented log line.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED"),
+            "expected a contract gate BLOCKED line, got: {log}"
+        );
+        assert!(
+            log.contains("exit_latency=2000000us") && log.contains("floor=1000000us"),
+            "log must report the exit latency and the floor, got: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// The same 2000 ms delay fits a 2,000,000 µs floor exactly, so it is
+    /// allowed (the predicate is `<=`).
+    #[test]
+    fn test_contract_gate_allows_runtime_pm_within_floor() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_allow_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0091d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-2", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 100_000,
+            device_resume_latency: 2_000_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000, // exactly at the floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(temp.join(format!("original_rpm_{hash}")).exists());
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(!log.contains("contract gate BLOCKED"), "{log}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// PM QoS resume latency is gated on the same floor, and a blocked
+    /// action must not reach the sink.
+    #[test]
+    fn test_contract_gate_blocks_device_resume_latency_over_floor() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_dev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let power = temp.join("0000:00:14.0").join("power");
+        fs::create_dir_all(&power).unwrap();
+        let dev_path = power.join("pm_qos_resume_latency_us");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 10_000,
+        });
+
+        actuator
+            .apply(&Action::DeviceResumeLatency {
+                path: dev_path.clone(),
+                value: Some(50_000), // 50_000 us > 10_000 us floor
+                reason: "battery idle".to_string(),
+            })
+            .unwrap();
+
+        // Never reached the sink, so the mock still reports its default.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "0"
+        );
+        let key = format!("dev_{}", get_path_hash(&dev_path));
+        assert!(!temp.join(format!("original_{key}")).exists());
+        assert!(!actuator.last_device_latencies.contains_key(&dev_path));
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(log.contains("contract gate BLOCKED"), "{log}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Negative values must not wrap into small valid latencies. `-1` is
+    /// the kernel's "unset" sentinel and must be treated as unconstrained,
+    /// not as u64::MAX (blocked by everything) nor as a tiny latency.
+    #[test]
+    fn test_contract_gate_handles_negative_values_safely() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_neg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0092d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-3", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        // A tight floor that u64::MAX would certainly violate.
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 1_000,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: -1,
+                reason: "unset sentinel".to_string(),
+            })
+            .unwrap();
+
+        // Not blocked by the gate: -1 is "no constraint", so the action
+        // proceeds to the normal actuation path.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "negative delay must not be wrapped into a blocked latency: {log}"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+
+        // Same for a negative PM QoS value. Use a separate actuator with
+        // the hardware allowlist left disabled: this synthetic attribute
+        // path has no modalias, so an enabled allowlist would default-deny
+        // it and mask what this test is actually asserting about the
+        // contract gate.
+        let qos_power = temp.join("0000:00:15.0").join("power");
+        fs::create_dir_all(&qos_power).unwrap();
+        let dev_path = qos_power.join("pm_qos_resume_latency_us");
+
+        let mut qos_actuator =
+            Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        qos_actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 1_000,
+        });
+        qos_actuator
+            .apply(&Action::DeviceResumeLatency {
+                path: dev_path.clone(),
+                value: Some(-1),
+                reason: "unset sentinel".to_string(),
+            })
+            .unwrap();
+        assert_eq!(
+            qos_actuator
+                .pmqos_sink
+                .read_device_latency(&dev_path)
+                .unwrap(),
+            "-1",
+            "negative PM QoS value should pass the gate and reach the sink"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// With no floors installed the gate is open — preserves behaviour for
+    /// every existing test and legacy caller that builds an Actuator
+    /// directly.
+    #[test]
+    fn test_contract_gate_open_when_no_floors_installed() {
+        let temp = std::env::temp_dir().join(format!("optid_contract_none_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0093d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-4", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        // No set_active_floors call.
+        assert!(actuator.active_floors.is_none());
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 60_000, // would violate every real floor
+                reason: "no contract installed".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Ungated variants are unaffected by a tight floor.
+    #[test]
+    fn test_contract_gate_ignores_non_latency_actions() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_other_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1,
+            device_resume_latency: 1,
+        });
+
+        // CpuEpp has no discoverable paths in the test environment, so it
+        // logs a skip rather than writing — the point is that the contract
+        // gate does not block it.
+        actuator
+            .apply(&Action::CpuEpp {
+                value: "power".to_string(),
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap_or_default();
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "CPU EPP must not be contract-gated: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    // ── Defect 2: inverse restore on context change ─────────────────────────
+
+    /// A runtime-PM action applied on one tick must be reverted when the
+    /// next decision no longer contains it — not left applied until
+    /// shutdown. This reproduces the battery→AC transition: the daemon
+    /// enables autosuspend while on battery, then the charger is plugged
+    /// in and the new decision drops the action entirely.
+    ///
+    /// The revert is driven through exactly the same active-key
+    /// difference the main loop performs, so this exercises the real
+    /// wiring rather than calling `revert_key` on a hand-written key.
+    #[test]
+    fn test_context_change_reverts_removed_runtime_pm_action() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_ctx_revert_rpm_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = temp.join("1-2");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        // Baseline: autosuspend off, 100 ms delay.
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"context-change revert test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+
+        // ── Tick 1: on battery, runtime PM is applied. ──
+        let action = Action::RuntimePm {
+            device_dir: dev.clone(),
+            autosuspend_delay_ms: 2000,
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+
+        let key = action.journal_key().expect("runtime PM action has a key");
+        let hash = get_path_hash(&dev);
+        assert_eq!(key, format!("rpm_{hash}"));
+        assert!(temp.join(format!("original_{key}")).exists());
+        assert!(temp.join(format!("applied_{key}")).exists());
+        assert_eq!(actuator.last_runtime_pm.get(&dev), Some(&2000));
+
+        let active_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
+
+        // ── Tick 2: charger plugged in; the new decision has no
+        // runtime-PM action at all. Mirror the main loop's difference. ──
+        let next_actions: Vec<Action> = Vec::new();
+        let new_keys: std::collections::HashSet<String> = next_actions
+            .iter()
+            .filter_map(|a: &Action| a.journal_key())
+            .collect();
+        assert!(new_keys.is_empty());
+
+        for stale in active_keys.difference(&new_keys) {
+            assert!(
+                actuator.revert_key(stale).unwrap(),
+                "revert_key should report a completed restoration for {stale}"
+            );
+        }
+
+        // Device is back to its pre-actuation state.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "power/control must be restored to its journaled original"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "100",
+            "autosuspend_delay_ms must be restored to its journaled original"
+        );
+
+        // Idempotence cache cleared, so a later re-apply is not skipped.
+        assert!(
+            !actuator.last_runtime_pm.contains_key(&dev),
+            "last_runtime_pm must be cleared after a context-change revert"
+        );
+
+        // Journal fully removed.
+        assert!(!temp.join(format!("original_{key}")).exists());
+        assert!(!temp.join(format!("intended_{key}")).exists());
+        assert!(!temp.join(format!("applied_{key}")).exists());
+
+        // The revert is recorded in the action log.
+        let actions_log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            actions_log.contains("context-change revert"),
+            "expected a context-change revert log line, got: {actions_log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// A key that is still present in the next decision must NOT be
+    /// reverted — only the difference is restored.
+    #[test]
+    fn test_context_change_retains_still_active_runtime_pm_action() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_ctx_retain_rpm_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        let modalias = "usb:v046Dp0083d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = temp.join("1-3");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"context-change retain test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+
+        let action = Action::RuntimePm {
+            device_dir: dev.clone(),
+            autosuspend_delay_ms: 2000,
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+        let key = action.journal_key().unwrap();
+
+        let active_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
+        // The next decision still contains the same action.
+        let new_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
+
+        for stale in active_keys.difference(&new_keys) {
+            actuator.revert_key(stale).unwrap();
+        }
+
+        // Untouched: still applied, journal intact.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+        assert!(temp.join(format!("original_{key}")).exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// `SystemdSetProperty` journals nothing, so it has no revert key.
+    #[test]
+    fn test_journal_key_none_for_systemd_set_property() {
+        let action = Action::systemd_set_property(
+            "user.slice".to_string(),
+            vec!["CPUWeight=100".to_string()],
+            "test".to_string(),
+        );
+        assert!(action.journal_key().is_none());
+    }
+
+    /// System-wide knobs are continuously overwritten by later ticks, so
+    /// `revert_key` deliberately declines to restore them.
+    #[test]
+    fn test_revert_key_ignores_system_wide_knobs() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_sys_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        // Journal a system-wide knob as if it had been applied.
+        fs::write(temp.join("original_vm_swappiness"), "60").unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        assert!(!actuator.revert_key("vm_swappiness").unwrap());
+        assert!(!actuator.revert_key("cpu_epp").unwrap());
+        assert!(!actuator.revert_key("platform_profile").unwrap());
+        assert!(!actuator.revert_key("cpu_dma_latency").unwrap());
+
+        // The journal is left for the shutdown revert to handle.
+        assert!(temp.join("original_vm_swappiness").exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// An unknown key, or a key with no journal on disk, is a no-op.
+    #[test]
+    fn test_revert_key_absent_journal_is_noop() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_absent_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        assert!(!actuator.revert_key("rpm_deadbeef").unwrap());
+        assert!(!actuator.revert_key("totally_unknown_key").unwrap());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// The PM QoS resume-latency revert must go back through the sink the
+    /// apply path used, and clear the matching idempotence cache.
+    #[test]
+    fn test_context_change_reverts_device_resume_latency() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_dev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let dev_path = temp
+            .join("0000:00:14.0")
+            .join("power")
+            .join("pm_qos_resume_latency_us");
+        fs::create_dir_all(dev_path.parent().unwrap()).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "100"
+        );
+        let key = action.journal_key().unwrap();
+        assert_eq!(key, format!("dev_{}", get_path_hash(&dev_path)));
+        assert!(actuator.last_device_latencies.contains_key(&dev_path));
+
+        assert!(actuator.revert_key(&key).unwrap());
+
+        // MockPmqosSink reports "0" for an unseeded device, which is what
+        // the apply path journaled as the original.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "0",
+            "device latency must be restored through the PM QoS sink"
+        );
+        assert!(
+            !actuator.last_device_latencies.contains_key(&dev_path),
+            "last_device_latencies must be cleared after a context-change revert"
+        );
+        assert!(!temp.join(format!("original_{key}")).exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     #[test]
     fn test_n5_runtime_pm_skips_network_carrier_up() {
         let temp = std::env::temp_dir().join(format!("optid_n5_carrier_{}", std::process::id()));
