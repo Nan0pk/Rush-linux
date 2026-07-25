@@ -1716,15 +1716,15 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
-    /// `SystemdSetProperty` journals nothing, so it has no revert key.
+    /// `SystemdSetProperty` journals a unique key per unit.
     #[test]
-    fn test_journal_key_none_for_systemd_set_property() {
+    fn test_journal_key_for_systemd_set_property() {
         let action = Action::systemd_set_property(
             "user.slice".to_string(),
             vec!["CPUWeight=100".to_string()],
             "test".to_string(),
         );
-        assert!(action.journal_key().is_none());
+        assert_eq!(action.journal_key().as_deref(), Some("systemd_user.slice"));
     }
 
     /// System-wide knobs are continuously overwritten by later ticks, so
