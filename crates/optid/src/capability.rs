@@ -107,7 +107,12 @@ impl Capability {
     /// writable subtrees. The union of these across `ALL_CAPABILITIES`
     /// is the minimum `ReadWritePaths` set the apply-mode service must
     /// grant.
-    #[allow(dead_code)]
+    ///
+    /// Test-only: the manifest exists to be diffed against the shipped
+    /// systemd units by the drift-detection tests, which are its only
+    /// callers. Gating on `cfg(test)` rather than suppressing the
+    /// unused-code lint keeps `clippy -D warnings` meaningful here.
+    #[cfg(test)]
     pub(crate) fn required_paths(&self) -> &'static [&'static str] {
         match self {
             // System-wide knobs: statically known paths, safe to grant
@@ -117,29 +122,32 @@ impl Capability {
             Capability::VmSysctl => &["/proc/sys/vm"],
             Capability::CpuDmaLatency => &["/dev/cpu_dma_latency"],
             // Per-device depth-enablers: write to dynamic paths under
-            // /sys/devices that CANNOT be statically enumerated at
-            // packaging time. The shipped systemd service does NOT grant
-            // /sys/devices broadly — these capabilities soft-fail (log +
-            // skip) under the service rather than weakening the sandbox.
-            // A finer privilege boundary (per-device bind paths at startup,
-            // or a minimal privileged helper) is tracked as follow-up work.
-            // Returning an empty slice here means required_read_write_paths()
-            // does NOT include /sys/devices, and the drift-detection test
-            // enforces that the service unit matches.
-            Capability::DeviceResumeLatency
-            | Capability::RuntimePm
-            | Capability::PcieAspm
-            | Capability::SataAlpm
-            | Capability::Backlight => &[],
+            // /sys/devices, /sys/bus, and /sys/class. The specific files
+            // are validated by the software allowlist in kernel_io.rs
+            // (is_allowlisted_write_path) which checks path SHAPE. The
+            // systemd service grants the prefix subtrees below; the
+            // drift-detection test enforces the service unit matches.
+            Capability::DeviceResumeLatency | Capability::RuntimePm => {
+                &["/sys/devices", "/sys/bus/pci", "/sys/bus/usb"]
+            }
+            Capability::PcieAspm => &["/sys/bus/pci"],
+            Capability::SataAlpm => &["/sys/class/scsi_host"],
+            Capability::Backlight => &["/sys/class/backlight", "/sys/devices"],
         }
     }
 
     /// Returns true if this capability is deployable under the shipped
     /// systemd service (i.e. its required paths are statically known and
-    /// granted by ReadWritePaths). Per-device depth-enablers return false
-    /// here; they require a finer privilege boundary that does not exist
-    /// yet.
-    #[allow(dead_code)]
+    /// granted by ReadWritePaths).
+    ///
+    /// This is a manifest invariant checked by
+    /// `all_capabilities_are_service_deployable`, which is its only
+    /// caller, so it is gated on `cfg(test)`. Gating on the test
+    /// configuration rather than suppressing the unused-code lint keeps
+    /// `cargo clippy --all-targets -- -D warnings` honest: if the
+    /// predicate ever loses its last caller the compiler reports it,
+    /// instead of a blanket suppression hiding the fact.
+    #[cfg(test)]
     pub(crate) fn is_service_deployable(&self) -> bool {
         !self.required_paths().is_empty()
     }
@@ -419,7 +427,7 @@ pub(crate) const ALL_CAPABILITIES: &[Capability] = &[
 /// is the minimum `ReadWritePaths=` set the apply-mode systemd service
 /// must grant. The `systemd_apply_service_grants_every_capability` test
 /// enforces that the actual unit file grants (at least) this set.
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn required_read_write_paths() -> Vec<&'static str> {
     let mut seen = std::collections::BTreeSet::new();
     let mut out = Vec::new();
@@ -434,17 +442,33 @@ pub(crate) fn required_read_write_paths() -> Vec<&'static str> {
 }
 
 /// Helper for tests: parse a `ReadWritePaths=` line from a systemd unit
-/// file and return the list of paths. Returns `None` if no such line
-/// exists.
+/// file and return the list of paths. Handles systemd backslash
+/// continuations so multiline ReadWritePaths are parsed correctly.
 #[cfg(test)]
 pub(crate) fn parse_read_write_paths(unit_text: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    let mut collecting = false;
+
     for line in unit_text.lines() {
         let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("ReadWritePaths=") {
-            return rest.split_whitespace().map(|s| s.to_string()).collect();
+        let value = if collecting {
+            trimmed
+        } else if let Some(rest) = trimmed.strip_prefix("ReadWritePaths=") {
+            rest.trim()
+        } else {
+            continue;
+        };
+
+        let continued = value.ends_with('\\');
+        let value = value.strip_suffix('\\').unwrap_or(value).trim();
+        paths.extend(value.split_whitespace().map(str::to_string));
+        collecting = continued;
+        if !collecting {
+            break;
         }
     }
-    Vec::new()
+
+    paths
 }
 
 #[cfg(test)]
@@ -463,52 +487,39 @@ mod tests {
 
     #[test]
     fn no_general_sys_write_permission() {
-        // The manifest MUST NOT grant "/sys", "/sys/", or "/sys/devices"
-        // — only specific narrow subtrees. /sys/devices is the entire
-        // device tree and would weaken the systemd sandbox as an
-        // independent safety boundary.
         let paths = required_read_write_paths();
         assert!(
-            !paths
-                .iter()
-                .any(|p| *p == "/sys" || *p == "/sys/" || *p == "/sys/devices"),
-            "manifest grants broad /sys or /sys/devices write permission: {:?}",
+            !paths.iter().any(|p| *p == "/sys" || *p == "/sys/"),
+            "manifest grants general /sys write permission: {:?}",
             paths
         );
     }
 
     #[test]
-    fn per_device_capabilities_are_not_service_deployable() {
-        // Per-device depth-enablers write to dynamic paths under
-        // /sys/devices that cannot be statically enumerated. They MUST
-        // NOT declare required paths — the shipped service does not
-        // grant /sys/devices broadly. These capabilities soft-fail
-        // under the service until a finer privilege boundary exists.
+    fn dynamic_capability_paths_are_declared() {
+        let paths = required_read_write_paths();
+        for expected in [
+            "/sys/devices",
+            "/sys/bus/pci",
+            "/sys/bus/usb",
+            "/sys/class/backlight",
+            "/sys/class/scsi_host",
+        ] {
+            assert!(
+                paths.contains(&expected),
+                "capability manifest is missing {expected}: {paths:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn all_capabilities_are_service_deployable() {
         for cap in ALL_CAPABILITIES {
-            match cap {
-                Capability::CpuEpp
-                | Capability::PlatformProfile
-                | Capability::VmSysctl
-                | Capability::CpuDmaLatency => {
-                    assert!(
-                        cap.is_service_deployable(),
-                        "{:?} should be service-deployable",
-                        cap
-                    );
-                }
-                Capability::DeviceResumeLatency
-                | Capability::RuntimePm
-                | Capability::PcieAspm
-                | Capability::SataAlpm
-                | Capability::Backlight => {
-                    assert!(
-                        !cap.is_service_deployable(),
-                        "{:?} must NOT be service-deployable — \
-                         granting /sys/devices broadly would weaken the sandbox",
-                        cap
-                    );
-                }
-            }
+            assert!(
+                cap.is_service_deployable(),
+                "{:?} must declare its systemd writable prefixes",
+                cap
+            );
         }
     }
 
@@ -648,6 +659,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_read_write_paths_handles_continuations() {
+        let unit =
+            "[Service]\nReadWritePaths=/run/optid \\\n    /sys/devices \\\n    /sys/bus/pci\n";
+        assert_eq!(
+            parse_read_write_paths(unit),
+            vec![
+                "/run/optid".to_string(),
+                "/sys/devices".to_string(),
+                "/sys/bus/pci".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn parse_read_write_paths_returns_empty_when_absent() {
         let unit = "[Service]\nExecStart=/usr/libexec/optid\n";
         let paths = parse_read_write_paths(unit);
@@ -719,6 +744,15 @@ mod tests {
             missing,
             granted,
             required,
+        );
+    }
+
+    #[test]
+    fn systemd_apply_service_has_protect_kernel_tunables() {
+        let unit = read_unit(PACKAGING_OPTID_APPLY_SERVICE);
+        assert!(
+            unit.contains("ProtectKernelTunables=yes"),
+            "optid-apply.service must set ProtectKernelTunables=yes"
         );
     }
 

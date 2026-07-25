@@ -24,12 +24,30 @@ def test_source_file_is_allowed(tmp_path):
     assert hygiene.violations(["tools/safe.py"], tmp_path) == []
 
 
-def test_generated_staging_path_is_rejected(tmp_path):
-    target = tmp_path / "mkosi" / "mkosi.extra" / "usr" / "bin"
+def test_generated_build_output_is_rejected(tmp_path):
+    target = tmp_path / ".mkosi-output" / "usr" / "bin"
     target.mkdir(parents=True)
     (target / "tool").write_text("generated", encoding="utf-8")
-    failures = hygiene.violations(["mkosi/mkosi.extra/usr/bin/tool"], tmp_path)
+    failures = hygiene.violations([".mkosi-output/usr/bin/tool"], tmp_path)
     assert failures and "generated" in failures[0]
+
+
+def test_mkosi_extra_image_source_is_allowed(tmp_path):
+    # mkosi/mkosi.extra/ is hand-maintained image source that mkosi copies
+    # into the rootfs, not build output. The optid systemd units under it
+    # are required by the capability drift test to stay byte-identical to
+    # their packaging/systemd/ counterparts, so edits here must be
+    # mergeable.
+    target = tmp_path / "mkosi" / "mkosi.extra" / "usr" / "lib" / "systemd" / "system"
+    target.mkdir(parents=True)
+    (target / "optid-apply.service").write_text("[Service]\n", encoding="utf-8")
+    assert (
+        hygiene.violations(
+            ["mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service"],
+            tmp_path,
+        )
+        == []
+    )
 
 
 def test_root_report_is_rejected(tmp_path):

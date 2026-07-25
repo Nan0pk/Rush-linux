@@ -14,8 +14,16 @@ GENERATED_PREFIXES = (
     "target/",
     ".mkosi-cache/",
     ".mkosi-output/",
-    "mkosi/mkosi.extra/",
 )
+# `mkosi/mkosi.extra/` is NOT generated output. It is hand-maintained image
+# source that mkosi copies into the rootfs, and 27 of its files are tracked
+# in git. Two of them (the optid systemd units) are additionally required by
+# `systemd_units_do_not_drift_between_packaging_and_mkosi` in
+# crates/optid/src/capability.rs to stay byte-identical to their
+# packaging/systemd/ counterparts. Treating the prefix as build output made
+# that mandatory mirror-edit unmergeable: the drift test demanded the change
+# and this check rejected it. Real mkosi build artifacts land in
+# `.mkosi-output/` and `.mkosi-cache/`, which are still rejected above.
 COMPILED_MAGIC = {
     b"\x7fELF": "ELF executable",
     b"MZ": "Windows executable",
