@@ -234,16 +234,17 @@ impl Actuator {
         };
 
         let (exit_latency_us, label) = match action {
-            Action::DeviceResumeLatency { path, value, .. } => match value {
-                // No PM QoS constraint requested ⇒ nothing to gate.
-                None => return Ok(true),
-                Some(v) => match u64::try_from(*v) {
-                    Ok(us) => (us, format!("device_resume_latency {}", path.display())),
-                    // Negative ⇒ not a real latency; leave it to the
-                    // capability/allowlist layers rather than wrapping.
-                    Err(_) => return Ok(true),
-                },
+            Action::DeviceResumeLatency {
+                path,
+                value: Some(v),
+                ..
+            } => match u64::try_from(*v) {
+                Ok(us) => (us, format!("device_resume_latency {}", path.display())),
+                // Negative ⇒ not a real latency; leave it to the
+                // capability/allowlist layers rather than wrapping.
+                Err(_) => return Ok(true),
             },
+            Action::DeviceResumeLatency { value: None, .. } => return Ok(true),
             Action::RuntimePm {
                 device_dir,
                 autosuspend_delay_ms,

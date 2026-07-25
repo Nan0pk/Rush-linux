@@ -1255,7 +1255,7 @@ device_resume_latency = 100000
         assert!(!temp.join(format!("original_rpm_{hash}")).exists());
         assert!(!temp.join(format!("intended_rpm_{hash}")).exists());
         assert!(!temp.join(format!("applied_rpm_{hash}")).exists());
-        assert!(actuator.last_runtime_pm.get(&dev).is_none());
+        assert!(!actuator.last_runtime_pm.contains_key(&dev));
 
         // Blocked with the documented log line.
         let log = fs::read_to_string(temp.join("actions.log")).unwrap();
@@ -1559,8 +1559,7 @@ device_resume_latency = 100000
         assert!(temp.join(format!("applied_{key}")).exists());
         assert_eq!(actuator.last_runtime_pm.get(&dev), Some(&2000));
 
-        let active_keys: std::collections::HashSet<String> =
-            std::iter::once(key.clone()).collect();
+        let active_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
 
         // ── Tick 2: charger plugged in; the new decision has no
         // runtime-PM action at all. Mirror the main loop's difference. ──
@@ -1594,7 +1593,7 @@ device_resume_latency = 100000
 
         // Idempotence cache cleared, so a later re-apply is not skipped.
         assert!(
-            actuator.last_runtime_pm.get(&dev).is_none(),
+            !actuator.last_runtime_pm.contains_key(&dev),
             "last_runtime_pm must be cleared after a context-change revert"
         );
 
@@ -1648,11 +1647,9 @@ device_resume_latency = 100000
         actuator.apply(&action).unwrap();
         let key = action.journal_key().unwrap();
 
-        let active_keys: std::collections::HashSet<String> =
-            std::iter::once(key.clone()).collect();
+        let active_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
         // The next decision still contains the same action.
-        let new_keys: std::collections::HashSet<String> =
-            std::iter::once(key.clone()).collect();
+        let new_keys: std::collections::HashSet<String> = std::iter::once(key.clone()).collect();
 
         for stale in active_keys.difference(&new_keys) {
             actuator.revert_key(stale).unwrap();
