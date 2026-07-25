@@ -20,7 +20,9 @@ use crate::allowlist::{
     hwid_from_ancestors, hwid_from_attr_path, hwid_from_device_dir, Allowlist, Verdict,
 };
 use crate::capability::Capability;
-use crate::io_util::{append_log, atomic_write_state_file, get_path_hash, mark_applied};
+use crate::io_util::{
+    append_log, atomic_write_state_file, clear_journal, get_path_hash, mark_applied,
+};
 use crate::kernel_io::{KernelIo, KernelWrite, RealKernel};
 use crate::load_state::BootState;
 use crate::sensors::discover_cpu_epp_paths_with;
@@ -1043,6 +1045,173 @@ impl Actuator {
             }
         }
         Ok(())
+    }
+
+    /// Revert a single journaled action, identified by the journal key
+    /// that `Action::journal_key()` derives.
+    ///
+    /// This is the inverse-restore path for a *context change*: the
+    /// previous decision applied `key`, the new decision no longer
+    /// contains it, so the value must go back to its journaled original
+    /// now rather than lingering until shutdown. Before this existed, a
+    /// battery→AC transition left battery-idle sysfs values in place for
+    /// the rest of the uptime.
+    ///
+    /// Journal formats are the ones `apply` writes, and match the
+    /// shutdown reverts in `io_util`:
+    ///
+    /// - `rpm_<hash>`: three lines — device dir, original `power/control`,
+    ///   original `power/autosuspend_delay_ms` (or the literal `n/a`).
+    /// - `dev_<hash>`: two lines — attribute path, original value.
+    /// - `aspm_<hash>` / `alpm_<hash>` / `bl_<hash>`: two lines — base
+    ///   directory, original value.
+    ///
+    /// `cpu_epp`, `platform_profile`, `vm_*` and `cpu_dma_latency` are
+    /// deliberately **not** handled here. They are system-wide knobs that
+    /// every decision tick rewrites unconditionally, so the next tick
+    /// already overwrites them; adding a per-key restoration mechanism
+    /// would fight that loop and could bounce a value the new decision is
+    /// about to set. They keep their existing shutdown revert.
+    ///
+    /// Returns `Ok(true)` when a restoration ran and the journal was
+    /// cleared, `Ok(false)` when there was nothing to do (unknown or
+    /// non-revertible key, or no journal on disk). On a failed write the
+    /// journal is **retained** so the shutdown revert can retry, and
+    /// `Ok(false)` is returned.
+    pub(crate) fn revert_key(&mut self, key: &str) -> io::Result<bool> {
+        let orig_file = self.state_dir.join(format!("original_{key}"));
+        if !orig_file.exists() {
+            return Ok(false);
+        }
+        let Ok(content) = fs::read_to_string(&orig_file) else {
+            return Ok(false);
+        };
+        let mut lines = content.lines();
+
+        let restored = if key.starts_with("rpm_") {
+            // Three-line journal: device dir, control, delay.
+            let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let orig_delay = lines.next().unwrap_or("n/a").trim().to_string();
+            let dev_dir = PathBuf::from(dev_dir);
+            let control_path = dev_dir.join("power").join("control");
+            let orig_control = orig_control.trim().to_string();
+
+            match self.kernel.write(&control_path, &orig_control) {
+                Ok(()) => {
+                    // Restore the delay too, when the device had one.
+                    let mut ok = true;
+                    if orig_delay != "n/a" {
+                        let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
+                        if let Err(e) = self.kernel.write(&delay_path, &orig_delay) {
+                            self.log(&format!(
+                                "context-change revert {key}: failed to restore autosuspend_delay_ms for {}: {e}",
+                                dev_dir.display()
+                            ))?;
+                            ok = false;
+                        }
+                    }
+                    if ok {
+                        self.last_runtime_pm.remove(&dev_dir);
+                        self.log(&format!(
+                            "context-change revert {key}: restored {} control={orig_control} autosuspend_delay_ms={orig_delay}",
+                            dev_dir.display()
+                        ))?;
+                    }
+                    ok
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore control for {}: {e}",
+                        dev_dir.display()
+                    ))?;
+                    false
+                }
+            }
+        } else if key.starts_with("dev_") {
+            // Two-line journal: attribute path, original value.
+            let (Some(attr_path), Some(orig_val)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let attr_path = PathBuf::from(attr_path);
+            let orig_val = orig_val.trim().to_string();
+            // DeviceResumeLatency applies through the PM QoS sink, so the
+            // restore must go back through the same sink — not the raw
+            // kernel writer — or a mocked sink would diverge from what the
+            // apply path actually mutated.
+            match self.pmqos_sink.write_device_latency(&attr_path, &orig_val) {
+                Ok(()) => {
+                    self.last_device_latencies.remove(&attr_path);
+                    self.log(&format!(
+                        "context-change revert {key}: restored {} = {orig_val}",
+                        attr_path.display()
+                    ))?;
+                    true
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore {}: {e}",
+                        attr_path.display()
+                    ))?;
+                    false
+                }
+            }
+        } else if key.starts_with("aspm_") || key.starts_with("alpm_") || key.starts_with("bl_") {
+            // Two-line journal: base directory, original value. Only the
+            // attribute path relative to that base differs per domain.
+            let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) else {
+                return Ok(false);
+            };
+            let base = PathBuf::from(base);
+            let orig_val = orig_val.trim().to_string();
+            let target = if key.starts_with("aspm_") {
+                base.join("link").join("l1_aspm")
+            } else if key.starts_with("alpm_") {
+                base.join("link_power_management_policy")
+            } else {
+                base.join("brightness")
+            };
+
+            match self.kernel.write(&target, &orig_val) {
+                Ok(()) => {
+                    if key.starts_with("aspm_") {
+                        self.last_pcie_aspm.remove(&base);
+                    } else if key.starts_with("alpm_") {
+                        self.last_sata_alpm.remove(&base);
+                    } else {
+                        self.last_backlight.remove(&base);
+                    }
+                    self.log(&format!(
+                        "context-change revert {key}: restored {} = {orig_val}",
+                        target.display()
+                    ))?;
+                    true
+                }
+                Err(e) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore {}: {e}",
+                        target.display()
+                    ))?;
+                    false
+                }
+            }
+        } else {
+            // System-wide knobs (cpu_epp, platform_profile, vm_*,
+            // cpu_dma_latency) are continuously overwritten by later
+            // ticks; nothing to do here.
+            return Ok(false);
+        };
+
+        if restored {
+            // Drop original_/intended_/applied_ together.
+            clear_journal(&self.state_dir, key);
+        } else {
+            self.log(&format!(
+                "context-change revert {key}: journal retained; restore did not complete"
+            ))?;
+        }
+        Ok(restored)
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {

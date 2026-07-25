@@ -1188,6 +1188,280 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
+    // ── Defect 2: inverse restore on context change ─────────────────────────
+
+    /// A runtime-PM action applied on one tick must be reverted when the
+    /// next decision no longer contains it — not left applied until
+    /// shutdown. This reproduces the battery→AC transition: the daemon
+    /// enables autosuspend while on battery, then the charger is plugged
+    /// in and the new decision drops the action entirely.
+    ///
+    /// The revert is driven through exactly the same active-key
+    /// difference the main loop performs, so this exercises the real
+    /// wiring rather than calling `revert_key` on a hand-written key.
+    #[test]
+    fn test_context_change_reverts_removed_runtime_pm_action() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_ctx_revert_rpm_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = temp.join("1-2");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        // Baseline: autosuspend off, 100 ms delay.
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"context-change revert test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+
+        // ── Tick 1: on battery, runtime PM is applied. ──
+        let action = Action::RuntimePm {
+            device_dir: dev.clone(),
+            autosuspend_delay_ms: 2000,
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+
+        let key = action.journal_key().expect("runtime PM action has a key");
+        let hash = get_path_hash(&dev);
+        assert_eq!(key, format!("rpm_{hash}"));
+        assert!(temp.join(format!("original_{key}")).exists());
+        assert!(temp.join(format!("applied_{key}")).exists());
+        assert_eq!(actuator.last_runtime_pm.get(&dev), Some(&2000));
+
+        let active_keys: std::collections::HashSet<String> =
+            std::iter::once(key.clone()).collect();
+
+        // ── Tick 2: charger plugged in; the new decision has no
+        // runtime-PM action at all. Mirror the main loop's difference. ──
+        let next_actions: Vec<Action> = Vec::new();
+        let new_keys: std::collections::HashSet<String> = next_actions
+            .iter()
+            .filter_map(|a: &Action| a.journal_key())
+            .collect();
+        assert!(new_keys.is_empty());
+
+        for stale in active_keys.difference(&new_keys) {
+            assert!(
+                actuator.revert_key(stale).unwrap(),
+                "revert_key should report a completed restoration for {stale}"
+            );
+        }
+
+        // Device is back to its pre-actuation state.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "power/control must be restored to its journaled original"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "100",
+            "autosuspend_delay_ms must be restored to its journaled original"
+        );
+
+        // Idempotence cache cleared, so a later re-apply is not skipped.
+        assert!(
+            actuator.last_runtime_pm.get(&dev).is_none(),
+            "last_runtime_pm must be cleared after a context-change revert"
+        );
+
+        // Journal fully removed.
+        assert!(!temp.join(format!("original_{key}")).exists());
+        assert!(!temp.join(format!("intended_{key}")).exists());
+        assert!(!temp.join(format!("applied_{key}")).exists());
+
+        // The revert is recorded in the action log.
+        let actions_log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            actions_log.contains("context-change revert"),
+            "expected a context-change revert log line, got: {actions_log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// A key that is still present in the next decision must NOT be
+    /// reverted — only the difference is restored.
+    #[test]
+    fn test_context_change_retains_still_active_runtime_pm_action() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_ctx_retain_rpm_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        let modalias = "usb:v046Dp0083d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = temp.join("1-3");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"context-change retain test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+
+        let action = Action::RuntimePm {
+            device_dir: dev.clone(),
+            autosuspend_delay_ms: 2000,
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+        let key = action.journal_key().unwrap();
+
+        let active_keys: std::collections::HashSet<String> =
+            std::iter::once(key.clone()).collect();
+        // The next decision still contains the same action.
+        let new_keys: std::collections::HashSet<String> =
+            std::iter::once(key.clone()).collect();
+
+        for stale in active_keys.difference(&new_keys) {
+            actuator.revert_key(stale).unwrap();
+        }
+
+        // Untouched: still applied, journal intact.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "2000"
+        );
+        assert!(temp.join(format!("original_{key}")).exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// `SystemdSetProperty` journals nothing, so it has no revert key.
+    #[test]
+    fn test_journal_key_none_for_systemd_set_property() {
+        let action = Action::systemd_set_property(
+            "user.slice".to_string(),
+            vec!["CPUWeight=100".to_string()],
+            "test".to_string(),
+        );
+        assert!(action.journal_key().is_none());
+    }
+
+    /// System-wide knobs are continuously overwritten by later ticks, so
+    /// `revert_key` deliberately declines to restore them.
+    #[test]
+    fn test_revert_key_ignores_system_wide_knobs() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_sys_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        // Journal a system-wide knob as if it had been applied.
+        fs::write(temp.join("original_vm_swappiness"), "60").unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        assert!(!actuator.revert_key("vm_swappiness").unwrap());
+        assert!(!actuator.revert_key("cpu_epp").unwrap());
+        assert!(!actuator.revert_key("platform_profile").unwrap());
+        assert!(!actuator.revert_key("cpu_dma_latency").unwrap());
+
+        // The journal is left for the shutdown revert to handle.
+        assert!(temp.join("original_vm_swappiness").exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// An unknown key, or a key with no journal on disk, is a no-op.
+    #[test]
+    fn test_revert_key_absent_journal_is_noop() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_absent_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        assert!(!actuator.revert_key("rpm_deadbeef").unwrap());
+        assert!(!actuator.revert_key("totally_unknown_key").unwrap());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// The PM QoS resume-latency revert must go back through the sink the
+    /// apply path used, and clear the matching idempotence cache.
+    #[test]
+    fn test_context_change_reverts_device_resume_latency() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_dev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let dev_path = temp
+            .join("0000:00:14.0")
+            .join("power")
+            .join("pm_qos_resume_latency_us");
+        fs::create_dir_all(dev_path.parent().unwrap()).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let action = Action::DeviceResumeLatency {
+            path: dev_path.clone(),
+            value: Some(100),
+            reason: "battery idle".to_string(),
+        };
+        actuator.apply(&action).unwrap();
+
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "100"
+        );
+        let key = action.journal_key().unwrap();
+        assert_eq!(key, format!("dev_{}", get_path_hash(&dev_path)));
+        assert!(actuator.last_device_latencies.contains_key(&dev_path));
+
+        assert!(actuator.revert_key(&key).unwrap());
+
+        // MockPmqosSink reports "0" for an unseeded device, which is what
+        // the apply path journaled as the original.
+        assert_eq!(
+            actuator.pmqos_sink.read_device_latency(&dev_path).unwrap(),
+            "0",
+            "device latency must be restored through the PM QoS sink"
+        );
+        assert!(
+            !actuator.last_device_latencies.contains_key(&dev_path),
+            "last_device_latencies must be cleared after a context-change revert"
+        );
+        assert!(!temp.join(format!("original_{key}")).exists());
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     #[test]
     fn test_n5_runtime_pm_skips_network_carrier_up() {
         let temp = std::env::temp_dir().join(format!("optid_n5_carrier_{}", std::process::id()));
