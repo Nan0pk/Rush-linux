@@ -121,6 +121,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run the canonical change-aware checks
+        env:
+          RUSH_DOCS_NOT_NEEDED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
         run: bash tools/checks.sh --ci --changed-base "${{ needs.classify.outputs.base }}"
 
       - name: Check Rust dependency policy
