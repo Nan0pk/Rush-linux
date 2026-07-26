@@ -20,24 +20,11 @@ def _run(*args: str, cwd: Path, env: dict[str, str] | None = None) -> subprocess
     )
 
 
-def test_failed_checks_are_indexed_for_agents(tmp_path: Path) -> None:
+def test_failed_section_is_self_identifying(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     tools = repo / "tools"
     tools.mkdir(parents=True)
     shutil.copy2(ROOT / "tools" / "checks.sh", tools / "checks.sh")
-
-    passing_checks = (
-        "check-workflow-safety.py",
-        "check-repo-hygiene.py",
-        "validate-versions.py",
-        "validate-doc-sync.py",
-        "check-docs-impact.py",
-        "render-frontpage.py",
-        "validate-evidence.py",
-    )
-    for name in passing_checks:
-        (tools / name).write_text("raise SystemExit(0)\n", encoding="utf-8")
-
     (tools / "validate-optid-packages.py").write_text(
         'print("FAILED: injected package failure")\nraise SystemExit(3)\n',
         encoding="utf-8",
@@ -49,15 +36,13 @@ def test_failed_checks_are_indexed_for_agents(tmp_path: Path) -> None:
     assert _run("git", "add", ".", cwd=repo).returncode == 0
     assert _run("git", "commit", "-qm", "fixture", cwd=repo).returncode == 0
 
-    step_summary = repo / "step-summary.md"
-    failure_summary = repo / "failure-summary.txt"
     env = os.environ.copy()
     env["GITHUB_ACTIONS"] = "true"
-    env["GITHUB_STEP_SUMMARY"] = str(step_summary)
-    env["RUSH_FAILURE_SUMMARY_FILE"] = str(failure_summary)
     result = _run(
         "bash",
         "tools/checks.sh",
+        "--section",
+        "optid",
         "--changed-base",
         "HEAD",
         cwd=repo,
@@ -69,18 +54,36 @@ def test_failed_checks_are_indexed_for_agents(tmp_path: Path) -> None:
     command = "python3 tools/validate-optid-packages.py --base HEAD"
 
     assert result.returncode == 1
+    assert "Rush checks: section=optid" in output
     assert "::error title=Rush CI check failed::" in output
     assert "RUSH CI FAILURE SUMMARY" in output
     assert f"1. {risk}" in output
     assert "exit: 3" in output
     assert f"reproduce: {command}" in output
 
-    plain_summary = failure_summary.read_text(encoding="utf-8")
-    assert f"1. {risk}" in plain_summary
-    assert "exit: 3" in plain_summary
-    assert f"reproduce: {command}" in plain_summary
 
-    summary = step_summary.read_text(encoding="utf-8")
-    assert "## Rush CI failure summary" in summary
-    assert risk in summary
-    assert command in summary
+def test_workflow_exposes_logical_checks_as_named_steps() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    expected = {
+        "Repository integrity": "integrity",
+        "Documentation truth": "docs",
+        "optid package contract": "optid",
+        "Evidence integrity": "evidence",
+        "Repository policy": "policy",
+        "Workflow syntax": "workflow",
+        "Shell entry points": "shell",
+        "PowerShell parsing": "powershell",
+        "Python and tooling": "python",
+        "Rust workspace": "rust",
+    }
+    for label, section in expected.items():
+        assert f'name: "{label} — checks.sh --section {section}"' in workflow
+        assert f"--section {section} --changed-base" in workflow
+
+    linux = workflow.split("  linux:\n", 1)[1].split("  dependencies:\n", 1)[0]
+    assert "continue-on-error" not in linux
+    assert "EmbarkStudios/cargo-deny-action" not in linux
+    assert "CI outcome index — failed named steps above are root causes" in linux
+
+    dependencies = workflow.split("  dependencies:\n", 1)[1].split("  windows:\n", 1)[0]
+    assert "EmbarkStudios/cargo-deny-action@v2" in dependencies
