@@ -353,6 +353,19 @@ enum FaultRule {
     /// Fires once. Simulates a kernel sysfs attribute that truncates
     /// input (e.g., accepts only the first byte of a multi-byte value).
     ShortWrite { path: PathBuf, n: usize },
+    /// Fail the next `rename` from `from` to `to` with `error`. Fires once.
+    /// F2: Extended fault injection for recovery/journal path testing.
+    FailRename {
+        from: PathBuf,
+        to: PathBuf,
+        error: io::ErrorKind,
+    },
+    /// Fail the next `remove_file` of `path` with `error`. Fires once.
+    /// F2: Extended fault injection for journal cleanup testing.
+    FailRemove { path: PathBuf, error: io::ErrorKind },
+    /// Fail the next `create_dir_all` of `path` with `error`. Fires once.
+    /// F2: Extended fault injection for state directory creation testing.
+    FailCreateDir { path: PathBuf, error: io::ErrorKind },
 }
 
 /// A fault-injecting wrapper around any `KernelIo`. Used by the F2
@@ -437,6 +450,40 @@ impl FaultKernel {
         self
     }
 
+    /// Fail the next `rename` from `from_path` to `to_path` with the given
+    /// error kind. Fires once.
+    pub fn fail_next_rename(
+        &self,
+        from_path: PathBuf,
+        to_path: PathBuf,
+        error: io::ErrorKind,
+    ) -> &Self {
+        self.rules.borrow_mut().push(FaultRule::FailRename {
+            from: from_path,
+            to: to_path,
+            error,
+        });
+        self
+    }
+
+    /// Fail the next `remove_file` of `path` with the given error kind.
+    /// Fires once.
+    pub fn fail_next_remove(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::FailRemove { path, error });
+        self
+    }
+
+    /// Fail the next `create_dir_all` of `path` with the given error kind.
+    /// Fires once.
+    pub fn fail_next_create_dir(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::FailCreateDir { path, error });
+        self
+    }
+
     /// Take the first matching one-shot read fault for `path`, or None.
     fn take_one_shot_read_fault(&self, path: &Path) -> Option<io::ErrorKind> {
         let mut rules = self.rules.borrow_mut();
@@ -487,6 +534,45 @@ impl FaultKernel {
             } else {
                 None
             }
+        })
+    }
+
+    /// Take the first matching one-shot rename fault for `from` -> `to`, or None.
+    fn take_one_shot_rename_fault(&self, from: &Path, to: &Path) -> Option<io::ErrorKind> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules.iter().position(|r| {
+            matches!(
+                r,
+                FaultRule::FailRename { from: f, to: t, .. } if f == from && t == to
+            )
+        });
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::FailRename { error, .. } => error,
+            _ => unreachable!(),
+        })
+    }
+
+    /// Take the first matching one-shot remove fault for `path`, or None.
+    fn take_one_shot_remove_fault(&self, path: &Path) -> Option<io::ErrorKind> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules
+            .iter()
+            .position(|r| matches!(r, FaultRule::FailRemove { path: p, .. } if p == path));
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::FailRemove { error, .. } => error,
+            _ => unreachable!(),
+        })
+    }
+
+    /// Take the first matching one-shot create_dir fault for `path`, or None.
+    fn take_one_shot_create_dir_fault(&self, path: &Path) -> Option<io::ErrorKind> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules
+            .iter()
+            .position(|r| matches!(r, FaultRule::FailCreateDir { path: p, .. } if p == path));
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::FailCreateDir { error, .. } => error,
+            _ => unreachable!(),
         })
     }
 }
@@ -598,14 +684,42 @@ impl KernelWrite for FaultKernel {
     }
 
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        if let Some(kind) = self.take_one_shot_create_dir_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!(
+                    "FaultKernel: injected create_dir_all fault for {}",
+                    path.display()
+                ),
+            ));
+        }
         self.inner.create_dir_all(path)
     }
 
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        if let Some(kind) = self.take_one_shot_rename_fault(from, to) {
+            return Err(io::Error::new(
+                kind,
+                format!(
+                    "FaultKernel: injected rename fault from {} to {}",
+                    from.display(),
+                    to.display()
+                ),
+            ));
+        }
         self.inner.rename(from, to)
     }
 
     fn remove_file(&self, path: &Path) -> io::Result<()> {
+        if let Some(kind) = self.take_one_shot_remove_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!(
+                    "FaultKernel: injected remove_file fault for {}",
+                    path.display()
+                ),
+            ));
+        }
         self.inner.remove_file(path)
     }
 
@@ -1152,5 +1266,98 @@ mod tests {
 
         fk.write(path, "42").unwrap();
         assert_eq!(fk.read_to_string(path).unwrap(), "42");
+    }
+
+    /// `fail_next_rename` injects a fault that fires once.
+    #[test]
+    fn fault_kernel_fail_next_rename() {
+        let inner = MemoryKernel::new();
+        let from = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+        let to = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor.bak");
+        inner.write_raw(from, "powersave");
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_rename(
+            from.to_path_buf(),
+            to.to_path_buf(),
+            io::ErrorKind::PermissionDenied,
+        );
+
+        // First rename: fault fires.
+        let res = fk.rename(from, to);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+
+        // Second rename: no fault left, succeeds (MemoryKernel allows it).
+        let res2 = fk.rename(from, to);
+        assert!(
+            res2.is_ok(),
+            "second rename must not fire the consumed fault rule"
+        );
+    }
+
+    /// `fail_next_remove` injects a fault that fires once.
+    #[test]
+    fn fault_kernel_fail_next_remove() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+        inner.write_raw(path, "powersave");
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_remove(path.to_path_buf(), io::ErrorKind::NotFound);
+
+        // First remove: fault fires.
+        let res = fk.remove_file(path);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::NotFound);
+
+        // Second remove: no fault left, succeeds (MemoryKernel allows it).
+        let res2 = fk.remove_file(path);
+        assert!(
+            res2.is_ok(),
+            "second remove must not fire the consumed fault rule"
+        );
+    }
+
+    /// `fail_next_create_dir` injects a fault that fires once.
+    #[test]
+    fn fault_kernel_fail_next_create_dir() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/new_dir");
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_create_dir(path.to_path_buf(), io::ErrorKind::AlreadyExists);
+
+        // First create_dir_all: fault fires.
+        let res = fk.create_dir_all(path);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::AlreadyExists);
+
+        // Second create_dir_all: no fault left, succeeds (MemoryKernel allows it).
+        let res2 = fk.create_dir_all(path);
+        assert!(
+            res2.is_ok(),
+            "second create_dir_all must not fire the consumed fault rule"
+        );
+    }
+
+    /// `fail_next_rename` fires once: the second rename succeeds.
+    #[test]
+    fn fault_kernel_rename_fires_once() {
+        let inner = MemoryKernel::new();
+        let from = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+        let to = Path::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor.bak");
+        inner.write_raw(from, "powersave");
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_rename(from.to_path_buf(), to.to_path_buf(), io::ErrorKind::Other);
+
+        // First rename: fault fires.
+        let res1 = fk.rename(from, to);
+        assert!(res1.is_err());
+        assert_eq!(res1.unwrap_err().kind(), io::ErrorKind::Other);
+
+        // Second rename: no fault rule left.
+        let res2 = fk.rename(from, to);
+        assert!(
+            res2.is_ok(),
+            "second rename must not fire the consumed fault rule"
+        );
     }
 }
