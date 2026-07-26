@@ -3,10 +3,15 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "tools/apply-consolidated-deps.py"
+ERROR_REPORT = ROOT / "tools/dependency-bootstrap-error.txt"
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -15,36 +20,46 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def from_main(path: str) -> str:
-    # Pull-request workflows check out a synthetic merge commit. Its first
-    # parent is the exact main/base commit for this run.
-    return run("git", "show", f"HEAD^1:{path}").stdout
+def event_base_sha() -> str:
+    event_path = Path(os.environ["GITHUB_EVENT_PATH"])
+    event = json.loads(event_path.read_text(encoding="utf-8"))
+    base_sha = event.get("pull_request", {}).get("base", {}).get("sha")
+    if not isinstance(base_sha, str) or len(base_sha) < 7:
+        raise RuntimeError("pull_request.base.sha is missing from GITHUB_EVENT_PATH")
+    return base_sha
+
+
+def from_base(base_sha: str, path: str) -> str:
+    return run("git", "show", f"{base_sha}:{path}").stdout
 
 
 def replace_required(text: str, old: str, new: str, path: str) -> str:
     if old not in text:
-        raise SystemExit(f"{path}: required source value not found: {old!r}")
+        raise RuntimeError(f"{path}: required source value not found: {old!r}")
     updated = text.replace(old, new)
     if old in updated or new not in updated:
-        raise SystemExit(f"{path}: replacement postcondition failed")
+        raise RuntimeError(f"{path}: replacement postcondition failed")
     return updated
 
 
-def write_from_main(path: str, replacements: list[tuple[str, str]]) -> None:
-    text = from_main(path)
+def write_from_base(
+    base_sha: str, path: str, replacements: list[tuple[str, str]]
+) -> None:
+    text = from_base(base_sha, path)
     for old, new in replacements:
         text = replace_required(text, old, new, path)
-    target = ROOT / path
-    target.write_text(text, encoding="utf-8")
+    (ROOT / path).write_text(text, encoding="utf-8")
 
 
-def main() -> None:
-    write_from_main(
+def apply_updates(base_sha: str) -> None:
+    write_from_base(
+        base_sha,
         ".github/workflows/stale.yml",
         [("actions/stale@v9", "actions/stale@v10")],
     )
 
-    write_from_main(
+    write_from_base(
+        base_sha,
         "Cargo.lock",
         [
             (
@@ -82,10 +97,30 @@ def main() -> None:
         ],
     }
     for path, replacements in workflow_replacements.items():
-        write_from_main(path, replacements)
+        write_from_base(base_sha, path, replacements)
 
-    (ROOT / "tools/apply-consolidated-deps.py").unlink()
-    run("git", "diff", "--check")
+
+def main() -> None:
+    base_sha = event_base_sha()
+    try:
+        apply_updates(base_sha)
+        ERROR_REPORT.unlink(missing_ok=True)
+        SCRIPT.unlink()
+        run("git", "diff", "--check")
+    except Exception:
+        # Restore the temporary workflow and remove the bootstrap so a failure
+        # cannot loop. Leave one bounded report for the next repair pass.
+        (ROOT / ".github/workflows/ci.yml").write_text(
+            from_base(base_sha, ".github/workflows/ci.yml"), encoding="utf-8"
+        )
+        SCRIPT.unlink(missing_ok=True)
+        ERROR_REPORT.write_text(
+            "Dependency bootstrap failed.\n"
+            f"Base SHA: {base_sha}\n\n"
+            + traceback.format_exc(),
+            encoding="utf-8",
+        )
+        run("git", "diff", "--check")
 
 
 if __name__ == "__main__":
