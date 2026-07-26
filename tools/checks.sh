@@ -44,12 +44,107 @@ files_matching() {
     fi
 }
 
+shell_join() {
+    local rendered=""
+    printf -v rendered '%q ' "$@"
+    printf '%s' "${rendered% }"
+}
+
+github_escape() {
+    local value="$1"
+    value="${value//'%'/'%25'}"
+    value="${value//$'\r'/'%0D'}"
+    value="${value//$'\n'/'%0A'}"
+    printf '%s' "$value"
+}
+
+markdown_escape() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//|/\\|}"
+    value="${value//$'\r'/}"
+    value="${value//$'\n'/<br>}"
+    printf '%s' "$value"
+}
+
+FAILURES=0
+FAILED_RISKS=()
+FAILED_COMMANDS=()
+FAILED_STATUSES=()
+
+record_failure() {
+    local risk="$1"
+    local command="$2"
+    local status="${3:-1}"
+
+    FAILURES=$((FAILURES + 1))
+    FAILED_RISKS+=("$risk")
+    FAILED_COMMANDS+=("$command")
+    FAILED_STATUSES+=("$status")
+
+    if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        local message
+        message="$(github_escape "$risk | exit $status | reproduce: $command")"
+        printf '::error title=Rush CI check failed::%s\n' "$message"
+    fi
+}
+
+write_failure_summary() {
+    local index
+
+    echo
+    echo "================ RUSH CI FAILURE SUMMARY ================"
+    echo "$FAILURES blocker(s) must be fixed:"
+    for index in "${!FAILED_RISKS[@]}"; do
+        printf '  %d. %s\n' "$((index + 1))" "${FAILED_RISKS[$index]}"
+        printf '     exit: %s\n' "${FAILED_STATUSES[$index]}"
+        printf '     reproduce: %s\n' "${FAILED_COMMANDS[$index]}"
+    done
+    echo "========================================================="
+
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+        {
+            echo "## Rush CI failure summary"
+            echo
+            echo "**$FAILURES blocker(s) must be fixed.**"
+            echo
+            echo "| # | Check | Exit | Reproduce |"
+            echo "|---:|---|---:|---|"
+            for index in "${!FAILED_RISKS[@]}"; do
+                printf '| %d | %s | `%s` | `%s` |\n' \
+                    "$((index + 1))" \
+                    "$(markdown_escape "${FAILED_RISKS[$index]}")" \
+                    "${FAILED_STATUSES[$index]}" \
+                    "$(markdown_escape "${FAILED_COMMANDS[$index]}")"
+            done
+            echo
+            echo "The same indexed blockers are printed at the end of the job log."
+        } >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
+
 run() {
     local risk="$1"; shift
+    local command
+    command="$(shell_join "$@")"
     echo
-    echo ">> $*"
+    echo ">> $command"
     echo "   Protects: $risk"
     "$@"
+}
+
+attempt() {
+    "$@"
+    local status=$?
+
+    if (( status != 0 )); then
+        if [[ "${1:-}" == "run" && $# -ge 3 ]]; then
+            record_failure "$2" "$(shell_join "${@:3}")" "$status"
+        else
+            record_failure "Unclassified repository check failed" "$(shell_join "$@")" "$status"
+        fi
+    fi
+    return 0
 }
 
 need() {
@@ -65,9 +160,6 @@ need() {
     return 1
 }
 
-FAILURES=0
-attempt() { "$@" || FAILURES=$((FAILURES + 1)); }
-
 PYTHON=()
 for candidate in python3 python; do
     if command -v "$candidate" >/dev/null 2>&1 &&
@@ -78,6 +170,8 @@ for candidate in python3 python; do
 done
 if (( ${#PYTHON[@]} == 0 )); then
     echo "BLOCKED: Python 3.11+ is required for repository checks." >&2
+    record_failure "R5/R8 — repository checks cannot start" "install Python 3.11+" 127
+    write_failure_summary
     exit 1
 fi
 case "${OSTYPE:-}" in
@@ -115,11 +209,15 @@ if need pwsh "repository policy"; then
     attempt run "R4/R8 — a core invariant or unratified decision slipped in" \
         pwsh -NoProfile -File tools/validate-repo.ps1
 elif $STRICT; then
-    FAILURES=$((FAILURES + 1))
+    record_failure "R4/R8 — repository policy checks could not run" \
+        "install pwsh and rerun bash tools/checks.sh --ci" 127
 fi
 
 if [[ "$MODE" == "quick" ]]; then
-    if (( FAILURES > 0 )); then exit 1; fi
+    if (( FAILURES > 0 )); then
+        write_failure_summary
+        exit 1
+    fi
     echo
     echo "Quick starting-state checks passed."
     exit 0
@@ -138,7 +236,8 @@ if matches '^\.github/workflows/.*\.ya?ml$'; then
             echo "No changed workflow remains to lint (deleted workflow only)."
         fi
     elif $STRICT; then
-        FAILURES=$((FAILURES + 1))
+        record_failure "R5 — GitHub Actions workflow checks could not run" \
+            "install actionlint and rerun bash tools/checks.sh --ci" 127
     fi
 fi
 
@@ -158,7 +257,8 @@ if (( ${#SHELL_FILES[@]} > 0 )); then
         attempt run "R5 — a changed shell entry point has a static defect" \
             shellcheck --external-sources --exclude=SC1090,SC1091 "${SHELL_FILES[@]}"
     elif $STRICT; then
-        FAILURES=$((FAILURES + 1))
+        record_failure "R5 — shell static analysis could not run" \
+            "install shellcheck and rerun bash tools/checks.sh --ci" 127
     fi
 fi
 
@@ -173,7 +273,8 @@ if matches '\.ps1$'; then
                 '$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:RUSH_PS_FILE,[ref]$tokens,[ref]$errors); if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
         done < <(files_matching '\.ps1$')
     elif $STRICT; then
-        FAILURES=$((FAILURES + 1))
+        record_failure "R5 — changed PowerShell could not be parsed" \
+            "install pwsh and rerun bash tools/checks.sh --ci" 127
     fi
 fi
 
@@ -188,7 +289,8 @@ if matches '(^|/).*\.py$|^pyproject\.toml$|^schemas/|^release/evidence/livedev-'
         if need ruff "Python static analysis"; then
             attempt run "R5 — changed Python has a static defect" ruff check "${PY_FILES[@]}"
         elif $STRICT; then
-            FAILURES=$((FAILURES + 1))
+            record_failure "R5 — Python static analysis could not run" \
+                "install ruff and rerun bash tools/checks.sh --ci" 127
         fi
     fi
     if "${PYTHON[@]}" -c 'import pytest' >/dev/null 2>&1; then
@@ -196,7 +298,8 @@ if matches '(^|/).*\.py$|^pyproject\.toml$|^schemas/|^release/evidence/livedev-'
             "${PYTHON[@]}" -m pytest -q
     elif $STRICT; then
         echo "BLOCKED: pytest is required for Python/tooling changes in CI." >&2
-        FAILURES=$((FAILURES + 1))
+        record_failure "R5/R6 — Python tests could not run" \
+            "install pytest and rerun bash tools/checks.sh --ci" 127
     else
         echo "SKIP locally: pytest is unavailable; CI will run the Python tests."
     fi
@@ -214,13 +317,14 @@ if matches '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'; then
         attempt run "R5 — an optional feature or target no longer compiles" \
             cargo check --workspace --all-targets --all-features
     elif $STRICT; then
-        FAILURES=$((FAILURES + 1))
+        record_failure "R3/R5 — Rust checks could not run" \
+            "install cargo and rerun bash tools/checks.sh --ci" 127
     fi
 fi
 
 echo
 if (( FAILURES > 0 )); then
-    echo "FAILED: $FAILURES relevant check(s) failed. The failing output above is the blocker."
+    write_failure_summary
     exit 1
 fi
 echo "PASS: all checks relevant to this change passed."
