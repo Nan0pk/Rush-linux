@@ -25,6 +25,24 @@ Run locally with:
 bash tools/checks.sh
 ```
 
+## Reading a failed run
+
+The canonical runner continues through the selected checks, then prints a
+**Rush CI failure summary** at the end of the job log. Each indexed blocker
+includes the protected risk, exit status, and exact command to reproduce it.
+This lets an agent start from the bottom of the log instead of searching through
+setup output and successful checks. The detailed failure output remains directly
+above the original command.
+
+In GitHub Actions, every indexed blocker is also emitted as an error annotation
+and added to the job summary. A missing required CI tool is indexed in the same
+format with the installation and rerun instruction. Missing optional local tools
+remain skips rather than blockers.
+
+The protected legacy status aliases can all turn red when the underlying
+**PR Gate** fails. They are not separate root causes. Start with **Linux and
+repository checks**, then read the indexed Rush CI failure summary.
+
 If an optional local tool is missing, the runner names the skipped area. It
 does not hide the cause or block unrelated work. Pull-request CI installs the
 required tools and runs that area authoritatively. `PR Gate` fails unless every
