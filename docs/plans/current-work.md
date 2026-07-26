@@ -6,7 +6,7 @@ For `optid`, the machine-readable source of truth is
 [`optid-package-status.toml`](optid-package-status.toml). This page is a
 validated, human-readable projection of that ledger. When the values below
 disagree with the ledger, the ledger wins and CI must fail until this page is
-regenerated.
+updated.
 
 Read these before implementation:
 
@@ -26,42 +26,27 @@ unlocks_after_active_safety = ["S1D"]
 ```
 <!-- RUSH_CURRENT_WORK:END -->
 
-## Work now
+## How to use the selector
 
-### General lane — F2
+- `active_general` is the package to repair in the general construction lane.
+- `active_safety` is the package to repair in the safety lane. Read the D2
+  amendment before touching it.
+- `ready_parallel` packages may proceed without replacing either active lane.
+- `other_merged_incomplete` records unfinished landed work; it is not a second
+  task queue.
+- `unlocks_after_active_general` and `unlocks_after_active_safety` show the
+  packages whose dependency sets become satisfied if the corresponding active
+  package reaches `completed` while the rest of the ledger is unchanged.
 
-**Introduce injectable kernel I/O, clock, and event boundaries.**
+For a selected package, read its ledger entry and the matching packet in the
+completion plan. The ledger provides the title, status, dependencies, blocking
+reason, runtime entry points, acceptance tests, and evidence requirements.
 
-Finish the package requirements recorded under `F2` in the ledger. A builder
-may move it only as far as `candidate`; `completed` requires a separate cold
-verifier and a committed verification receipt.
+A builder may move a package only as far as `candidate`. `completed` requires a
+separate cold verifier, a committed receipt, satisfied dependencies, and all
+package acceptance items.
 
-### Safety lane — D0
-
-**Prototype capability sealing and supervisor-managed cold restart.**
-
-Read the D2 amendment first. Complete only the D0 acceptance items and keep the
-prototype fail-safe and disabled where the accepted architecture requires it.
-Do not revive the superseded permanent broker design.
-
-### Parallel research — R1, R2, R3
-
-These packages may proceed without replacing the active general or safety
-repair. They must remain research or specification work until their own
-accepted construction gates are satisfied.
-
-## What unlocks next
-
-- Completing **F2** makes **E1** dependency-ready.
-- Completing **D0** makes **S1D** dependency-ready.
-- **F3** remains locked until **F1** is genuinely `completed` again.
-- Downstream dependencies never unlock from `candidate` or
-  `merged_incomplete`.
-
-The entries under `other_merged_incomplete` are real unfinished work, but they
-are not an invitation to ignore the active lane selectors. Repair one only
-when the ledger, package dependency graph, or an explicit maintainer direction
-selects it.
+Dependencies never unlock from `candidate` or `merged_incomplete`.
 
 ## Do not select current work from these files
 
