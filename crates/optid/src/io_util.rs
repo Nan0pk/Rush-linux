@@ -541,7 +541,10 @@ mod tests {
         let error = atomic_write_state_file_with(&fault, &target, "60").unwrap_err();
 
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
-        assert!(!fault.exists(&target), "failed atomic write must not publish");
+        assert!(
+            !fault.exists(&target),
+            "failed atomic write must not publish"
+        );
     }
 
     #[test]
