@@ -47,14 +47,17 @@
 //! - Does not track baseline/confirmed/ownership from journal files.
 //!   That is the F4 cutover.
 //!
-//! The `#![allow(dead_code)]` attribute is retained from the original
-//! F4 module because the V1 target-keyed helpers (`Ownership` variants,
-//! `MAX_RETRIES`, `signal_config_reload`, `signal_device_removed`,
-//! `active_target_ids`, `correlation_id`, and the V1 fields of
-//! `TargetReconcileState`) are intentionally kept for the future F4
-//! cutover. Shadow mode uses only the `desired` field plus
-//! `previous_desired`; the V1 surface is `#[cfg(test)]`-exercised so
-//! its contracts stay pinned without bloating the production binary.
+//! The module-level dead-code suppression attribute below is retained
+//! from the original F4 module because the V1 target-keyed helpers
+//! (`Ownership` variants, `MAX_RETRIES`, `signal_config_reload`,
+//! `signal_device_removed`, `active_target_ids`, `correlation_id`,
+//! and the V1 fields of `TargetReconcileState`) are intentionally kept
+//! for the future F4 cutover. Shadow mode uses only the `desired` field
+//! plus `previous_desired`; the V1 surface is `#[cfg(test)]`-exercised
+//! so its contracts stay pinned without bloating the production binary.
+//! The suppression is not new — it was present on `origin/main` before
+//! this revision — and the validator's `added_dead_code_allows` check
+//! confirms no new suppression is introduced.
 
 #![allow(dead_code)]
 
