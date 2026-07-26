@@ -157,7 +157,28 @@ def _status_lines() -> list[str]:
 
 def render_section() -> str:
     manifest = _manifest()
-    lines = _status_lines()
+    commands = manifest["command"]
+    quickstart = next(
+        (item for item in commands if item["id"] == "livedev-posix"),
+        None,
+    )
+    if quickstart is None:
+        raise FrontpageError("front-page manifest must define livedev-posix")
+
+    lines = [
+        f'<a id="command-{quickstart["id"]}"></a>',
+        "## Rush LiveDev quick start",
+        "",
+        f"**Environment:** {quickstart['platform']}",
+        "",
+        f"```{quickstart['language']}",
+        str(quickstart["command"]),
+        "```",
+        "",
+        str(quickstart["note"]),
+        "",
+    ]
+    lines.extend(_status_lines())
     lines.extend(
         [
             "",
@@ -170,12 +191,14 @@ def render_section() -> str:
             "| --- | --- |",
         ]
     )
-    for item in manifest["command"]:
+    for item in commands:
         lines.append(
             f"| [{item['title']}](#command-{item['id']}) | {item['platform']} |"
         )
-    lines.extend(["", "## Command details"])
-    for item in manifest["command"]:
+    lines.extend(["", "## Other command details"])
+    for item in commands:
+        if item["id"] == quickstart["id"]:
+            continue
         lines.extend(
             [
                 "",
