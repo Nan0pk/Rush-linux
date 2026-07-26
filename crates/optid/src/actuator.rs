@@ -400,8 +400,7 @@ impl Actuator {
         let orig_file = self.state_dir.join(format!("original_{key}"));
         if !self.kernel.exists(&orig_file) {
             if let Ok(current_val) = self.kernel.read_to_string(path) {
-                let _ =
-                    atomic_write_state_file_with(&*self.kernel, &orig_file, current_val.trim());
+                let _ = atomic_write_state_file_with(&*self.kernel, &orig_file, current_val.trim());
             }
         }
 
@@ -796,8 +795,7 @@ impl Actuator {
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "0".to_string());
                     let intended_file = self.state_dir.join(format!("intended_{key}"));
-                    let _ =
-                        atomic_write_state_file_with(&*self.kernel, &intended_file, &val_str);
+                    let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &val_str);
 
                     let old_value = self
                         .pmqos_sink
@@ -1220,8 +1218,7 @@ impl Actuator {
                 }
                 let target_str = target.to_string();
                 let intended_file = self.state_dir.join(format!("intended_bl_{hash}"));
-                let _ =
-                    atomic_write_state_file_with(&*self.kernel, &intended_file, &target_str);
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &target_str);
 
                 match self.kernel.write(&bright_path, &target_str) {
                     Ok(_) => {
