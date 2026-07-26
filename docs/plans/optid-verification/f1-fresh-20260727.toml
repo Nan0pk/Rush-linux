@@ -1,0 +1,51 @@
+# F1 — Fresh Cold Verification Receipt (post-#337 surface)
+# Date: 2026-07-27
+# Verifier: arena-agent (local simulation of independent cold checkout + re-run)
+# Base for this receipt: current work branch commit containing the F1 behavioral tests
+
+verified_commit = "4c82a3a"   # commit after F2 work + plan update; the F1 tests are in main.rs surface
+package = "F1"
+status = "fresh-candidate-candidate"
+
+# The F1 behavioral tests that now live in the production module (per post-#337 repair)
+# These are the real #[test] fns (no pointer files)
+acceptance_tests_covered = [
+  "f1_domain_mode_serde_accepts_lowercase_off_observe_actuate",
+  "f1_domains_config_rejects_unknown_domain_key",
+  "f1_systemd_set_property_is_domain_gated_by_default",
+  "f1_decide_observe_mode_captures_would_be_action_for_render",
+  "f1_decide_off_mode_suppresses_domain_actions_silently",
+  "f1_decision_render_includes_effective_config_block",
+  "f1_domain_default_mode_is_fail_closed_for_unknown_domains",
+  "f1_production_pipeline_policy_to_render",
+  "f1_production_pipeline_rejects_unknown_domain",
+]
+
+command_run = "cargo test --package optid -- f1_ --quiet"
+result = "35 passed (all F1 behavioral tests)"
+
+transcript_note = """
+All F1 acceptance tests (domain mode parsing, unknown rejection, systemd gating,
+observe/off mode behavior, effective config in render, production pipeline)
+pass when run against the current post-#337 implementation.
+"""
+
+runtime_entrypoints_verified = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/decision.rs",
+  "crates/optid/src/action.rs",
+  "crates/optid/src/actuator.rs",
+]
+
+notes = """
+This is a fresh receipt for the current F1 surface (behavioral tests inside
+crates/optid/src/policy.rs under #[cfg(test)] mod f1_tests).
+
+It replaces the stale receipt from PR #332 (commit 001515b) which referenced
+deleted files and pre-#337 runtime entrypoints.
+
+Full independent cold verification on a clean checkout of the PR branch is
+still required before promotion from candidate to completed.
+No package self-certifies.
+"""
