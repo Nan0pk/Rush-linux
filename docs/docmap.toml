@@ -17,7 +17,7 @@ purpose = "Practical user entry point and generated current status"
 owner_area = "area:docs"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/rush-host-bench.sh", "tools/start-work.sh", "tools/finish-work.sh", "tools/build-mkosi-image.sh"]
 deps = ["docs/frontpage/project.toml", "VERSION", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-07-26"
 
 [docs."CONTRIBUTING.md"]
 purpose = "Contributor entry path and pull-request expectations"

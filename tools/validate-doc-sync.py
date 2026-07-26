@@ -347,14 +347,14 @@ def check_optid_plan_activation(entries):
         and package_id not in {active_general, active_safety}
     )
     required_readme = [
-        f"**Active general repair:** `{active_general}`",
-        f"**Active safety repair:** `{active_safety}`",
+        f"| Active general repair | `{active_general}`",
+        f"| Active safety repair | `{active_safety}`",
         "docs/architecture/optid-d2-amendment.md",
         "docs/plans/optid-package-status.toml",
     ]
     if merged_incomplete:
         required_readme.append(
-            "**Other merged but incomplete packages:** "
+            "| Other merged, incomplete packages | "
             + ", ".join(f"`{package_id}`" for package_id in merged_incomplete)
         )
     missing = [token for token in required_readme if token not in readme]
