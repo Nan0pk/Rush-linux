@@ -125,8 +125,13 @@ title = "Prototype capability sealing and supervisor-managed cold restart"
 status = "merged_incomplete"
 depends = []
 pr = "328"
-blocking_reason = "The prototype lacks valid removed-object, child-process/exec, exit-75, recovery-order, ABI-rights, no-new-privileges, feature-build CI, and cold-kernel proof."
-completion_evidence = []
+blocking_reason = "Partial progress: exit-75 topology rebuild + recovery-order simulation + CI smoke test added (see docs/plans/optid-verification/d0-20260727.toml and tools/test-d0-seal-test.sh). Still missing: full child-process/exec, no-new-privileges, feature-build CI, cold-kernel proof on real hardware."
+completion_evidence = [
+  "crates/optid/src/bin/optid-capability-seal-test.rs (--exit-75, --recovery-order)",
+  "crates/optid/src/capability_seal_test/seal_test.rs (recovery_order integration)",
+  "tools/test-d0-seal-test.sh (CI smoke test)",
+  "docs/plans/optid-verification/d0-20260727.toml",
+]
 
 [[package]]
 id = "S1D"
