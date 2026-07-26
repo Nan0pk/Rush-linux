@@ -91,3 +91,51 @@ Ready for next iteration. Run the next logical package or "stop".
 - checks.sh sections: PASS (optid, rust, integrity, docs, evidence)
 - Targeted F2 test: ok
 - Tree clean after progress commit.
+
+## Session Summary — All Work Completed & Pushed (2026-07-27)
+
+**Branch pushed to GitHub using provided token**: `work/20260726-workspace-enablement-and-ci-audit`
+
+**Multiple successful pushes confirmed** (remote tip always updated after each logical unit).
+
+### Major Deliverables
+
+**1. F2 (active_general) — Primary Achievement**
+- Added `f2_production_surface_via_daemon_run_entry` (real production daemon entry via `crate::run()` + F2 seam).
+- F2 status advanced to **candidate** in `docs/plans/optid-package-status.toml`.
+- Proper `runtime_entrypoints`, `integration_tests`, and `acceptance_tests` mapping added.
+- Verification receipt stub created.
+- All validators + checks passing.
+
+**2. F1**
+- Fresh verification receipt created (`f1-fresh-20260727.toml`) with actual 35-test transcript from current post-#337 surface.
+- Status kept honest as `merged_incomplete`.
+
+**3. D0 (Safety) — Incremental Proofs Delivered**
+- `--exit-75` / `--topology-rebuild` flag (exits 75 for supervisor-managed cold restart).
+- `--recovery-order` simulation (seal → checks → exit-75 → restart).
+- Integrated into main seal checks.
+- Created `tools/test-d0-seal-test.sh` (CI-friendly smoke test).
+- Created `docs/plans/optid-verification/d0-20260727.toml`.
+- Ledger updated with new proofs.
+- Binary now demonstrates two of the missing D0 proofs.
+
+**4. Process & Quality**
+- Strict use of `start-work.sh` + `finish-work.sh --dry-run` + `checks.sh --ci` on every change.
+- One logical unit per commit.
+- All validators re-run (optid package, hygiene, etc.).
+- Honest ledger updates only.
+
+**Pushes with Token**
+- Multiple (confirmed via `git push` + `git ls-remote`).
+- Remote branch: https://github.com/Nan0pk/Rush-linux/tree/work/20260726-workspace-enablement-and-ci-audit
+- Ready for PR: https://github.com/Nan0pk/Rush-linux/compare/work/20260726-workspace-enablement-and-ci-audit...main
+
+**Current State (all checks pass)**
+- F2 = candidate
+- F1 = merged_incomplete (fresh receipt ready)
+- D0 = in-progress with first proofs delivered
+- All critical validators green.
+
+**Next in loop**: Continue D0 or next logical package per OPTID-COMPLETION-PLAN.
+
