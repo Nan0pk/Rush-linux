@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/optid-self-diagnosing-workplan
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: agent/optid-self-diagnosing-workplan
 
       - name: Amend canonical optid plan
         shell: bash
