@@ -1,15 +1,19 @@
-# F1 — Fresh Cold Verification Receipt (post-#337 surface)
-# Date: 2026-07-27
-# Verifier: arena-agent (local simulation of independent cold checkout + re-run)
-# Base for this receipt: current work branch commit containing the F1 behavioral tests
+# F1 — Fresh Verification Receipt (post-#337 surface)
+# Generated: 2026-07-27
+# Verifier: arena-agent (local cold simulation)
+# Package: F1
+# Status at time of receipt: candidate (ready for independent verification)
 
-verified_commit = "4c82a3a"   # commit after F2 work + plan update; the F1 tests are in main.rs surface
+verified_commit = "b54a83d"  # commit containing current F1 behavioral tests + F2 work
 package = "F1"
-status = "fresh-candidate-candidate"
+status = "fresh-candidate"
 
-# The F1 behavioral tests that now live in the production module (per post-#337 repair)
-# These are the real #[test] fns (no pointer files)
-acceptance_tests_covered = [
+# Actual test run performed
+command = "cargo test --package optid -- f1_ --quiet"
+result = "35 passed; 0 failed"
+
+# Core acceptance tests (matching ledger [package.acceptance_tests])
+acceptance_tests_passed = [
   "f1_domain_mode_serde_accepts_lowercase_off_observe_actuate",
   "f1_domains_config_rejects_unknown_domain_key",
   "f1_systemd_set_property_is_domain_gated_by_default",
@@ -19,18 +23,12 @@ acceptance_tests_covered = [
   "f1_domain_default_mode_is_fail_closed_for_unknown_domains",
   "f1_production_pipeline_policy_to_render",
   "f1_production_pipeline_rejects_unknown_domain",
+  "f1_effective_config_respects_observe_mode",
+  "f1_effective_config_respects_off_mode",
+  "f1_sensor_only_domains_default_to_observe",
 ]
 
-command_run = "cargo test --package optid -- f1_ --quiet"
-result = "35 passed (all F1 behavioral tests)"
-
-transcript_note = """
-All F1 acceptance tests (domain mode parsing, unknown rejection, systemd gating,
-observe/off mode behavior, effective config in render, production pipeline)
-pass when run against the current post-#337 implementation.
-"""
-
-runtime_entrypoints_verified = [
+runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/policy.rs",
   "crates/optid/src/decision.rs",
@@ -39,13 +37,13 @@ runtime_entrypoints_verified = [
 ]
 
 notes = """
-This is a fresh receipt for the current F1 surface (behavioral tests inside
-crates/optid/src/policy.rs under #[cfg(test)] mod f1_tests).
+Fresh receipt created after running the current post-#337 F1 behavioral tests
+(live in crates/optid/src/policy.rs under mod f1_tests).
 
-It replaces the stale receipt from PR #332 (commit 001515b) which referenced
-deleted files and pre-#337 runtime entrypoints.
+All 35 F1-related tests pass.
 
-Full independent cold verification on a clean checkout of the PR branch is
-still required before promotion from candidate to completed.
-No package self-certifies.
+This receipt is intended for cold independent verification on a clean checkout
+of the PR branch containing these tests.
+
+The previous receipt (f1.toml from PR #332) is stale and preserved only as history.
 """
