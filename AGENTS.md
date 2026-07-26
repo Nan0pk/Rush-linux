@@ -69,16 +69,19 @@ replaces the plan's former S1–S3 broker lane with D0 and S1D–S5D. Do not rev
 the permanent broker or steady-state actuation IPC path unless a later explicit
 owner decision supersedes D2.
 
-Read [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml)
-before selecting work. It is the machine-readable package ledger. Current
-repair state:
+Read [`CURRENT_WORK.md`](CURRENT_WORK.md) and
+[`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml)
+before selecting work. The ledger is the machine-readable authority; the
+current-work page is its CI-validated human-readable projection.
 
-- PRs #324–#328 merged partial F1–F4 and D0 implementations without satisfying
-  their package end states;
-- F1 and D0 remain the active repair targets;
-- dependencies do not unlock from `candidate` or `merged_incomplete`; and
-- physical hardware nomination blocks release and automatic-actuation claims,
-  not observation, simulation, dry-run, disabled implementation, F1, or D0.
+- Read `active_general` and `active_safety` from the ledger at execution time.
+  Never copy their current package IDs into permanent agent instructions.
+- Packages marked `ready_parallel` may proceed without displacing either active
+  lane.
+- Dependencies do not unlock from `candidate` or `merged_incomplete`.
+- Physical hardware nomination blocks release and automatic-actuation claims,
+  not observation, simulation, dry-run, disabled implementation, or unrelated
+  construction work.
 
 If an older audit, plan, README, or chat calls hardware nomination the only
 project blocker, interpret that statement as a v0.6 evidence blocker only.
