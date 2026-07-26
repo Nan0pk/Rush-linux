@@ -134,8 +134,10 @@ run() {
 }
 
 attempt() {
+    local status
+
     "$@"
-    local status=$?
+    status=$?
 
     if (( status != 0 )); then
         if [[ "${1:-}" == "run" && $# -ge 3 ]]; then
