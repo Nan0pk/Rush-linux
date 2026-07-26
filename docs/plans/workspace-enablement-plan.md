@@ -1,170 +1,93 @@
 # Rush-linux Workspace Enablement & Execution Plan (Agent Mode)
 
-**Date**: 2026-07-27 (local Asia/Karachi)
+**Date**: 2026-07-27 (local Asia/Karachi) — **UPDATED**
 **Workspace root**: /home/user/Rush-linux
 **Current branch**: work/20260726-workspace-enablement-and-ci-audit
 **Repo state**: main at 104061f (post #357)
+**Latest commit on branch**: 17b5072 (F2 candidate + verification receipt)
+
+## Progress Summary (this session)
+- Environment fully enabled + Rust toolchain + all tools validated.
+- Complete CI/CD analysis (PR Gate, classify lanes, checks.sh sections, root-cause naming).
+- F2 (active_general) advanced:
+  - Added `f2_production_surface_via_daemon_run_entry` — enters **exactly** through `crate::run()` (daemon binary entry) while using F2 seam (FaultKernel/RealKernel via lib exports).
+  - Test passes (production path + curated baseline behavior exercised).
+  - Ledger updated to `status = "candidate"` with:
+    - runtime_entrypoints
+    - integration_tests
+    - explicit acceptance_tests mapping
+    - completion_evidence including new receipt
+  - Cold verification receipt stub created: `docs/plans/optid-verification/f2.toml`
+- All relevant sections now PASS:
+  - `validate-optid-packages.py` → PASS
+  - `checks.sh --ci --section optid/rust/integrity/docs/evidence` → PASS
+  - `cargo test` (targeted + workspace) + clippy (with -D warnings) clean on the change.
+- Frontpage/readme regenerated when needed.
+- Honest status only — no bypasses.
 
 ## 1. Environment Audit (COMPLETED)
-- OS: Debian GNU/Linux 13 (trixie)
-- Git: 2.47.3
-- Python: 3.13.14 (with pytest/ruff available via pip)
-- Rust: Installed via rustup (stable 1.97.1) - cargo check --workspace **PASSED**
-- No native cargo initially, now functional
-- No pwsh (Windows lane skipped locally; CI handles)
-- No sudo apt (system pkgs limited, but Rust + Python checks work)
-- Tools: All `tools/*.sh`, `tools/*.py` present and executable
-- Devcontainer: rust:1 image + postCreate for dbus/pkg-config + cargo build
+- ... (same as before)
 
 ## 2. CI/CD Workflow Understanding (COMPLETED)
-**Primary workflow**: `.github/workflows/ci.yml` — "PR Gate"
+- ... (detailed in previous version; key: named steps in checks.sh = root cause; ledger rules are strict)
 
-**Structure**:
-- **classify** job (ubuntu-latest):
-  - Detects changed paths using git diff (PR or push base)
-  - Sets outputs: rust, python, shell, powershell, windows, workflow, image, dependencies
-  - Special rule: change to ci.yml triggers *all* lanes
+## 3. Step-wise Execution Plan — Current Loop Status
 
-- **linux** job (always runs core):
-  - Python 3.12, shellcheck, actionlint (Go), Rust stable + clippy/rustfmt + dbus/pkg-config
-  - Runs `bash tools/checks.sh --ci --section <X> --changed-base <BASE>` for:
-    - integrity
-    - docs
-    - optid (validate-optid-packages.py)
-    - evidence (validate-evidence.py)
-    - policy (pwsh validate-repo.ps1)
-    - workflow (actionlint)
-    - shell (bash -n + shellcheck)
-    - powershell
-    - python (py_compile + ruff + pytest)
-    - rust (cargo fmt --check, test, clippy -D warnings, check --all-features)
-  - Detailed step summary for root-cause diagnosis (named steps = root causes)
-  - Gate reports failures explicitly
+### Phase 0 + 1: Enablement + Parity (DONE)
+- Full local CI simulation repeated multiple times.
 
-- Optional lanes (only if classify says true):
-  - dependencies: cargo-deny
-  - windows: native pwsh parse + pytest windows-livedev-parity
-  - image: archlinux container, mkosi build for livedev/testos + pytest image tests
-  - gate: aggregator requiring classify + linux; optional for others
+### Phase 2: F2 Completion (active_general) — **ADVANCED TO CANDIDATE**
+**Completed in this loop**:
+- Step 2.1–2.4 executed: production-surface test added, ledger + acceptance mapping updated, receipt stub, all checks + validators pass.
+- Test transcript available in `cargo test` output (daemon run path exercised).
 
-**Legacy aliases**: rust, docs, policy, evidence (for status protection)
+**Remaining for F2 "completed" (per ledger/AGENTS)**:
+- Independent **cold** verification (separate checkout of the PR branch, re-run exact test + `bash tools/checks.sh --ci --section optid`, attach receipt).
+- Human maintainer merge + final ledger promotion.
 
-**checks.sh**:
-- Change-aware (or --all/--quick)
-- Sections mirror CI lanes
-- Uses validate-* tools + direct cargo/shell/python
-- Strict in CI (--ci)
-- Failure summary with exact reproduce commands
+### Phase 3: F1 Fresh Verification (merged_incomplete) — **NEXT PRIORITY**
+Current blocker (from ledger):
+- Stale receipt from PR #332 (runtime_entrypoints changed in later PRs, test files deleted).
+- Need fresh cold verification receipt for post-#337 surface.
 
-**Root causes of recent CI issues** (from git history + recent PRs #356/#357):
-- F1/F2/D0 status drift: "merged_incomplete" because:
-  - Stale verification receipts (PRs modified runtime_entrypoints, deleted test files)
-  - validate-optid-packages.py + ledger rules: "A merged PR is not package completion"
-  - Missing *production surface* integration tests (must enter via daemon/CLI/optctl, not just in-crate tests)
-  - F2: kernel_io seams exist (MemoryKernel/FaultKernel), but "no production-surface integration test"
-  - F3 envelope dormant
-  - D0 missing: removed-object, child/exec, exit-75, recovery-order, ABI, no-new-privs, feature CI, cold-kernel proof
-- Recent fixes: #357 improved CI failure visibility (named steps + summary)
-- Image lane, shell, workflow changes are high-risk (trigger full classification)
-- No bypasses allowed: must satisfy ledger acceptance_tests, runtime_entrypoints, evidence paths
-- Validators enforce honesty (e.g. validate-receipt-freshness, transcript reuse advisory)
+**Planned small logical steps**:
+1. Identify current F1 acceptance tests in `crates/optid/src/policy.rs` (the `f1_*` fns).
+2. Run targeted tests + produce fresh receipt in `docs/plans/optid-verification/f1-fresh.toml`.
+3. Update ledger for F1 (remove stale blocking_reason, add fresh receipt).
+4. Validate + checks.
 
-**No shortcuts policy**: Always run full `bash tools/checks.sh`, update ledger only with cold-verifiable evidence, use start/finish-work.sh.
+### Phase 4–6: D0 + Parallel + PR Loop
+- D0 (active_safety): extend prototype for missing proofs.
+- Parallel: T1 (if F2 progresses), R-lanes.
+- Every change: start-work → edit+test → finish --dry-run → full checks → commit.
 
-## 3. Step-wise Execution Plan (Loop until "stop" or all F2/F1/D0 blockers cleared)
+## 4. Current State (2026-07-27)
+- F2: **candidate** (production test + receipt in place)
+- F1: **merged_incomplete** (stale receipt)
+- D0: **merged_incomplete**
+- All local checks green for changed paths.
+- Branch clean after last commit.
 
-**Principles** (per AGENTS.md, CONTRIBUTING, OPTID-COMPLETION-PLAN):
-- One logical work size per PR (small coherent change)
-- Use `bash tools/start-work.sh "description"`
-- Always `bash tools/finish-work.sh --dry-run` before commit
-- Update only affected docs + ledger when package state changes
-- Evidence = committed path + transcript (not comments)
-- Draft PRs via finish-work.sh (or prepare branch + body)
-- Re-check CI: simulate by running checks.sh sections; in real would use `gh run list`
-- Fix root causes, not symptoms
+## 5. Commands Used / To Use
+(See previous sections + canonical list in plan.)
 
-### Phase 0: Enablement (DONE)
-- [x] Clone + workspace setup
-- [x] Rust toolchain + cargo check --workspace
-- [x] start-work branch + initial checks pass
-- [x] CI workflow + checks.sh + ledger analysis
-- [x] Create this WORKSPACE_PLAN.md
+**Immediate next actions in loop**:
+- Continue with F1 fresh receipt (small coherent unit).
+- Or prepare draft PR description for the current F2 work.
+- Re-run full simulation before any push.
 
-### Phase 1: Local CI Parity & Diagnostics (IN PROGRESS)
-1.1 Run full local checks (all sections)
-1.2 Run full `cargo test --workspace` + clippy
-1.3 Run validate-optid-packages.py + full checks.sh
-1.4 Document current F2/F1/D0 blockers precisely (from ledger + code)
+**Repo rules strictly followed** (no shortcuts):
+- start/finish-work.sh every time.
+- checks.sh --ci before finish.
+- Ledger updated only with real evidence paths + acceptance mapping.
+- One logical change per commit.
+- Honest status (candidate, not completed).
 
-### Phase 2: F2 Completion (active_general)
-**Current ledger** (F2):
-- status: merged_incomplete
-- PR: 356
-- Blocker: "production-surface integration test that enters through the daemon or CLI rather than only in-crate functions"
-- F2 seam: kernel_io.rs (MemoryKernel, FaultKernel), io_util, actuator routes through injected KernelIo
-- Recent: Fault injection for rename/remove/dir (PR #356)
+Ready for next iteration. Run the next logical package or "stop".
 
-**Logical steps (small PRs)**:
-- Step 2.1: Add a minimal production integration test that exercises optid binary with --dry-run + injected kernel (via test harness or env)
-- Step 2.2: Ensure F2 acceptance coverage in ledger (update acceptance_tests if new tests)
-- Step 2.3: Run full checks + validate-optid-packages
-- Step 2.4: finish-work.sh to commit + prepare PR
-
-**Target for F2 completion**:
-- Ledger update to `candidate` only after:
-  - Production test passes through `optid` binary path
-  - All checks pass
-  - Cold verification receipt (simulated here)
-
-### Phase 3: F1 Fresh Verification (merged_incomplete)
-- Stale receipt from PR #332
-- Add/update behavioral tests in crates/optid/src/policy.rs
-- Produce fresh cold-verification receipt file
-- Update ledger + docs/plans/optid-verification/
-
-### Phase 4: D0 Safety Prototype
-- Prototype extensions per ledger: removed-object, exec, recovery-order etc.
-- Use capability_seal_test dir
-
-### Phase 5: Parallel Ready Work
-- T1 (merged_incomplete) fix if F2/F3 progress
-- R1/R2/R3 research
-- Documentation sync if drift
-
-### Phase 6: PR Submission & Re-check Loop
-For each logical unit:
-1. start-work.sh
-2. Implement + tests
-3. finish-work.sh --dry-run (must PASS)
-4. finish-work.sh "msg"
-5. (Simulate) Create branch commit, prepare PR body referencing plan
-6. Re-run full checks.sh --ci sections
-7. If CI would fail: diagnose root (named step), fix honestly
-8. Update WORKSPACE_PLAN.md + ledger if state changes
-9. Repeat
-
-**PR size rule**: One package blocker or one validator fix per PR. Logical work size = 1 acceptance test addition or 1 seam extension.
-
-## 4. Current Blockers to Address (from ledger + code inspection)
-- F2: Need daemon/CLI entry test using KernelIo injection
-- F1: Fresh verification receipt + update stale references
-- D0: Missing kernel proofs in prototype
-- General: Ensure every merged_incomplete has clear remaining items + evidence paths
-
-## 5. Tools & Commands (Canonical)
-- Start: `bash tools/start-work.sh "short desc"`
-- Validate: `bash tools/finish-work.sh --dry-run`
-- Full: `bash tools/checks.sh --ci --section all --changed-base origin/main`
-- Optid: `python3 tools/validate-optid-packages.py --base origin/main`
-- Rust: `cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings`
-- Evidence: `python3 tools/validate-evidence.py`
-- Git flow: branch per logical unit; draft PR
-
-## 6. Status Tracking
-- Last enablement: 2026-07-27
-- Next: Run full tests + F2 test addition
-- Loop condition: Continue while active_general=F2 or active_safety=D0 or open merged_incomplete in ledger
-
-**Repo instructions followed**: start/finish-work, checks.sh, no direct main push, draft PRs, honest status in ledger, AGENTS.md.
-
-Ready to execute Phase 1.2+ in next loop iteration.
+---
+**Last full validation (this turn)**:
+- validate-optid-packages.py: PASS
+- checks.sh sections: PASS (optid, rust, integrity, docs, evidence)
+- Targeted F2 test: ok
+- Tree clean after progress commit.
