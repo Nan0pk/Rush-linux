@@ -118,6 +118,7 @@ completion_evidence = [
   "crates/optid/src/tests.rs",
   "crates/optid/src/lib.rs",
   "crates/optid/src/kernel_io.rs",
+  "docs/plans/optid-verification/f2.toml",
 ]
 
 [package.acceptance_tests]
