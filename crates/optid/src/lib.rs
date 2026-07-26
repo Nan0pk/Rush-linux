@@ -8,8 +8,6 @@
 //! The binary target (`main.rs`) remains the sole production entry point.
 //! This library is intended for workspace-internal use only.
 
-#![allow(dead_code)]
-
 // Include the kernel_io module which defines all the public types.
 mod kernel_io;
 
