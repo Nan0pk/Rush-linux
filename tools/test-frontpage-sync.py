@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -54,6 +55,22 @@ def test_generated_status_lists_every_build_profile():
     output = frontpage.render_section()
     for edition in frontpage._editions():
         assert f"`{edition}`" in output
+
+
+def test_generated_command_index_has_stable_targets():
+    output = frontpage.render_section()
+    for item in frontpage._manifest()["command"]:
+        target = f"command-{item['id']}"
+        assert f"(#{target})" in output
+        assert f'<a id="{target}"></a>' in output
+
+
+def test_readme_command_links_have_targets():
+    readme = frontpage.README_PATH.read_text(encoding="utf-8")
+    links = set(re.findall(r"\(#(command-[^)]+)\)", readme))
+    targets = set(re.findall(r'<a id="(command-[^"]+)"></a>', readme))
+    assert links
+    assert links <= targets
 
 
 def test_readme_is_in_sync():
