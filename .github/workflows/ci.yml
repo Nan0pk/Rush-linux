@@ -22,6 +22,7 @@ jobs:
       rust: ${{ steps.change.outputs.rust }}
       python: ${{ steps.change.outputs.python }}
       shell: ${{ steps.change.outputs.shell }}
+      powershell: ${{ steps.change.outputs.powershell }}
       windows: ${{ steps.change.outputs.windows }}
       workflow: ${{ steps.change.outputs.workflow }}
       image: ${{ steps.change.outputs.image }}
@@ -63,6 +64,7 @@ jobs:
           classify rust '^\.github/workflows/ci\.yml$|^(Cargo\.(toml|lock)|crates/|rust-toolchain)'
           classify python '^\.github/workflows/ci\.yml$|(^|/).*\.py$|^pyproject\.toml$|^schemas/'
           classify shell '^\.github/workflows/ci\.yml$|\.sh$|^tools/|^testos/'
+          classify powershell '^\.github/workflows/ci\.yml$|\.ps1$'
           classify windows '^\.github/workflows/ci\.yml$|\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
           classify workflow '^\.github/workflows/.*\.ya?ml$'
           classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
@@ -120,20 +122,113 @@ jobs:
         if: needs.classify.outputs.rust == 'true'
         uses: Swatinem/rust-cache@v2
 
-      - name: Run the canonical change-aware checks
-        env:
-          # On pull_request events, honor the `docs-not-needed` PR label.
-          # On push events (post-merge to main), there is no PR label
-          # context, so the docs-impact gate would re-fail on workflow-
-          # only dependabot bumps that already passed with the label on
-          # the PR. Treat push-to-main as docs-not-needed because the
-          # PR already passed the gate; the push run is a re-check, not
-          # a new gate.
-          RUSH_DOCS_NOT_NEEDED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
-        run: bash tools/checks.sh --ci --changed-base "${{ needs.classify.outputs.base }}"
+      # Each logical check is a distinct GitHub step. An agent can identify the
+      # root cause from the jobs API without opening or searching the full log.
+      - name: "Repository integrity — checks.sh --section integrity"
+        id: integrity
+        if: always()
+        run: bash tools/checks.sh --ci --section integrity --changed-base "${{ needs.classify.outputs.base }}"
 
-      - name: Check Rust dependency policy
-        if: needs.classify.outputs.dependencies == 'true'
+      - name: "Documentation truth — checks.sh --section docs"
+        id: docs
+        if: always()
+        env:
+          # On pull_request events, honor the `docs-not-needed` PR label. On
+          # push-to-main, the PR has already passed this gate and label context
+          # is unavailable, so treat the push run as docs-not-needed.
+          RUSH_DOCS_NOT_NEEDED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
+        run: bash tools/checks.sh --ci --section docs --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "optid package contract — checks.sh --section optid"
+        id: optid
+        if: always()
+        run: bash tools/checks.sh --ci --section optid --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Evidence integrity — checks.sh --section evidence"
+        id: evidence
+        if: always()
+        run: bash tools/checks.sh --ci --section evidence --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Repository policy — checks.sh --section policy"
+        id: policy
+        if: always()
+        run: bash tools/checks.sh --ci --section policy --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Workflow syntax — checks.sh --section workflow"
+        id: workflow
+        if: always() && needs.classify.outputs.workflow == 'true'
+        run: bash tools/checks.sh --ci --section workflow --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Shell entry points — checks.sh --section shell"
+        id: shell
+        if: always() && needs.classify.outputs.shell == 'true'
+        run: bash tools/checks.sh --ci --section shell --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "PowerShell parsing — checks.sh --section powershell"
+        id: powershell
+        if: always() && needs.classify.outputs.powershell == 'true'
+        run: bash tools/checks.sh --ci --section powershell --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Python and tooling — checks.sh --section python"
+        id: python
+        if: always() && needs.classify.outputs.python == 'true'
+        run: bash tools/checks.sh --ci --section python --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: "Rust workspace — checks.sh --section rust"
+        id: rust
+        if: always() && needs.classify.outputs.rust == 'true'
+        run: bash tools/checks.sh --ci --section rust --changed-base "${{ needs.classify.outputs.base }}"
+
+      - name: CI outcome index — failed named steps above are root causes
+        if: always()
+        env:
+          BASE: ${{ needs.classify.outputs.base }}
+          INTEGRITY: ${{ steps.integrity.outcome }}
+          DOCS: ${{ steps.docs.outcome }}
+          OPTID: ${{ steps.optid.outcome }}
+          EVIDENCE: ${{ steps.evidence.outcome }}
+          POLICY: ${{ steps.policy.outcome }}
+          WORKFLOW: ${{ steps.workflow.outcome }}
+          SHELL: ${{ steps.shell.outcome }}
+          POWERSHELL: ${{ steps.powershell.outcome }}
+          PYTHON: ${{ steps.python.outcome }}
+          RUST: ${{ steps.rust.outcome }}
+        run: |
+          set -u
+          report() {
+            local label="$1" outcome="$2" section="$3"
+            printf '%-24s %s\n' "$label" "$outcome"
+            if [[ "$outcome" == "failure" ]]; then
+              echo "::error title=Rush CI section failed::$label; reproduce: bash tools/checks.sh --ci --section $section --changed-base $BASE"
+            fi
+          }
+          {
+            echo "## Rush CI outcome index"
+            echo
+            echo 'The failed named step is the root cause; PR Gate and legacy aliases are aggregators.'
+            echo
+            echo '```text'
+            report "Repository integrity" "$INTEGRITY" integrity
+            report "Documentation truth" "$DOCS" docs
+            report "optid package contract" "$OPTID" optid
+            report "Evidence integrity" "$EVIDENCE" evidence
+            report "Repository policy" "$POLICY" policy
+            report "Workflow syntax" "$WORKFLOW" workflow
+            report "Shell entry points" "$SHELL" shell
+            report "PowerShell parsing" "$POWERSHELL" powershell
+            report "Python and tooling" "$PYTHON" python
+            report "Rust workspace" "$RUST" rust
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  dependencies:
+    name: Rust dependency policy
+    needs: classify
+    if: needs.classify.outputs.dependencies == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Cargo dependency policy — cargo deny check
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
@@ -227,34 +322,55 @@ jobs:
 
   gate:
     name: PR Gate
-    needs: [classify, linux, windows, image]
+    needs: [classify, linux, dependencies, windows, image]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Require every selected lane
+      - name: Report failed CI lanes explicitly
         env:
           CLASSIFY: ${{ needs.classify.result }}
           LINUX: ${{ needs.linux.result }}
+          DEPENDENCIES: ${{ needs.dependencies.result }}
           WINDOWS: ${{ needs.windows.result }}
           IMAGE: ${{ needs.image.result }}
         run: |
-          set -euo pipefail
-          [[ "$CLASSIFY" == "success" ]]
-          [[ "$LINUX" == "success" ]]
-          [[ "$WINDOWS" == "success" || "$WINDOWS" == "skipped" ]]
-          [[ "$IMAGE" == "success" || "$IMAGE" == "skipped" ]]
+          set -u
+          failed=0
+          require() {
+            local lane="$1" result="$2"
+            if [[ "$result" != "success" ]]; then
+              echo "::error title=Required CI lane failed::$lane: $result"
+              failed=1
+            fi
+          }
+          optional() {
+            local lane="$1" result="$2"
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "::error title=Selected CI lane failed::$lane: $result"
+              failed=1
+            fi
+          }
+          require "Select relevant lanes" "$CLASSIFY"
+          require "Linux and repository checks" "$LINUX"
+          optional "Rust dependency policy" "$DEPENDENCIES"
+          optional "Native Windows" "$WINDOWS"
+          optional "Product image" "$IMAGE"
+          if (( failed != 0 )); then
+            echo "Inspect the failed named lane and step above; this PR Gate is only the aggregator."
+            exit 1
+          fi
           echo "All selected PR lanes passed."
 
-  # Temporary zero-work aliases for the status names protected on main before
-  # this consolidated gate existed. They depend on the real aggregator and can
-  # be deleted after branch protection requires only "PR Gate / PR Gate".
+  # Temporary zero-work aliases for status names protected on main before this
+  # consolidated gate existed. They are compatibility aliases, not root causes.
   legacy-rust:
     name: Rust
     needs: gate
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.gate.result }}" = success
+      - name: Compatibility alias only — inspect PR Gate and its failed named lane
+        run: test "${{ needs.gate.result }}" = success
 
   legacy-docs:
     name: Documentation sync
@@ -262,7 +378,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.gate.result }}" = success
+      - name: Compatibility alias only — inspect PR Gate and its failed named lane
+        run: test "${{ needs.gate.result }}" = success
 
   legacy-policy:
     name: Repository policy
@@ -270,7 +387,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.gate.result }}" = success
+      - name: Compatibility alias only — inspect PR Gate and its failed named lane
+        run: test "${{ needs.gate.result }}" = success
 
   legacy-evidence:
     name: Evidence integrity (Dragnet)
@@ -278,4 +396,5 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.gate.result }}" = success
+      - name: Compatibility alias only — inspect PR Gate and its failed named lane
+        run: test "${{ needs.gate.result }}" = success
