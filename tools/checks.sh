@@ -89,10 +89,9 @@ record_failure() {
     fi
 }
 
-write_failure_summary() {
+render_plain_failure_summary() {
     local index
 
-    echo
     echo "================ RUSH CI FAILURE SUMMARY ================"
     echo "$FAILURES blocker(s) must be fixed:"
     for index in "${!FAILED_RISKS[@]}"; do
@@ -101,6 +100,17 @@ write_failure_summary() {
         printf '     reproduce: %s\n' "${FAILED_COMMANDS[$index]}"
     done
     echo "========================================================="
+}
+
+write_failure_summary() {
+    local index
+
+    echo
+    render_plain_failure_summary
+
+    if [[ -n "${RUSH_FAILURE_SUMMARY_FILE:-}" ]]; then
+        render_plain_failure_summary > "$RUSH_FAILURE_SUMMARY_FILE"
+    fi
 
     if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         {
