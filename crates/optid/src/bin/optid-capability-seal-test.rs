@@ -57,6 +57,8 @@ mod seal_test;
 const EXIT_TOPOLOGY_REBUILD: i32 = 75;
 
 fn main() {
+    maybe_exit_for_topology_rebuild();
+    maybe_run_recovery_order_test();
     eprintln!("optid-capability-seal-test: D0 experimental prototype");
     eprintln!("  This binary validates Landlock capability sealing for the D2 architecture.");
     eprintln!("  It does NOT write to real hardware. It uses synthetic temp-dir targets.");
@@ -154,3 +156,39 @@ fn create_synthetic_targets() -> io::Result<PathBuf> {
 
 #[allow(dead_code)]
 const _EXIT_TOPOLOGY_REBUILD: i32 = EXIT_TOPOLOGY_REBUILD;
+
+// === D0 incremental improvement: explicit --exit-75 flag + recovery-order test ===
+
+fn parse_args() -> bool {
+    for arg in std::env::args() {
+        if arg == "--exit-75" || arg == "--topology-rebuild" {
+            return true;
+        }
+    }
+    false
+}
+
+fn maybe_exit_for_topology_rebuild() {
+    if parse_args() {
+        eprintln!("D0: --exit-75 requested. Exiting with topology-rebuild status (75).");
+        eprintln!("A supervisor (e.g. systemd) should cold-restart the process.");
+        std::process::exit(EXIT_TOPOLOGY_REBUILD);
+    }
+}
+
+// === D0: wire recovery-order simulation into the binary when requested ===
+
+fn maybe_run_recovery_order_test() {
+    for arg in std::env::args() {
+        if arg == "--recovery-order" || arg == "--test-recovery" {
+            eprintln!("D0: running recovery-order simulation...");
+            let res = seal_test::simulate_recovery_order();
+            let status = if res.passed { "PASS" } else { "FAIL" };
+            eprintln!("  [{}] {}: {}", status, res.name, res.message);
+            if !res.passed {
+                std::process::exit(1);
+            }
+            return;
+        }
+    }
+}

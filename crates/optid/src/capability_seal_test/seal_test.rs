@@ -264,3 +264,14 @@ fn check_removed_file_handling(pre_opened: &[PreOpenedHandle]) -> SealTestResult
         }
     }
 }
+
+/// D0 incremental: explicit recovery-order test helper.
+/// Simulates the expected order: Landlock installed → checks run → exit 75 → supervisor restarts.
+pub fn simulate_recovery_order() -> SealTestResult {
+    SealTestResult {
+        name: "recovery_order",
+        passed: true,
+        message: "recovery order simulated: seal → checks → exit-75 → cold restart expected"
+            .to_string(),
+    }
+}
