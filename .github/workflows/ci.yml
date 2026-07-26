@@ -27,7 +27,7 @@ jobs:
       image: ${{ steps.change.outputs.image }}
       dependencies: ${{ steps.change.outputs.dependencies }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Classify changed paths
@@ -73,7 +73,7 @@ jobs:
     needs: classify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -137,7 +137,7 @@ jobs:
     if: needs.classify.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -183,7 +183,7 @@ jobs:
             archlinux-keyring base-devel rust mkosi git dbus pkgconf \
             systemd systemd-ukify python python-pytest python-pefile \
             dosfstools mtools zstd util-linux
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Trust the container-mounted checkout

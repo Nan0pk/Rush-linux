@@ -13,7 +13,7 @@ jobs:
     name: New dependency advisories
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # AUDIT (FINAL-AUDIT-REPORT.md section 3.3, 2026-07-20):
       # The previous `command: check advisories` syntax was invalid (the
       # action's `command` input expects a single subcommand, not a
@@ -41,7 +41,7 @@ jobs:
     name: External documentation links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: lycheeverse/lychee-action@v2
         with:
           args: >-
