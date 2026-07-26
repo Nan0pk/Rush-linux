@@ -19,29 +19,50 @@ The runner selects checks from the files that changed:
   changes;
 - dependency policy when Cargo dependencies change.
 
-Run locally with:
+Run all locally relevant checks with:
 
 ```sh
 bash tools/checks.sh
 ```
 
+Run the exact CI section shown in a failed step with:
+
+```sh
+bash tools/checks.sh --section <section>
+```
+
 ## Reading a failed run
 
-The canonical runner continues through the selected checks, then prints a
-**Rush CI failure summary** at the end of the job log. Each indexed blocker
-includes the protected risk, exit status, and exact command to reproduce it.
-This lets an agent start from the bottom of the log instead of searching through
-setup output and successful checks. The detailed failure output remains directly
-above the original command.
+The first source of truth is GitHub job and step metadata, not the combined log.
+The **Linux and repository checks** job exposes each logical check as a separate
+named step. Its name includes the local reproduction section:
 
-In GitHub Actions, every indexed blocker is also emitted as an error annotation
-and added to the job summary. A missing required CI tool is indexed in the same
-format with the installation and rerun instruction. Missing optional local tools
-remain skips rather than blockers.
+| Failed step | Local reproduction |
+|---|---|
+| Repository integrity | `bash tools/checks.sh --section integrity` |
+| Documentation truth | `bash tools/checks.sh --section docs` |
+| optid package contract | `bash tools/checks.sh --section optid` |
+| Evidence integrity | `bash tools/checks.sh --section evidence` |
+| Repository policy | `bash tools/checks.sh --section policy` |
+| Workflow syntax | `bash tools/checks.sh --section workflow` |
+| Shell entry points | `bash tools/checks.sh --section shell` |
+| PowerShell parsing | `bash tools/checks.sh --section powershell` |
+| Python and tooling | `bash tools/checks.sh --section python` |
+| Rust workspace | `bash tools/checks.sh --section rust` |
 
-The protected legacy status aliases can all turn red when the underlying
-**PR Gate** fails. They are not separate root causes. Start with **Linux and
-repository checks**, then read the indexed Rush CI failure summary.
+An agent should inspect the failed named step through the Checks page or workflow
+jobs API before opening logs. Open only that step's log for the detailed tool
+output. The runner also emits a GitHub error annotation and an indexed blocker
+summary with the exact command and exit status.
+
+**PR Gate** is only the lane aggregator. The legacy **Rust**,
+**Documentation sync**, **Repository policy**, and **Evidence integrity
+(Dragnet)** statuses are branch-protection compatibility aliases. They may all
+turn red from one underlying failure and are never independent root causes.
+
+Rust dependency policy is a separate conditional job. Keeping it outside the
+Linux job prevents a skipped container action from flooding the log before the
+real failed check.
 
 If an optional local tool is missing, the runner names the skipped area. It
 does not hide the cause or block unrelated work. Pull-request CI installs the
