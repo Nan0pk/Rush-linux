@@ -79,7 +79,7 @@ jobs:
             util-linux \
             coreutils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize archlinux keyring
         run: |
@@ -195,7 +195,7 @@ jobs:
     # Skip the smoke test for mock builds (1 MB placeholder, not bootable)
     if: github.event.inputs.mock != 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check KVM availability
         run: |
@@ -477,7 +477,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download release artifact
         uses: actions/download-artifact@v4
