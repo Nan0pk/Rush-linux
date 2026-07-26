@@ -1,0 +1,50 @@
+name: Current work consistency
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - AGENTS.md
+      - CURRENT_WORK.md
+      - README.md
+      - docs/plans/optid-package-status.toml
+      - docs/plans/agent-work-plan-v1.md
+      - docs/plans/work-plan-v2.md
+      - docs/plans/livedev-progress.json
+      - ROADMAP.md
+      - release/milestones.toml
+      - tools/validate-current-work.py
+      - .github/workflows/current-work-consistency.yml
+  push:
+    branches: [main]
+    paths:
+      - AGENTS.md
+      - CURRENT_WORK.md
+      - README.md
+      - docs/plans/optid-package-status.toml
+      - docs/plans/agent-work-plan-v1.md
+      - docs/plans/work-plan-v2.md
+      - docs/plans/livedev-progress.json
+      - ROADMAP.md
+      - release/milestones.toml
+      - tools/validate-current-work.py
+      - .github/workflows/current-work-consistency.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-current-work:
+    name: Validate agent work selection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compare current work with canonical ledger
+        run: python3 tools/validate-current-work.py
