@@ -28,7 +28,7 @@ explicitly enabled.
 | Try Rush in a VM or from USB | [LiveDev for Linux/macOS](#command-livedev-posix) or [Windows](#command-livedev-windows) |
 | Compare `optid` on my current Linux install | [Run the host benchmark](#command-host-benchmark) |
 | Understand the adaptive control loop | [What `optid` does](#what-optid-does) |
-| Continue project development | [Current work selector](CURRENT_WORK.md) |
+| Continue project development | [Current work selector](docs/plans/current-work.md) |
 | Build Rush or contribute | [Build and development](#build-and-development) |
 
 <!-- RUSH_FRONTPAGE:START -->
@@ -193,7 +193,7 @@ and independent committed evidence.
 | --- | --- |
 | Product direction | [Northstar specification](docs/SPEC-northstar.md) |
 | System design | [Architecture](docs/architecture.md) |
-| Current agent work | [Current work selector](CURRENT_WORK.md) |
+| Current agent work | [Current work selector](docs/plans/current-work.md) |
 | Current implementation work | [Active `optid` completion plan](OPTID-COMPLETION-PLAN.md) |
 | Compatibility | [Hardware support](docs/hardware-support.md) |
 | Release direction | [Roadmap](ROADMAP.md) |
