@@ -1,0 +1,18 @@
+# D0 Verification Receipt (incremental)
+# Date: 2026-07-27
+# First D0 proofs delivered in this session: exit-75 + recovery-order
+
+package = "D0"
+status = "in-progress (first proofs)"
+
+added_features = [
+  "--exit-75 / --topology-rebuild (exits with 75 for supervisor cold restart)",
+  "--recovery-order (simulates seal → checks → exit-75 → restart)",
+  "Integrated recovery-order into run_seal_checks()",
+  "CI smoke test: tools/test-d0-seal-test.sh",
+]
+
+test_run = "./tools/test-d0-seal-test.sh"
+result = "PASS (recovery-order) + expected exit 75"
+
+notes = "This is incremental progress toward the full D0 ledger blockers. More proofs (child/exec, no-new-privs, cold kernel, feature CI) still needed."
