@@ -50,3 +50,11 @@ Thumbs.db
 /.mkosi-cache/
 /.mkosi-output/
 /.mkosi.btrfs/
+
+# Test signing keys — generated under build/test-signing/keys/ by
+# tools/test-sign-updates.sh. Never commit private key material to the
+# repository. The narrow pattern catches config/keys/*.private.pem and
+# build/test-signing/keys/*.private.pem alike.
+*.private.pem
+*.private
+config/keys/*.private.pem

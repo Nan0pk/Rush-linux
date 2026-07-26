@@ -333,26 +333,42 @@ fn run(args: Args) -> io::Result<()> {
     // because Policy::load runs each tick and feeds ThermalConfig in.
     let mut previous_thermal_budget: Option<thermal::ThermalBudget> = None;
 
-    // One-shot baseline via Snapshot::collect (default thermal config) so the
-    // F2 collect entry stays on the production binary surface; the loop below
-    // uses collect_with_thermal for hysteresis + reloaded config.
+    // Post-#337 repair: the unconditional thermal baseline scan was
+    // removed. The previous code called `Snapshot::collect()` (which
+    // uses `ThermalConfig::default()` → mode=Observe) before loading or
+    // applying the configured thermal mode, bypassing operator
+    // configuration. When `[thermal] mode = "off"`, the daemon must
+    // perform no thermal sysfs or legacy thermal-zone reads at startup
+    // or in the loop. The loop below uses `Snapshot::collect_with_thermal`
+    // with the configured policy's thermal config, which already
+    // short-circuits discovery when mode=off (see `thermal.rs` and the
+    // `t1_production_pipeline_off_mode_zero_thermal_reads` test).
+    //
+    // The startup diagnostic below logs the *configured* thermal mode
+    // without performing any thermal sysfs reads. This preserves useful
+    // startup visibility (the operator can see what mode optid will run
+    // in) without bypassing the operator's `mode = "off"` choice.
     {
-        let baseline = Snapshot::collect();
+        let startup_policy = Policy::load(&args.config_path);
+        let thermal_mode = startup_policy.thermal.mode;
         append_log(
             &args.state_dir.join("decisions.log"),
             &format!(
-                "optid: thermal baseline state={:?} derating={:.2} sensors={}\n",
-                baseline.thermal_budget.state,
-                baseline.thermal_budget.derating_ratio,
-                baseline.thermal_sensors.len()
+                "optid: thermal startup mode={:?} (no baseline scan; loop uses configured policy)\n",
+                thermal_mode
             ),
         )?;
     }
 
-    // F4 shadow: operational reconciler observes transitions in parallel
-    // with active_keys restore. Does not replace production restore yet.
-    let mut reconciler =
-        reconciler::Reconciler::new().with_mode(reconciler::ReconcilerMode::Shadow);
+    // F4 shadow: the reconciler tracks target-set parity (which journal
+    // keys the current decision desires vs the previous tick) and
+    // detects transitions for operator-visible logging. It does NOT
+    // plan or apply restores — production restore still uses
+    // `active_keys + Actuator::revert_key` (see below). Shadow mode is
+    // honestly dormant; a future F4 cutover will wire target state from
+    // journal observations and reintroduce a target-based restore
+    // planner. See `crates/optid/src/reconciler.rs` module docs.
+    let mut reconciler = reconciler::Reconciler::new();
 
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
@@ -423,8 +439,11 @@ fn run(args: Args) -> io::Result<()> {
         fs::write(args.state_dir.join("status"), &report)?;
         append_log(&args.state_dir.join("decisions.log"), &report)?;
 
-        // F4 shadow: detect transitions and compute restore plan without
-        // applying (production path remains active_keys + revert_key).
+        // F4 shadow: detect transitions for operator-visible logging and
+        // track target-set parity. The reconciler does NOT plan or apply
+        // restores — production restore still uses `active_keys +
+        // Actuator::revert_key` (see below). Shadow mode is honestly
+        // dormant; see `crates/optid/src/reconciler.rs` module docs.
         {
             let mut domain_modes = std::collections::HashMap::new();
             for &d in policy::Domain::all() {
@@ -436,24 +455,50 @@ fn run(args: Args) -> io::Result<()> {
                 resolved_mode,
                 &domain_modes,
             );
+            // Log transitions for operator visibility. The reconciler
+            // does not act on them; this is a diagnostic surface so
+            // operators can see context changes that the production
+            // restore path (active_keys + Actuator::revert_key) handles.
             for t in &transitions {
-                let shadow_actions = reconciler.reconcile(t);
-                if !shadow_actions.is_empty() {
-                    append_log(
-                        &args.state_dir.join("decisions.log"),
-                        &format!(
-                            "reconciler_shadow: transition={} would_restore={}\n",
-                            t.describe(),
-                            shadow_actions.len()
-                        ),
-                    )?;
-                }
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    &format!(
+                        "reconciler_shadow: transition={} (production restore uses active_keys)\n",
+                        t.describe()
+                    ),
+                )?;
             }
-            // Track desired keys by target identity for shadow parity.
+            // Replace the per-tick desired set. This mirrors the
+            // active_keys set replacement below and keeps shadow and
+            // production tracking the same target set for equivalent
+            // decisions. Actions whose journal_key() is None (e.g.
+            // SystemdSetProperty, which has no property-level
+            // restoration) are excluded from tracking — the reconciler
+            // must not pretend to restore them.
+            let mut desired_by_key: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             for action in &decision.actions {
                 if let Some(key) = action.journal_key() {
-                    reconciler.set_desired_target(&key, Some(action.describe()));
+                    desired_by_key.insert(key, action.describe());
                 }
+            }
+            reconciler.replace_desired_targets(&desired_by_key);
+
+            // Log the stale target set (desired on the previous tick,
+            // absent from the current decision) so operators can see
+            // which targets the production restore path
+            // (active_keys + Actuator::revert_key) will revert this
+            // tick. This is shadow target-set comparison, not a
+            // reconciler-owned restore plan.
+            let stale = reconciler.stale_target_ids();
+            if !stale.is_empty() {
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    &format!(
+                        "reconciler_shadow: stale_targets={} (production restore still uses active_keys)\n",
+                        stale.len()
+                    ),
+                )?;
             }
         }
 

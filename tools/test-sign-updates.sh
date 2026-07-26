@@ -20,6 +20,15 @@ TEST_DIR="${ROOT}/build/test-signing"
 die() { echo "❌ FAIL: $*" >&2; exit 1; }
 pass() { echo "✅ PASS: $*"; }
 
+# Test signing keys and signed fixtures are generated material. They must
+# not linger in the working tree after the suite exits — `tools/check-repo-hygiene.py`
+# rejects `build/` paths as generated output, and leaving them behind would
+# make a clean `git status` noisy. The trap also covers `die` exits.
+cleanup() {
+    rm -rf "${TEST_DIR}"
+}
+trap cleanup EXIT
+
 echo "============================================"
 echo "  Update Signing Test Suite (v0.4)"
 echo "============================================"
@@ -32,6 +41,10 @@ mkdir -p "${TEST_DIR}"
 # ── Test 1: Generate test keys ────────────────────────────────────────
 echo "━━━ Test 1: Generate test signing keys ━━━"
 
+# Test signing keys MUST live under build/test-signing/keys/ — never under
+# config/keys/. The .gitignore rule `*.private.pem` / `config/keys/*.private.pem`
+# prevents private key material from being committed; this test enforces the
+# runtime invariant that no private key is ever written under config/keys/.
 KEY_DIR="${TEST_DIR}/keys"
 python3 "${ROOT}/tools/sign_updates.py" init-keys 2>&1 | head -5 || true
 
@@ -41,21 +54,27 @@ if [ ! -f "${KEY_DIR}/testing.private.pem" ]; then
     RUSH_KEY_DIR="${KEY_DIR}" "${ROOT}/tools/sign-updates.sh" init-keys
 fi
 
-# Check that keys exist (either the global config/keys or our test dir)
+# Keys must exist in the build/test-signing/keys/ directory only.
 FOUND_KEYS=false
-for kdir in "${KEY_DIR}" "${ROOT}/config/keys"; do
-    if [ -f "${kdir}/testing.private.pem" ] && [ -f "${kdir}/testing.public.pem" ]; then
-        FOUND_KEYS=true
-        ACTUAL_KEY_DIR="${kdir}"
-        break
-    fi
-done
+if [ -f "${KEY_DIR}/testing.private.pem" ] && [ -f "${KEY_DIR}/testing.public.pem" ]; then
+    FOUND_KEYS=true
+    ACTUAL_KEY_DIR="${KEY_DIR}"
+fi
 
 if ${FOUND_KEYS}; then
     pass "Test 1: Test signing keys generated at ${ACTUAL_KEY_DIR}"
 else
     die "Test 1: Failed to generate signing keys"
 fi
+
+# Regression: the test signing suite must not leave a private key under
+# config/keys/. The committed private key was removed in the post-#337
+# repair and .gitignore blocks its return; this assertion catches any
+# future tool that tries to write private key material there.
+if find "${ROOT}/config/keys" -type f -name '*.private.pem' 2>/dev/null | grep -q .; then
+    die "Test 1: regression — private key material found under config/keys/"
+fi
+pass "Test 1: no private key material under config/keys/"
 
 # ── Test 2: Sign repodata.json ────────────────────────────────────────
 echo ""

@@ -84,14 +84,65 @@ Any installable release must support:
 - **Signing tools**:
   - `tools/sign_updates.py` — Python module using Ed25519 (`cryptography` library)
   - `tools/sign-updates.sh` — Shell wrapper using OpenSSL (fallback)
-- **Key management**:
-  - Test Ed25519 keys stored in `config/keys/`
-  - Private key: `testing.private.pem` (git-ignored)
-  - Public key: `testing.public.pem` (bundled in images)
+- **Key management (post-#338 review)**:
+  - Test Ed25519 keys are **generated material** — never committed to the
+    repository. The default key directory is `build/test-signing/keys/`
+    (a build-output path that is already gitignored).
+  - `.gitignore` rejects `*.private.pem` and `config/keys/*.private.pem`
+    so a future tool cannot reintroduce private key material.
+  - `tools/check-repo-hygiene.py` scans every tracked file for PEM
+    private-key markers (`-----BEGIN PRIVATE KEY-----`,
+    `-----BEGIN RSA PRIVATE KEY-----`,
+    `-----BEGIN OPENSSH PRIVATE KEY-----`,
+    `-----BEGIN EC PRIVATE KEY-----`) and rejects any match (with a
+    narrow allow-list for the scanner itself and the log-capture
+    redactor). This is a content-based scan, not a name-based scan, so
+    a `.pem`-renamed or extension-less private key is still caught.
+  - The historical `config/keys/testing.private.pem` and
+    `config/keys/testing.public.pem` (added in PR #337) were deleted in
+    the post-#337 repair. They were disposable test keys; no production
+    code, trusted artifact, or published metadata relied on them. The
+    evidence for this claim:
+      1. `git grep -rn 'testing\.private\.pem' crates/ packaging/` —
+         no production code references the key filename.
+      2. `tools/test-sign-updates.sh` regenerates both keys at
+         `build/test-signing/keys/` each run and never reads from
+         `config/keys/` (the post-#337 repair removed the
+         `config/keys/` fallback).
+      3. `tools/rush-builder.py` looks for keys at
+         `build/test-signing/keys/` first, with `config/keys/` as a
+         legacy fallback for existing operator environments that
+         pre-generate keys there. When neither location has keys, the
+         builder falls back to mock signing (the only acceptable
+         fallback — a missing dependency is a legitimate dev
+         environment issue; other exceptions fail hard).
+  - **No signing key rotation or history rewrite was required** because
+    the deleted key was disposable test material, not a trusted
+    credential. If a future audit discovers that a published image or
+    trusted artifact was signed with the deleted key, rotate the key
+    and document the affected artifacts at that time.
+- **Public-key trust behavior**:
+  - There is **no stable public test verification key bundled in
+    images** at this time. Test keys are generated per-run by
+    `tools/test-sign-updates.sh` and discarded after the suite exits
+    (an EXIT trap cleans `build/test-signing/`). The signature manifest
+    records the public-key path relative to the repo root so verifiers
+    can locate the matching public key regardless of where the test
+    key directory lives.
+  - A future change that bundles a stable public verification key in
+    images must document the trust root (where the key comes from, how
+    it is rotated, and how clients verify it) in this section.
 - **Builder integration**: `rush-builder.py repo-init` uses real Ed25519
-  signatures when keys are present, falls back to mock stubs otherwise.
-- **Signing test** (`tools/test-sign-updates.sh`): Validates key generation,
-  signing, verification, and tamper detection.
+  signatures when keys are present at `build/test-signing/keys/` (or the
+  legacy `config/keys/` fallback), and falls back to mock signing only
+  when keys are absent (a missing `cryptography` dependency or a
+  missing key directory). Real signing failures (e.g. a corrupted key)
+  fail hard rather than silently degrading to mock signing.
+- **Signing test** (`tools/test-sign-updates.sh`): Validates key
+  generation, signing, verification, and tamper detection. The suite
+  includes a regression assertion that no private key material is ever
+  written under `config/keys/`, and an EXIT trap that cleans
+  `build/test-signing/` so the working tree stays clean.
 
 ## Acceptance Criteria
 

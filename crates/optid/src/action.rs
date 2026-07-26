@@ -145,11 +145,30 @@ impl Action {
     /// `get_path_hash`, and the context-change revert in `main` relies on
     /// these keys being exactly the ones the actuator journaled.
     ///
+    /// **`SystemdSetProperty` returns `None` (post-#337 repair):** the
+    /// Systemd apply path does not capture original properties, does not
+    /// write an `original_systemd_<unit>` / `intended_systemd_<unit>` /
+    /// `applied_systemd_<unit>` journal, and has no property-level
+    /// restoration implementation. Returning a key here would let
+    /// `Actuator::revert_key` pretend the action is restorable when it
+    /// is not — a context-change revert would find no `original_*` file
+    /// and silently no-op, leaving cgroup properties stuck at the
+    /// previous decision's values. The honest answer is `None`: the
+    /// reconciler must not track this action as restorable until a real
+    /// property-level restore exists (enumerate each changed property,
+    /// read its original runtime value, distinguish absent from
+    /// explicit, restore each, verify readback, avoid overwriting
+    /// external changes). F4's blocking reason records this gap.
+    ///
     pub(crate) fn journal_key(&self) -> Option<String> {
         match self {
             Action::CpuEpp { .. } => Some("cpu_epp".to_string()),
             Action::PlatformProfile { .. } => Some("platform_profile".to_string()),
-            Action::SystemdSetProperty { unit, .. } => Some(format!("systemd_{}", unit)),
+            // SystemdSetProperty has no property-level restoration. See the
+            // method docstring: returning None here is the honest answer
+            // until a real restore implementation exists. Do NOT pretend
+            // unit-level tracking is restoration evidence.
+            Action::SystemdSetProperty { .. } => None,
             // vm sysctls journal per-knob, keyed by the sysctl file name
             // (e.g. `vm_swappiness`), matching the `vm_{filename}` key
             // the actuator builds.
@@ -327,16 +346,18 @@ mod tests {
             Some("vm_swappiness")
         );
 
-        // systemctl set-property uses unit name.
+        // systemctl set-property has no property-level restoration, so
+        // journal_key() returns None (post-#337 repair). A non-None key
+        // would let Actuator::revert_key pretend the action is restorable
+        // when the Systemd apply path captures no original properties.
         assert_eq!(
             Action::systemd_set_property(
                 "user.slice".to_string(),
                 vec!["CPUWeight=100".to_string()],
                 "t".to_string(),
             )
-            .journal_key()
-            .as_deref(),
-            Some("systemd_user.slice")
+            .journal_key(),
+            None
         );
 
         // Per-device keys hash the same path the actuator hashes.
@@ -415,7 +436,9 @@ mod tests {
             ),
             (
                 Action::systemd_set_property("user.slice".to_string(), vec![], "t".to_string()),
-                true,
+                // SystemdSetProperty has no property-level restoration, so
+                // journal_key() returns None. See the method docstring.
+                false,
             ),
             (
                 Action::vm_sysctl(

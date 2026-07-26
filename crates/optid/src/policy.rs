@@ -88,6 +88,14 @@ impl DomainMode {
 /// per-domain gate was silently bypassed, which is a fail-open hole for
 /// the cgroup surface.
 ///
+/// Post-#337 repair: `Domain::Thermal` was removed. T1 thermal sensing is
+/// read-only and has no `Action` variant; the actuation `Domain` vocabulary
+/// must not provide an `actuate`-capable thermal setting. The dedicated
+/// top-level `[thermal]` table (`mode = "off" | "observe"`) is the sole
+/// thermal configuration surface. `[domains.thermal]` is now rejected as
+/// an unknown domain by `deny_unknown_fields` on `DomainsConfig`. A
+/// generic sensor-domain framework is explicitly out of scope.
+///
 /// Keep this in lockstep with `crate::capability::Capability` and
 /// `crate::action::Action::domain`. The `domain_round_trip` test enforces
 /// the triple-stay-in-sync invariant.
@@ -107,8 +115,6 @@ pub(crate) enum Domain {
     /// per-domain gate applies; defaults to `Actuate` to preserve
     /// today's curated behavior.
     CgroupReweight,
-    /// T1 — Read-only thermal sensing and budget model domain.
-    Thermal,
 }
 
 impl Domain {
@@ -128,13 +134,15 @@ impl Domain {
             // F1 — cgroup reweight domain key. Operators gate cgroup
             // reweighting via `[domains.cgroup_reweight] mode = ...`.
             Domain::CgroupReweight => "cgroup_reweight",
-            // T1 — thermal sensing and budget domain key.
-            Domain::Thermal => "thermal",
         }
     }
 
     /// All known domains, in the canonical order used by `EffectiveConfig`
     /// rendering. New domains are appended at the end.
+    ///
+    /// Post-#337 repair: `Domain::Thermal` was removed (T1 is read-only
+    /// and has no `Action` variant; the dedicated `[thermal]` table is
+    /// the sole thermal configuration surface). The count is back to 10.
     pub(crate) fn all() -> &'static [Domain] {
         &[
             Domain::CpuEpp,
@@ -149,8 +157,6 @@ impl Domain {
             // F1 — cgroup reweight domain. Appended at the end so existing
             // status renderings stay stable.
             Domain::CgroupReweight,
-            // T1 — thermal domain.
-            Domain::Thermal,
         ]
     }
 
@@ -169,14 +175,6 @@ impl Domain {
     /// match (rather than a `Default` impl or a lookup table) is
     /// deliberate: it forces every author to think about the
     /// default for their new domain.
-    ///
-    /// **T1 exception (sensor-only domain):** the F1 plan states
-    /// "new sensor-only domains default `observe` only when reads are
-    /// side-effect-free". `Thermal` is read-only (hwmon/thermal_zone
-    /// reads only, no actuation), so it defaults to `Observe` rather
-    /// than `Actuate`. Adding a future sensor-only domain requires the
-    /// same justification: prove the reads are side-effect-free, then
-    /// default to `Observe`.
     pub(crate) fn default_mode(&self) -> DomainMode {
         match self {
             Domain::CpuEpp
@@ -189,15 +187,19 @@ impl Domain {
             | Domain::SataAlpm
             | Domain::Backlight
             | Domain::CgroupReweight => DomainMode::Actuate,
-            Domain::Thermal => DomainMode::Observe,
         }
     }
 
     /// The v0.6+f1 actuate closed set: domains whose default mode is
     /// `Actuate` because they perform kernel writes and preserve today's
     /// curated `policy.toml` behavior. Used by F1 contract tests so they
-    /// can assert the migration-safety invariant without conflating it
-    /// with sensor-only domains (which default to `Observe`).
+    /// can assert the migration-safety invariant.
+    ///
+    /// Post-#337 repair: this is now identical to `Domain::all()` because
+    /// `Domain::Thermal` was removed (T1 is read-only and has no Action
+    /// variant). The method is retained as a named invariant so future
+    /// sensor-only domains (if any are ever added back) can be excluded
+    /// without touching every call site.
     ///
     /// Adding a new actuate domain to this list requires updating the
     /// F1 contract tests — that's deliberate.
@@ -218,11 +220,15 @@ impl Domain {
     }
 
     /// Sensor-only domains: read-only observations with no kernel writes.
-    /// The F1 plan permits these to default to `Observe` when reads are
-    /// side-effect-free. `Thermal` (T1) is the first such domain.
+    ///
+    /// Post-#337 repair: returns an empty slice because `Domain::Thermal`
+    /// was removed. The method is retained (returns `&[]`) so any future
+    /// sensor-only domain can be added here without removing call sites
+    /// that iterate over the (empty) set. A non-empty sensor-only domain
+    /// would require a fresh F1 cold-verification receipt.
     #[cfg(test)]
     pub(crate) fn sensor_only_domains() -> &'static [Domain] {
-        &[Domain::Thermal]
+        &[]
     }
 }
 
@@ -294,8 +300,10 @@ pub(crate) struct DomainsConfig {
     // behavior.
     #[serde(default)]
     pub(crate) cgroup_reweight: Option<DomainConfig>,
-    #[serde(default)]
-    pub(crate) thermal: Option<DomainConfig>,
+    // Post-#337 repair: `thermal` was removed. T1 is read-only and has
+    // no `Action` variant; the dedicated top-level `[thermal]` table is
+    // the sole thermal configuration surface. `[domains.thermal]` is
+    // now rejected as an unknown domain by `deny_unknown_fields`.
 }
 
 impl DomainsConfig {
@@ -314,7 +322,6 @@ impl DomainsConfig {
             Domain::SataAlpm => self.sata_alpm.as_ref(),
             Domain::Backlight => self.backlight.as_ref(),
             Domain::CgroupReweight => self.cgroup_reweight.as_ref(),
-            Domain::Thermal => self.thermal.as_ref(),
         }
     }
 }
@@ -1632,10 +1639,11 @@ mode = "fast"
         // backdoor. See `f1_action_domain_returns_some_for_systemd_set_property`
         // and `f1_systemd_set_property_is_domain_gated`.
         //
-        // T1 update: `Domain::all()` now also contains `Thermal`, a
-        // sensor-only domain that defaults to `Observe`. The 10-domain
-        // *actuate* closed set is asserted via `Domain::actuate_domains()`;
-        // `Domain::all()` is 11 (10 actuate + 1 sensor-only).
+        // Post-#337 repair: `Domain::Thermal` was removed (T1 is read-only
+        // and has no `Action` variant; the dedicated `[thermal]` table is
+        // the sole thermal configuration surface). `Domain::all()` is back
+        // to 10, all actuate. `Domain::actuate_domains()` is identical to
+        // `Domain::all()`; `Domain::sensor_only_domains()` returns `&[]`.
         assert_eq!(
             Domain::actuate_domains().len(),
             10,
@@ -1643,8 +1651,12 @@ mode = "fast"
         );
         assert_eq!(
             Domain::all().len(),
-            11,
-            "expected 11 total domains (10 actuate + 1 sensor-only Thermal)"
+            10,
+            "expected 10 total domains (all actuate; Thermal removed post-#337)"
+        );
+        assert!(
+            Domain::sensor_only_domains().is_empty(),
+            "sensor-only domains are empty post-#337 (Thermal removed)"
         );
     }
 
@@ -1699,6 +1711,15 @@ mode = "fast"
     /// the reads are side-effect-free.
     #[test]
     fn f1_sensor_only_domains_default_to_observe() {
+        // Post-#337 repair: `Domain::Thermal` was removed, so
+        // `sensor_only_domains()` returns an empty slice. The loop body
+        // does not execute; the assertion below pins the empty-set
+        // invariant so a future sensor-only domain addition requires
+        // updating this test deliberately.
+        assert!(
+            Domain::sensor_only_domains().is_empty(),
+            "post-#337: sensor_only_domains must be empty (Thermal removed)"
+        );
         for &d in Domain::sensor_only_domains() {
             assert_eq!(
                 d.default_mode(),
@@ -1811,8 +1832,13 @@ bogus_field = true
         //
         // F1 repair: 10 actuate domains (the original 9 v0.6 + the
         // CgroupReweight entry added to close the SystemdSetProperty
-        // backdoor). T1 added `Thermal` as an 11th, sensor-only domain;
-        // it is asserted separately below.
+        // backdoor).
+        //
+        // Post-#337 repair: `thermal` was removed from `DomainsConfig`.
+        // `[domains.thermal]` is now rejected as an unknown domain by
+        // `deny_unknown_fields` (asserted in
+        // `f1_domains_config_rejects_unknown_domain_key` and a new
+        // `f1_domains_config_rejects_thermal_subtable` test below).
         let toml_str = r#"
 [cpu_epp]
 mode = "actuate"
@@ -1834,8 +1860,6 @@ mode = "actuate"
 mode = "actuate"
 [cgroup_reweight]
 mode = "actuate"
-[thermal]
-mode = "observe"
 "#;
         let cfg: DomainsConfig = toml::from_str(toml_str).expect("all known domains");
         for &d in Domain::all() {
@@ -1845,6 +1869,28 @@ mode = "observe"
                 d.as_str()
             );
         }
+    }
+
+    /// Post-#337 repair: `[domains.thermal]` is rejected as an unknown
+    /// domain. T1 is read-only and has no `Action` variant; the
+    /// dedicated `[thermal]` table is the sole thermal configuration
+    /// surface. `deny_unknown_fields` on `DomainsConfig` enforces this.
+    #[test]
+    fn f1_domains_config_rejects_thermal_subtable() {
+        let toml_str = r#"
+[thermal]
+mode = "observe"
+"#;
+        let result: Result<DomainsConfig, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "[domains.thermal] must be rejected as an unknown domain (post-#337)"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("thermal"),
+            "error must mention the unknown `thermal` field: {err}"
+        );
     }
 
     #[test]
@@ -2812,5 +2858,147 @@ mode = "actuate"
                 d.as_str()
             );
         }
+    }
+
+    /// F1 in-crate behavioral test (post-#338 review).
+    ///
+    /// This is an **in-crate behavioral test**, not a full daemon
+    /// integration test. It constructs a `Policy` via the test helper
+    /// `f1_policy_with_domains` (which parses a TOML string with
+    /// `toml::from_str`), then exercises `EffectiveConfig::from_policy`,
+    /// `decide_resolved`, and `Decision::render`. It does NOT enter
+    /// through the daemon's file-loading path (`main.rs` →
+    /// `Policy::load(&args.config_path)`); the file-loading path is
+    /// exercised by the integration tests in `crates/optid/tests/`
+    /// (when present).
+    ///
+    /// What this test proves:
+    /// - Domain mode parsing: `[domains.cpu_epp] mode = "actuate"`,
+    ///   `[domains.runtime_pm] mode = "observe"`,
+    ///   `[domains.cgroup_reweight] mode = "off"` are reflected in the
+    ///   effective config.
+    /// - Unconfigured domains default to `Actuate` (migration safety).
+    /// - `decide_resolved` applies the per-domain gate:
+    ///   `CgroupReweight=off` suppresses `SystemdSetProperty`;
+    ///   `RuntimePm=observe` captures would-be actions in
+    ///   `suppressed_actions`.
+    /// - `Decision::render` surfaces the `effective_config:` block with
+    ///   all three configured modes.
+    ///
+    /// What this test does NOT prove:
+    /// - That the daemon's file-loading path parses the curated
+    ///   `config/optid/policy.toml` (that is proven by
+    ///   `f1_curated_policy_toml_still_parses`).
+    /// - That the daemon wires the rendered status to
+    ///   `/run/optid/status` (that is a `main.rs` integration concern).
+    #[test]
+    fn f1_production_pipeline_policy_to_render() {
+        // Build a policy with mixed domain modes so the pipeline
+        // exercises off / observe / actuate gating in one pass.
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+
+[domains.cpu_epp]
+mode = "actuate"
+
+[domains.runtime_pm]
+mode = "observe"
+
+[domains.cgroup_reweight]
+mode = "off"
+"#;
+        let policy = f1_policy_with_domains(toml_str);
+        let snapshot = f1_snapshot_all_domains();
+        let contracts = f1_contracts();
+
+        // Effective config reflects the configured modes (domain mode parsing).
+        let effective = EffectiveConfig::from_policy(&policy);
+        assert_eq!(effective.mode_for(Domain::CpuEpp), DomainMode::Actuate);
+        assert_eq!(effective.mode_for(Domain::RuntimePm), DomainMode::Observe);
+        assert_eq!(effective.mode_for(Domain::CgroupReweight), DomainMode::Off);
+        // Unconfigured domains default to Actuate (migration safety).
+        assert_eq!(effective.mode_for(Domain::Backlight), DomainMode::Actuate);
+
+        // decide_resolved applies the per-domain gate.
+        let decision = policy.decide_resolved(
+            &snapshot,
+            crate::workload::Mode::Battery,
+            crate::workload::WorkloadClass::Idle,
+            "test".to_string(),
+            &contracts,
+            Some(crate::workload::Mode::Battery),
+            None,
+        );
+
+        // CgroupReweight=off suppresses SystemdSetProperty silently.
+        assert!(
+            !decision
+                .actions
+                .iter()
+                .any(|a| matches!(a, crate::action::Action::SystemdSetProperty { .. })),
+            "cgroup_reweight=off must suppress SystemdSetProperty"
+        );
+        // RuntimePm=observe captures would-be actions in suppressed_actions.
+        assert!(
+            decision
+                .suppressed_actions
+                .iter()
+                .any(|(d, _)| *d == Domain::RuntimePm),
+            "runtime_pm=observe must surface would-be actions in suppressed_actions"
+        );
+
+        // Rendered status surfaces the effective_config block (optctl status).
+        let rendered = decision.render(&snapshot);
+        assert!(rendered.contains("effective_config:"));
+        assert!(rendered.contains("domains.cpu_epp=actuate"));
+        assert!(rendered.contains("domains.runtime_pm=observe"));
+        assert!(rendered.contains("domains.cgroup_reweight=off"));
+    }
+
+    /// F1 unknown-field rejection is enforced at parse time. A
+    /// `[domains.<unknown>]` table is a parse error, not a silent Off.
+    #[test]
+    fn f1_production_pipeline_rejects_unknown_domain() {
+        let toml_str = r#"
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+[memory]
+high_swappiness_requires_zram = true
+
+[domains.unknown_future_domain]
+mode = "actuate"
+"#;
+        let result: Result<Policy, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "unknown domain must be rejected at parse time, not silently fail open"
+        );
     }
 }

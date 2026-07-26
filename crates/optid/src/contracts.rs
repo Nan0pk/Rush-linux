@@ -298,8 +298,23 @@ pub(crate) fn contract_gate_runtime_pm(
 /// (`pm_qos_resume_latency_us`). The value being written is a QoS ceiling
 /// request, not measured selected-state exit latency. The gate permits
 /// setting a constraint only when the requested ceiling is ≤ the class
-/// floor (tighter or equal constraint). A missing/negative value is treated
-/// as "no constraint" and fails closed for depth (would allow any state).
+/// floor (tighter or equal constraint). Missing or negative values are
+/// denied — fail-closed — because they would otherwise allow any exit
+/// latency.
+///
+/// Prior to the post-#337 repair this gate was fail-open on two edges:
+/// a negative requested value returned `Permit` ("leave non-latency
+/// sentinels to other layers"), and a missing value was the only
+/// denial. Both are now denials; the actuator no longer relies on a
+/// separate layer to reject malformed constraints.
+///
+/// Note on the `i64` parameter: the actuator calls this with
+/// `value.map(i64::from)` from `Option<i32>`. A positive `i32` always
+/// fits in `u64`, so the conversion never fails for valid caller input.
+/// There is no separate "overflow" branch — a negative `i64` is caught
+/// by the `v < 0` arm, and the `u64::try_from` for a non-negative `i64`
+/// always succeeds. The post-#338 review removed the unreachable
+/// `Err(_)` branch and its misleading "overflows u64" narrative.
 pub(crate) fn contract_gate_device_resume_constraint(
     requested_ceiling_us: Option<i64>,
     floor_us: u64,
@@ -312,17 +327,28 @@ pub(crate) fn contract_gate_device_resume_constraint(
                  unconstrained (None) would allow any exit latency; fail closed"
             ),
         },
-        Some(v) if v < 0 => ContractGateResult::Permit, // leave non-latency sentinels to other layers
-        Some(v) => match u64::try_from(v) {
-            Ok(us) if fits_contract(us, floor_us) => ContractGateResult::Permit,
-            Ok(us) => ContractGateResult::Deny {
-                reason: format!(
-                    "contract gate BLOCKED device_resume_latency {path_label}: \
-                     requested_ceiling={us}us > floor={floor_us}us"
-                ),
-            },
-            Err(_) => ContractGateResult::Permit,
+        Some(v) if v < 0 => ContractGateResult::Deny {
+            reason: format!(
+                "contract gate BLOCKED device_resume_latency {path_label}: \
+                 requested_ceiling={v}us is negative; fail closed (no sentinels bypass the gate)"
+            ),
         },
+        Some(v) => {
+            // v >= 0 here, so u64::try_from always succeeds. Use
+            // match to keep the compiler-checked exhaustiveness in case
+            // a future caller passes a wider integer type.
+            let us = u64::try_from(v).unwrap_or(u64::MAX);
+            if fits_contract(us, floor_us) {
+                ContractGateResult::Permit
+            } else {
+                ContractGateResult::Deny {
+                    reason: format!(
+                        "contract gate BLOCKED device_resume_latency {path_label}: \
+                         requested_ceiling={us}us > floor={floor_us}us"
+                    ),
+                }
+            }
+        }
     }
 }
 
@@ -500,5 +526,128 @@ mod tests {
             contract_gate_device_resume_constraint(None, 1000, "path"),
             ContractGateResult::Deny { .. }
         ));
+    }
+
+    // ── Post-#337 fail-closed edges for the device-resume constraint gate ──
+
+    #[test]
+    fn device_resume_constraint_negative_requested_value_denies() {
+        // A negative requested ceiling is not a sentinel — it is malformed
+        // and must fail closed. The pre-#337 gate returned `Permit` here,
+        // leaving "non-latency sentinels to other layers"; that was an
+        // open hole because no other layer actually rejected them.
+        let result = contract_gate_device_resume_constraint(Some(-1), 1000, "path");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("negative"), "reason: {reason}");
+            assert!(reason.contains("fail closed"));
+        }
+    }
+
+    #[test]
+    fn device_resume_constraint_large_negative_denies() {
+        let result = contract_gate_device_resume_constraint(Some(-1_000_000), 1000, "path");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+    }
+
+    #[test]
+    fn device_resume_constraint_huge_positive_denied_as_above_floor() {
+        // A huge positive ceiling (i64::MAX) exceeds any reasonable floor
+        // and must be denied as "above floor". There is no separate
+        // "overflow" branch: a positive i64 always fits in u64, so
+        // u64::try_from always succeeds. The post-#338 review removed
+        // the unreachable overflow narrative; this test pins the honest
+        // behavior — huge ceilings are denied by the floor comparison,
+        // not by an impossible overflow check.
+        let result = contract_gate_device_resume_constraint(Some(i64::MAX), 1000, "path");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(
+                reason.contains("> floor="),
+                "huge ceiling must be denied as 'above floor': {reason}"
+            );
+            assert!(
+                !reason.contains("overflow"),
+                "no overflow narrative (positive i64 always fits in u64): {reason}"
+            );
+        }
+    }
+
+    #[test]
+    fn device_resume_constraint_missing_value_denies() {
+        let result = contract_gate_device_resume_constraint(None, 1000, "path");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("unconstrained"));
+        }
+    }
+
+    #[test]
+    fn device_resume_constraint_valid_tighter_than_floor_passes() {
+        // A ceiling at or below the floor is a tighter constraint and may pass.
+        assert_eq!(
+            contract_gate_device_resume_constraint(Some(1000), 1000, "path"),
+            ContractGateResult::Permit
+        );
+        assert_eq!(
+            contract_gate_device_resume_constraint(Some(1), 1000, "path"),
+            ContractGateResult::Permit
+        );
+    }
+
+    #[test]
+    fn device_resume_constraint_above_floor_denies() {
+        let result = contract_gate_device_resume_constraint(Some(1001), 1000, "path");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("1001us"));
+            assert!(reason.contains("floor=1000us"));
+        }
+    }
+
+    // ── Runtime-PM gate fail-closed edges ──────────────────────────────
+
+    #[test]
+    fn runtime_pm_without_evidence_denies() {
+        // Without measured or hardware-proven exit-latency evidence, the
+        // gate denies. Autosuspend delay is never converted to evidence.
+        let result = contract_gate_runtime_pm(None, 1_000_000, "usb-1-1");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("unknown"));
+            assert!(reason.contains("fail closed"));
+        }
+    }
+
+    #[test]
+    fn runtime_pm_measured_latency_below_floor_passes() {
+        let ev = ExitLatencyEvidence::measured_us(500);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert_eq!(result, ContractGateResult::Permit);
+    }
+
+    #[test]
+    fn runtime_pm_measured_latency_above_floor_denies() {
+        let ev = ExitLatencyEvidence::measured_us(5000);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
+        if let ContractGateResult::Deny { reason } = result {
+            assert!(reason.contains("5000us"));
+            assert!(reason.contains("floor=1000us"));
+        }
+    }
+
+    #[test]
+    fn runtime_pm_hardware_proven_latency_below_floor_passes() {
+        let ev = ExitLatencyEvidence::hardware_proven_us(100);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert_eq!(result, ContractGateResult::Permit);
+    }
+
+    #[test]
+    fn runtime_pm_hardware_proven_latency_above_floor_denies() {
+        let ev = ExitLatencyEvidence::hardware_proven_us(10_000);
+        let result = contract_gate_runtime_pm(Some(&ev), 1000, "dev");
+        assert!(matches!(result, ContractGateResult::Deny { .. }));
     }
 }

@@ -79,17 +79,18 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    /// F2: production path — delegates to `RealKernel` with default thermal config.
-    /// The daemon main loop uses [`Self::collect_with_thermal`] so hysteresis and
-    /// reloaded config apply.
-    pub(crate) fn collect() -> Self {
-        let kernel = RealKernel::new();
-        Self::collect_with(&kernel, &kernel)
-    }
-
     /// F2: injectable collect path for tests. Takes separate `read` and
     /// `clock` parameters so a test can mix-and-match (e.g. a `FaultKernel`
     /// for reads with a `RealKernel` clock).
+    ///
+    /// Post-#337 repair: the no-argument `Snapshot::collect()` form was
+    /// removed. It used `ThermalConfig::default()` (mode=Observe) and was
+    /// the source of the startup-scan defect: the daemon called it before
+    /// loading the configured thermal mode, bypassing operator
+    /// configuration. The production path is `collect_with_thermal` with
+    /// the policy's thermal config; tests that need a default-config
+    /// snapshot should call `collect_with(&k, &k)` explicitly.
+    #[cfg(test)]
     pub(crate) fn collect_with(read: &dyn KernelRead, clock: &dyn Clock) -> Self {
         Self::collect_with_thermal(read, clock, &crate::thermal::ThermalConfig::default(), None)
     }

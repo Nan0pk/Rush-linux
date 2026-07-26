@@ -966,6 +966,7 @@ device_resume_latency = 100000
         fs::write(&dev_path, "250").unwrap();
 
         let mut actuator = Actuator::new_with_sink(temp_dir.clone(), Box::new(mock_sink));
+        actuator.bypass_contract_gate = true;
 
         let action = Action::DeviceResumeLatency {
             path: dev_path.clone(),
@@ -1016,6 +1017,7 @@ device_resume_latency = 100000
         let mut actuator =
             Actuator::new_with_sink(temp_dir.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+        actuator.bypass_contract_gate = true;
 
         let action = Action::DeviceResumeLatency {
             path: dev_path.clone(),
@@ -1067,6 +1069,7 @@ device_resume_latency = 100000
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
             std::slice::from_ref(&admin),
         ));
+        actuator.bypass_contract_gate = true;
 
         let action = Action::DeviceResumeLatency {
             path: dev_path.clone(),
@@ -1104,6 +1107,7 @@ device_resume_latency = 100000
             value: Some(100),
             reason: "test".to_string(),
         };
+        actuator.bypass_contract_gate = true;
         actuator.apply(&action).unwrap();
 
         assert_eq!(
@@ -1148,6 +1152,7 @@ device_resume_latency = 100000
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
             std::slice::from_ref(&admin),
         ));
+        actuator.bypass_contract_gate = true;
 
         let action = Action::RuntimePm {
             device_dir: dev.clone(),
@@ -1204,6 +1209,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::seeded());
+        actuator.bypass_contract_gate = true;
 
         actuator
             .apply(&Action::RuntimePm {
@@ -1404,7 +1410,10 @@ device_resume_latency = 100000
 
     /// Negative autosuspend delay is still not exit-latency evidence:
     /// runtime-PM remains fail-closed. Negative PM QoS values are
-    /// non-latency sentinels and pass the device-resume constraint gate.
+    /// malformed ceiling requests and are denied by the device-resume
+    /// constraint gate (post-#337 repair: previously they were treated
+    /// as non-latency sentinels and passed the gate, leaving the
+    /// constraint unbounded).
     #[test]
     fn test_contract_gate_handles_negative_values_safely() {
         let temp = std::env::temp_dir().join(format!("optid_contract_neg_{}", std::process::id()));
@@ -1445,7 +1454,10 @@ device_resume_latency = 100000
             "on"
         );
 
-        // Negative PM QoS value is a non-latency sentinel and may pass.
+        // Negative PM QoS value is a malformed ceiling request and must
+        // be denied. Pre-#337 the gate returned `Permit` here, which left
+        // "non-latency sentinels to other layers" — but no other layer
+        // rejected them, so the constraint was effectively unbounded.
         let qos_power = temp.join("0000:00:15.0").join("power");
         fs::create_dir_all(&qos_power).unwrap();
         let dev_path = qos_power.join("pm_qos_resume_latency_us");
@@ -1463,23 +1475,167 @@ device_resume_latency = 100000
                 reason: "unset sentinel".to_string(),
             })
             .unwrap();
+        // The gate denies; the negative value must not reach the sink.
+        // MockPmqosSink stores written values in an in-memory map and
+        // returns "0" for unwritten paths, so a successful denial shows
+        // up as "0" (the default), not "-1".
+        let read_back = qos_actuator
+            .pmqos_sink
+            .read_device_latency(&dev_path)
+            .unwrap();
         assert_eq!(
-            qos_actuator
-                .pmqos_sink
-                .read_device_latency(&dev_path)
-                .unwrap(),
-            "-1",
-            "negative PM QoS value should pass the gate and reach the sink"
+            read_back, "0",
+            "negative PM QoS value must not reach the sink (got {read_back})"
+        );
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("negative") && log.contains("fail closed"),
+            "negative ceiling must be logged as a fail-closed denial: {log}"
         );
 
         let _ = fs::remove_dir_all(&temp);
     }
 
-    /// With no floors installed the gate is open — preserves behaviour for
-    /// every existing test and legacy caller that builds an Actuator
-    /// directly.
+    // ── Post-#337: floor-validation fail-closed edges ──────────────────
+
+    /// A zero `device_resume_latency` floor is a malformed contract, not
+    /// an open gate. Both depth-enablers must be denied with an
+    /// operator-visible reason.
     #[test]
-    fn test_contract_gate_open_when_no_floors_installed() {
+    fn test_contract_gate_zero_floor_denies_depth_enablers() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_zero_floor_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0092d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-5", modalias);
+        let power = dev.join("power");
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: 0, // malformed
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2_000,
+                reason: "zero-floor contract".to_string(),
+            })
+            .unwrap();
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("zero"),
+            "zero floor must deny with a logged reason: {log}"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on"
+        );
+
+        // Non-depth-enabler actions are ungated and must not be blocked
+        // by a malformed floor (the gate's scope is depth-enablers only).
+        // We don't exercise a full write here — the contract gate is
+        // evaluated before any other gate, and the test above already
+        // proves the depth-enabler path denies. A separate test for the
+        // ungated path is `test_contract_gate_no_floors_permits_ungated_actions`.
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// A negative `device_resume_latency` floor is a malformed contract
+    /// and must deny both depth-enablers.
+    #[test]
+    fn test_contract_gate_negative_floor_denies_depth_enablers() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_neg_floor_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0092d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-6", modalias);
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: -1, // malformed
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2_000,
+                reason: "negative-floor contract".to_string(),
+            })
+            .unwrap();
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("negative"),
+            "negative floor must deny with a logged reason: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// A huge-but-valid positive floor (i64::MAX, which fits in u64) is
+    /// not malformed — the gate accepts it as a valid floor. Runtime-PM
+    /// is still denied because C1 evidence is None. This test pins the
+    /// honest behavior: there is no "overflow" floor case for i64
+    /// (positive i64 always fits in u64), so the gate does not pretend
+    /// to detect one.
+    #[test]
+    fn test_contract_gate_huge_valid_floor_denies_runtime_pm_on_evidence() {
+        let temp =
+            std::env::temp_dir().join(format!("optid_contract_huge_floor_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0092d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = contract_rpm_device(&temp, "2-7", modalias);
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            // i64::MAX fits in u64 (i64::MAX = 2^63-1 < u64::MAX = 2^64-1).
+            // This is a valid (huge) floor, not an overflow. The gate
+            // accepts it; runtime-PM is denied because evidence is None.
+            device_resume_latency: i64::MAX,
+        });
+
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2_000,
+                reason: "huge-floor contract".to_string(),
+            })
+            .unwrap();
+        // Without C1 evidence the runtime-PM gate denies (evidence is
+        // None → fail closed). The denial reason must be the
+        // evidence-missing reason, not a floor-malformed reason.
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("unknown"),
+            "huge-but-valid floor must still deny runtime-PM without evidence: {log}"
+        );
+        assert!(
+            !log.contains("zero/negative"),
+            "i64::MAX is a valid positive floor; the floor-malformed reason must not fire: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Post-#338 review: with no floors installed, the gate DENIES
+    /// depth-enablers (fail closed). The previous behavior returned
+    /// `Ok(true)` (gate open), which let a daemon that forgot to call
+    /// `set_active_floors` ship depth-enabling writes with no floor.
+    /// The spec requires "missing contract floors must deny
+    /// depth-enabling actions"; a missing contract is the strongest
+    /// form of missing floor.
+    #[test]
+    fn test_contract_gate_no_floors_denies_depth_enablers() {
         let temp = std::env::temp_dir().join(format!("optid_contract_none_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
         let modalias = "usb:v046Dp0093d0001dc00dsc00dp00ic03isc01ip01in00";
@@ -1500,9 +1656,54 @@ device_resume_latency = 100000
             })
             .unwrap();
 
+        // Depth-enabler is DENIED — control stays "on" (not "auto").
         assert_eq!(
             fs::read_to_string(power.join("control")).unwrap().trim(),
-            "auto"
+            "on"
+        );
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("no active contract installed"),
+            "missing-contract denial must be logged: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Post-#338 review: with no floors installed, ungated variants
+    /// (CpuEpp, PlatformProfile, VmSysctl, etc.) are unaffected — the
+    /// contract gate's scope is depth-enablers only. A missing contract
+    /// must not block system-wide knobs that every tick rewrites.
+    #[test]
+    fn test_contract_gate_no_floors_permits_ungated_actions() {
+        let temp = std::env::temp_dir().join(format!(
+            "optid_contract_none_ungated_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        // No set_active_floors call.
+        assert!(actuator.active_floors.is_none());
+
+        // VmSysctl is an ungated variant; the contract gate must not
+        // block it even when no contract is installed. (We don't
+        // exercise a real write here — the test proves the gate returns
+        // Ok(true) for ungated variants before any I/O happens. The
+        // capability check + write happen after the gate; if the gate
+        // denied, the log would contain "contract gate BLOCKED".)
+        actuator
+            .apply(&Action::VmSysctl {
+                path: std::path::PathBuf::from("/proc/sys/vm/swappiness"),
+                value: "100".to_string(),
+                reason: "ungated variant".to_string(),
+            })
+            .unwrap();
+        let log = fs::read_to_string(temp.join("actions.log")).unwrap_or_default();
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "ungated variants must not be blocked by missing contract: {log}"
         );
 
         let _ = fs::remove_dir_all(&temp);
@@ -1577,6 +1778,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+        actuator.bypass_contract_gate = true;
 
         // ── Tick 1: on battery, runtime PM is applied. ──
         let action = Action::RuntimePm {
@@ -1683,6 +1885,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+        actuator.bypass_contract_gate = true;
 
         let action = Action::RuntimePm {
             device_dir: dev.clone(),
@@ -1716,7 +1919,11 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
-    /// `SystemdSetProperty` journals a unique key per unit.
+    /// `SystemdSetProperty` returns `None` from `journal_key()` because
+    /// the Systemd apply path has no property-level restoration (no
+    /// original/intended/applied journal is written). Returning a key
+    /// here would let `revert_key` pretend the action is restorable
+    /// when it is not. See `Action::journal_key` docstring.
     #[test]
     fn test_journal_key_for_systemd_set_property() {
         let action = Action::systemd_set_property(
@@ -1724,7 +1931,25 @@ device_resume_latency = 100000
             vec!["CPUWeight=100".to_string()],
             "test".to_string(),
         );
-        assert_eq!(action.journal_key().as_deref(), Some("systemd_user.slice"));
+        assert_eq!(action.journal_key(), None);
+    }
+
+    /// `revert_key` on a `systemd_*` key (hand-constructed by an old
+    /// caller, or a stale key from a previous version) is a no-op:
+    /// there is no `original_systemd_*` file because the apply path
+    /// never writes one. The honest answer is "nothing to restore".
+    #[test]
+    fn test_revert_key_ignores_systemd_keys() {
+        let temp = std::env::temp_dir().join(format!("optid_ctx_systemd_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        // No original_systemd_user.slice file exists; revert_key reports
+        // nothing to do (false), matching the absent-journal branch.
+        assert!(!actuator.revert_key("systemd_user.slice").unwrap());
+
+        let _ = fs::remove_dir_all(&temp);
     }
 
     /// System-wide knobs are continuously overwritten by later ticks, so
@@ -1779,6 +2004,7 @@ device_resume_latency = 100000
         fs::create_dir_all(dev_path.parent().unwrap()).unwrap();
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.bypass_contract_gate = true;
         let action = Action::DeviceResumeLatency {
             path: dev_path.clone(),
             value: Some(100),
@@ -1835,6 +2061,7 @@ device_resume_latency = 100000
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
             std::slice::from_ref(&admin),
         ));
+        actuator.bypass_contract_gate = true;
 
         actuator
             .apply(&Action::RuntimePm {
@@ -1950,6 +2177,13 @@ device_resume_latency = 100000
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
             std::slice::from_ref(&admin),
         ));
+        // Post-#338 review: these tests exercise the actuator's
+        // transactional apply/journal/rollback paths, not the contract
+        // gate. Bypass the contract gate (which would otherwise deny
+        // RuntimePm because C1 evidence is absent) so the tests can
+        // reach the code under test. The contract gate itself is tested
+        // separately in the `test_contract_gate_*` tests.
+        actuator.bypass_contract_gate = true;
         (dev, actuator)
     }
 

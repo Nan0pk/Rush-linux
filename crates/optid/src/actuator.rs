@@ -128,6 +128,18 @@ pub(crate) struct Actuator {
     /// zero test-hook state in the production binary.
     #[cfg(test)]
     pub(crate) fail_nth_runtime_pm_write: Option<usize>,
+    /// Test-only hook: when `true`, `contract_permits` returns `Ok(true)`
+    /// without evaluating the contract gate. This lets tests that
+    /// exercise the actuator's apply/journal/rollback paths (e.g. the
+    /// phase6 transactional-apply tests, the N4/N5 allowlist tests) do
+    /// so without being blocked by the post-#338 fail-closed contract
+    /// gate (which denies depth-enablers when `active_floors` is `None`
+    /// and denies RuntimePm when C1 evidence is absent). The contract
+    /// gate itself is tested separately in the `test_contract_gate_*`
+    /// tests. This field is `#[cfg(test)]` — it does NOT exist in
+    /// production builds.
+    #[cfg(test)]
+    pub(crate) bypass_contract_gate: bool,
 }
 
 impl Actuator {
@@ -158,6 +170,8 @@ impl Actuator {
             kernel,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
+            #[cfg(test)]
+            bypass_contract_gate: false,
         }
     }
 
@@ -182,6 +196,8 @@ impl Actuator {
             kernel: Box::new(RealKernel::new()),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
+            #[cfg(test)]
+            bypass_contract_gate: false,
         }
     }
 
@@ -218,16 +234,76 @@ impl Actuator {
     ///   denied with an operator-visible reason.
     ///
     /// Every other variant is ungated and returns `true`.
+    ///
+    /// **Floor validation (post-#338 review):** the contract gate is
+    /// the SPEC §3 rule `exit_latency(S) ≤ active_contract.floor(D)`.
+    /// Only the two depth-enablers that trade resume latency for power
+    /// are gated: `DeviceResumeLatency` and `RuntimePm`. Every other
+    /// variant is ungated.
+    ///
+    /// Fail-closed semantics:
+    /// - **No contract installed** (`active_floors` is `None`): the two
+    ///   depth-enablers are DENIED. The previous behavior returned
+    ///   `Ok(true)` (gate open), which let a daemon that forgot to call
+    ///   `set_active_floors` ship depth-enabling writes with no floor.
+    ///   The spec requires "missing, zero or negative contract floors
+    ///   must deny depth-enabling actions"; a missing contract is the
+    ///   strongest form of "missing floor".
+    /// - **Zero or negative floor**: DENY both depth-enablers (malformed
+    ///   `contracts.toml`).
+    /// - **Valid positive floor**: evaluate `fits_contract` /
+    ///   `contract_gate_runtime_pm` against the floor.
+    ///
+    /// Every denial is logged so the operator can see why a
+    /// depth-enabler was blocked and fix the configuration.
     fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
-        let Some(floors) = self.active_floors else {
-            return Ok(true); // gate not installed
+        // Test-only bypass: tests that exercise the actuator's
+        // apply/journal/rollback paths (not the contract gate) set this
+        // flag so the post-#338 fail-closed gate does not block them.
+        // The contract gate itself is tested separately in the
+        // `test_contract_gate_*` tests. This flag does not exist in
+        // production builds.
+        #[cfg(test)]
+        if self.bypass_contract_gate {
+            return Ok(true);
+        }
+
+        // Only the two depth-enablers are gated. Everything else is
+        // ungated and must not be blocked by contract state.
+        let gated_label = match action {
+            Action::DeviceResumeLatency { path, .. } => Some(path.display().to_string()),
+            Action::RuntimePm { device_dir, .. } => Some(device_dir.display().to_string()),
+            _ => return Ok(true),
         };
-        // A non-positive floor cannot be satisfied by any real state and
-        // most likely means a misconfigured contracts.toml; treat it as
-        // "no contract" rather than blocking all depth-enablers.
+        let label = gated_label.expect("depth-enabler label");
+
+        // No contract installed → deny both depth-enablers (fail closed).
+        // The spec requires "missing contract floors must deny
+        // depth-enabling actions". A missing contract is the strongest
+        // form of missing floor; the previous `Ok(true)` was fail-open.
+        let Some(floors) = self.active_floors else {
+            self.log(&format!(
+                "contract gate BLOCKED {}: no active contract installed \
+                 (set_active_floors never called); fail closed for depth-enabler",
+                label
+            ))?;
+            return Ok(false);
+        };
+
+        // A non-positive floor is a malformed contract, not an open gate.
+        // Deny both depth-enablers and log the reason so the operator
+        // can fix `contracts.toml` instead of silently shipping
+        // depth-enabling writes with no usable floor.
         let floor_us: u64 = match u64::try_from(floors.device_resume_latency) {
             Ok(f) if f > 0 => f,
-            _ => return Ok(true),
+            _ => {
+                self.log(&format!(
+                    "contract gate BLOCKED {}: floor={}us is zero/negative; \
+                     fail closed (fix [contracts] device_resume_latency for this class)",
+                    label, floors.device_resume_latency
+                ))?;
+                return Ok(false);
+            }
         };
 
         let result = match action {
