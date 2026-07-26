@@ -57,3 +57,17 @@ For common code areas:
 
 Do not touch unrelated docs merely to satisfy a gate. If the documented truth
 did not change, no documentation rewrite is required.
+
+## The `docs-not-needed` label and push-to-main
+
+`tools/check-docs-impact.py` flags user-facing changes (including
+`.github/workflows/**`) that land without a docs update. On pull requests,
+add the `docs-not-needed` label to bypass the gate when the change is
+purely infrastructural (dependabot bumps, CI workflow refactors, etc.)
+and the documented truth did not change.
+
+On push-to-main events (post-merge), there is no PR label context, so
+the CI workflow sets `RUSH_DOCS_NOT_NEEDED=true` automatically. This is
+correct: the PR already passed the docs-impact gate, and the push run is
+a re-check, not a new gate. Re-failing on push-to-main would block
+every dependabot workflow bump that merged with `docs-not-needed`.

@@ -122,7 +122,14 @@ jobs:
 
       - name: Run the canonical change-aware checks
         env:
-          RUSH_DOCS_NOT_NEEDED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
+          # On pull_request events, honor the `docs-not-needed` PR label.
+          # On push events (post-merge to main), there is no PR label
+          # context, so the docs-impact gate would re-fail on workflow-
+          # only dependabot bumps that already passed with the label on
+          # the PR. Treat push-to-main as docs-not-needed because the
+          # PR already passed the gate; the push run is a re-check, not
+          # a new gate.
+          RUSH_DOCS_NOT_NEEDED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
         run: bash tools/checks.sh --ci --changed-base "${{ needs.classify.outputs.base }}"
 
       - name: Check Rust dependency policy
