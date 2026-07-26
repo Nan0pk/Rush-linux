@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate CURRENT_WORK.md against the canonical optid package ledger."""
+"""Validate docs/plans/current-work.md against the canonical optid ledger."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 LEDGER_PATH = ROOT / "docs" / "plans" / "optid-package-status.toml"
-CURRENT_WORK_PATH = ROOT / "CURRENT_WORK.md"
+CURRENT_WORK_PATH = ROOT / "docs" / "plans" / "current-work.md"
 AGENTS_PATH = ROOT / "AGENTS.md"
 README_PATH = ROOT / "README.md"
 
@@ -40,7 +40,7 @@ def load_text(path: Path) -> str:
 
 def parse_selector(markdown: str) -> dict[str, Any]:
     if markdown.count(START_MARKER) != 1 or markdown.count(END_MARKER) != 1:
-        raise CurrentWorkError("CURRENT_WORK.md must contain exactly one marker pair")
+        raise CurrentWorkError("current-work.md must contain exactly one marker pair")
 
     start = markdown.index(START_MARKER) + len(START_MARKER)
     end = markdown.index(END_MARKER, start)
@@ -52,7 +52,7 @@ def parse_selector(markdown: str) -> dict[str, Any]:
     try:
         return tomllib.loads(match.group("toml"))
     except tomllib.TOMLDecodeError as exc:
-        raise CurrentWorkError(f"CURRENT_WORK.md selector TOML is invalid: {exc}") from exc
+        raise CurrentWorkError(f"current-work selector TOML is invalid: {exc}") from exc
 
 
 def package_map(ledger: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -138,17 +138,18 @@ def validate_projection(actual: dict[str, Any], expected: dict[str, Any]) -> Non
         if actual[key] != expected[key]
     ]
     if differences:
-        raise CurrentWorkError("CURRENT_WORK.md is stale:\n  " + "\n  ".join(differences))
+        raise CurrentWorkError("current-work.md is stale:\n  " + "\n  ".join(differences))
 
 
 def validate_entry_points(current_work: str) -> None:
     agents = load_text(AGENTS_PATH)
     readme = load_text(README_PATH)
+    selector_path = "docs/plans/current-work.md"
 
-    if "CURRENT_WORK.md" not in agents:
-        raise CurrentWorkError("AGENTS.md must link to CURRENT_WORK.md")
-    if "CURRENT_WORK.md" not in readme:
-        raise CurrentWorkError("README.md must link to CURRENT_WORK.md")
+    if selector_path not in agents:
+        raise CurrentWorkError(f"AGENTS.md must link to {selector_path}")
+    if selector_path not in readme:
+        raise CurrentWorkError(f"README.md must link to {selector_path}")
     if "remain the active repair targets" in agents:
         raise CurrentWorkError(
             "AGENTS.md hard-codes active package names; read them from the ledger instead"
@@ -168,7 +169,7 @@ def validate_entry_points(current_work: str) -> None:
     missing = [token for token in historical_tokens if token not in current_work]
     if missing:
         raise CurrentWorkError(
-            "CURRENT_WORK.md must classify stale or release-only selectors: "
+            "current-work.md must classify stale or release-only selectors: "
             + ", ".join(missing)
         )
 
@@ -186,7 +187,9 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print("OK: CURRENT_WORK.md matches the optid package ledger and agent entry points.")
+    print(
+        "OK: docs/plans/current-work.md matches the optid ledger and agent entry points."
+    )
     return 0
 
 
