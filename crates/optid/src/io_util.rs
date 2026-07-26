@@ -29,6 +29,7 @@ use std::fs;
 /// F2: production path — delegates to `RealKernel::new().write()`,
 /// which calls `kernel_io::is_allowlisted_write_path` (the centralized
 /// allowlist + traversal check) and then `std::fs::write`.
+#[cfg(test)]
 pub(crate) fn guarded_write(path: &Path, value: &str) -> io::Result<()> {
     guarded_write_with(&RealKernel::new(), path, value)
 }
@@ -366,6 +367,7 @@ pub(crate) fn revert_display_with(io: &dyn KernelIo, state_dir: &Path) {
 /// either the previous contents (if any) or no file at all — never a
 /// truncated `original_*` or `intended_*` file that the next-boot revert
 /// would interpret as a real backup.
+#[cfg(test)]
 pub(crate) fn atomic_write_state_file(path: &Path, content: &str) -> io::Result<()> {
     atomic_write_state_file_with(&RealKernel::new(), path, content)
 }
@@ -397,6 +399,7 @@ pub(crate) fn atomic_write_state_file_with(
 /// stderr but does NOT propagate — the sysfs write already succeeded, and
 /// failing here would leave the system in the new state without a marker,
 /// which the revert path treats as crash recovery (conservative).
+#[cfg(test)]
 pub(crate) fn mark_applied(state_dir: &Path, key: &str, value: &str) {
     mark_applied_with(&RealKernel::new(), state_dir, key, value)
 }
@@ -421,6 +424,7 @@ pub(crate) fn mark_applied_with(io: &dyn KernelIo, state_dir: &Path, key: &str, 
 /// - `Some(false)` — `original_<key>` exists but no marker; crash recovery
 ///   needed (the sysfs write may or may not have landed; revert to be safe).
 /// - `None` — neither file exists; nothing to revert.
+#[cfg(test)]
 pub(crate) fn actuation_state(state_dir: &Path, key: &str) -> Option<bool> {
     actuation_state_with(&RealKernel::new(), state_dir, key)
 }
@@ -447,6 +451,7 @@ pub(crate) fn actuation_state_with(
 /// they have restored the original value. Best-effort; a failure to remove
 /// the marker is logged but does not propagate (the next revert will simply
 /// re-restore from `original_<key>`, which is idempotent).
+#[cfg(test)]
 pub(crate) fn clear_journal(state_dir: &Path, key: &str) {
     clear_journal_with(&RealKernel::new(), state_dir, key)
 }
