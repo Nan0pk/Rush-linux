@@ -644,7 +644,6 @@ impl Clock for FaultKernel {
 /// tests that need to construct a MemoryKernel from outside the optid crate,
 /// or automatically during `cargo test` for in-crate tests.
 #[cfg(any(test, feature = "test-utils"))]
-#[allow(dead_code)]
 pub struct MemoryKernel {
     files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
     dirs: std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<PathBuf>>>,
@@ -660,7 +659,6 @@ impl Default for MemoryKernel {
 }
 
 #[cfg(any(test, feature = "test-utils"))]
-#[allow(dead_code)]
 impl MemoryKernel {
     pub fn new() -> Self {
         Self {
