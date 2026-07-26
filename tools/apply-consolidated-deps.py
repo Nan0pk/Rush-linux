@@ -16,7 +16,9 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def from_main(path: str) -> str:
-    return run("git", "show", f"refs/remotes/origin/main:{path}").stdout
+    # Pull-request workflows check out a synthetic merge commit. Its first
+    # parent is the exact main/base commit for this run.
+    return run("git", "show", f"HEAD^1:{path}").stdout
 
 
 def replace_required(text: str, old: str, new: str, path: str) -> str:
@@ -37,8 +39,6 @@ def write_from_main(path: str, replacements: list[tuple[str, str]]) -> None:
 
 
 def main() -> None:
-    run("git", "fetch", "--no-tags", "origin", "main:refs/remotes/origin/main")
-
     write_from_main(
         ".github/workflows/stale.yml",
         [("actions/stale@v9", "actions/stale@v10")],
