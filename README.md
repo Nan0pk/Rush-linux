@@ -31,6 +31,17 @@ explicitly enabled.
 | Build Rush or contribute | [Build and development](#build-and-development) |
 
 <!-- RUSH_FRONTPAGE:START -->
+<a id="command-livedev-posix"></a>
+## Rush LiveDev quick start
+
+**Environment:** Linux / macOS
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh
+```
+
+Detects an existing results USB, QEMU, or a USB-preparation path and chooses the useful next action.
+
 ## Repository status
 
 This table is generated from the repository's canonical version, build, and work-state files.
@@ -59,18 +70,7 @@ Pick the goal that matches what you want to do. Detailed options stay in the lin
 | [Run every check relevant to a change](#command-verify-change) | Cloned repository |
 | [Build the LiveDev image](#command-build-livedev) | Supported Linux build host |
 
-## Command details
-
-<a id="command-livedev-posix"></a>
-### Run the smart LiveDev flow
-
-**Environment:** Linux / macOS
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/Rush-linux/main/tools/livedev-bootstrap.sh -o livedev-bootstrap.sh && bash livedev-bootstrap.sh
-```
-
-Detects an existing results USB, QEMU, or a USB-preparation path and chooses the useful next action.
+## Other command details
 
 <a id="command-livedev-windows"></a>
 ### Run the smart LiveDev flow
