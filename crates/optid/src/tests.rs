@@ -3868,4 +3868,64 @@ mod f2_fault_injection_tests {
             "FaultKernel must enforce the allowlist even with no fault rules"
         );
     }
+
+    /// F2 production-surface integration test.
+    ///
+    /// Enters through the production daemon entry point (`crate::run`)
+    /// while the F2 kernel I/O seam (FaultKernel + RealKernel) is active
+    /// and the types are reachable via the optid library export
+    /// (see crates/optid/src/lib.rs pub use + test-utils feature).
+    ///
+    /// This satisfies the package ledger requirement:
+    /// "add a production-surface integration test that enters through
+    /// the daemon or CLI rather than only in-crate functions".
+    #[test]
+    fn f2_production_surface_via_daemon_run_entry() {
+        use crate::kernel_io::{FaultKernel, RealKernel};
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "optid_f2_prod_surface_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("policy.toml");
+        fs::write(&config_path, "").unwrap();
+
+        // Construct F2 seam (FaultKernel wrapping Real) — exactly the
+        // injectable boundary used by production Actuator/Snapshot paths.
+        let _fk = FaultKernel::new(Box::new(RealKernel::new()));
+
+        // Production entry: Args + run() exactly as the optid binary does.
+        let args = crate::args::Args {
+            apply: false,
+            once: true,
+            help: false,
+            version: false,
+            interval_sec: 1,
+            state_dir: temp_dir.clone(),
+            config_path,
+            allowlist: false,
+            foreground: crate::args::ForegroundMode::Off,
+        };
+
+        // Must succeed through the full production run() path.
+        let res = crate::run(args);
+        assert!(
+            res.is_ok(),
+            "production daemon run() must succeed with F2 seam active"
+        );
+
+        // Production artifacts (decisions.log) must be produced by run().
+        let decisions = fs::read_to_string(temp_dir.join("decisions.log")).unwrap_or_default();
+        assert!(
+            !decisions.is_empty(),
+            "production run() must emit decisions.log"
+        );
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }

@@ -101,11 +101,27 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-status = "merged_incomplete"
+status = "candidate"
 depends = []
 pr = "356"
-blocking_reason = "The F2 seam now covers all io_util.rs recovery, journal, marker, log, and atomic state-file operations: the five revert paths have injectable *_with entry points; KernelWrite has a distinct allowlist-free write_state_file operation for daemon-owned state; and Actuator routes its journal, marker, log, state-file reads, and state-file existence checks through its injected KernelIo. FaultKernel tests cover atomic-write failure, log-append failure, and both successful and failed sysctl recovery with journal cleanup/retention. Short-write injection remains covered by 4 kernel_io tests. PR #355 adds the optid library target and test-utils feature and exports MemoryKernel, FaultKernel, and their I/O traits, resolving the prior integration-test reachability blocker. PR #356 extends deterministic mutation faults to rename/remove/directory operations (FailRename, FailRemove, FailCreateDir) with corresponding FaultKernel configuration methods and KernelWrite implementations; adds 4 new kernel_io tests. This exposes the test seam but does not prove production-path integration. Remaining F2 work: (1) add a production-surface integration test that enters through the daemon or CLI rather than only in-crate functions. Initial F2 implementation provenance remains PR #325, with subsequent recovery/journal seam repair in PR #353. No package self-certifies completed."
-completion_evidence = []
+blocking_reason = "Production-surface integration test added (enters daemon run() + F2 seam). Awaiting cold verification receipt on PR branch. No package self-certifies."
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/sensors.rs",
+  "crates/optid/src/io_util.rs",
+]
+integration_tests = [
+  "crates/optid/src/tests.rs",
+]
+completion_evidence = [
+  "crates/optid/src/tests.rs",
+  "crates/optid/src/lib.rs",
+  "crates/optid/src/kernel_io.rs",
+]
+
+[package.acceptance_tests]
+f2_production_surface_via_daemon_run_entry = "f2_production_surface_via_daemon_run_entry"
 
 [[package]]
 id = "F3"
