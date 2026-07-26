@@ -103,6 +103,7 @@ pub(crate) fn run_seal_checks(
 
     // Check 5: removed-file handling (simulate hot-unplug).
     results.push(check_removed_file_handling(pre_opened));
+    results.push(simulate_recovery_order());
 
     results
 }
