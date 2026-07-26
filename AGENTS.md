@@ -69,7 +69,7 @@ replaces the plan's former S1–S3 broker lane with D0 and S1D–S5D. Do not rev
 the permanent broker or steady-state actuation IPC path unless a later explicit
 owner decision supersedes D2.
 
-Read [`CURRENT_WORK.md`](CURRENT_WORK.md) and
+Read [`docs/plans/current-work.md`](docs/plans/current-work.md) and
 [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml)
 before selecting work. The ledger is the machine-readable authority; the
 current-work page is its CI-validated human-readable projection.
