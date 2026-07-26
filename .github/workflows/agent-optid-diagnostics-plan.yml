@@ -1,0 +1,233 @@
+name: Apply optid diagnostics plan amendment
+
+on:
+  push:
+    branches:
+      - agent/optid-self-diagnosing-workplan
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  amend-plan:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/optid-self-diagnosing-workplan
+
+      - name: Amend canonical optid plan
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("OPTID-COMPLETION-PLAN.md")
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one anchor, found {count}: {old[:100]!r}")
+              text = text.replace(old, new, 1)
+
+          def replace_section(start: str, end: str, replacement: str) -> None:
+              global text
+              if text.count(start) != 1 or text.count(end) != 1:
+                  raise SystemExit(f"section anchors not unique: {start!r} -> {end!r}")
+              before, rest = text.split(start, 1)
+              _, after = rest.split(end, 1)
+              text = before + replacement.rstrip() + "\n\n" + end + after
+
+          replace_once(
+              "**Date:** 2026-07-22",
+              "**Date:** 2026-07-22 (diagnostic completion contract amended 2026-07-26)",
+          )
+          replace_once(
+              "**Current packages:** F1 is next for general construction. D0 is next for the safety lane. Machine-readable state lives in [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).",
+              "**Current packages:** F2 is the active general repair. D0 is the active safety repair. Machine-readable state lives in [`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml).",
+          )
+          replace_once(
+              "| Product integration | I1–I3 | One truthful diagnostic surface, deterministic whole-system simulation, and separate hardware promotion PRs. |",
+              "| Product integration | I1–I3 | One self-diagnosing runtime surface, a sanitized physical-system capture, deterministic failure reproduction, and evidence-backed hardware promotion PRs. |",
+          )
+          replace_once(
+              "The 30 packages remain granular for workers. The seven tracks are the owner’s progress view.",
+              """The 30 packages remain granular for workers. The seven tracks are the owner’s progress view. The diagnostic requirement in issue #346 strengthens I1–I3 and every production-reachable package; it does not add a 31st package.
+
+### Owner diagnostic outcome
+
+A physical-system failure must identify the affected domain, stable target or component identity, pipeline stage, typed reason, and correlation ID. The operator must be able to see what optid observed, decided, allowed or denied, attempted, read back, restored, or recovered without random journal grepping or source tracing. Developer-facing package/subsystem mapping is secondary metadata; the primary explanation is the concrete runtime failure.""",
+          )
+
+          replace_once(
+              """7. `optctl status` and `optctl explain` show the observation, selected contract, desired state, gate result, applied result, and restoration state without implying unsupported capability.
+8. A deterministic fake filesystem, fake clock, fake event source, and recording actuator make every package testable without nominated hardware.""",
+              """7. `optctl status`, `optctl explain`, their JSON output, and `sudo optctl doctor --capture` consume the same F3-versioned observation → decision → gate → write → readback → ownership/drift → restore/recovery chain. Every record carries a correlation ID and identifies the domain, pipeline stage, stable target or component identity, outcome, and typed reason.
+8. `optctl doctor --capture` is read-only with respect to hardware mutation. It may read root-only optid state and bounded relevant systemd journal records, but it cannot enable apply mode or change domain configuration. It creates a versioned, root-only, sanitized local bundle and never uploads automatically.
+9. A deterministic fake filesystem, fake clock, fake event source, and recording actuator make every package testable without nominated hardware and allow a typed physical capture to become a reproducible simulation fixture.""",
+          )
+
+          replace_once(
+              """Downstream dependencies unlock only from `completed`. Partial merged code is
+`merged_incomplete` and remains repair work.""",
+              """Downstream dependencies unlock only from `completed`. Partial merged code is
+`merged_incomplete` and remains repair work.
+
+Every production-reachable package must emit or preserve enough typed F3 data for I1 to identify the domain, pipeline stage, stable target identity (or equivalent component/interface identity), outcome, reason code, and correlation ID. A package is not complete if its physical-system failure requires random journal grep, source tracing, or inference from a missing action. Domain packages must extend the shared diagnostic contract and I2 fixtures in the same PR.""",
+          )
+
+          i1 = r'''### I1 — Make diagnostics and configuration friction-free
+
+**Starting condition.** Capability/status structures exist, but they do not expose the complete observation→decision→gate→write→readback→ownership/drift→restore/recovery chain (`crates/optid/src/capability.rs:1-80`; `crates/optid/src/decision.rs:1-63`).
+
+**What to do.** Build one shared F3-backed diagnostic model and expose it through:
+
+- `optctl status` for current overall and per-domain health;
+- `optctl explain [--domain <name>] [--correlation-id <id>]` for the complete causal chain;
+- stable machine-readable JSON for the same data; and
+- `sudo optctl doctor --capture` for one sanitized local diagnostic bundle.
+
+Each applicable domain/target record must include the correlation ID and cycle timestamp; domain and pipeline stage; stable target identity, HWID and firmware where available; support state; observation value, source and provenance; selected context/workload/contract; desired value; gate outcome and typed reason; whether a write was attempted; write and readback outcomes; ownership/drift state; pending restore and restore outcome; recovery outcome; circuit-breaker state; last typed error; and the responsible subsystem/package boundary for developer triage. The user-facing explanation names the concrete runtime failure first rather than presenting a package ID as the diagnosis.
+
+The capture archive must contain at least:
+
+```text
+summary.json
+effective-config.json
+hardware-inventory.json
+domain-status.json
+latest-control-cycles.jsonl
+gate-outcomes.json
+transaction-status.json
+recovery-status.json
+circuit-breakers.json
+relevant-journal.txt
+manifest.json
+```
+
+`manifest.json` records schema versions, Rush/optid version, kernel, boot ID, capture time, included and omitted sections, redactions, and truncation limits. The top-level summary names overall health (`healthy`, `degraded`, `blocked`, `failed`, or `recovering`), healthy domains, exact blocked/failed stages and reasons, unresolved transactions/recovery, open circuits, relevant correlation IDs, and the next diagnostic action.
+
+The bundle is root-only by default, never uploads automatically, and supports local inspection before sharing. Redact usernames, home paths, command lines, environment variables, tokens, secrets, serial numbers, and unrelated journal content. Select journal records only by optid unit, boot ID, bounded time range, and correlation ID. Prefer typed observations over arbitrary raw procfs/sysfs dumps, and record every omission or redaction in the manifest.
+
+Add `--all-domains-off`, `--all-domains-observe`, and dry-run policy overlays that cannot enable mutation.
+
+**Desired end state.** One diagnostic invocation explains why every domain is healthy, inactive, unsupported, observing, denied, failed, drifted, recovering, or restored. A physical-system failure can be assigned to a domain, target, pipeline stage, reason code, and correlation ID without log archaeology, while unrelated healthy domains remain visible.
+
+**Tests/pass.** Golden CLI/JSON/bundle tests cover configured-but-not-applied, apply absent, dry-run denial, unsupported hardware, missing/malformed/permission-denied observations, allowlist/contract/journal/sealing/transaction/circuit denials, write failure, readback mismatch, external drift and ownership relinquishment, pending restore, successful and failed rollback, emergency stabilization, unresolved recovery, partial subsystem unavailability, and isolation of healthy domains. Correlation must be deterministic from CLI summary to JSON detail and selected journal records. A test passes only when it identifies the exact domain, stage, target and typed reason; a generic error string or required journal grep is failure. Redaction tests seed every prohibited data class and prove it is absent from the bundle while the manifest truthfully reports redactions and omissions.
+
+**Feature flag.** None for truthful status or capture; experimental fields remain versioned under F3. Capture never enables mutation.
+
+**Modularity.** Depends on F1/F3 and can land incrementally per domain. The first status/explain/correlation slice lands with F4; capture and redaction must land before physical promotion. Each later package extends the shared diagnostics in its own PR.
+
+**Spec gaps.** Public JSON stability decision from F3. Treat the capture schema as versioned and experimental until compatibility testing establishes a public contract.
+
+**Scope/risk.** Medium-to-large, 8–14 files, 800–1,400 LOC. Risk tier 1 for read-only diagnostics; privacy/redaction review required.'''
+          replace_section("### I1 — Make diagnostics and configuration friction-free", "### I2 — Build the full-system simulation and fault matrix", i1)
+
+          i2 = r'''### I2 — Build the full-system simulation and fault matrix
+
+**Starting condition.** The repository has testOS and fixtures, but the current plan needs deterministic combinations without a hardware prerequisite (`AGENTS.md:173-188`; `docs/project-workflow.md:69-79`).
+
+**What to do.** Create scenario fixtures for idle/interactive/latency/throughput, AC/battery, thermal rise/recovery, foreground/no foreground, GameMode, device hotplug, unsupported hardware, permission denial, malformed sysfs, config reload, seal failure, daemon/recovery crash, circuit opening, and reboot recovery. Run with all domains off, observe, individually actuating against mocks, and all supported mock actuators together.
+
+Every matrix scenario declares the expected observations, desired state, gate/write/readback/restore outcomes, diagnostic overall state, affected domain, failed pipeline stage, stable target identity, typed reason code, correlation path, bundle entries, and unaffected healthy domains.
+
+Add a physical-failure reproduction workflow:
+
+1. capture a sanitized bundle on hardware;
+2. convert only the relevant typed observations and outcomes into a no-hardware fixture;
+3. reproduce the failure deterministically through `--simulation-root`;
+4. add a failing regression test before repairing runtime behavior; and
+5. verify both the corrected runtime result and corrected diagnosis.
+
+**Desired end state.** Every package has isolated tests, the integrated daemon has a reproducible no-hardware acceptance suite, and a field failure can become a deterministic fixture rather than a repeated experiment on the owner’s machine.
+
+**Tests/pass.** A matrix manifest declares all expected runtime and diagnostic outcomes. CI fails on an undeclared write, stale desired state, nondeterministic output, unclassified generic error, lost correlation, missing affected-domain/target/stage/reason data, or any scenario that requires free-form log searching to locate the fault. Bundle-to-fixture round trips must preserve the typed failure while excluding redacted machine/user data.
+
+**Feature flag.** `--simulation-root <fixture>` is test-only and refuses real writes; production `--dry-run` remains the user-facing no-write mode.
+
+**Modularity.** Begins after F2–F4; each domain adds fixtures and diagnostic expectations in its own PR. Does not replace hardware promotion evidence.
+
+**Spec gaps.** None; expected outcomes are reviewed with each package.
+
+**Scope/risk.** Large, 12–25 files, 1,200–2,200 LOC. Risk tier 1.'''
+          replace_section("### I2 — Build the full-system simulation and fault matrix", "### I3 — Integrate and promote without turning hardware into a build gate", i2)
+
+          i3 = r'''### I3 — Integrate and promote without turning hardware into a build gate
+
+**Starting condition.** v0.6 is hardware-gated, while higher-authority workflow rules allow research, simulation, dry-run, and disabled prototypes to proceed (`release/milestones.toml:143-181`; `AGENTS.md:173-188`).
+
+**What to do.** Merge in dependency order with new domains off/observe. For each hardware family, create a separate evidence PR that records HWID/firmware/kernel, fixture version, before state, requested state, every gate outcome, write/readback, responsiveness contract, restoration test, recovery/circuit state, rollback result, and allowlist promotion. Attach or reference a sanitized `optctl doctor --capture` bundle and record that no unresolved diagnostic errors remain. Update milestone status only after its stated evidence passes. Never edit a false “done” claim merely because code merged.
+
+**Desired end state.** Code construction proceeds without nominated machines; automatic writes and release claims remain evidence-backed. Hardware promotion fails if a feature works but cannot explain its own result through the shared diagnostic contract.
+
+**Tests/pass.** Every merge passes workspace format/build/clippy/tests plus I2. Every actuation promotion passes the domain’s hardware protocol, produces a clean sanitized diagnostic receipt, proves before/requested/applied/readback/restore/recovery state, and receives the independent verification required by its risk tier. Human merges remain mandatory (`docs/decisions/0025-risk-based-project-workflow.md:22-41`).
+
+**Feature flag.** Promotion changes only a verified allowlist/evidence row or accepted default; no hidden environment bypass.
+
+**Modularity.** Final integration lane. Hardware delays one promotion, not unrelated packages.
+
+**Spec gaps.** Reference-machine nomination remains an owner decision for v0.6 claims (`docs/strategy/reference-hardware.md:49-58`).
+
+**Scope/risk.** Small per promotion PR; risk tier follows the domain.'''
+          replace_section("### I3 — Integrate and promote without turning hardware into a build gate", "## 5. Dependency and parallelization map", i3)
+
+          replace_once(
+              "5. diagnostics proof for all outcomes;",
+              "5. diagnostic proof that every production-reachable outcome identifies domain, pipeline stage, stable target/component identity, typed reason, and correlation ID through the shared F3/I1 contract;",
+          )
+          replace_once(
+              "7. independent verification for risk-tier 3 or release/evidence claims.",
+              """7. independent verification for risk-tier 3 or release/evidence claims.
+
+No package is complete if a physical-system failure requires random journal grep, source tracing, or inference from a missing action. Packages without a hardware target report the equivalent component or interface identity. Every package PR must add or update the I1 diagnostic output and I2 expected diagnostic fixture for each new outcome.""",
+          )
+          replace_once(
+              "| ☐ | Diagnostics | One command explains effective config, context, contract, desired state, gates, write, drift, and restore. | I1 |",
+              "| ☐ | Self-diagnosing operation | One command explains overall and per-domain health, effective config, context, contract, desired state, every gate, write/readback, drift/ownership, restore/recovery and circuit state; `optctl doctor --capture` creates a sanitized bundle that maps any failure to a domain, stable target/component, pipeline stage, typed reason and correlation ID without log archaeology. | F3, O1, S2D–S5D, I1–I3 |",
+          )
+
+          required = [
+              "sudo optctl doctor --capture",
+              "summary.json",
+              "latest-control-cycles.jsonl",
+              "without random journal grepping",
+              "physical-failure reproduction workflow",
+              "Hardware promotion fails if a feature works but cannot explain its own result",
+              "The 30 packages remain granular",
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f"missing required amendment text: {missing}")
+          if text.count("### I1 — Make diagnostics and configuration friction-free") != 1:
+              raise SystemExit("I1 heading count changed")
+          if text.count("### I2 — Build the full-system simulation and fault matrix") != 1:
+              raise SystemExit("I2 heading count changed")
+          if text.count("### I3 — Integrate and promote without turning hardware into a build gate") != 1:
+              raise SystemExit("I3 heading count changed")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Verify amendment and leave a plan-only tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'sudo optctl doctor --capture' OPTID-COMPLETION-PLAN.md
+          grep -Fq 'physical-failure reproduction workflow' OPTID-COMPLETION-PLAN.md
+          grep -Fq 'No package is complete if a physical-system failure requires random journal grep' OPTID-COMPLETION-PLAN.md
+          test "$(git diff --name-only | sort)" = "OPTID-COMPLETION-PLAN.md"
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add OPTID-COMPLETION-PLAN.md
+          git rm .github/workflows/agent-optid-diagnostics-plan.yml
+          git commit -m "docs(optid): make physical failures self-diagnosing"
+          git push origin HEAD:agent/optid-self-diagnosing-workplan
