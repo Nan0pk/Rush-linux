@@ -18,11 +18,13 @@
 //! `RealKernel::new()`. This preserves bit-for-bit behavior while
 //! making fault-injection deterministic from tests.
 
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::kernel_io::{KernelIo, KernelRead, KernelWrite, RealKernel};
+
+#[cfg(test)]
+use std::fs;
 
 /// F2: production path — delegates to `RealKernel::new().write()`,
 /// which calls `kernel_io::is_allowlisted_write_path` (the centralized
@@ -44,13 +46,18 @@ pub(crate) fn guarded_write_with(
 }
 
 pub(crate) fn revert_sysctls(state_dir: &Path) {
+    revert_sysctls_with(&RealKernel::new(), state_dir)
+}
+
+/// F2: injectable sysctl recovery.
+pub(crate) fn revert_sysctls_with(io: &dyn KernelIo, state_dir: &Path) {
     let keys = [
         "vm_swappiness",
         "vm_dirty_background_bytes",
         "vm_dirty_bytes",
     ];
     for key in &keys {
-        match actuation_state(state_dir, key) {
+        match actuation_state_with(io, state_dir, key) {
             None => continue,
             Some(true) => {
                 // Clean-shutdown revert: actuation landed, marker present.
@@ -66,10 +73,10 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
         }
         let orig_path = state_dir.join(format!("original_{key}"));
         let mut restored = false;
-        if let Ok(orig_val) = fs::read_to_string(&orig_path) {
+        if let Ok(orig_val) = io.read_to_string(&orig_path) {
             let sysctl_name = key.replace('_', ".");
             let sysctl_path = PathBuf::from(format!("/proc/sys/{}", sysctl_name.replace('.', "/")));
-            if let Err(e) = guarded_write(&sysctl_path, orig_val.trim()) {
+            if let Err(e) = guarded_write_with(io, &sysctl_path, orig_val.trim()) {
                 eprintln!("optid: failed to revert sysctl {sysctl_name}: {e}");
             } else {
                 println!("optid: reverted sysctl {sysctl_name} to {orig_val}");
@@ -77,7 +84,7 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
             }
         }
         if restored {
-            clear_journal(state_dir, key);
+            clear_journal_with(io, state_dir, key);
         } else {
             eprintln!("optid: retaining journal for {key}; restore did not complete");
         }
@@ -85,18 +92,23 @@ pub(crate) fn revert_sysctls(state_dir: &Path) {
 }
 
 pub(crate) fn revert_pm_qos(state_dir: &Path) {
-    let Ok(entries) = fs::read_dir(state_dir) else {
+    revert_pm_qos_with(&RealKernel::new(), state_dir)
+}
+
+/// F2: injectable PM-QoS recovery.
+pub(crate) fn revert_pm_qos_with(io: &dyn KernelIo, state_dir: &Path) {
+    let Ok(entries) = io.read_dir(state_dir) else {
         return;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name();
+    for entry in entries {
+        let name = entry.file_name().unwrap_or_default();
         let name_str = name.to_string_lossy();
         let hash = match name_str.strip_prefix("original_dev_") {
             Some(h) if !h.is_empty() => h,
             _ => continue,
         };
         let key = format!("dev_{hash}");
-        match actuation_state(state_dir, &key) {
+        match actuation_state_with(io, state_dir, &key) {
             None => continue,
             Some(true) => {}
             Some(false) => {
@@ -106,13 +118,13 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
                 );
             }
         }
-        let orig_path = entry.path();
+        let orig_path = entry;
         let mut restored = false;
-        if let Ok(content) = fs::read_to_string(&orig_path) {
+        if let Ok(content) = io.read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_path_str), Some(orig_val)) = (lines.next(), lines.next()) {
                 let dev_path = Path::new(dev_path_str);
-                if let Err(e) = guarded_write(dev_path, orig_val.trim()) {
+                if let Err(e) = guarded_write_with(io, dev_path, orig_val.trim()) {
                     eprintln!(
                         "optid: failed to revert PM QoS for {}: {e}",
                         dev_path.display()
@@ -128,7 +140,7 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
             }
         }
         if restored {
-            clear_journal(state_dir, &key);
+            clear_journal_with(io, state_dir, &key);
         } else {
             eprintln!("optid: retaining journal for {key}; restore did not complete");
         }
@@ -142,18 +154,23 @@ pub(crate) fn revert_pm_qos(state_dir: &Path) {
 /// original `control` value, and the original `autosuspend_delay_ms` value (or
 /// the literal `n/a` when the device had no `autosuspend_delay_ms` attribute).
 pub(crate) fn revert_runtime_pm(state_dir: &Path) {
-    let Ok(entries) = fs::read_dir(state_dir) else {
+    revert_runtime_pm_with(&RealKernel::new(), state_dir)
+}
+
+/// F2: injectable runtime-PM recovery.
+pub(crate) fn revert_runtime_pm_with(io: &dyn KernelIo, state_dir: &Path) {
+    let Ok(entries) = io.read_dir(state_dir) else {
         return;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name();
+    for entry in entries {
+        let name = entry.file_name().unwrap_or_default();
         let name_str = name.to_string_lossy();
         let hash = match name_str.strip_prefix("original_rpm_") {
             Some(h) if !h.is_empty() => h,
             _ => continue,
         };
         let key = format!("rpm_{hash}");
-        match actuation_state(state_dir, &key) {
+        match actuation_state_with(io, state_dir, &key) {
             None => continue,
             Some(true) => {}
             Some(false) => {
@@ -163,15 +180,15 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
                 );
             }
         }
-        let orig_path = entry.path();
+        let orig_path = entry;
         let mut restored = false;
-        if let Ok(content) = fs::read_to_string(&orig_path) {
+        if let Ok(content) = io.read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) {
                 let dev_dir = Path::new(dev_dir);
                 let control_path = dev_dir.join("power").join("control");
                 let control_restored =
-                    if let Err(e) = guarded_write(&control_path, orig_control.trim()) {
+                    if let Err(e) = guarded_write_with(io, &control_path, orig_control.trim()) {
                         eprintln!(
                             "optid: failed to revert runtime PM control for {}: {e}",
                             dev_dir.display()
@@ -190,7 +207,7 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
                         let orig_delay = orig_delay.trim();
                         if orig_delay != "n/a" {
                             let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
-                            match guarded_write(&delay_path, orig_delay) {
+                            match guarded_write_with(io, &delay_path, orig_delay) {
                                 Ok(()) => restored = true,
                                 Err(e) => eprintln!(
                                     "optid: failed to revert runtime PM delay for {}: {e}",
@@ -205,7 +222,7 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
             }
         }
         if restored {
-            clear_journal(state_dir, &key);
+            clear_journal_with(io, state_dir, &key);
         } else {
             eprintln!("optid: retaining journal for {key}; restore did not complete");
         }
@@ -217,11 +234,16 @@ pub(crate) fn revert_runtime_pm(state_dir: &Path) {
 /// startup/shutdown. Each `original_aspm_<hash>` / `original_alpm_<hash>` file
 /// holds two lines: the base directory and the original attribute value.
 pub(crate) fn revert_storage(state_dir: &Path) {
-    let Ok(entries) = fs::read_dir(state_dir) else {
+    revert_storage_with(&RealKernel::new(), state_dir)
+}
+
+/// F2: injectable storage-power recovery.
+pub(crate) fn revert_storage_with(io: &dyn KernelIo, state_dir: &Path) {
+    let Ok(entries) = io.read_dir(state_dir) else {
         return;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name();
+    for entry in entries {
+        let name = entry.file_name().unwrap_or_default();
         let name_str = name.to_string_lossy();
         let (prefix, rel, journal_key): (&str, &[&str], &str) =
             if name_str.starts_with("original_aspm_") {
@@ -236,7 +258,7 @@ pub(crate) fn revert_storage(state_dir: &Path) {
             continue;
         }
         let key = format!("{journal_key}_{hash}");
-        match actuation_state(state_dir, &key) {
+        match actuation_state_with(io, state_dir, &key) {
             None => continue,
             Some(true) => {}
             Some(false) => {
@@ -246,16 +268,16 @@ pub(crate) fn revert_storage(state_dir: &Path) {
                 );
             }
         }
-        let orig_path = entry.path();
+        let orig_path = entry;
         let mut restored = false;
-        if let Ok(content) = fs::read_to_string(&orig_path) {
+        if let Ok(content) = io.read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) {
                 let mut target = Path::new(base).to_path_buf();
                 for seg in rel {
                     target = target.join(seg);
                 }
-                if let Err(e) = guarded_write(&target, orig_val.trim()) {
+                if let Err(e) = guarded_write_with(io, &target, orig_val.trim()) {
                     eprintln!(
                         "optid: failed to revert storage PM for {}: {e}",
                         target.display()
@@ -271,7 +293,7 @@ pub(crate) fn revert_storage(state_dir: &Path) {
             }
         }
         if restored {
-            clear_journal(state_dir, &key);
+            clear_journal_with(io, state_dir, &key);
         } else {
             eprintln!("optid: retaining journal for {key}; restore did not complete");
         }
@@ -282,18 +304,23 @@ pub(crate) fn revert_storage(state_dir: &Path) {
 /// startup/shutdown. Each `original_bl_<hash>` file holds two lines: the
 /// backlight device directory and the original raw brightness value.
 pub(crate) fn revert_display(state_dir: &Path) {
-    let Ok(entries) = fs::read_dir(state_dir) else {
+    revert_display_with(&RealKernel::new(), state_dir)
+}
+
+/// F2: injectable backlight recovery.
+pub(crate) fn revert_display_with(io: &dyn KernelIo, state_dir: &Path) {
+    let Ok(entries) = io.read_dir(state_dir) else {
         return;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name();
+    for entry in entries {
+        let name = entry.file_name().unwrap_or_default();
         let name_str = name.to_string_lossy();
         let hash = match name_str.strip_prefix("original_bl_") {
             Some(h) if !h.is_empty() => h,
             _ => continue,
         };
         let key = format!("bl_{hash}");
-        match actuation_state(state_dir, &key) {
+        match actuation_state_with(io, state_dir, &key) {
             None => continue,
             Some(true) => {}
             Some(false) => {
@@ -303,13 +330,13 @@ pub(crate) fn revert_display(state_dir: &Path) {
                 );
             }
         }
-        let orig_path = entry.path();
+        let orig_path = entry;
         let mut restored = false;
-        if let Ok(content) = fs::read_to_string(&orig_path) {
+        if let Ok(content) = io.read_to_string(&orig_path) {
             let mut lines = content.lines();
             if let (Some(dev_dir), Some(orig_val)) = (lines.next(), lines.next()) {
                 let target = Path::new(dev_dir).join("brightness");
-                if let Err(e) = guarded_write(&target, orig_val.trim()) {
+                if let Err(e) = guarded_write_with(io, &target, orig_val.trim()) {
                     eprintln!(
                         "optid: failed to revert backlight for {}: {e}",
                         target.display()
@@ -325,7 +352,7 @@ pub(crate) fn revert_display(state_dir: &Path) {
             }
         }
         if restored {
-            clear_journal(state_dir, &key);
+            clear_journal_with(io, state_dir, &key);
         } else {
             eprintln!("optid: retaining journal for {key}; restore did not complete");
         }
@@ -353,24 +380,7 @@ pub(crate) fn atomic_write_state_file_with(
         write.create_dir_all(parent)?;
     }
     let tmp = path.with_extension("tmp");
-    // State files are NOT kernel sysfs paths, so they bypass the allowlist
-    // via a direct write to the temp file. The KernelWrite trait's `write`
-    // method enforces the allowlist, which would reject /run/optid/* paths.
-    // Use `append` to a fresh temp file instead — but append creates if absent.
-    // Actually, the cleanest approach: use `write` on the tmp path (which is
-    // a state-dir path, not a sysfs path, so the allowlist rejects it).
-    //
-    // For F2, the state-file operations stay on std::fs because they target
-    // /run/optid/* (not sysfs), and the allowlist only covers sysfs/procfs.
-    // The FaultKernel wraps RealKernel and inherits its state-file behavior.
-    // Tests that need to fault-inject state-file operations can override
-    // `write` on a custom Kernel impl.
-    //
-    // Bottom line: atomic_write_state_file_with delegates the fs ops to
-    // the inner kernel's create_dir_all + write + rename, but uses a
-    // state-file-specific write that bypasses the allowlist (state files
-    // are in /run/optid, not /sys or /proc).
-    std::fs::write(&tmp, content)?;
+    write.write_state_file(&tmp, content)?;
     write.rename(&tmp, path)
 }
 
@@ -468,6 +478,7 @@ pub(crate) fn get_path_hash(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel_io::{FaultKernel, MemoryKernel};
 
     #[test]
     fn guarded_write_rejects_directory_traversal() {
@@ -512,6 +523,71 @@ mod tests {
         assert!(content.contains("line1"));
         assert!(content.contains("line2"));
         let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn atomic_state_write_fault_does_not_publish_target() {
+        let state_dir = Path::new("/run/optid-f2-atomic");
+        let target = state_dir.join("original_vm_swappiness");
+        let tmp = target.with_extension("tmp");
+        let fault = FaultKernel::new(Box::new(MemoryKernel::new()));
+        fault.fail_next_write(tmp, io::ErrorKind::PermissionDenied);
+
+        let error = atomic_write_state_file_with(&fault, &target, "60").unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert!(!fault.exists(&target), "failed atomic write must not publish");
+    }
+
+    #[test]
+    fn append_log_fault_is_injected_through_kernel_seam() {
+        let path = Path::new("/run/optid-f2-log/actions.log");
+        let fault = FaultKernel::new(Box::new(MemoryKernel::new()));
+        fault.fail_next_write(path.to_path_buf(), io::ErrorKind::Other);
+
+        let error = append_log_with(&fault, path, "action\n").unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::Other);
+        assert!(!fault.exists(path));
+    }
+
+    #[test]
+    fn injected_sysctl_recovery_restores_and_clears_journal() {
+        let state_dir = Path::new("/run/optid-f2-recovery");
+        let original = state_dir.join("original_vm_swappiness");
+        let applied = state_dir.join("applied_vm_swappiness");
+        let target = Path::new("/proc/sys/vm/swappiness");
+        let memory = MemoryKernel::new();
+        memory.write_raw(&original, "60\n");
+        memory.write_raw(&applied, "marker");
+        memory.write_raw(target, "100");
+        let fault = FaultKernel::new(Box::new(memory));
+
+        revert_sysctls_with(&fault, state_dir);
+
+        assert_eq!(fault.read_to_string(target).unwrap(), "60");
+        assert!(!fault.exists(&original));
+        assert!(!fault.exists(&applied));
+    }
+
+    #[test]
+    fn injected_sysctl_recovery_failure_keeps_journal_for_retry() {
+        let state_dir = Path::new("/run/optid-f2-recovery-failure");
+        let original = state_dir.join("original_vm_swappiness");
+        let applied = state_dir.join("applied_vm_swappiness");
+        let target = Path::new("/proc/sys/vm/swappiness");
+        let memory = MemoryKernel::new();
+        memory.write_raw(&original, "60\n");
+        memory.write_raw(&applied, "marker");
+        memory.write_raw(target, "100");
+        let fault = FaultKernel::new(Box::new(memory));
+        fault.fail_next_write(target.to_path_buf(), io::ErrorKind::PermissionDenied);
+
+        revert_sysctls_with(&fault, state_dir);
+
+        assert_eq!(fault.read_to_string(target).unwrap(), "100");
+        assert!(fault.exists(&original));
+        assert!(fault.exists(&applied));
     }
 
     #[test]
