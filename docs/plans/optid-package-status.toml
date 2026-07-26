@@ -104,7 +104,7 @@ title = "Introduce injectable kernel I/O, clock, and event boundaries"
 status = "merged_incomplete"
 depends = []
 pr = "325"
-blocking_reason = "The in-memory adapter is test-private; short-write injection is missing; recovery, journal, markers, logs, and atomic content writes still bypass the seam."
+blocking_reason = "The in-memory adapter (MemoryKernel) is test-private (pub(crate), unreachable from crates/optid/tests/ because optid is [[bin]]-only); short-write injection is now implemented (FaultKernel::fail_next_write_short, 4 tests); recovery, journal, markers, logs, and atomic content writes in io_util.rs still bypass the KernelIo seam (they use std::fs directly). Remaining F2 work: (1) wire io_util.rs (revert_sysctls, revert_pm_qos, revert_runtime_pm, revert_storage, revert_display, append_log, atomic_write_state_file, mark_applied, clear_journal) through the KernelIo trait so FaultKernel can inject faults into recovery/journal paths; (2) consider making MemoryKernel/FaultKernel reachable from integration tests (e.g., via a pub mod in a lib target or a test-only re-export) so the in-memory adapter is no longer test-private; (3) add fault-injection tests for recovery, journal, markers, logs, and atomic content writes. No package self-certifies completed."
 completion_evidence = []
 
 [[package]]

@@ -316,6 +316,11 @@ enum FaultRule {
     /// Return `content` instead of the real file contents for
     /// `read_to_string(path)`. Persists until cleared.
     MalformedContent { path: PathBuf, content: String },
+    /// Write only the first `n` bytes of the value on the next `write`
+    /// to `path`, then return `Ok(())` as if the full write succeeded.
+    /// Fires once. Simulates a kernel sysfs attribute that truncates
+    /// input (e.g., accepts only the first byte of a multi-byte value).
+    ShortWrite { path: PathBuf, n: usize },
 }
 
 /// A fault-injecting wrapper around any `KernelIo`. Used by the F2
@@ -354,6 +359,22 @@ impl FaultKernel {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailWrite { path, error });
+        self
+    }
+
+    /// Make the next `write` to `path` write only the first `n` bytes
+    /// of the value, then return `Ok(())` as if the full write
+    /// succeeded. Fires once. Simulates a kernel sysfs attribute that
+    /// truncates input (e.g., accepts only `"1"` when `"1\n"` is
+    /// written, or drops the newline from `"100\n"`).
+    ///
+    /// If `n` is 0, the write is a no-op (zero bytes written) but
+    /// still returns `Ok(())` — simulating a kernel that accepts the
+    /// ioctl but stores nothing.
+    pub(crate) fn fail_next_write_short(&self, path: PathBuf, n: usize) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::ShortWrite { path, n });
         self
     }
 
@@ -401,6 +422,18 @@ impl FaultKernel {
             .position(|r| matches!(r, FaultRule::FailWrite { path: p, .. } if p == path));
         found_idx.map(|i| match rules.remove(i) {
             FaultRule::FailWrite { error, .. } => error,
+            _ => unreachable!(),
+        })
+    }
+
+    /// Take the first matching one-shot short-write rule for `path`, or None.
+    fn take_one_shot_short_write(&self, path: &Path) -> Option<usize> {
+        let mut rules = self.rules.borrow_mut();
+        let found_idx = rules
+            .iter()
+            .position(|r| matches!(r, FaultRule::ShortWrite { path: p, .. } if p == path));
+        found_idx.map(|i| match rules.remove(i) {
+            FaultRule::ShortWrite { n, .. } => n,
             _ => unreachable!(),
         })
     }
@@ -486,12 +519,25 @@ impl KernelWrite for FaultKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
         // Allowlist check first (same as RealKernel).
         is_allowlisted_write_path(path)?;
-        // One-shot write fault.
+        // One-shot write fault (hard error).
         if let Some(kind) = self.take_one_shot_write_fault(path) {
             return Err(io::Error::new(
                 kind,
                 format!("FaultKernel: injected write fault for {}", path.display()),
             ));
+        }
+        // One-shot short-write fault: write only the first `n` bytes,
+        // then return Ok(()) as if the full write succeeded. This
+        // simulates a kernel that truncates input silently. When n=0,
+        // the write is a no-op (zero bytes written) but still returns
+        // Ok(()) — simulating a kernel that accepts the ioctl but
+        // stores nothing.
+        if let Some(n) = self.take_one_shot_short_write(path) {
+            if n == 0 {
+                return Ok(());
+            }
+            let truncated = if value.len() <= n { value } else { &value[..n] };
+            return self.inner.write(path, truncated);
         }
         self.inner.write(path, value)
     }
@@ -947,5 +993,84 @@ mod tests {
         assert_eq!(k.now_unix(), 42);
         k.advance_clock(8);
         assert_eq!(k.now_unix(), 50);
+    }
+
+    // ── Short-write injection (F2 blocker: "short-write injection is
+    // missing") ──────────────────────────────────────────────────────
+
+    /// `fail_next_write_short` writes only the first `n` bytes and
+    /// returns `Ok(())`, simulating a kernel that truncates input
+    /// silently. The inner kernel receives the truncated value.
+    #[test]
+    fn fault_kernel_short_write_truncates_and_succeeds() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/proc/sys/vm/swappiness");
+        // Write "100\n" but truncate to 3 bytes ("100").
+        inner.write(path, "0").unwrap(); // populate so read works
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_write_short(path.to_path_buf(), 3);
+
+        // The short write returns Ok(()) — the caller thinks it succeeded.
+        let result = fk.write(path, "100\n");
+        assert!(result.is_ok(), "short write must return Ok(())");
+
+        // The inner MemoryKernel stored only "100" (3 bytes), not "100\n".
+        let stored = fk.read_to_string(path).unwrap();
+        assert_eq!(stored, "100", "short write must truncate to 3 bytes");
+    }
+
+    /// A short write with `n=0` writes nothing but returns `Ok(())`,
+    /// simulating a kernel that accepts the ioctl but stores nothing.
+    #[test]
+    fn fault_kernel_short_write_zero_bytes_writes_nothing() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/proc/sys/vm/swappiness");
+        inner.write(path, "old").unwrap();
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_write_short(path.to_path_buf(), 0);
+
+        let result = fk.write(path, "new");
+        assert!(result.is_ok(), "zero-byte short write must return Ok(())");
+
+        // The inner kernel still has "old" — the short write stored nothing.
+        let stored = fk.read_to_string(path).unwrap();
+        assert_eq!(
+            stored, "old",
+            "zero-byte short write must not change the value"
+        );
+    }
+
+    /// `fail_next_write_short` fires once: the second write is a normal
+    /// full write.
+    #[test]
+    fn fault_kernel_short_write_fires_once() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/proc/sys/vm/swappiness");
+        inner.write(path, "init").unwrap();
+        let fk = FaultKernel::new(Box::new(inner));
+        fk.fail_next_write_short(path.to_path_buf(), 2);
+
+        // First write: short (2 bytes of "100" = "10").
+        fk.write(path, "100").unwrap();
+        assert_eq!(fk.read_to_string(path).unwrap(), "10");
+
+        // Second write: full ("200").
+        fk.write(path, "200").unwrap();
+        assert_eq!(fk.read_to_string(path).unwrap(), "200");
+    }
+
+    /// `fail_next_write_short` with `n` >= value length writes the full
+    /// value (no truncation needed).
+    #[test]
+    fn fault_kernel_short_write_n_ge_value_writes_full() {
+        let inner = MemoryKernel::new();
+        let path = Path::new("/proc/sys/vm/swappiness");
+        inner.write(path, "init").unwrap();
+        let fk = FaultKernel::new(Box::new(inner));
+        // n=100 is larger than "42" (2 bytes), so no truncation.
+        fk.fail_next_write_short(path.to_path_buf(), 100);
+
+        fk.write(path, "42").unwrap();
+        assert_eq!(fk.read_to_string(path).unwrap(), "42");
     }
 }
