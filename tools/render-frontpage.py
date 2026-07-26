@@ -110,35 +110,45 @@ def _status_lines() -> list[str]:
     stage = str(manifest.get("project", {}).get("stage", "")).strip()
 
     lines = [
-        "### Current repository truth",
+        "## Repository status",
         "",
-        f"- **Version:** `{version}`",
-        f"- **Stage:** {stage}",
-        f"- **Build profiles:** {', '.join(f'`{name}`' for name in _editions())}",
+        "This table is generated from the repository's canonical version, build, "
+        "and work-state files.",
+        "",
+        "| Item | Current state |",
+        "| --- | --- |",
+        f"| Project stage | {stage} |",
+        f"| Version | `{version}` |",
         (
-            f"- **Active general repair:** `{general_id}` — "
-            f"{by_id[general_id]['title']} (`{by_id[general_id]['status']}`)"
+            f"| Active general repair | `{general_id}` — "
+            f"{by_id[general_id]['title']} (`{by_id[general_id]['status']}`) |"
         ),
         (
-            f"- **Active safety repair:** `{safety_id}` — "
-            f"{by_id[safety_id]['title']} (`{by_id[safety_id]['status']}`)"
+            f"| Active safety repair | `{safety_id}` — "
+            f"{by_id[safety_id]['title']} (`{by_id[safety_id]['status']}`) |"
         ),
     ]
     if incomplete:
         lines.append(
-            "- **Other merged but incomplete packages:** "
+            "| Other merged, incomplete packages | "
             + ", ".join(f"`{package_id}`" for package_id in incomplete)
+            + " |"
         )
     links = manifest["links"]
     lines.extend(
         [
             (
-                f"- **Safety architecture:** "
-                f"[D2 fail-passive]({links['architecture']})"
+                "| Build profiles | "
+                + ", ".join(f"`{name}`" for name in _editions())
+                + " |"
             ),
             (
-                f"- **Canonical work state:** "
-                f"[optid package ledger]({links['ledger']})"
+                f"| Safety architecture | "
+                f"[D2 fail-passive]({links['architecture']}) |"
+            ),
+            (
+                f"| Canonical work state | "
+                f"[optid package ledger]({links['ledger']}) |"
             ),
         ]
     )
@@ -151,17 +161,28 @@ def render_section() -> str:
     lines.extend(
         [
             "",
-            "### Practical command guide",
+            "## Choose a command",
             "",
-            "Use the first command that matches what you want to do. "
-            "Detailed options stay in the linked runbooks.",
+            "Pick the goal that matches what you want to do. Detailed options stay "
+            "in the linked runbooks.",
+            "",
+            "| Goal | Environment |",
+            "| --- | --- |",
         ]
     )
+    for item in manifest["command"]:
+        lines.append(
+            f"| [{item['title']}](#command-{item['id']}) | {item['platform']} |"
+        )
+    lines.extend(["", "## Command details"])
     for item in manifest["command"]:
         lines.extend(
             [
                 "",
-                f"#### {item['title']} — {item['platform']}",
+                f'<a id="command-{item["id"]}"></a>',
+                f"### {item['title']}",
+                "",
+                f"**Environment:** {item['platform']}",
                 "",
                 f"```{item['language']}",
                 str(item["command"]),
