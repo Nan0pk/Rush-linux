@@ -176,6 +176,13 @@ pub(crate) trait KernelWrite {
     /// Allowlist-enforced write. Returns `PermissionDenied` for paths
     /// outside the permitted roots or containing directory traversal.
     fn write(&self, path: &Path, value: &str) -> io::Result<()>;
+    /// Write a daemon-owned state file without the kernel-attribute allowlist.
+    ///
+    /// Callers are responsible for constraining `path` to the configured
+    /// state directory. Keeping this separate from [`KernelWrite::write`]
+    /// preserves the sysfs/procfs safety boundary while making journal and
+    /// marker writes fault-injectable.
+    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()>;
     fn create_dir_all(&self, path: &Path) -> io::Result<()>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove_file(&self, path: &Path) -> io::Result<()>;
@@ -252,6 +259,10 @@ impl KernelRead for RealKernel {
 impl KernelWrite for RealKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
         is_allowlisted_write_path(path)?;
+        std::fs::write(path, value)
+    }
+
+    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
         std::fs::write(path, value)
     }
 
@@ -542,6 +553,26 @@ impl KernelWrite for FaultKernel {
         self.inner.write(path, value)
     }
 
+    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
+        if let Some(kind) = self.take_one_shot_write_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!(
+                    "FaultKernel: injected state-file write fault for {}",
+                    path.display()
+                ),
+            ));
+        }
+        if let Some(n) = self.take_one_shot_short_write(path) {
+            if n == 0 {
+                return Ok(());
+            }
+            let truncated = if value.len() <= n { value } else { &value[..n] };
+            return self.inner.write_state_file(path, truncated);
+        }
+        self.inner.write_state_file(path, value)
+    }
+
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         self.inner.create_dir_all(path)
     }
@@ -555,6 +586,12 @@ impl KernelWrite for FaultKernel {
     }
 
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        if let Some(kind) = self.take_one_shot_write_fault(path) {
+            return Err(io::Error::new(
+                kind,
+                format!("FaultKernel: injected append fault for {}", path.display()),
+            ));
+        }
         self.inner.append(path, text)
     }
 }
@@ -710,6 +747,14 @@ impl KernelRead for MemoryKernel {
 impl KernelWrite for MemoryKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
         is_allowlisted_write_path(path)?;
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), value.to_string());
+        Ok(())
+    }
+
+    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
         self.files
             .lock()
             .unwrap()

@@ -25,7 +25,8 @@ use crate::contracts::{
     ContractGateResult, ExitLatencyEvidence,
 };
 use crate::io_util::{
-    append_log, atomic_write_state_file, clear_journal, get_path_hash, mark_applied,
+    append_log_with, atomic_write_state_file_with, clear_journal_with, get_path_hash,
+    mark_applied_with,
 };
 use crate::kernel_io::{KernelIo, KernelWrite, RealKernel};
 use crate::load_state::BootState;
@@ -397,20 +398,20 @@ impl Actuator {
 
         // Journal original if not already journaled.
         let orig_file = self.state_dir.join(format!("original_{key}"));
-        if !orig_file.exists() {
+        if !self.kernel.exists(&orig_file) {
             if let Ok(current_val) = self.kernel.read_to_string(path) {
-                let _ = atomic_write_state_file(&orig_file, current_val.trim());
+                let _ = atomic_write_state_file_with(&*self.kernel, &orig_file, current_val.trim());
             }
         }
 
         // Write intended.
         let intended_file = self.state_dir.join(format!("intended_{key}"));
-        let _ = atomic_write_state_file(&intended_file, value);
+        let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, value);
 
         // Apply.
         match self.kernel.write(path, value) {
             Ok(_) => {
-                mark_applied(&self.state_dir, key, value);
+                mark_applied_with(&*self.kernel, &self.state_dir, key, value);
                 self.log(&format!(
                     "baseline: write {} = {value} (was {old_value})",
                     path.display()
@@ -526,7 +527,7 @@ impl Actuator {
             reason = json_escape(reason),
             version = json_escape(version),
         );
-        append_log(&self.audit_path, &line)
+        append_log_with(&*self.kernel, &self.audit_path, &line)
     }
 
     pub(crate) fn apply(&mut self, action: &Action) -> io::Result<()> {
@@ -591,7 +592,7 @@ impl Actuator {
             }
             Action::PlatformProfile { value, .. } => {
                 let path = Path::new("/sys/firmware/acpi/platform_profile");
-                if path.exists() {
+                if self.kernel.exists(path) {
                     let old_value = self
                         .kernel
                         .read_to_string(path)
@@ -673,15 +674,19 @@ impl Actuator {
 
                 // Back up original value if not already backed up
                 let orig_file = self.state_dir.join(format!("original_{key}"));
-                if !orig_file.exists() {
+                if !self.kernel.exists(&orig_file) {
                     if let Ok(current_val) = self.kernel.read_to_string(path) {
-                        let _ = atomic_write_state_file(&orig_file, current_val.trim());
+                        let _ = atomic_write_state_file_with(
+                            &*self.kernel,
+                            &orig_file,
+                            current_val.trim(),
+                        );
                     }
                 }
 
                 // Write intended value
                 let intended_file = self.state_dir.join(format!("intended_{key}"));
-                let _ = atomic_write_state_file(&intended_file, value);
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, value);
 
                 // Write new value to sysctl path
                 let old_value = self
@@ -693,7 +698,7 @@ impl Actuator {
                     .to_string();
                 match self.kernel.write(path, value) {
                     Ok(_) => {
-                        mark_applied(&self.state_dir, &key, value);
+                        mark_applied_with(&*self.kernel, &self.state_dir, &key, value);
                         self.log(&format!(
                             "write {} = {value} (was {old_value})",
                             path.display()
@@ -727,7 +732,12 @@ impl Actuator {
                             // optid-safety: mark applied so crash recovery
                             // knows the write landed. The PM QoS sink has no
                             // stable sysfs path; the journal key is fixed.
-                            mark_applied(&self.state_dir, "cpu_dma_latency", &val_str);
+                            mark_applied_with(
+                                &*self.kernel,
+                                &self.state_dir,
+                                "cpu_dma_latency",
+                                &val_str,
+                            );
                             self.log(&format!(
                                 "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
                             ))?;
@@ -772,10 +782,11 @@ impl Actuator {
 
                     // Back up original value if not already backed up
                     let orig_file = self.state_dir.join(format!("original_{key}"));
-                    if !orig_file.exists() {
+                    if !self.kernel.exists(&orig_file) {
                         if let Ok(current_val) = self.pmqos_sink.read_device_latency(path) {
                             let content = format!("{}\n{}", path.display(), current_val.trim());
-                            let _ = atomic_write_state_file(&orig_file, &content);
+                            let _ =
+                                atomic_write_state_file_with(&*self.kernel, &orig_file, &content);
                         }
                     }
 
@@ -784,7 +795,7 @@ impl Actuator {
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "0".to_string());
                     let intended_file = self.state_dir.join(format!("intended_{key}"));
-                    let _ = atomic_write_state_file(&intended_file, &val_str);
+                    let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &val_str);
 
                     let old_value = self
                         .pmqos_sink
@@ -797,7 +808,7 @@ impl Actuator {
                     match self.pmqos_sink.write_device_latency(path, &val_str) {
                         Ok(_) => {
                             self.last_device_latencies.insert(path.clone(), *value);
-                            mark_applied(&self.state_dir, &key, &val_str);
+                            mark_applied_with(&*self.kernel, &self.state_dir, &key, &val_str);
                             self.log(&format!(
                                 "write {} = {val_str} (was {old_value}) reason: {reason}",
                                 path.display()
@@ -829,7 +840,7 @@ impl Actuator {
                     ))?;
                     return Ok(());
                 }
-                if delay_path.exists() {
+                if self.kernel.exists(&delay_path) {
                     if let Err(e) = Capability::RuntimePm.validate_target(&delay_path) {
                         self.log(&format!(
                             "skip runtime_pm {}: capability validation failed for delay path: {e}",
@@ -894,7 +905,7 @@ impl Actuator {
 
                 // Step 2: read originals (reuse existing journal if present
                 // from a previous cycle that crashed before marking applied).
-                let (orig_control, orig_delay) = if orig_file.exists() {
+                let (orig_control, orig_delay) = if self.kernel.exists(&orig_file) {
                     let content = self.kernel.read_to_string(&orig_file).unwrap_or_default();
                     let mut lines = content.lines();
                     let _dev = lines.next();
@@ -908,7 +919,7 @@ impl Actuator {
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "on".to_string());
-                    let d = if delay_path.exists() {
+                    let d = if self.kernel.exists(&delay_path) {
                         self.kernel
                             .read_to_string(&delay_path)
                             .ok()
@@ -924,14 +935,20 @@ impl Actuator {
                 // mutation so a crash during apply leaves a complete record.
                 let journal_content =
                     format!("{}\n{orig_control}\n{orig_delay}", device_dir.display());
-                if let Err(e) = atomic_write_state_file(&orig_file, &journal_content) {
+                if let Err(e) =
+                    atomic_write_state_file_with(&*self.kernel, &orig_file, &journal_content)
+                {
                     self.log(&format!(
                         "skip runtime_pm {}: failed to write recovery journal: {e}",
                         device_dir.display()
                     ))?;
                     return Ok(());
                 }
-                let _ = atomic_write_state_file(&intended_file, &format!("auto\n{delay_str}"));
+                let _ = atomic_write_state_file_with(
+                    &*self.kernel,
+                    &intended_file,
+                    &format!("auto\n{delay_str}"),
+                );
 
                 // Step 4: apply writes in deterministic order.
                 // delay first (harmless while control is still "on"),
@@ -942,7 +959,7 @@ impl Actuator {
                 // exercise each failure point deterministically. In production
                 // builds this field does not exist and the cfg!(test) branches
                 // are compiled out.
-                let delay_applied = if delay_path.exists() {
+                let delay_applied = if self.kernel.exists(&delay_path) {
                     match self.runtime_pm_write(&delay_path, &delay_str, 1) {
                         Ok(_) => true,
                         Err(e) => {
@@ -967,7 +984,12 @@ impl Actuator {
                         self.last_runtime_pm
                             .insert(device_dir.clone(), *autosuspend_delay_ms);
                         let rpm_key = format!("rpm_{hash}");
-                        mark_applied(&self.state_dir, &rpm_key, &format!("auto\n{delay_str}"));
+                        mark_applied_with(
+                            &*self.kernel,
+                            &self.state_dir,
+                            &rpm_key,
+                            &format!("auto\n{delay_str}"),
+                        );
                         self.log(&format!(
                             "write {} control=auto autosuspend_delay_ms={delay_str} reason: {reason}",
                             device_dir.display()
@@ -978,7 +1000,7 @@ impl Actuator {
                             "runtime_pm {}: control write failed after delay write succeeded; rolling back delay: {e}",
                             device_dir.display()
                         ))?;
-                        if delay_path.exists() && orig_delay != "n/a" {
+                        if self.kernel.exists(&delay_path) && orig_delay != "n/a" {
                             match self.runtime_pm_write(&delay_path, &orig_delay, 3) {
                                 Ok(_) => {
                                     self.log(&format!(
@@ -1037,27 +1059,28 @@ impl Actuator {
                 let aspm_path = device_dir.join("link").join("l1_aspm");
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_aspm_{hash}"));
-                if !orig_file.exists() {
+                if !self.kernel.exists(&orig_file) {
                     let orig = self
                         .kernel
                         .read_to_string(&aspm_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "0".to_string());
-                    let _ = atomic_write_state_file(
+                    let _ = atomic_write_state_file_with(
+                        &*self.kernel,
                         &orig_file,
                         &format!("{}\n{orig}", device_dir.display()),
                     );
                 }
                 let val = if *enable { "1" } else { "0" };
                 let intended_file = self.state_dir.join(format!("intended_aspm_{hash}"));
-                let _ = atomic_write_state_file(&intended_file, val);
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, val);
 
                 match self.kernel.write(&aspm_path, val) {
                     Ok(_) => {
                         self.last_pcie_aspm.insert(device_dir.clone(), *enable);
                         let aspm_key = format!("aspm_{hash}");
-                        mark_applied(&self.state_dir, &aspm_key, val);
+                        mark_applied_with(&*self.kernel, &self.state_dir, &aspm_key, val);
                         self.log(&format!(
                             "write {} l1_aspm={val} reason: {reason}",
                             aspm_path.display()
@@ -1103,26 +1126,27 @@ impl Actuator {
                 let policy_path = host_dir.join("link_power_management_policy");
                 let hash = get_path_hash(host_dir);
                 let orig_file = self.state_dir.join(format!("original_alpm_{hash}"));
-                if !orig_file.exists() {
+                if !self.kernel.exists(&orig_file) {
                     let orig = self
                         .kernel
                         .read_to_string(&policy_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_else(|| "max_performance".to_string());
-                    let _ = atomic_write_state_file(
+                    let _ = atomic_write_state_file_with(
+                        &*self.kernel,
                         &orig_file,
                         &format!("{}\n{orig}", host_dir.display()),
                     );
                 }
                 let intended_file = self.state_dir.join(format!("intended_alpm_{hash}"));
-                let _ = atomic_write_state_file(&intended_file, policy);
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, policy);
 
                 match self.kernel.write(&policy_path, policy) {
                     Ok(_) => {
                         self.last_sata_alpm.insert(host_dir.clone(), policy.clone());
                         let alpm_key = format!("alpm_{hash}");
-                        mark_applied(&self.state_dir, &alpm_key, policy);
+                        mark_applied_with(&*self.kernel, &self.state_dir, &alpm_key, policy);
                         self.log(&format!(
                             "write {} policy={policy} reason: {reason}",
                             policy_path.display()
@@ -1179,27 +1203,28 @@ impl Actuator {
                 let bright_path = device_dir.join("brightness");
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_bl_{hash}"));
-                if !orig_file.exists() {
+                if !self.kernel.exists(&orig_file) {
                     let orig = self
                         .kernel
                         .read_to_string(&bright_path)
                         .ok()
                         .map(|s| s.trim().to_string())
                         .unwrap_or_default();
-                    let _ = atomic_write_state_file(
+                    let _ = atomic_write_state_file_with(
+                        &*self.kernel,
                         &orig_file,
                         &format!("{}\n{orig}", device_dir.display()),
                     );
                 }
                 let target_str = target.to_string();
                 let intended_file = self.state_dir.join(format!("intended_bl_{hash}"));
-                let _ = atomic_write_state_file(&intended_file, &target_str);
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &target_str);
 
                 match self.kernel.write(&bright_path, &target_str) {
                     Ok(_) => {
                         self.last_backlight.insert(device_dir.clone(), target);
                         let bl_key = format!("bl_{hash}");
-                        mark_applied(&self.state_dir, &bl_key, &target_str);
+                        mark_applied_with(&*self.kernel, &self.state_dir, &bl_key, &target_str);
                         self.log(&format!(
                             "write {} brightness={target_str} (target {target_pct}% of {max}) reason: {reason}",
                             bright_path.display()
@@ -1250,10 +1275,10 @@ impl Actuator {
     /// `Ok(false)` is returned.
     pub(crate) fn revert_key(&mut self, key: &str) -> io::Result<bool> {
         let orig_file = self.state_dir.join(format!("original_{key}"));
-        if !orig_file.exists() {
+        if !self.kernel.exists(&orig_file) {
             return Ok(false);
         }
-        let Ok(content) = fs::read_to_string(&orig_file) else {
+        let Ok(content) = self.kernel.read_to_string(&orig_file) else {
             return Ok(false);
         };
         let mut lines = content.lines();
@@ -1375,7 +1400,7 @@ impl Actuator {
 
         if restored {
             // Drop original_/intended_/applied_ together.
-            clear_journal(&self.state_dir, key);
+            clear_journal_with(&*self.kernel, &self.state_dir, key);
         } else {
             self.log(&format!(
                 "context-change revert {key}: journal retained; restore did not complete"
@@ -1385,7 +1410,8 @@ impl Actuator {
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {
-        append_log(
+        append_log_with(
+            &*self.kernel,
             &self.log_path,
             &format!("{} {message}\n", self.kernel.now_unix()),
         )
