@@ -269,7 +269,7 @@ purpose = "Machine-readable active package state and dependencies"
 owner_area = "area:optid"
 covers_code = ["crates/optid/", "crates/optctl/"]
 deps = ["OPTID-COMPLETION-PLAN.md", "docs/plans/optid-verification/README.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-07-26"
 
 [docs."docs/plans/optid-verification/README.md"]
 purpose = "Cold-verification receipt contract"

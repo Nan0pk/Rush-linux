@@ -65,7 +65,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 ///
 /// Returns `Ok(())` if the path is allowlisted and free of directory
 /// traversal; otherwise returns `io::ErrorKind::PermissionDenied`.
-pub(crate) fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// use this function for test fixtures.
+pub fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
     if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
@@ -151,7 +154,10 @@ pub(crate) fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
 ///
 /// `read_link` / `canonicalize` are a narrow extension for stable device
 /// identity (T1 thermal sensors) without a device database.
-pub(crate) trait KernelRead {
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
+pub trait KernelRead {
     fn read_to_string(&self, path: &Path) -> io::Result<String>;
     fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn exists(&self, path: &Path) -> bool;
@@ -172,7 +178,10 @@ pub(crate) trait KernelRead {
 /// allowlist via [`is_allowlisted_write_path`] before delegating to the
 /// underlying filesystem, so every implementation (production and mock)
 /// applies the same structural defence.
-pub(crate) trait KernelWrite {
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
+pub trait KernelWrite {
     /// Allowlist-enforced write. Returns `PermissionDenied` for paths
     /// outside the permitted roots or containing directory traversal.
     fn write(&self, path: &Path, value: &str) -> io::Result<()>;
@@ -193,7 +202,10 @@ pub(crate) trait KernelWrite {
 
 /// Monotonic-ish wall clock for timestamps. Production uses
 /// `SystemTime::now().duration_since(UNIX_EPOCH)`.
-pub(crate) trait Clock {
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
+pub trait Clock {
     fn now_unix(&self) -> u64;
 }
 
@@ -201,8 +213,11 @@ pub(crate) trait Clock {
 /// that always returns `false` (full duration elapsed, no event). E1
 /// replaces this with a real reactor (PSI poll, udev hotplug, D-Bus
 /// signal) that returns `true` when an event arrives before the deadline.
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
 #[allow(dead_code)]
-pub(crate) trait EventSource {
+pub trait EventSource {
     /// Block for up to `duration`. Return `true` if an event arrived
     /// before the deadline, `false` if the full duration elapsed.
     fn wait(&self, duration: Duration) -> bool;
@@ -210,7 +225,10 @@ pub(crate) trait EventSource {
 
 /// Combined trait for the actuator, which needs read + write + clock.
 /// Blanket-implemented for any `T: KernelRead + KernelWrite + Clock`.
-pub(crate) trait KernelIo: KernelRead + KernelWrite + Clock {}
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
+pub trait KernelIo: KernelRead + KernelWrite + Clock {}
 impl<T: KernelRead + KernelWrite + Clock> KernelIo for T {}
 
 // ─────────────────────────────────────────────────────────────────────
@@ -221,11 +239,14 @@ impl<T: KernelRead + KernelWrite + Clock> KernelIo for T {}
 /// `std::thread`. The default constructor is used by every legacy free
 /// function in `sensors.rs` and `io_util.rs` so existing behavior is
 /// preserved bit-for-bit.
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
 #[derive(Default, Clone)]
-pub(crate) struct RealKernel;
+pub struct RealKernel;
 
 impl RealKernel {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self
     }
 }
@@ -349,8 +370,11 @@ enum FaultRule {
 /// The rules vector is wrapped in a `RefCell` so that one-shot rules can
 /// be consumed from `&self` trait methods. `FaultKernel` is `!Sync` by
 /// virtue of `RefCell` and is intended for single-threaded test use only.
+///
+/// F2: Made `pub` so integration tests in other workspace crates can
+/// construct test kernels.
 #[allow(dead_code)]
-pub(crate) struct FaultKernel {
+pub struct FaultKernel {
     inner: Box<dyn KernelIo>,
     rules: RefCell<Vec<FaultRule>>,
 }
@@ -358,7 +382,7 @@ pub(crate) struct FaultKernel {
 #[allow(dead_code)]
 impl FaultKernel {
     /// Wrap an inner kernel (typically `Box::new(RealKernel::new())`).
-    pub(crate) fn new(inner: Box<dyn KernelIo>) -> Self {
+    pub fn new(inner: Box<dyn KernelIo>) -> Self {
         Self {
             inner,
             rules: RefCell::new(Vec::new()),
@@ -366,7 +390,7 @@ impl FaultKernel {
     }
 
     /// Fail the next `write` to `path` with the given error kind.
-    pub(crate) fn fail_next_write(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+    pub fn fail_next_write(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailWrite { path, error });
@@ -382,7 +406,7 @@ impl FaultKernel {
     /// If `n` is 0, the write is a no-op (zero bytes written) but
     /// still returns `Ok(())` — simulating a kernel that accepts the
     /// ioctl but stores nothing.
-    pub(crate) fn fail_next_write_short(&self, path: PathBuf, n: usize) -> &Self {
+    pub fn fail_next_write_short(&self, path: PathBuf, n: usize) -> &Self {
         self.rules
             .borrow_mut()
             .push(FaultRule::ShortWrite { path, n });
@@ -391,7 +415,7 @@ impl FaultKernel {
 
     /// Fail the next `read_to_string` of `path` with the given error kind.
     #[allow(dead_code)]
-    pub(crate) fn fail_next_read(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+    pub fn fail_next_read(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailRead { path, error });
@@ -399,14 +423,14 @@ impl FaultKernel {
     }
 
     /// Make `path` report as non-existent (exists = false, read = NotFound).
-    pub(crate) fn hide_path(&self, path: PathBuf) -> &Self {
+    pub fn hide_path(&self, path: PathBuf) -> &Self {
         self.rules.borrow_mut().push(FaultRule::HidePath { path });
         self
     }
 
     /// Return `content` for `read_to_string(path)` instead of the real
     /// file contents.
-    pub(crate) fn malform_content(&self, path: PathBuf, content: String) -> &Self {
+    pub fn malform_content(&self, path: PathBuf, content: String) -> &Self {
         self.rules
             .borrow_mut()
             .push(FaultRule::MalformedContent { path, content });
@@ -615,17 +639,28 @@ impl Clock for FaultKernel {
 ///
 /// **Note:** `write` still enforces the allowlist. Tests that need to
 /// populate arbitrary sysfs fixtures should use `write_raw` / `add_dir`.
-#[cfg(test)]
-pub(crate) struct MemoryKernel {
+///
+/// F2: This struct is enabled via the `test-utils` feature for integration
+/// tests that need to construct a MemoryKernel from outside the optid crate,
+/// or automatically during `cargo test` for in-crate tests.
+#[cfg(any(test, feature = "test-utils"))]
+pub struct MemoryKernel {
     files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
     dirs: std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<PathBuf>>>,
     links: std::sync::Mutex<std::collections::HashMap<PathBuf, PathBuf>>,
     clock: std::sync::atomic::AtomicU64,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
+impl Default for MemoryKernel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
 impl MemoryKernel {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             files: std::sync::Mutex::new(std::collections::HashMap::new()),
             dirs: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -635,13 +670,13 @@ impl MemoryKernel {
     }
 
     /// Advance the in-memory clock by `secs`.
-    pub(crate) fn advance_clock(&self, secs: u64) {
+    pub fn advance_clock(&self, secs: u64) {
         self.clock
             .fetch_add(secs, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Test-only raw write that bypasses the allowlist.
-    pub(crate) fn write_raw(&self, path: &Path, value: &str) {
+    pub fn write_raw(&self, path: &Path, value: &str) {
         self.files
             .lock()
             .unwrap()
@@ -649,7 +684,7 @@ impl MemoryKernel {
     }
 
     /// Record a symlink at `path` pointing to `target`.
-    pub(crate) fn write_link(&self, path: &Path, target: &Path) {
+    pub fn write_link(&self, path: &Path, target: &Path) {
         self.links
             .lock()
             .unwrap()
@@ -657,7 +692,7 @@ impl MemoryKernel {
     }
 
     /// Register `child` as an entry of directory `parent` (creates parent listing).
-    pub(crate) fn add_dir(&self, parent: &Path, child: &Path) {
+    pub fn add_dir(&self, parent: &Path, child: &Path) {
         self.dirs
             .lock()
             .unwrap()
@@ -668,7 +703,7 @@ impl MemoryKernel {
 
     /// Register a file path as a directory listing entry under its parent
     /// directory already present, or under `dir` explicitly.
-    pub(crate) fn add_dir_entry(&self, dir: &Path, entry: &Path) {
+    pub fn add_dir_entry(&self, dir: &Path, entry: &Path) {
         self.dirs
             .lock()
             .unwrap()
@@ -678,7 +713,7 @@ impl MemoryKernel {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl KernelRead for MemoryKernel {
     fn read_to_string(&self, path: &Path) -> io::Result<String> {
         self.files
@@ -743,7 +778,7 @@ impl KernelRead for MemoryKernel {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl KernelWrite for MemoryKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
         is_allowlisted_write_path(path)?;
@@ -806,7 +841,7 @@ impl KernelWrite for MemoryKernel {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl Clock for MemoryKernel {
     fn now_unix(&self) -> u64 {
         self.clock.load(std::sync::atomic::Ordering::Relaxed)

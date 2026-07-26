@@ -1,5 +1,5 @@
 schema_version = 2
-updated = "2026-07-25"
+updated = "2026-07-26"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
@@ -103,8 +103,8 @@ lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
 status = "merged_incomplete"
 depends = []
-pr = "325"
-blocking_reason = "The F2 seam now covers all io_util.rs recovery, journal, marker, log, and atomic state-file operations: the five revert paths have injectable *_with entry points; KernelWrite has a distinct allowlist-free write_state_file operation for daemon-owned state; and Actuator routes its journal, marker, log, state-file reads, and state-file existence checks through its injected KernelIo. FaultKernel tests cover atomic-write failure, log-append failure, and both successful and failed sysctl recovery with journal cleanup/retention. Short-write injection remains covered by 4 kernel_io tests. Remaining F2 work: (1) make MemoryKernel/FaultKernel reachable from integration tests (for example via a library target or test-only public surface) because optid is [[bin]]-only and the adapters remain pub(crate); (2) extend deterministic mutation faults to rename/remove/directory operations and cover recovery for PM QoS, runtime PM, storage, display, applied markers, and journal cleanup; (3) add a production-surface integration test that enters through the daemon or CLI rather than only in-crate functions. No package self-certifies completed."
+pr = "355"
+blocking_reason = "The F2 seam now covers all io_util.rs recovery, journal, marker, log, and atomic state-file operations: the five revert paths have injectable *_with entry points; KernelWrite has a distinct allowlist-free write_state_file operation for daemon-owned state; and Actuator routes its journal, marker, log, state-file reads, and state-file existence checks through its injected KernelIo. FaultKernel tests cover atomic-write failure, log-append failure, and both successful and failed sysctl recovery with journal cleanup/retention. Short-write injection remains covered by 4 kernel_io tests. PR #355 adds the optid library target and test-utils feature and exports MemoryKernel, FaultKernel, and their I/O traits, resolving the prior integration-test reachability blocker. This exposes the test seam but does not prove production-path integration. Remaining F2 work: (1) extend deterministic mutation faults to rename/remove/directory operations and cover recovery for PM QoS, runtime PM, storage, display, applied markers, and journal cleanup; (2) add a production-surface integration test that enters through the daemon or CLI rather than only in-crate functions. Initial F2 implementation provenance remains PR #325, with subsequent recovery/journal seam repair in PR #353. No package self-certifies completed."
 completion_evidence = []
 
 [[package]]

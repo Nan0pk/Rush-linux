@@ -6,6 +6,10 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lib]
+name = "optid"
+path = "src/lib.rs"
+
 [[bin]]
 name = "optid"
 path = "src/main.rs"
@@ -24,6 +28,11 @@ required-features = ["experimental-capability-sealing"]
 # production actuation. Per the D0 plan, this must never be enabled in
 # shipped optid.
 experimental-capability-sealing = []
+
+# F2: enables test-only kernel types (MemoryKernel, FaultKernel) for
+# integration tests that need to construct test kernels from outside
+# the optid crate.
+test-utils = []
 
 [dependencies]
 zbus = { version = "5.16.0", features = ["blocking"] }
