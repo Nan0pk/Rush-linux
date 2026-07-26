@@ -98,8 +98,12 @@ attempt run "R8 — public versions contradict canonical release truth" \
     "${PYTHON[@]}" tools/validate-versions.py
 attempt run "R8 — documentation is missing or contradicts canonical sources" \
     "${PYTHON[@]}" tools/validate-doc-sync.py
+DOCS_IMPACT_ARGS=(--base "$BASE")
+if [[ "${RUSH_DOCS_NOT_NEEDED:-false}" == "true" ]]; then
+    DOCS_IMPACT_ARGS+=(--allow-docs-not-needed)
+fi
 attempt run "R8 — a user-facing change has no matching guide update" \
-    "${PYTHON[@]}" tools/check-docs-impact.py --base "$BASE"
+    "${PYTHON[@]}" tools/check-docs-impact.py "${DOCS_IMPACT_ARGS[@]}"
 attempt run "R8 — the generated practical README is stale" \
     "${PYTHON[@]}" tools/render-frontpage.py --check
 attempt run "R1/R5 — optid package claims outrun integrated, verified behavior" \

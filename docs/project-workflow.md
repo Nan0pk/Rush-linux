@@ -116,6 +116,11 @@ changed and aggregates every selected lane:
   production entry points, integration tests, and evidence; only a cold
   verifier may record `completed`.
 
+A maintenance PR that changes only dependency references or other internal
+workflow plumbing may carry the `docs-not-needed` label. PR Gate passes that
+label only to the documentation-impact check; it does not bypass workflow
+safety, Actionlint, dependency policy, tests, evidence checks, or human merge.
+
 External-link scanning and newly published dependency advisories run on a
 schedule. They remain visible, but an unreliable website does not block an
 unrelated pull request.
