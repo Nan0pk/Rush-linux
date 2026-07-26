@@ -50,9 +50,11 @@ def test_failed_checks_are_indexed_for_agents(tmp_path: Path) -> None:
     assert _run("git", "commit", "-qm", "fixture", cwd=repo).returncode == 0
 
     step_summary = repo / "step-summary.md"
+    failure_summary = repo / "failure-summary.txt"
     env = os.environ.copy()
     env["GITHUB_ACTIONS"] = "true"
     env["GITHUB_STEP_SUMMARY"] = str(step_summary)
+    env["RUSH_FAILURE_SUMMARY_FILE"] = str(failure_summary)
     result = _run(
         "bash",
         "tools/checks.sh",
@@ -72,6 +74,11 @@ def test_failed_checks_are_indexed_for_agents(tmp_path: Path) -> None:
     assert f"1. {risk}" in output
     assert "exit: 3" in output
     assert f"reproduce: {command}" in output
+
+    plain_summary = failure_summary.read_text(encoding="utf-8")
+    assert f"1. {risk}" in plain_summary
+    assert "exit: 3" in plain_summary
+    assert f"reproduce: {command}" in plain_summary
 
     summary = step_summary.read_text(encoding="utf-8")
     assert "## Rush CI failure summary" in summary
