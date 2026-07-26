@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - AGENTS.md
-      - CURRENT_WORK.md
       - README.md
+      - docs/plans/current-work.md
       - docs/plans/optid-package-status.toml
       - docs/plans/agent-work-plan-v1.md
       - docs/plans/work-plan-v2.md
@@ -19,8 +19,8 @@ on:
     branches: [main]
     paths:
       - AGENTS.md
-      - CURRENT_WORK.md
       - README.md
+      - docs/plans/current-work.md
       - docs/plans/optid-package-status.toml
       - docs/plans/agent-work-plan-v1.md
       - docs/plans/work-plan-v2.md
