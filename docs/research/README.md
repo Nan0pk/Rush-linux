@@ -4,6 +4,18 @@ Research records possibilities and evidence; it does not override an accepted
 decision, the Northstar, or an active package plan. Read only the papers needed
 for the question at hand.
 
+## Current integrated disposition
+
+Read [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
+before using the broad WIP papers as implementation guidance. It records the
+newer validated disposition of the staged optid research mission and identifies
+which older research and proposed ADRs still require amendment. The executable
+repository-change sequence is
+[`docs/plans/optid-research-integration-plan.md`](../plans/optid-research-integration-plan.md).
+
+The synthesis is research, not an accepted decision: the Northstar, accepted ADRs,
+current completion plan, current-work selector, and package ledger remain authoritative.
+
 - [0001 — Apple power stack analysis](0001-apple-power-stack-analysis.md)
 - [0002 — Rush Linux architecture review](0002-rush-linux-architecture-review.md)
 - [0003 — Unified power orchestrator](0003-unified-power-orchestrator-paper.md)
@@ -24,6 +36,7 @@ for the question at hand.
 - [0018 — Runtime-state telemetry](0018-telemetry-runtime-state-observability.md)
 - [0019 — GPU scaling and ambient light](0019-gpu-upscaling-resolution-scaling-als.md)
 - [0020 — Third-pass technical-debt audit](0020-third-pass-tech-debt-audit.md)
+- [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
 
 New numbered papers must be linked here. Machine checks enforce the index
 without duplicating every paper's metadata in `docmap.toml`.
