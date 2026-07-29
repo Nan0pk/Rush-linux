@@ -20,6 +20,16 @@ sudo bash tools/build-mkosi-image.sh --edition livedev
 dd if=build/rush-linux-livedev.raw of=/dev/sdX bs=4M status=progress
 ```
 
+### Retrying interrupted USB preparation
+
+The one-command bootstrap keeps a persistent checkpoint outside `/tmp`.
+If USB preparation fails after the inventory or plan has already been saved,
+run the same bootstrap command again. Replayed earlier-phase saves for the
+same active run are treated as idempotent retries: the later checkpoint,
+existing plan, inventory, and run ID remain authoritative. Submitted runs and
+attempts to replace an active checkpoint with a different run ID remain
+fail-closed.
+
 ## Booting LiveDev
 
 1. Insert the USB into the target machine.
