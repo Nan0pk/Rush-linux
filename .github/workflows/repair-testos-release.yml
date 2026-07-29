@@ -1,0 +1,62 @@
+name: Repair requested testOS release
+
+# A release request is a repository-controlled, one-shot trigger. Updating
+# testos/release-request.txt on main dispatches the existing, fully validated
+# release-testos workflow. This keeps operators out of GitHub Actions plumbing
+# and lets the LiveDev bootstrap recover from a legacy release automatically.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'testos/release-request.txt'
+      - '.github/workflows/repair-testos-release.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: testos-release-repair
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch provenance-complete testOS rebuild
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read and validate requested tag
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$(tr -d '\r\n[:space:]' < testos/release-request.txt)"
+          if [[ ! "$TAG" =~ ^v[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "Invalid testOS release request tag: $TAG" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Requested corrected testOS release: $TAG"
+
+      - name: Dispatch release build unless already published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_TAG: ${{ steps.request.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$REQUESTED_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $REQUESTED_TAG already exists; nothing to do."
+            exit 0
+          fi
+
+          gh workflow run release-testos.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f mock=false \
+            -f tag="$REQUESTED_TAG"
+
+          echo "Dispatched release-testos.yml for $REQUESTED_TAG."
