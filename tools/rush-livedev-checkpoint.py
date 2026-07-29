@@ -49,7 +49,6 @@ Phases:
 import argparse
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -288,7 +287,7 @@ def resume_command() -> None:
     elif phase in ("collected", "validated"):
         print("# Resume: validate and submit the collected results.")
         if run_dir:
-            print(f"# For real submission (opens a PR, no auto-merge):")
+            print("# For real submission (opens a PR, no auto-merge):")
             print(f'{python_prefix} "{livedev_next}" --submit "{run_dir}"')
 
     print(cmd)
@@ -317,6 +316,28 @@ def _phase_order(phase: str) -> int:
         "submitted": 7,
     }
     return order.get(phase, -1)
+
+
+def _is_same_run_stale_retry(
+    run_id: str, new_phase: str, existing: dict | None
+) -> bool:
+    """Return True when a restarted bootstrap replays an earlier phase.
+
+    A non-terminal checkpoint for the SAME run may already be ahead of the
+    phase the bootstrap is trying to save again (for example, plan_ready ->
+    preflight after USB preparation failed). That is an idempotent retry, not
+    a real state downgrade: keep the later checkpoint unchanged.
+
+    Submitted checkpoints and different run IDs never use this exception.
+    """
+    if existing is None or existing.get("run_id", "") != run_id:
+        return False
+    old_phase = existing.get("phase", "")
+    if old_phase == "submitted":
+        return False
+    old_order = _phase_order(old_phase)
+    new_order = _phase_order(new_phase)
+    return old_order >= 0 and new_order >= 0 and new_order < old_order
 
 
 def _refuse_downgrade(new_phase: str, existing: dict | None) -> None:
@@ -404,10 +425,10 @@ def ensure_fresh_run(force: bool = False) -> str:
     # Terminal checkpoint detected. Preserve it and start fresh.
     old_run_id = existing.get("run_id", "")
     old_pr_url = existing.get("pr_url", "")
-    print(f"[ensure-fresh] Terminal checkpoint detected (phase='submitted').")
+    print("[ensure-fresh] Terminal checkpoint detected (phase='submitted').")
     print(f"[ensure-fresh] Preserving prior run: {old_run_id} (PR: {old_pr_url})")
-    print(f"[ensure-fresh] Prior data is NOT erased — it remains on disk.")
-    print(f"[ensure-fresh] Starting a fresh run with a new run_id, nonce, and directory.")
+    print("[ensure-fresh] Prior data is NOT erased — it remains on disk.")
+    print("[ensure-fresh] Starting a fresh run with a new run_id, nonce, and directory.")
 
     # Clear the checkpoint pointer (does NOT erase run data).
     cp = checkpoint_path()
@@ -486,6 +507,15 @@ def main():
     if args.command == "save":
         # F7: refuse to downgrade a submitted checkpoint.
         existing = load_checkpoint()
+        if _is_same_run_stale_retry(args.run_id, args.phase, existing):
+            old_phase = existing.get("phase", "")
+            print(
+                f"Checkpoint unchanged: phase={old_phase} run_id={args.run_id}; "
+                f"ignored repeated earlier phase={args.phase}."
+            )
+            print(f"Run dir: {existing.get('run_dir', '')}")
+            print(f"Location: {checkpoint_path()}")
+            return
         _refuse_downgrade(args.phase, existing)
         # Ensure the run directory exists (persistent, outside /tmp)
         rd = run_dir_for(args.run_id)
