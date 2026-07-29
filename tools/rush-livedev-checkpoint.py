@@ -49,7 +49,6 @@ Phases:
 import argparse
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -288,7 +287,7 @@ def resume_command() -> None:
     elif phase in ("collected", "validated"):
         print("# Resume: validate and submit the collected results.")
         if run_dir:
-            print(f"# For real submission (opens a PR, no auto-merge):")
+            print("# For real submission (opens a PR, no auto-merge):")
             print(f'{python_prefix} "{livedev_next}" --submit "{run_dir}"')
 
     print(cmd)
@@ -426,10 +425,10 @@ def ensure_fresh_run(force: bool = False) -> str:
     # Terminal checkpoint detected. Preserve it and start fresh.
     old_run_id = existing.get("run_id", "")
     old_pr_url = existing.get("pr_url", "")
-    print(f"[ensure-fresh] Terminal checkpoint detected (phase='submitted').")
+    print("[ensure-fresh] Terminal checkpoint detected (phase='submitted').")
     print(f"[ensure-fresh] Preserving prior run: {old_run_id} (PR: {old_pr_url})")
-    print(f"[ensure-fresh] Prior data is NOT erased — it remains on disk.")
-    print(f"[ensure-fresh] Starting a fresh run with a new run_id, nonce, and directory.")
+    print("[ensure-fresh] Prior data is NOT erased — it remains on disk.")
+    print("[ensure-fresh] Starting a fresh run with a new run_id, nonce, and directory.")
 
     # Clear the checkpoint pointer (does NOT erase run data).
     cp = checkpoint_path()
