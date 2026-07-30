@@ -1,0 +1,64 @@
+name: F2 one-shot rustfmt repair
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/f2-format-repair.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: f2-one-shot-rustfmt-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.head_ref == 'fix/optid-f2-production-surface'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/optid-f2-production-surface
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Keep EventSource as an explicit facade contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/optid/src/kernel_io.rs')
+          text = path.read_text()
+          anchor = 'const _: fn(&Path) -> io::Result<()> = is_allowlisted_write_path;\n'
+          marker = '''fn wait_event_source(source: &dyn EventSource, duration: Duration) -> bool {\n    source.wait(duration)\n}\nconst _: fn(&dyn EventSource, Duration) -> bool = wait_event_source;\n'''
+          if marker not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit('EventSource facade anchor changed')
+              text = text.replace(anchor, anchor + marker)
+              path.write_text(text)
+          PY
+
+      - name: Format and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          rm .github/workflows/f2-format-repair.yml
+          cargo fmt --all -- --check
+
+      - name: Commit formatted branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "style(optid/f2): apply rustfmt and retain event boundary"
+          git push origin HEAD:fix/optid-f2-production-surface
