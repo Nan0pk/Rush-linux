@@ -1,0 +1,93 @@
+name: Bind capability sealing candidate once
+
+on:
+  push:
+    branches:
+      - fix/capability-sealing-cold-restart-proof
+    paths:
+      - .github/workflows/bind-capability-sealing-candidate-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bind:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/capability-sealing-cold-restart-proof
+          fetch-depth: 0
+
+      - name: Bind package candidate and regenerate front page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ledger = Path("docs/plans/optid-package-status.toml")
+          text = ledger.read_text()
+          old = '''[[package]]
+          id = "D0"
+          lane = "safety"
+          title = "Prototype capability sealing and supervisor-managed cold restart"
+          status = "merged_incomplete"
+          depends = []
+          pr = "328"
+          blocking_reason = "The prototype lacks valid removed-object, child-process/exec, exit-75, recovery-order, ABI-rights, no-new-privileges, feature-build CI, and cold-kernel proof."
+          completion_evidence = []
+          '''
+          new = '''[[package]]
+          id = "D0"
+          lane = "safety"
+          title = "Prototype capability sealing and supervisor-managed cold restart"
+          status = "candidate"
+          depends = []
+          pr = "366"
+          runtime_entrypoints = [
+            "crates/optid/src/bin/optid-capability-seal-test.rs",
+            "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+            "crates/optid/src/capability_seal_test/seal_test.rs",
+            "packaging/systemd/optid-capability-seal-test.service",
+          ]
+          integration_tests = [
+            "crates/optid/src/bin/optid-capability-seal-test.rs",
+            "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+            "crates/optid/tests/capability_sealing_cli.rs",
+          ]
+          completion_evidence = [
+            "crates/optid/src/bin/optid-capability-seal-test.rs",
+            "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+            "crates/optid/src/capability_seal_test/seal_test.rs",
+            "crates/optid/tests/capability_sealing_cli.rs",
+            "packaging/systemd/optid-capability-seal-test.service",
+            ".github/workflows/capability-sealing-kernel-proof.yml",
+            "docs/plans/capability-sealing-cold-restart-proof.md",
+          ]
+          [package.acceptance_tests]
+          abi_one_excludes_newer_rights = "abi_one_excludes_newer_rights"
+          abi_two_adds_refer_only = "abi_two_adds_refer_only"
+          abi_three_adds_truncate = "abi_three_adds_truncate"
+          topology_rebuild_uses_dedicated_status = "topology_rebuild_cli_exits_with_dedicated_status"
+          recovery_step_writes_valid_marker = "recovery_step_cli_writes_a_valid_marker"
+          recovery_precedes_fresh_capability_construction = "service_orders_recovery_before_fresh_capability_construction"
+          invalid_recovery_marker_is_rejected = "invalid_recovery_marker_is_rejected"
+          '''
+          if old not in text:
+              raise SystemExit("expected capability-sealing package block not found")
+          ledger.write_text(text.replace(old, new, 1))
+          PY
+
+          python3 tools/render-frontpage.py
+          rm .github/workflows/bind-capability-sealing-candidate-once.yml
+
+      - name: Commit candidate binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "rush-ledger-bot"
+          git config user.email "rush-ledger-bot@users.noreply.github.com"
+          git add docs/plans/optid-package-status.toml README.md .github/workflows/bind-capability-sealing-candidate-once.yml
+          git commit -m "docs(optid): bind capability sealing candidate to PR 366"
+          git push origin HEAD:fix/capability-sealing-cold-restart-proof
