@@ -29,7 +29,7 @@ systemd-analyze verify packaging/systemd/optid-capability-seal-test.service
 ./target/debug/optid-capability-seal-test --probe
 ```
 
-The pull-request workflow `Capability sealing kernel proof` runs these checks on an Ubuntu 24.04 hosted kernel and uploads `capability-sealing-kernel-proof.log` containing the kernel release, active Linux security modules when visible, detected Landlock ABI, rights mask, and every runtime result.
+On every relevant pull-request commit, the `Capability sealing kernel proof` workflow runs these checks on an Ubuntu 24.04 hosted kernel and uploads `capability-sealing-kernel-proof.log`. The log records its exact head commit, kernel release, active Linux security modules when visible, detected Landlock ABI, rights mask, and every runtime result. A verifier must use the artifact whose head commit exactly matches the commit named in the verification receipt.
 
 ## Supervised restart proof on a systemd host
 
@@ -57,6 +57,6 @@ The first probe must then request status 75. systemd must start a new process, r
 
 ## Cold-verification boundary
 
-The builder may record this package only as `candidate`. A different worker must check the exact implementation commit without repairing it, inspect the workflow artifact and supervised-host output, and commit `docs/plans/optid-verification/d0.toml` before proposing `completed`.
+The builder may record this package only as `candidate`. A different worker must check the exact implementation commit without repairing it, inspect the matching workflow artifact and supervised-host output, and commit `docs/plans/optid-verification/d0.toml` before proposing `completed`.
 
 The receipt must name the exact 40-character commit, implementation pull request, commands above, observed kernel release and Landlock ABI, supervisor restart count, and an empty unresolved list. Synthetic and hosted-kernel evidence proves the mechanism; it does not authorize automatic actuation on any physical hardware identity.
