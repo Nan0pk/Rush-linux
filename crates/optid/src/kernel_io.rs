@@ -1,11 +1,10 @@
 //! F2 production adapter for injectable kernel I/O.
 //!
-//! The implementation that existed before the production-surface proof lives
-//! unchanged in `kernel_io_impl.rs`. This module keeps `RealKernel` as the
-//! production type consumed by the daemon while allowing binary-crate tests to
-//! replace that adapter on the current thread with a deterministic `KernelIo`.
-//! The override is compiled only for tests; release behavior remains a direct
-//! delegation to the original production implementation.
+//! The mechanical implementations live in `kernel_io_impl.rs`. This module
+//! keeps `RealKernel` as the production type consumed by the daemon while
+//! allowing binary-crate tests to replace that adapter on the current thread
+//! with a deterministic `KernelIo`. The override is compiled only for tests;
+//! release behavior remains direct delegation to the production implementation.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -21,9 +20,47 @@ pub use implementation::{
 #[cfg(any(test, feature = "test-utils"))]
 pub use implementation::MemoryKernel;
 
+// The facade is a private module in the binary target and a public export in
+// the library target. Compile-time function references ensure both builds
+// exercise the complete public test API without dead-code suppressions.
+const _: fn(&Path) -> io::Result<()> = is_allowlisted_write_path;
+const _: fn(Box<dyn KernelIo>) -> FaultKernel = FaultKernel::new;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::fail_next_write;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, usize) -> &'a FaultKernel =
+    FaultKernel::fail_next_write_short;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::fail_next_read;
+const _: for<'a> fn(&'a FaultKernel, PathBuf) -> &'a FaultKernel = FaultKernel::hide_path;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, String) -> &'a FaultKernel =
+    FaultKernel::malform_content;
+const _: for<'a> fn(
+    &'a FaultKernel,
+    PathBuf,
+    PathBuf,
+    io::ErrorKind,
+) -> &'a FaultKernel = FaultKernel::fail_next_rename;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::fail_next_remove;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::fail_next_create_dir;
+
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn() -> MemoryKernel = MemoryKernel::new;
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn(&MemoryKernel, u64) = MemoryKernel::advance_clock;
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn(&MemoryKernel, &Path, &str) = MemoryKernel::write_raw;
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn(&MemoryKernel, &Path, &Path) = MemoryKernel::write_link;
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn(&MemoryKernel, &Path, &Path) = MemoryKernel::add_dir;
+#[cfg(any(test, feature = "test-utils"))]
+const _: fn(&MemoryKernel, &Path, &Path) = MemoryKernel::add_dir_entry;
+
 /// Production kernel adapter used by the daemon, sensors, recovery helpers,
 /// and actuator. In non-test builds every method delegates directly to the
-/// pre-existing implementation.
+/// standard-library implementation.
 #[derive(Clone, Default)]
 pub struct RealKernel {
     inner: implementation::RealKernel,
@@ -54,55 +91,55 @@ impl RealKernel {
 
 impl KernelRead for RealKernel {
     fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        self.dispatch(|io| io.read_to_string(path))
+        self.dispatch(|kernel| kernel.read_to_string(path))
     }
 
     fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
-        self.dispatch(|io| io.read_dir(path))
+        self.dispatch(|kernel| kernel.read_dir(path))
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.dispatch(|io| io.exists(path))
+        self.dispatch(|kernel| kernel.exists(path))
     }
 
     fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
-        self.dispatch(|io| io.read_link(path))
+        self.dispatch(|kernel| kernel.read_link(path))
     }
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        self.dispatch(|io| io.canonicalize(path))
+        self.dispatch(|kernel| kernel.canonicalize(path))
     }
 }
 
 impl KernelWrite for RealKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
-        self.dispatch(|io| io.write(path, value))
+        self.dispatch(|kernel| kernel.write(path, value))
     }
 
     fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
-        self.dispatch(|io| io.write_state_file(path, value))
+        self.dispatch(|kernel| kernel.write_state_file(path, value))
     }
 
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
-        self.dispatch(|io| io.create_dir_all(path))
+        self.dispatch(|kernel| kernel.create_dir_all(path))
     }
 
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
-        self.dispatch(|io| io.rename(from, to))
+        self.dispatch(|kernel| kernel.rename(from, to))
     }
 
     fn remove_file(&self, path: &Path) -> io::Result<()> {
-        self.dispatch(|io| io.remove_file(path))
+        self.dispatch(|kernel| kernel.remove_file(path))
     }
 
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
-        self.dispatch(|io| io.append(path, text))
+        self.dispatch(|kernel| kernel.append(path, text))
     }
 }
 
 impl Clock for RealKernel {
     fn now_unix(&self) -> u64 {
-        self.dispatch(|io| io.now_unix())
+        self.dispatch(|kernel| kernel.now_unix())
     }
 }
 
@@ -141,4 +178,23 @@ pub(crate) fn with_real_kernel_override<R>(
     let previous = REAL_KERNEL_OVERRIDE.with(|slot| slot.replace(Some(kernel)));
     let _guard = OverrideGuard(previous);
     run()
+}
+
+#[cfg(test)]
+mod adapter_tests {
+    use super::*;
+
+    #[test]
+    fn f2_real_kernel_override_is_visible_to_library_target() {
+        let memory = MemoryKernel::new();
+        let path = Path::new("/virtual/f2-adapter");
+        memory.write_raw(path, "injected");
+
+        let observed = with_real_kernel_override(Box::new(memory), || {
+            RealKernel::new().read_to_string(path)
+        })
+        .expect("the RealKernel facade must delegate through the test override");
+
+        assert_eq!(observed, "injected");
+    }
 }
