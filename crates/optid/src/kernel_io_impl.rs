@@ -12,7 +12,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The single authority for which sysfs and procfs paths optid may write.
 pub fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
-    if path.components().any(|part| matches!(part, Component::ParentDir)) {
+    if path
+        .components()
+        .any(|part| matches!(part, Component::ParentDir))
+    {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             format!(
@@ -48,8 +51,7 @@ pub fn is_allowlisted_write_path(path: &Path) -> io::Result<()> {
             .and_then(|parent| parent.file_name())
             .and_then(|name| name.to_str())
             == Some("link");
-        (parent_is_link && name == Some("l1_aspm"))
-            || name == Some("link_power_management_policy")
+        (parent_is_link && name == Some("l1_aspm")) || name == Some("link_power_management_policy")
     }
 
     fn is_backlight_attr(path: &Path) -> bool {
@@ -294,12 +296,7 @@ impl FaultKernel {
         self
     }
 
-    pub fn fail_next_rename(
-        &self,
-        from: PathBuf,
-        to: PathBuf,
-        error: io::ErrorKind,
-    ) -> &Self {
+    pub fn fail_next_rename(&self, from: PathBuf, to: PathBuf, error: io::ErrorKind) -> &Self {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailRename { from, to, error });
@@ -400,10 +397,9 @@ impl FaultKernel {
     }
 
     fn is_hidden(&self, path: &Path) -> bool {
-        self.rules
-            .borrow()
-            .iter()
-            .any(|rule| matches!(rule, FaultRule::HidePath { path: candidate } if candidate == path))
+        self.rules.borrow().iter().any(
+            |rule| matches!(rule, FaultRule::HidePath { path: candidate } if candidate == path),
+        )
     }
 
     fn malformed_content(&self, path: &Path) -> Option<String> {
@@ -816,7 +812,10 @@ mod tests {
 
         kernel.fail_next_write(path.to_path_buf(), io::ErrorKind::PermissionDenied);
         assert_eq!(
-            kernel.write(path, "blocked").expect_err("fault must fire").kind(),
+            kernel
+                .write(path, "blocked")
+                .expect_err("fault must fire")
+                .kind(),
             io::ErrorKind::PermissionDenied
         );
         kernel.write(path, "new").expect("fault must be consumed");
@@ -853,6 +852,9 @@ mod tests {
 
         let malformed = FaultKernel::new(Box::new(MemoryKernel::new()));
         malformed.malform_content(path.to_path_buf(), "bad".to_string());
-        assert_eq!(malformed.read_to_string(path).expect("malformed fixture"), "bad");
+        assert_eq!(
+            malformed.read_to_string(path).expect("malformed fixture"),
+            "bad"
+        );
     }
 }

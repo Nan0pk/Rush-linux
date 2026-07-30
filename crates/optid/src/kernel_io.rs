@@ -24,6 +24,10 @@ pub use implementation::MemoryKernel;
 // the library target. Compile-time function references ensure both builds
 // exercise the complete public test API without dead-code suppressions.
 const _: fn(&Path) -> io::Result<()> = is_allowlisted_write_path;
+fn wait_event_source(source: &dyn EventSource, duration: Duration) -> bool {
+    source.wait(duration)
+}
+const _: fn(&dyn EventSource, Duration) -> bool = wait_event_source;
 const _: fn(Box<dyn KernelIo>) -> FaultKernel = FaultKernel::new;
 const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
     FaultKernel::fail_next_write;
@@ -34,12 +38,8 @@ const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel 
 const _: for<'a> fn(&'a FaultKernel, PathBuf) -> &'a FaultKernel = FaultKernel::hide_path;
 const _: for<'a> fn(&'a FaultKernel, PathBuf, String) -> &'a FaultKernel =
     FaultKernel::malform_content;
-const _: for<'a> fn(
-    &'a FaultKernel,
-    PathBuf,
-    PathBuf,
-    io::ErrorKind,
-) -> &'a FaultKernel = FaultKernel::fail_next_rename;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::fail_next_rename;
 const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
     FaultKernel::fail_next_remove;
 const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
@@ -190,10 +190,9 @@ mod adapter_tests {
         let path = Path::new("/virtual/f2-adapter");
         memory.write_raw(path, "injected");
 
-        let observed = with_real_kernel_override(Box::new(memory), || {
-            RealKernel::new().read_to_string(path)
-        })
-        .expect("the RealKernel facade must delegate through the test override");
+        let observed =
+            with_real_kernel_override(Box::new(memory), || RealKernel::new().read_to_string(path))
+                .expect("the RealKernel facade must delegate through the test override");
 
         assert_eq!(observed, "injected");
     }
