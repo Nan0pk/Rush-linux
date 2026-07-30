@@ -1,156 +1,375 @@
-//! D0 — Experimental capability-sealing prototype.
+//! Experimental proof for capability sealing and supervisor-managed cold restart.
 //!
-//! This binary is the D0 package from OPTID-COMPLETION-PLAN.md. It
-//! validates the Landlock behavior that the D2 fail-passive architecture
-//! depends on:
+//! This binary is never enabled in shipped `optid`. It validates the security
+//! and lifecycle assumptions required before runtime writes can move to a sealed
+//! typed capability table:
 //!
-//! 1. Writes through file descriptors opened **before** Landlock
-//!    restriction still succeed.
-//! 2. New write opens **after** Landlock restriction are denied.
-//! 3. Child threads/processes inherit the restrictions and cannot
-//!    escape them.
-//! 4. A sysfs object that disappears (hot-unplug) returns a handled
-//!    error, not a crash.
-//! 5. The process can exit with a dedicated topology-rebuild status
-//!    so a supervisor (systemd) can cold-restart it.
-//!
-//! ## What this is NOT
-//!
-//! - It is **not** connected to production actuation. It never writes
-//!   to real hardware. It uses synthetic temp-dir targets and, when
-//!   available, real read-safe sysfs paths.
-//! - It is **not** enabled in shipped optid. The binary only compiles
-//!   when the `experimental-capability-sealing` Cargo feature is set.
-//! - It **does not** select an unsealed fallback. If Landlock is
-//!   unavailable, the binary exits with a non-zero status and a clear
-//!   message — it never silently runs unsealed.
-//!
-//! ## Usage
-//!
-//! ```sh
-//! cargo build --features experimental-capability-sealing --bin optid-capability-seal-test
-//! ./target/debug/optid-capability-seal-test
-//! ```
-//!
-//! ## Exit codes
-//!
-//! - `0` — all checks passed; Landlock sealing works on this kernel.
-//! - `1` — Landlock is unavailable or a check failed. See stderr.
-//! - `75` — topology-rebuild requested. A supervisor should cold-
-//!   restart the process. (EX_TEMPFAIL from sysexits.h.)
-//!
-//! Per AGENTS.md §9, this prototype requires independent cold
-//! verification because it validates a security boundary.
+//! - ABI-aware Landlock write restrictions;
+//! - verified no-new-privileges;
+//! - continued use of descriptors opened before sealing;
+//! - denial of new write opens after sealing;
+//! - inheritance across threads and fork/exec;
+//! - safe handling of a genuinely removed object; and
+//! - a dedicated topology-rebuild exit followed by supervisor-ordered recovery.
 
 #![cfg(feature = "experimental-capability-sealing")]
 
+use std::ffi::OsString;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[path = "../capability_seal_test/landlock_syscall.rs"]
 mod landlock_syscall;
 #[path = "../capability_seal_test/seal_test.rs"]
 mod seal_test;
 
+const EXIT_FAILURE: i32 = 1;
+const EXIT_USAGE: i32 = 2;
 const EXIT_TOPOLOGY_REBUILD: i32 = 75;
+const RECOVERY_MARKER_HEADER: &str = "optid-capability-recovery-v1";
+
+#[derive(Debug, PartialEq, Eq)]
+enum Mode {
+    Probe,
+    ExecChildWriteProbe(PathBuf),
+    TopologyRebuild,
+    RecoveryStep(PathBuf),
+    SupervisorCycle { marker: PathBuf, counter: PathBuf },
+}
 
 fn main() {
-    eprintln!("optid-capability-seal-test: D0 experimental prototype");
-    eprintln!("  This binary validates Landlock capability sealing for the D2 architecture.");
-    eprintln!("  It does NOT write to real hardware. It uses synthetic temp-dir targets.");
-
-    // ── Step 1: detect Landlock ABI ──────────────────────────────
-    let abi = match landlock_syscall::detect_landlock_abi() {
-        Ok(abi_version) => {
-            eprintln!("  Landlock ABI detected: v{abi_version}");
-            abi_version
-        }
-        Err(e) => {
-            eprintln!("  FAIL: Landlock not available: {e}");
-            eprintln!(
-                "  D0 requires Landlock. The D2 architecture does not select an unsealed fallback."
-            );
-            process::exit(1);
+    let mode = match parse_mode(std::env::args_os().skip(1).collect()) {
+        Ok(mode) => mode,
+        Err(message) => {
+            eprintln!("optid-capability-seal-test: {message}");
+            print_usage();
+            process::exit(EXIT_USAGE);
         }
     };
 
-    // ── Step 2: create synthetic targets ─────────────────────────
-    let temp_dir = match create_synthetic_targets() {
-        Ok(dir) => dir,
-        Err(e) => {
-            eprintln!("  FAIL: could not create synthetic targets: {e}");
-            process::exit(1);
-        }
-    };
-    eprintln!("  Synthetic targets in: {}", temp_dir.display());
+    process::exit(run_mode(mode));
+}
 
-    // ── Step 3: open descriptors BEFORE Landlock ─────────────────
-    let pre_opened = match seal_test::open_targets_before_seal(&temp_dir) {
-        Ok(handles) => {
-            eprintln!("  Pre-opened {} write descriptors", handles.len());
-            handles
+fn parse_mode(args: Vec<OsString>) -> Result<Mode, String> {
+    match args.as_slice() {
+        [] => Ok(Mode::Probe),
+        [flag] if flag == "--probe" => Ok(Mode::Probe),
+        [flag] if flag == "--topology-rebuild" => Ok(Mode::TopologyRebuild),
+        [flag, path] if flag == "--exec-child-write-probe" => {
+            Ok(Mode::ExecChildWriteProbe(PathBuf::from(path)))
         }
-        Err(e) => {
-            eprintln!("  FAIL: could not pre-open descriptors: {e}");
-            let _ = fs::remove_dir_all(&temp_dir);
-            process::exit(1);
+        [flag, marker] if flag == "--recovery-step" => {
+            Ok(Mode::RecoveryStep(PathBuf::from(marker)))
         }
-    };
-
-    // ── Step 4: install Landlock ─────────────────────────────────
-    match landlock_syscall::install_landlock_restrictions() {
-        Ok(()) => eprintln!("  Landlock restrictions installed"),
-        Err(e) => {
-            eprintln!("  FAIL: could not install Landlock: {e}");
-            let _ = fs::remove_dir_all(&temp_dir);
-            process::exit(1);
-        }
+        [flag, marker, counter] if flag == "--supervisor-cycle" => Ok(Mode::SupervisorCycle {
+            marker: PathBuf::from(marker),
+            counter: PathBuf::from(counter),
+        }),
+        _ => Err("invalid arguments".to_string()),
     }
+}
 
-    // ── Step 5: run the sealing checks ───────────────────────────
-    let results = seal_test::run_seal_checks(&temp_dir, &pre_opened, abi);
+fn print_usage() {
+    eprintln!("usage:");
+    eprintln!("  optid-capability-seal-test [--probe]");
+    eprintln!("  optid-capability-seal-test --topology-rebuild");
+    eprintln!("  optid-capability-seal-test --recovery-step <marker>");
+    eprintln!("  optid-capability-seal-test --supervisor-cycle <marker> <counter>");
+}
 
-    // ── Step 6: report results ───────────────────────────────────
+fn run_mode(mode: Mode) -> i32 {
+    match mode {
+        Mode::Probe => run_capability_probe(),
+        Mode::ExecChildWriteProbe(path) => run_exec_child_probe(&path),
+        Mode::TopologyRebuild => {
+            eprintln!("topology change accepted; requesting supervisor-managed cold restart");
+            EXIT_TOPOLOGY_REBUILD
+        }
+        Mode::RecoveryStep(marker) => match write_recovery_marker(&marker) {
+            Ok(()) => {
+                eprintln!("recovery step completed: {}", marker.display());
+                0
+            }
+            Err(error) => {
+                eprintln!("recovery step failed: {error}");
+                EXIT_FAILURE
+            }
+        },
+        Mode::SupervisorCycle { marker, counter } => run_supervisor_cycle(&marker, &counter),
+    }
+}
+
+fn run_exec_child_probe(path: &Path) -> i32 {
+    let no_new_privs = match landlock_syscall::no_new_privs_is_set() {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("exec child could not query no-new-privileges: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+    let write_denied = match seal_test::new_write_open_is_denied(path) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("exec child received unexpected write-open error: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+
+    if no_new_privs && write_denied {
+        eprintln!("exec child inherited no-new-privileges and Landlock write denial");
+        0
+    } else {
+        eprintln!(
+            "exec child inheritance failed: no_new_privs={no_new_privs} write_denied={write_denied}"
+        );
+        EXIT_FAILURE
+    }
+}
+
+fn run_capability_probe() -> i32 {
+    eprintln!("optid capability sealing and cold-restart proof");
+    eprintln!("  experimental only; no real hardware writes are performed");
+
+    let abi = match landlock_syscall::detect_landlock_abi() {
+        Ok(abi) => abi,
+        Err(error) => {
+            eprintln!("  FAIL: Landlock is unavailable: {error}");
+            eprintln!("  no unsealed fallback is permitted");
+            return EXIT_FAILURE;
+        }
+    };
+    let expected_rights = match landlock_syscall::handled_write_rights(abi) {
+        Ok(rights) => rights,
+        Err(error) => {
+            eprintln!("  FAIL: could not construct ABI-aware rights: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+    eprintln!("  kernel={} Landlock ABI={abi}", landlock_syscall::kernel_release());
+    eprintln!("  handled write rights=0x{expected_rights:x}");
+
+    let current_exe = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("  FAIL: could not resolve current executable: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+    let temp_dir = match create_synthetic_targets() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("  FAIL: could not create synthetic targets: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+    eprintln!("  synthetic targets={}", temp_dir.display());
+
+    let pre_opened = match seal_test::open_targets_before_seal(&temp_dir) {
+        Ok(handles) => handles,
+        Err(error) => {
+            eprintln!("  FAIL: could not build pre-opened capability table: {error}");
+            let _ = fs::remove_dir_all(&temp_dir);
+            return EXIT_FAILURE;
+        }
+    };
+    eprintln!("  pre-opened descriptors={}", pre_opened.len());
+
+    let installed_rights = match landlock_syscall::install_landlock_restrictions(abi) {
+        Ok(rights) => rights,
+        Err(error) => {
+            eprintln!("  FAIL: could not install Landlock restrictions: {error}");
+            let _ = fs::remove_dir_all(&temp_dir);
+            return EXIT_FAILURE;
+        }
+    };
+
+    let mut results = Vec::new();
+    results.push(seal_test::SealTestResult {
+        name: "abi_aware_rights",
+        passed: installed_rights == expected_rights,
+        message: format!(
+            "detected ABI {abi}; installed rights 0x{installed_rights:x}; expected 0x{expected_rights:x}"
+        ),
+    });
+    let no_new_privs = landlock_syscall::no_new_privs_is_set().unwrap_or(false);
+    results.push(seal_test::SealTestResult {
+        name: "no_new_privileges",
+        passed: no_new_privs,
+        message: format!("PR_GET_NO_NEW_PRIVS={}", i32::from(no_new_privs)),
+    });
+    results.extend(seal_test::run_seal_checks(
+        &temp_dir,
+        &pre_opened,
+        &current_exe,
+    ));
+
     let mut all_passed = true;
     for result in &results {
         let status = if result.passed { "PASS" } else { "FAIL" };
         eprintln!("  [{status}] {}: {}", result.name, result.message);
-        if !result.passed {
-            all_passed = false;
-        }
+        all_passed &= result.passed;
     }
 
-    let _ = fs::remove_dir_all(&temp_dir);
+    // Sealing is intentionally irreversible, so this process cannot remove the
+    // synthetic directory after the proof. The test-only service uses PrivateTmp
+    // and systemd removes that namespace when the process exits.
+    eprintln!("  post-seal cleanup delegated to the private temporary namespace");
 
     if all_passed {
-        eprintln!("  All D0 checks passed. Landlock sealing works on this kernel.");
-        eprintln!(
-            "  Receipt: kernel=0x{:x} abi=v{abi} checks={}",
-            landlock_syscall::kernel_version(),
-            results.len()
-        );
-        process::exit(0);
+        eprintln!("  capability-sealing proof passed ({} checks)", results.len());
+        0
     } else {
-        eprintln!("  D0 checks failed. See above for details.");
-        eprintln!(
-            "  This blocks S4D (sealed typed capability table) but not F1–F4 or read-only work."
-        );
-        process::exit(1);
+        eprintln!("  capability-sealing proof failed");
+        EXIT_FAILURE
     }
 }
 
-/// Create a temp directory with synthetic "sysfs-like" targets.
+fn run_supervisor_cycle(marker: &Path, counter: &Path) -> i32 {
+    if let Err(error) = verify_recovery_marker(marker) {
+        eprintln!("recovery ordering failed before capability discovery: {error}");
+        return EXIT_FAILURE;
+    }
+    eprintln!(
+        "recovery marker verified before capability discovery: {}",
+        marker.display()
+    );
+
+    let cycle = match increment_cycle_counter(counter) {
+        Ok(cycle) => cycle,
+        Err(error) => {
+            eprintln!("could not update supervisor cycle counter: {error}");
+            return EXIT_FAILURE;
+        }
+    };
+
+    let probe_status = run_capability_probe();
+    if probe_status != 0 {
+        return probe_status;
+    }
+
+    if cycle == 1 {
+        eprintln!("first sealed cycle complete; requesting topology rebuild with status 75");
+        EXIT_TOPOLOGY_REBUILD
+    } else {
+        eprintln!("fresh sealed process started after recovery; supervisor cycle complete");
+        0
+    }
+}
+
+fn write_recovery_marker(path: &Path) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
+        .as_nanos();
+    fs::write(
+        path,
+        format!(
+            "{RECOVERY_MARKER_HEADER}\nrecovery_complete=1\npid={}\nunix_nanos={now}\n",
+            process::id()
+        ),
+    )
+}
+
+fn verify_recovery_marker(path: &Path) -> io::Result<()> {
+    let marker = fs::read_to_string(path)?;
+    let mut lines = marker.lines();
+    if lines.next() != Some(RECOVERY_MARKER_HEADER)
+        || !lines.any(|line| line == "recovery_complete=1")
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid recovery marker at {}", path.display()),
+        ));
+    }
+    Ok(())
+}
+
+fn increment_cycle_counter(path: &Path) -> io::Result<u32> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let previous = match fs::read_to_string(path) {
+        Ok(value) => value.trim().parse::<u32>().map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid cycle counter: {error}"),
+            )
+        })?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => 0,
+        Err(error) => return Err(error),
+    };
+    let next = previous
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "cycle counter overflow"))?;
+    fs::write(path, format!("{next}\n"))?;
+    Ok(next)
+}
+
 fn create_synthetic_targets() -> io::Result<PathBuf> {
-    let dir = std::env::temp_dir().join(format!("optid-d0-seal-test-{}", std::process::id()));
-    fs::create_dir_all(&dir)?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!(
+        "optid-capability-seal-test-{}-{nonce}",
+        process::id()
+    ));
+    fs::create_dir_all(dir.join("power"))?;
     fs::write(dir.join("control"), "on\n")?;
     fs::write(dir.join("brightness"), "100\n")?;
-    fs::create_dir_all(dir.join("power"))?;
-    fs::write(dir.join("power").join("autosuspend_delay_ms"), "2000\n")?;
+    fs::write(dir.join("power/autosuspend_delay_ms"), "2000\n")?;
+    fs::write(dir.join("removed-object"), "present-before-seal\n")?;
     Ok(dir)
 }
 
-#[allow(dead_code)]
-const _EXIT_TOPOLOGY_REBUILD: i32 = EXIT_TOPOLOGY_REBUILD;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_topology_rebuild_mode() {
+        assert_eq!(
+            parse_mode(vec![OsString::from("--topology-rebuild")]).expect("parse mode"),
+            Mode::TopologyRebuild
+        );
+    }
+
+    #[test]
+    fn topology_rebuild_mode_returns_status_75() {
+        assert_eq!(run_mode(Mode::TopologyRebuild), EXIT_TOPOLOGY_REBUILD);
+    }
+
+    #[test]
+    fn recovery_marker_round_trip() {
+        let path = std::env::temp_dir().join(format!(
+            "optid-capability-recovery-test-{}",
+            process::id()
+        ));
+        let _ = fs::remove_file(&path);
+        write_recovery_marker(&path).expect("write marker");
+        verify_recovery_marker(&path).expect("verify marker");
+        fs::remove_file(path).expect("remove marker");
+    }
+
+    #[test]
+    fn invalid_recovery_marker_is_rejected() {
+        let path = std::env::temp_dir().join(format!(
+            "optid-capability-recovery-invalid-{}",
+            process::id()
+        ));
+        fs::write(&path, "not-a-recovery-marker\n").expect("write invalid marker");
+        assert_eq!(
+            verify_recovery_marker(&path)
+                .expect_err("invalid marker must fail")
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+        fs::remove_file(path).expect("remove marker");
+    }
+}
