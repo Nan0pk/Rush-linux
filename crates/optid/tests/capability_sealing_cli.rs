@@ -60,7 +60,10 @@ fn service_orders_recovery_before_fresh_capability_construction() {
         .iter()
         .position(|line| line.starts_with("ExecStart=") && line.contains("--supervisor-cycle"))
         .expect("supervisor-cycle ExecStart");
-    assert!(recovery < fresh_process, "recovery must be declared before ExecStart");
+    assert!(
+        recovery < fresh_process,
+        "recovery must be declared before ExecStart"
+    );
 
     assert!(unit.contains("RestartForceExitStatus=75"));
     assert!(unit.contains("RuntimeDirectoryPreserve=restart"));

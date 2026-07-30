@@ -148,7 +148,10 @@ fn run_capability_probe() -> i32 {
             return EXIT_FAILURE;
         }
     };
-    eprintln!("  kernel={} Landlock ABI={abi}", landlock_syscall::kernel_release());
+    eprintln!(
+        "  kernel={} Landlock ABI={abi}",
+        landlock_syscall::kernel_release()
+    );
     eprintln!("  handled write rights=0x{expected_rights:x}");
 
     let current_exe = match std::env::current_exe() {
@@ -219,7 +222,10 @@ fn run_capability_probe() -> i32 {
     eprintln!("  post-seal cleanup delegated to the private temporary namespace");
 
     if all_passed {
-        eprintln!("  capability-sealing proof passed ({} checks)", results.len());
+        eprintln!(
+            "  capability-sealing proof passed ({} checks)",
+            results.len()
+        );
         0
     } else {
         eprintln!("  capability-sealing proof failed");
@@ -347,10 +353,8 @@ mod tests {
 
     #[test]
     fn recovery_marker_round_trip() {
-        let path = std::env::temp_dir().join(format!(
-            "optid-capability-recovery-test-{}",
-            process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("optid-capability-recovery-test-{}", process::id()));
         let _ = fs::remove_file(&path);
         write_recovery_marker(&path).expect("write marker");
         verify_recovery_marker(&path).expect("verify marker");
