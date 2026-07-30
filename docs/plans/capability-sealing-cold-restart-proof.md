@@ -1,6 +1,6 @@
 # Capability Sealing and Supervisor-Managed Cold Restart Proof
 
-This document is the verifier-facing procedure for the experimental safety package **Prototype capability sealing and supervisor-managed cold restart**. The prototype is feature-gated, is not installed in the shipped image, and never writes real hardware attributes.
+This document is the verifier-facing procedure for the experimental safety package **Prototype capability sealing and supervisor-managed cold restart**. Its builder implementation is draft pull request **#366**. The prototype is feature-gated, is not installed in the shipped image, and never writes real hardware attributes.
 
 ## What the proof must establish
 
