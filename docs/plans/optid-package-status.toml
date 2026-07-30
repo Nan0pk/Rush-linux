@@ -1,5 +1,5 @@
 schema_version = 2
-updated = "2026-07-26"
+updated = "2026-07-31"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
@@ -67,7 +67,7 @@ runtime_entrypoints = [
   "crates/optid/src/action.rs",
   "crates/optid/src/actuator.rs",
 ]
-# Binary-crate exception: `optid` is `[[bin]]`-only, so production paths
+# Binary-crate exception: `optid` is a `[[bin]]`-only crate, so production paths
 # are `pub(crate)` and cannot be reached from `tests/` integration tests.
 # The F1 behavioral coverage lives inside `crates/optid/src/policy.rs`
 # under `#[cfg(test)] mod f1_tests`. The `acceptance_tests` mapping
@@ -101,11 +101,30 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-status = "merged_incomplete"
+status = "candidate"
 depends = []
-pr = "356"
-blocking_reason = "The F2 seam now covers all io_util.rs recovery, journal, marker, log, and atomic state-file operations: the five revert paths have injectable *_with entry points; KernelWrite has a distinct allowlist-free write_state_file operation for daemon-owned state; and Actuator routes its journal, marker, log, state-file reads, and state-file existence checks through its injected KernelIo. FaultKernel tests cover atomic-write failure, log-append failure, and both successful and failed sysctl recovery with journal cleanup/retention. Short-write injection remains covered by 4 kernel_io tests. PR #355 adds the optid library target and test-utils feature and exports MemoryKernel, FaultKernel, and their I/O traits, resolving the prior integration-test reachability blocker. PR #356 extends deterministic mutation faults to rename/remove/directory operations (FailRename, FailRemove, FailCreateDir) with corresponding FaultKernel configuration methods and KernelWrite implementations; adds 4 new kernel_io tests. This exposes the test seam but does not prove production-path integration. Remaining F2 work: (1) add a production-surface integration test that enters through the daemon or CLI rather than only in-crate functions. Initial F2 implementation provenance remains PR #325, with subsequent recovery/journal seam repair in PR #353. No package self-certifies completed."
-completion_evidence = []
+pr = "365"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/kernel_io.rs",
+  "crates/optid/src/io_util.rs",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/sensors.rs",
+]
+integration_tests = [
+  "crates/optid/src/tests.rs",
+]
+completion_evidence = [
+  "crates/optid/src/kernel_io.rs",
+  "crates/optid/src/kernel_io_impl.rs",
+  "crates/optid/src/tests.rs",
+  "crates/optid/src/tests_impl.rs",
+  "crates/optid/src/io_util.rs",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/sensors.rs",
+]
+[package.acceptance_tests]
+production_daemon_consumes_injected_kernel_io = "f2_production_daemon_run_consumes_injected_kernel_io"
 
 [[package]]
 id = "F3"
@@ -289,7 +308,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 remains merged_incomplete (MemoryKernel still test-only; recovery/journal paths bypass the seam); (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 is candidate but not completed, so its dependency remains locked pending independent cold verification; (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
@@ -297,7 +316,7 @@ runtime_entrypoints = [
   "crates/optid/src/thermal.rs",
   "crates/optid/src/decision.rs",
 ]
-# Binary-crate exception: `optid` is `[[bin]]`-only, so production paths
+# Binary-crate exception: `optid` is a `[[bin]]`-only crate, so production paths
 # are `pub(crate)` and cannot be reached from `tests/` integration tests.
 # T1 behavioral coverage lives inside `crates/optid/src/thermal.rs`
 # under `#[cfg(test)] mod tests`. The `acceptance_tests` mapping below
