@@ -20,9 +20,9 @@ pub use implementation::{
 #[cfg(any(test, feature = "test-utils"))]
 pub use implementation::MemoryKernel;
 
-// The facade is a private module in the binary target and a public export in
-// the library target. Compile-time function references ensure both builds
-// exercise the complete public test API without dead-code suppressions.
+// The facade is private in the binary target and public in the library target.
+// These compile-time references keep every exported F2 boundary, including the
+// future E1 event seam, visible to both builds without dead-code suppressions.
 const _: fn(&Path) -> io::Result<()> = is_allowlisted_write_path;
 fn wait_event_source(source: &dyn EventSource, duration: Duration) -> bool {
     source.wait(duration)
