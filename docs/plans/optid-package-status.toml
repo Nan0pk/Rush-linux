@@ -150,11 +150,37 @@ completion_evidence = []
 id = "D0"
 lane = "safety"
 title = "Prototype capability sealing and supervisor-managed cold restart"
-status = "merged_incomplete"
+status = "candidate"
 depends = []
-pr = "328"
-blocking_reason = "The prototype lacks valid removed-object, child-process/exec, exit-75, recovery-order, ABI-rights, no-new-privileges, feature-build CI, and cold-kernel proof."
-completion_evidence = []
+pr = "366"
+runtime_entrypoints = [
+  "crates/optid/src/bin/optid-capability-seal-test.rs",
+  "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+  "crates/optid/src/capability_seal_test/seal_test.rs",
+  "packaging/systemd/optid-capability-seal-test.service",
+]
+integration_tests = [
+  "crates/optid/src/bin/optid-capability-seal-test.rs",
+  "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+  "crates/optid/tests/capability_sealing_cli.rs",
+]
+completion_evidence = [
+  "crates/optid/src/bin/optid-capability-seal-test.rs",
+  "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+  "crates/optid/src/capability_seal_test/seal_test.rs",
+  "crates/optid/tests/capability_sealing_cli.rs",
+  "packaging/systemd/optid-capability-seal-test.service",
+  ".github/workflows/capability-sealing-kernel-proof.yml",
+  "docs/plans/capability-sealing-cold-restart-proof.md",
+]
+[package.acceptance_tests]
+abi_one_excludes_newer_rights = "abi_one_excludes_newer_rights"
+abi_two_adds_refer_only = "abi_two_adds_refer_only"
+abi_three_adds_truncate = "abi_three_adds_truncate"
+topology_rebuild_uses_dedicated_status = "topology_rebuild_cli_exits_with_dedicated_status"
+recovery_step_writes_valid_marker = "recovery_step_cli_writes_a_valid_marker"
+recovery_precedes_fresh_capability_construction = "service_orders_recovery_before_fresh_capability_construction"
+invalid_recovery_marker_is_rejected = "invalid_recovery_marker_is_rejected"
 
 [[package]]
 id = "S1D"
