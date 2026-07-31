@@ -1,44 +1,39 @@
-# D0 — Test-only systemd unit for capability-sealing cold-restart proof.
+# Test-only unit for capability sealing and supervisor-managed cold restart.
 #
-# This unit proves that a supervisor (systemd) can cold-restart the D0
-# prototype after a topology-rebuild exit (exit code 75 = EX_TEMPFAIL).
-# It is NOT installed in the shipped image — it lives only in the
-# repository for the D0 evidence trail.
-#
-# Per the D0 plan: "Add a test-only systemd unit proving recovery
-# completes before a fresh capability table is constructed."
-#
-# Usage (on a real system with Landlock):
-#   sudo cp packaging/systemd/optid-capability-seal-test.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl start optid-capability-seal-test
-#   journalctl -u optid-capability-seal-test -f
-#
-# The unit restarts on exit code 75 (topology-rebuild) up to 5 times
-# within 60 seconds, then gives up. A successful exit (code 0) means
-# Landlock sealing works on this kernel.
+# This unit is repository evidence and is not installed in the shipped image.
+# Each start runs the recovery step before constructing a fresh capability table.
+# The first successful sealed cycle exits 75, which forces a cold restart. The
+# second cycle verifies recovery again, rebuilds and seals a new table, then exits
+# successfully.
 
 [Unit]
-Description=optid D0 capability-sealing prototype (test-only, not shipped)
-Documentation=https://github.com/Nan0pk/Rush-linux/blob/main/OPTID-COMPLETION-PLAN.md
-# This is a test unit — do not start at boot.
-ConditionPathExists=/run/optid-d0-test-enabled
+Description=optid capability sealing and cold-restart proof (test-only)
+Documentation=https://github.com/Nan0pk/Rush-linux/blob/main/docs/architecture/optid-d2-amendment.md
+ConditionPathExists=/run/optid-capability-seal-test-enabled
+StartLimitIntervalSec=60s
+StartLimitBurst=5
 
 [Service]
-Type=oneshot
-# The binary only exists when compiled with the experimental feature.
-ExecStart=/usr/local/libexec/optid-capability-seal-test
-# Restart on topology-rebuild (exit 75). Give up after 5 attempts in 60s.
-Restart=on-failure
-RestartPreventExitStatus=0
-RestartSec=2
-StartLimitBurst=5
-StartLimitIntervalSec=60
-# The prototype uses a temp dir for synthetic targets — no real hardware.
-PrivateTmp=true
-# Read-only filesystem — the prototype only writes to its temp dir.
+Type=exec
+ExecStartPre=/usr/local/libexec/optid-capability-seal-test --recovery-step /run/optid-capability-seal-test/recovery.ready
+ExecStart=/usr/local/libexec/optid-capability-seal-test --supervisor-cycle /run/optid-capability-seal-test/recovery.ready /run/optid-capability-seal-test/cycle.count
+
+# Only the dedicated topology-rebuild status forces a restart.
+Restart=no
+RestartForceExitStatus=75
+RestartSec=2s
+
+# The cycle counter must survive the automatic restart, but not a normal stop.
+RuntimeDirectory=optid-capability-seal-test
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=restart
+
+# Match the prototype's own irreversible no-new-privileges requirement.
+NoNewPrivileges=yes
+PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/tmp
+ProtectHome=yes
+ReadWritePaths=/run/optid-capability-seal-test /tmp
 
 [Install]
 WantedBy=multi-user.target

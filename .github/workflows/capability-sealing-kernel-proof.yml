@@ -1,0 +1,67 @@
+name: Capability sealing kernel proof
+
+on:
+  pull_request:
+    paths:
+      - "crates/optid/Cargo.toml"
+      - "crates/optid/src/bin/optid-capability-seal-test.rs"
+      - "crates/optid/src/capability_seal_test/**"
+      - "crates/optid/tests/capability_sealing_cli.rs"
+      - "packaging/systemd/optid-capability-seal-test.service"
+      - ".github/workflows/capability-sealing-kernel-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kernel-proof:
+    name: Prove Landlock and cold-restart contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Test the feature-gated binary and CLI contract
+        run: |
+          set -euo pipefail
+          cargo test -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          cargo test -p optid --features experimental-capability-sealing \
+            --test capability_sealing_cli
+
+      - name: Build the kernel proof binary
+        run: |
+          set -euo pipefail
+          cargo build -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          sudo install -D -m 0755 target/debug/optid-capability-seal-test \
+            /usr/local/libexec/optid-capability-seal-test
+
+      - name: Validate the test-only supervisor unit
+        run: |
+          set -euo pipefail
+          systemd-analyze verify packaging/systemd/optid-capability-seal-test.service
+
+      - name: Run the cold kernel proof
+        run: |
+          set -euo pipefail
+          {
+            echo "kernel_uname=$(uname -a)"
+            if [[ -r /sys/kernel/security/lsm ]]; then
+              echo "active_lsms=$(cat /sys/kernel/security/lsm)"
+            else
+              echo "active_lsms=unavailable"
+            fi
+            /usr/local/libexec/optid-capability-seal-test --probe
+          } 2>&1 | tee capability-sealing-kernel-proof.log
+
+      - name: Upload the proof log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capability-sealing-kernel-proof
+          path: capability-sealing-kernel-proof.log
+          if-no-files-found: error
