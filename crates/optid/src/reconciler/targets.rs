@@ -199,11 +199,22 @@ impl Reconciler {
                 action.stable_target_id(),
                 sanitize_identity(property)
             );
-            if self
+            let desired = StoredValue::Systemd {
+                explicit: true,
+                value: value.to_string(),
+            };
+            let (ownership, last_confirmed, has_baseline) = self
                 .targets
                 .get(&target_id)
-                .map_or(true, |state| state.baseline.is_none())
-            {
+                .map(|state| {
+                    (
+                        state.ownership.clone(),
+                        state.last_confirmed.clone(),
+                        state.baseline.is_some(),
+                    )
+                })
+                .unwrap_or((OwnershipState::Unknown, None, false));
+            if !has_baseline {
                 outcome.targets.push(systemd_failed_target(
                     target_id,
                     false,
@@ -212,6 +223,14 @@ impl Reconciler {
                         io::ErrorKind::InvalidData,
                         "systemd baseline capture failed",
                     ),
+                ));
+                continue;
+            }
+            if ownership == OwnershipState::Relinquished {
+                outcome.targets.push(systemd_relinquished_target(
+                    target_id,
+                    ReadbackOutcome::NotPerformed,
+                    "ownership was previously relinquished; desired value was not reasserted",
                 ));
                 continue;
             }
@@ -227,6 +246,24 @@ impl Reconciler {
                     continue;
                 }
             };
+            let current_value = StoredValue::Systemd {
+                explicit: current.explicit,
+                value: current.value.clone(),
+            };
+            if ownership == OwnershipState::Optid
+                && last_confirmed.as_ref() == Some(&desired)
+                && current_value != desired
+            {
+                outcome.targets.push(systemd_relinquished_target(
+                    target_id,
+                    ReadbackOutcome::Mismatch {
+                        expected: desired.public_value(),
+                        actual: current_value.public_value(),
+                    },
+                    "external drift detected while property remained desired; write refused",
+                ));
+                continue;
+            }
             if current.explicit && current.value == value {
                 outcome.targets.push(TargetOutcome {
                     target_id: target_id.clone(),
@@ -238,11 +275,7 @@ impl Reconciler {
                     readback: ReadbackOutcome::Confirmed {
                         value: current.value,
                     },
-                    ownership: self
-                        .targets
-                        .get(&target_id)
-                        .map(|state| state.ownership.clone())
-                        .unwrap_or(OwnershipState::Unowned),
+                    ownership,
                     pending_restore: RestoreState::Pending,
                     responsible_subsystem: ResponsibleSubsystem::Systemd,
                     detail: None,
@@ -415,5 +448,25 @@ impl Reconciler {
             );
         }
         Ok(())
+    }
+}
+
+fn systemd_relinquished_target(
+    target_id: String,
+    readback: ReadbackOutcome,
+    detail: &str,
+) -> TargetOutcome {
+    TargetOutcome {
+        target_id,
+        pipeline_stage: PipelineStage::Readback,
+        support: SupportState::Supported,
+        reason: OutcomeReasonCode::OwnershipRelinquished,
+        write_attempted: false,
+        write_outcome: WriteOutcome::OwnershipRelinquished,
+        readback,
+        ownership: OwnershipState::Relinquished,
+        pending_restore: RestoreState::NotApplicable,
+        responsible_subsystem: ResponsibleSubsystem::Systemd,
+        detail: Some(detail.to_string()),
     }
 }
