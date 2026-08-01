@@ -3,19 +3,17 @@ updated = "2026-08-02"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F1, F2, and F3 were independently cold-verified on 2026-08-02 by a verifier
-# session with a working Rust toolchain (rustc 1.97.1). All three receipts
-# record result="pass" against verified_commit
-# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369), which is an
-# ancestor of this branch's HEAD with no declared proof paths modified after
-# it. The earlier 2026-08-01 blocked attempt is retained as historical
-# provenance in each receipt.
+# PR #371 changes the shared production entry point crates/optid/src/main.rs.
+# That invalidates the previously passing F1, F2, and F3 cold-verification
+# receipts at commit 107a4330e2d0505a6b48b35c7d4148482a426f3d. The receipts remain
+# recorded as historical evidence, but all three packages are truthfully
+# demoted to merged_incomplete until an independent verifier re-runs their
+# mapped proofs against a commit containing the F4 cutover.
 #
-# active_general moves to F4 (Reconcile complete desired state and restore on
-# transitions). F4 depends on [F2, F3], both now completed; its merged_incomplete
-# blocking reason describes the still-outstanding reconciler and restoration
-# work, which the next builder phase must address. No package self-certifies
-# completion.
+# F4's production implementation and behavioral acceptance suite are integrated
+# on PR #371. F4 remains merged_incomplete because its dependencies are awaiting
+# fresh verification and F4 itself has no independent cold-verification receipt.
+# No package self-certifies completion.
 active_general = "F4"
 active_safety = "D0"
 
@@ -38,17 +36,10 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f1.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F1 declared proof path modified
-# after it. All nine mapped F1 acceptance tests were executed individually
-# with --exact. The earlier 2026-08-01 blocked attempt is retained as
-# historical provenance inside the receipt.
-status = "completed"
+status = "merged_incomplete"
 depends = []
 pr = "332"
+blocking_reason = "PR #371 modifies the shared production entry point crates/optid/src/main.rs after the last independent F1 verification at 107a4330e2d0505a6b48b35c7d4148482a426f3d. The historical receipt remains recorded, but a fresh cold verifier must rerun the mapped F1 acceptance tests and production-path proof against a commit containing the F4 cutover before F1 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f1.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -90,18 +81,10 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f2.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F2 declared proof path modified
-# after it. The mapped F2 acceptance test was executed individually with
-# --exact and confirms the injected kernel-I/O boundary is consumed by the
-# real daemon run path. The earlier 2026-08-01 blocked attempt is retained
-# as historical provenance inside the receipt.
-status = "completed"
+status = "merged_incomplete"
 depends = []
 pr = "365"
+blocking_reason = "PR #371 modifies the shared production entry point crates/optid/src/main.rs after the last independent F2 verification at 107a4330e2d0505a6b48b35c7d4148482a426f3d. The historical receipt remains recorded, but a fresh cold verifier must rerun the mapped injected-kernel-I/O production proof against a commit containing the F4 cutover before F2 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f2.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -129,19 +112,10 @@ production_daemon_consumes_injected_kernel_io = "f2_production_daemon_run_consum
 id = "F3"
 lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f3.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F3 declared proof path modified
-# after it. All six mapped in-crate F3 acceptance tests and all three mapped
-# optctl status_cli integration tests were executed individually with --exact.
-# F1 was independently verified first, so the F3 dependency gate is satisfied.
-# The earlier 2026-08-01 blocked attempt is retained as historical provenance
-# inside the receipt.
-status = "completed"
+status = "merged_incomplete"
 depends = ["F1"]
 pr = "369"
+blocking_reason = "PR #371 modifies the shared production entry point crates/optid/src/main.rs and extends the production control-cycle restore path after the last independent F3 verification at 107a4330e2d0505a6b48b35c7d4148482a426f3d. The historical receipt remains recorded, but F1 and F3 require fresh cold verification of their mapped tests and versioned production envelope against a commit containing the F4 cutover."
 verification_receipt = "docs/plans/optid-verification/f3.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -175,9 +149,43 @@ lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
 depends = ["F2", "F3"]
-pr = "327"
-blocking_reason = "Reconciler shadow mode is honestly dormant: it tracks target-set parity (which journal keys the current decision desires vs the previous tick) via replace_desired_targets + stale_target_ids, and detects transitions for operator-visible logging. It does NOT plan or apply restores. The post-#338-review repair removed the disconnected Domain-keyed states model and plan_restore/reconcile methods that production never populated; the target-keyed V1 helpers (baseline/confirmed/ownership/may_restore) are retained under #[cfg(test)] for the future cutover. Production restore still uses active_keys + Actuator::revert_key in main.rs; the ledger must clearly state this. Remaining blockers: (1) wire target state (baseline, last_confirmed, ownership) from real journal observations (original_<key> / applied_<key> files the actuator writes) so may_restore_target can evaluate real restores; (2) reintroduce a target-based restore planner that reads the wired target state (the old Domain-keyed plan_restore was removed because it read a model production never populated); (3) F3 envelope alignment (reconciler still has local Ownership type); (4) full systemd property restore — Action::SystemdSetProperty::journal_key() returns None because the Systemd apply path captures no original properties and has no property-level restoration; a real implementation must enumerate each changed property, read its original runtime value, distinguish absent from explicit, restore each, verify readback, and avoid overwriting external changes; (5) VM/sysctl restore through the reconciler rather than only journal keys; (6) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
-completion_evidence = []
+pr = "371"
+blocking_reason = "PR #371 integrates one production target-keyed reconciler as the sole transition-restore planner and executor. It captures baselines before writes, claims ownership only after confirmed readback, hydrates typed and legacy journals, restores stale targets with external-drift guards and bounded retries, handles VM/sysctl targets, expands Systemd actions per unit/property with explicit-versus-unset baseline semantics, emits F3-native restore outcomes, and exercises the real Actuator + Reconciler path in behavioral tests. F4 remains merged_incomplete because F1, F2, and F3 were truthfully demoted after the shared main.rs cutover invalidated their receipts, and F4 has no independent cold-verification receipt. Fresh independent verification of F1-F3 followed by F4 is the remaining blocker; no builder self-certification is accepted."
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/state.rs",
+  "crates/optid/src/reconciler/targets.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+]
+integration_tests = [
+  "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/src/reconciler/tests/systemd.rs",
+  "crates/optid/src/reconciler/tests/unit.rs",
+]
+completion_evidence = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/state.rs",
+  "crates/optid/src/reconciler/targets.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/src/reconciler/tests/systemd.rs",
+  "crates/optid/src/reconciler/tests/unit.rs",
+]
+[package.acceptance_tests]
+production_coalesces_confirmed_value = "f4_production_coalesces_confirmed_value_and_writes_one_change"
+runtime_pm_transition_restores_baseline = "f4_production_runtime_pm_transition_restores_baseline"
+external_drift_is_not_overwritten = "f4_production_external_drift_relinquishes_without_overwrite"
+restart_hydrates_legacy_journal = "f4_restart_hydrates_real_legacy_journal_and_ownership"
+restart_hydrates_typed_vm_state = "f4_restart_hydrates_typed_vm_state_and_restores"
+systemd_property_restore = "f4_systemd_multiple_properties_apply_restore_and_unset"
+systemd_partial_failure_is_independent = "f4_systemd_partial_property_failure_is_typed_and_independent"
+systemd_readback_mismatch_denies_ownership = "f4_systemd_readback_mismatch_never_claims_ownership"
+transition_detection = "f4_transition_detection_covers_ac_workload_mode_and_domain_off"
+malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
 
 [[package]]
 id = "D0"
