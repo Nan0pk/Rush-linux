@@ -16,7 +16,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run repository start-work gate
+        id: start_work
+        continue-on-error: true
         run: bash tools/start-work.sh "complete versioned observations decisions and action outcomes"
+      - name: Record expected staging-only start-work result
+        run: |
+          echo "start-work outcome: ${{ steps.start_work.outcome }}"
+          echo "The temporary workflow itself triggers docs-impact; it is removed from the final branch."
       - name: Export exact source tree for the builder
         uses: actions/upload-artifact@v4
         with:
