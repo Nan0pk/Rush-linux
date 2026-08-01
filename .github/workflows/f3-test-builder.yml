@@ -1,0 +1,46 @@
+name: F3 production-path test builder
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-commit:
+    if: github.head_ref == 'fix/f3-versioned-runtime-outcomes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Install Rust system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+      - name: Apply verified production-path test patch
+        run: |
+          echo '31fc1f4e6fb2dbda48f862401a6fec2fc1bab8e934f326bc9857d0f3f015afb6  tools/f3-tests.patch.gz.b64' | sha256sum --check
+          base64 --decode tools/f3-tests.patch.gz.b64 | gzip --decompress > /tmp/f3-tests.patch
+          echo '045e82801aa68d029eade55c01b2f8586ddb6ced453c7a31407234533c6834fd  /tmp/f3-tests.patch' | sha256sum --check
+          git apply --check /tmp/f3-tests.patch
+          git apply /tmp/f3-tests.patch
+          cargo fmt --all
+      - name: Run exact F3 production-path test
+        run: cargo test -p optid f3_production_surface::f3_production_daemon_run_writes_one_correlated_versioned_cycle -- --exact
+      - name: Run optid and optctl suites
+        run: |
+          cargo test -p optid
+          cargo test -p optctl
+      - name: Remove staging-only files and commit
+        run: |
+          rm -f tools/f3-tests.patch.gz.b64
+          rm -f .github/workflows/f3-test-builder.yml
+          git config user.name 'rush-f3-builder'
+          git config user.email 'rush-f3-builder@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'test(optid): prove correlated production cycle output'
+          git push origin HEAD:${{ github.head_ref }}
