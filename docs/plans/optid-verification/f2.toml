@@ -1,37 +1,102 @@
 # Independent cold-verification receipt for:
 # Introduce injectable kernel I/O, clock, and event boundaries
 #
-# Verification was performed by a separate GLM 5.2 agent session after the
-# implementation had merged. The verifier did not modify production or test
-# code. This receipt records the re-run performed after the verifier's
-# environment reset.
+# Historical provenance (preserved, invalidated):
+# - The prior independent receipt verified PR #365 at commit
+#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc. Invalidated because PR #369
+#   modified the declared F2 proof paths (actuator.rs, main.rs, sensors.rs,
+#   tests.rs, tests_impl.rs).
+# - First post-#369 attempt (2026-08-01, prior verifier session): recorded
+#   result = "blocked" against verified_commit
+#   107a4330e2d0505a6b48b35c7d4148482a426f3d because the previous sandbox
+#   could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org
+#   and crates.io unreachable; rustup toolchain download failed). No runtime
+#   proof existed. Retained as historical provenance only; this verifier
+#   session replaced the blocked attempt with the executable result below.
+#
+# This receipt records the executable independent cold-verification of the
+# post-#369 F2 production surface at implementation commit
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge commit of PR #369), the
+# exact commit that is HEAD of `main` and an ancestor of this verification
+# branch's HEAD. The Rust toolchain ran end-to-end, the mapped F2
+# acceptance test was executed individually with `--exact`, and the
+# containing optid crate suite was executed in full. F2 is certified
+# `pass` by this receipt.
 
 schema_version = 1
 package = "F2"
 implementation_pr = 365
-verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
-verifier = "GLM 5.2 independent cold-verification agent (separate session from the implementation builder)"
+# Commit under verification for this run: HEAD of main, merge commit of PR
+# #369, which contains the F2 production surface that this receipt covers.
+# The mapped F2 acceptance test was executed against this commit.
+# `git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d
+# HEAD` returns 0 (ancestor), and `git diff --name-only
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d..HEAD -- <F2 proof paths>` is
+# empty, so the freshness check passes (no F2 declared proof path was
+# modified after the verified commit on this branch).
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verifier = "Independent cold-verification agent session (Arena.ai agent on branch arena/019fbea1-rush-linux, PR #370), separate from the implementation builder; rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1, executed 2026-08-02"
 result = "pass"
 
+# Exact commands this verifier executed, with their observed outcomes.
 commands = [
-  "cargo fmt --all -- --check",
-  "cargo test --workspace",
-  "cargo clippy --workspace --all-targets -- -D warnings",
-  "cargo check --workspace --all-targets --all-features",
-  "cargo test -p optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact",
-  "python3 tools/validate-current-work.py",
-  "python3 tools/validate-optid-packages.py",
-  "python3 tools/validate-optid-packages.py --base origin/main",
-  "python3 tools/render-frontpage.py --check",
-  "bash tools/finish-work.sh --dry-run",
+  "git fetch origin --prune -> EXECUTED, fetched origin/arena/019fbea1-rush-linux and origin/main",
+  "git checkout -B arena/019fbea1-rush-linux origin/arena/019fbea1-rush-linux -> EXECUTED, HEAD=54118d0b6202d528e2f539bb71be78da475d1a99",
+  "git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD -> EXECUTED, exit 0 (PR #369 merge commit IS ancestor of HEAD)",
+  "git diff --name-only 107a4330e2d0505a6b48b35c7d4148482a426f3d..HEAD -- crates/optid/src/main.rs crates/optid/src/kernel_io.rs crates/optid/src/io_util.rs crates/optid/src/actuator.rs crates/optid/src/sensors.rs crates/optid/src/tests.rs crates/optid/src/kernel_io_impl.rs crates/optid/src/tests_impl.rs -> EXECUTED, empty (no F2 proof path modified after verified_commit)",
+  "rustup default stable -> EXECUTED, rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1",
+  "rustup component add rustfmt clippy -> EXECUTED, installed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0 (clean)",
+  "cargo check --workspace --all-targets --all-features -> EXECUTED, exit 0 (Finished dev profile in 34.09s)",
+  "cargo clippy --workspace --all-targets -- -D warnings -> EXECUTED, exit 0 (Finished dev profile in 7.11s, no warnings)",
+  "cargo test --workspace -> EXECUTED, exit 0; optid lib 6 passed, optid main 419 passed, optctl main 9 passed, optctl status_cli 3 passed, rushbench 13 passed, testos lib 51 passed, testos-ingest 16 passed; total 517 passed, 0 failed, 0 ignored",
+  "cargo test -p optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact --nocapture -> EXECUTED, 1 passed; 0 failed; 418 filtered out; stdout shows daemon printing 'failed to parse policy TOML ... Using curated baseline.' and 'boot state — policy_load_state=invalid allowlist_load_state=ok ...' before the injected PermissionDenied fault surfaces as 'injected append fault'",
+  "cargo test -p optid -> EXECUTED, exit 0; optid lib 6 passed, optid main 419 passed, capability_sealing_cli 0 passed; total 425 passed, 0 failed, 0 ignored",
+  "python3 tools/validate-current-work.py -> EXECUTED, OK",
+  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED, PASS",
+  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
+  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
+  "bash tools/checks.sh --ci --changed-base origin/main -> EXECUTED, exit 0; pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed; all sections passed",
 ]
 
+# Runtime proofs entered through the real production surfaces named by the
+# F2 ledger entry (crates/optid/src/main.rs, kernel_io.rs, io_util.rs,
+# actuator.rs, sensors.rs). The mapped F2 acceptance test was executed
+# successfully against the verified commit.
 runtime_proofs = [
-  "crates/optid/src/tests.rs: tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io enters through the real daemon run(args) entry rather than calling an isolated helper.",
-  "The acceptance test installs a test-only failure for decisions.log through the production-facing RealKernel boundary, receives the injected error through the daemon path, and proves that bypassing the boundary would have created the file.",
-  "crates/optid/src/main.rs consumes RealKernel through the production daemon path; crates/optid/src/kernel_io.rs and kernel_io_impl.rs provide the injected boundary and production adapter used by sensors, actuator, and I/O helpers.",
-  "The verifier inspected every runtime_entrypoint, integration_test, and completion_evidence path declared for F2 and found no dormant duplicate or module-only acceptance path.",
-  "The verification branch changed only the receipt, package ledger, current-work projection, and generated README; no production or test source was changed.",
+  "Injected kernel-I/O boundary is consumed by the real daemon run path (not an unused mock): f2_production_daemon_run_consumes_injected_kernel_io (tests.rs:10-68) enters through the real daemon crate::run(args) wrapped in with_real_kernel_override (kernel_io.rs:174), injects a FaultKernel over MemoryKernel that fails the next append to decisions.log with PermissionDenied, and asserts: (1) the daemon surfaces the injected error ('injected append fault'), (2) the error kind is io::ErrorKind::PermissionDenied, and (3) bypassing the seam would have created decisions.log (asserts !decisions_log.exists()). EXECUTED: 1 passed; 0 failed.",
+  "Real daemon entry path used: the test constructs the real Args{apply:false, once:true, state_dir:<isolated tmp>, config_path:<empty policy>, allowlist:false, foreground:Off} and calls crate::run(args). The daemon's boot-state log line ('boot state — policy_load_state=invalid allowlist_load_state=ok allowlist_gate=false apply_armed=false baseline_armed=false') printed to stdout during the test confirms the real main.rs boot path executed, not a stub.",
+  "RealKernel is a production facade, not a mock: RealKernel (kernel_io.rs:65) delegates through a thread-local REAL_KERNEL_OVERRIDE (kernel_io.rs:153-154) to the production adapter implementation::RealKernel (kernel_io_impl.rs:132). The override is opt-in and empty by default, so production runs use the real adapter. The F2 test opts in via with_real_kernel_override(Box::new(shared)).",
+  "Daemon production path consumes the injected boundary for every I/O category: crates/optid/src/main.rs:314 constructs kernel_io::RealKernel::new() once per run and uses that injected boundary for Snapshot::collect_with_thermal (sensors), actuator.apply (actuator writes), state-file writes (atomic_write_state_file_with, append_log_with), and the F2 clock (cycle_kernel.now_unix). The F2 test's injected FaultKernel intercepts the decisions.log append and the daemon observes PermissionDenied rather than touching the real filesystem.",
+  "Containing optid crate suite: cargo test -p optid executed 425 tests (lib 6 + main 419 + capability_sealing_cli 0), 0 failed, 0 ignored, finishing in 4.10s on optid main. The F2 test was also counted in the 419 main.rs tests during the workspace run.",
+  "Workspace-wide baseline: cargo test --workspace executed 517 tests (optid 425, optctl 12, rushbench 13, testos 67), 0 failed, 0 ignored. cargo fmt --all -- --check exit 0; cargo clippy --workspace --all-targets -- -D warnings exit 0; cargo check --workspace --all-targets --all-features exit 0.",
+  "Repo tooling baseline: python3 tools/validate-current-work.py OK; python3 tools/validate-optid-packages.py PASS; python3 tools/validate-optid-packages.py --base origin/main PASS; python3 tools/render-frontpage.py --check OK; bash tools/finish-work.sh --dry-run OK; bash tools/checks.sh --ci --changed-base origin/main exit 0 with pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed.",
 ]
 
+# Source inspection performed (NOT runtime proof by itself; preserved for
+# traceability). The runtime proofs above are the executable evidence.
+source_inspection_only = [
+  "crates/optid/src/tests.rs: the ledger-mapped F2 acceptance test f2_production_daemon_run_consumes_injected_kernel_io exists as a real '#[test] fn' inside 'mod f2_production_surface' (tests.rs:10-68).",
+  "crates/optid/src/kernel_io.rs: RealKernel is a production facade (kernel_io.rs:65) that delegates through a thread-local REAL_KERNEL_OVERRIDE (kernel_io.rs:153-154) to the production adapter implementation::RealKernel (crates/optid/src/kernel_io_impl.rs:132). The override is opt-in and empty by default, so production runs use the real adapter.",
+  "crates/optid/src/main.rs:314: the daemon constructs kernel_io::RealKernel::new() once per run and uses that injected boundary for Snapshot::collect_with_thermal (sensors), actuator writes (actuator.apply), state-file writes (atomic_write_state_file_with, append_log_with), and the F2 clock (cycle_kernel.now_unix).",
+  "crates/optid/src/kernel_io.rs:188: f2_real_kernel_override_is_visible_to_library_target confirms the override seam reaches the facade used by production code (a separate in-crate test, also executed as part of cargo test -p optid).",
+]
+
+# All previously-blocking environment limitations have been resolved in this
+# verifier session. No unresolved findings remain.
 unresolved = []
+
+[historical_receipt]
+implementation_pr = 365
+verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
+verification_pr = ""
+status = "invalidated"
+reason = "PR #369 modified the declared F2 proof paths (actuator.rs, main.rs, sensors.rs, tests.rs, tests_impl.rs), so the prior receipt no longer covers the current branch. Retained as historical provenance only."
+
+[historical_receipt.blocked_2026_08_01]
+implementation_pr = 365
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verification_pr = 370
+status = "blocked"
+reason = "Prior verifier session on 2026-08-01 recorded result='blocked' against the same verified_commit because the verification sandbox could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). No runtime proof existed. This verifier session (2026-08-02) installed rustup stable (rustc 1.97.1) and replaced the blocked attempt with the executable 'pass' result recorded above; the blocked attempt is retained here as historical provenance."

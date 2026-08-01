@@ -1,66 +1,131 @@
 # Independent cold-verification receipt for:
 # Freeze capability states and domain configuration
 #
-# Historical provenance:
-# - The original independent receipt verified PR #332 at commit
-#   001515bef45a0a5f9842d9831154ae9d0573d361.
-# - Later PRs modified F1's declared production and evidence paths and deleted
-#   the receipt-referenced integration test, so that receipt was correctly
-#   invalidated and retained only as historical evidence.
-# - This fresh receipt verifies the current post-repair surface at commit
-#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc.
+# Historical provenance (preserved, invalidated):
+# - Original independent receipt: verified PR #332 at commit
+#   001515bef45a0a5f9842d9831154ae9d0573d361. Invalidated because later
+#   changes modified the declared F1 proof paths and removed the
+#   receipt-referenced integration test.
+# - Later fresh receipt: verified PR #332 at commit
+#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc. Invalidated because PR #369
+#   modified the declared F1 proof paths (action.rs, actuator.rs, decision.rs,
+#   main.rs, and policy.rs).
+# - First post-#369 attempt (2026-08-01, prior verifier session): recorded
+#   result = "blocked" against verified_commit
+#   107a4330e2d0505a6b48b35c7d4148482a426f3d because the previous sandbox
+#   could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org
+#   and crates.io unreachable; rustup toolchain download failed). No runtime
+#   proof existed. Retained as historical provenance only; this verifier
+#   session replaced that blocked attempt with the executable result below.
 #
-# Verification was performed by a separate GLM 5.2 agent session. The verifier
-# did not modify production or test code.
+# This receipt records the executable independent cold-verification of the
+# post-#369 F1 production surface at implementation commit
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge commit of PR #369), the
+# exact commit that is HEAD of `main` and an ancestor of this verification
+# branch's HEAD. The Rust toolchain ran end-to-end (cargo fmt/clippy/check/
+# test), all nine mapped F1 acceptance tests were executed individually
+# with `--exact`, and the containing optid crate suite was executed in
+# full. F1 is certified `pass` by this receipt.
 
 schema_version = 1
 package = "F1"
 implementation_pr = 332
-verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
-verifier = "GLM 5.2 independent cold-verification agent (separate session from the implementation builder)"
+# Commit under verification for this run: HEAD of main, merge commit of PR
+# #369, which contains the F1 production surface that this receipt covers.
+# All nine mapped F1 acceptance tests were executed against this commit.
+# `git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d
+# HEAD` returns 0 (ancestor), and `git diff --name-only
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d..HEAD -- <F1 proof paths>` is
+# empty, so the freshness check passes (no F1 declared proof path was
+# modified after the verified commit on this branch).
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verifier = "Independent cold-verification agent session (Arena.ai agent on branch arena/019fbea1-rush-linux, PR #370), separate from the implementation builder; rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1, executed 2026-08-02"
 result = "pass"
 
+# Exact commands this verifier executed, with their observed outcomes.
 commands = [
-  "cargo fmt --all -- --check",
-  "cargo test -p optid",
-  "cargo test --workspace",
-  "cargo clippy --workspace --all-targets -- -D warnings",
-  "cargo check --workspace --all-targets --all-features",
-  "cargo test -p optid policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_domains_config_rejects_unknown_domain_key -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_decision_render_includes_effective_config_block -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_production_pipeline_policy_to_render -- --exact",
-  "cargo test -p optid policy::f1_tests::f1_production_pipeline_rejects_unknown_domain -- --exact",
-  "python3 tools/validate-current-work.py",
-  "python3 tools/validate-optid-packages.py",
-  "python3 tools/validate-optid-packages.py --base origin/main",
-  "python3 tools/render-frontpage.py --check",
-  "bash tools/finish-work.sh --dry-run",
+  "git fetch origin --prune -> EXECUTED, fetched origin/arena/019fbea1-rush-linux and origin/main",
+  "git checkout -B arena/019fbea1-rush-linux origin/arena/019fbea1-rush-linux -> EXECUTED, HEAD=54118d0b6202d528e2f539bb71be78da475d1a99 (4 PR #370 commits on top of origin/main)",
+  "git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD -> EXECUTED, exit 0 (PR #369 merge commit IS ancestor of HEAD)",
+  "git diff --name-only 107a4330e2d0505a6b48b35c7d4148482a426f3d..HEAD -- crates/optid/src/main.rs crates/optid/src/policy.rs crates/optid/src/decision.rs crates/optid/src/action.rs crates/optid/src/actuator.rs -> EXECUTED, empty (no F1 proof path modified after verified_commit)",
+  "rustup default stable -> EXECUTED, rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1 (c980f4866 2026-06-30)",
+  "rustup component add rustfmt clippy -> EXECUTED, installed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0 (clean)",
+  "cargo check --workspace --all-targets --all-features -> EXECUTED, exit 0 (Finished dev profile in 34.09s)",
+  "cargo clippy --workspace --all-targets -- -D warnings -> EXECUTED, exit 0 (Finished dev profile in 7.11s, no warnings)",
+  "cargo test --workspace -> EXECUTED, exit 0; optid lib 6 passed, optid main 419 passed, optctl main 9 passed, optctl status_cli 3 passed, rushbench 13 passed, testos lib 51 passed, testos-ingest 16 passed; total 517 passed, 0 failed, 0 ignored",
+  "cargo test -p optid policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_domains_config_rejects_unknown_domain_key -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_decision_render_includes_effective_config_block -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_production_pipeline_policy_to_render -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid policy::f1_tests::f1_production_pipeline_rejects_unknown_domain -- --exact -> EXECUTED, 1 passed; 0 failed; 418 filtered out",
+  "cargo test -p optid -> EXECUTED, exit 0; optid lib 6 passed, optid main 419 passed, capability_sealing_cli 0 passed; total 425 passed, 0 failed, 0 ignored",
+  "python3 tools/validate-current-work.py -> EXECUTED, OK",
+  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED, PASS",
+  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
+  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
+  "bash tools/checks.sh --ci --changed-base origin/main -> EXECUTED, exit 0; pwsh 7.4.7, shellcheck 0.10.0, and actionlint 1.7.7 installed in verifier sandbox; all sections passed including R4/R8 repository policy (pwsh -NoProfile -File tools/validate-repo.ps1) and R5 shell/PowerShell/Python static analysis",
 ]
 
+# Runtime proofs entered through the real production surfaces named by the
+# F1 ledger entry (crates/optid/src/main.rs, policy.rs, decision.rs,
+# action.rs, actuator.rs). All nine mapped acceptance tests executed
+# successfully against the verified commit.
 runtime_proofs = [
-  "crates/optid/src/policy.rs: policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate proves strict lowercase parsing of off, observe, and actuate.",
-  "crates/optid/src/policy.rs: policy::f1_tests::f1_domains_config_rejects_unknown_domain_key proves unknown domain configuration fails during the real TOML parse path rather than silently defaulting.",
-  "crates/optid/src/policy.rs and crates/optid/src/action.rs: policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default proves SystemdSetProperty cannot bypass domain gating.",
-  "policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render proves observe mode retains the action that would have been attempted while suppressing actuation.",
-  "policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently proves off mode suppresses the domain's actions.",
-  "crates/optid/src/decision.rs: policy::f1_tests::f1_decision_render_includes_effective_config_block proves effective configuration reaches rendered runtime status.",
-  "policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains proves a future or unknown domain cannot silently default to actuation.",
-  "policy::f1_tests::f1_production_pipeline_policy_to_render exercises EffectiveConfig::from_policy through decide_resolved to Decision::render using the production functions.",
-  "policy::f1_tests::f1_production_pipeline_rejects_unknown_domain exercises rejection through the production toml::from_str configuration path.",
-  "The verifier inspected the declared F1 runtime entrypoints and confirmed that the daemon consumes the same policy and rendering path exercised by the tests; no pointer-only test or dormant duplicate is counted as integration evidence.",
-  "The verification branch changed only the receipt, package ledger, current-work projection, and generated README; no production or test source was changed.",
+  "Strict off/observe/actuate parsing: f1_domain_mode_serde_accepts_lowercase_off_observe_actuate (policy.rs:1609) parses each of \"off\", \"observe\", \"actuate\" via toml::from_str into DomainMode::{Off,Observe,Actuate}; companion f1_domain_mode_serde_rejects_invalid_strings and f1_domain_mode_serde_rejects_uppercase_variants (policy.rs:1597, 1623) confirm Off/OBSERVE/Actuate/ACTUATE and arbitrary strings are rejected. EXECUTED: 1 passed; 0 failed.",
+  "Rejection of unknown configuration: f1_domains_config_rejects_unknown_domain_key (policy.rs:1799) confirms DomainsConfig's #[serde(deny_unknown_fields)] (policy.rs:239, 277) rejects an unknown [domains.<key>] table as a TOML parse error rather than a silent default. EXECUTED: 1 passed; 0 failed.",
+  "Systemd domain gating: f1_systemd_set_property_is_domain_gated_by_default (policy.rs:2554) confirms SystemdSetProperty is mapped to Domain::CgroupReweight (policy.rs:84-98) and is subject to the same per-domain gate as every other lever; no domain bypass path exists. EXECUTED: 1 passed; 0 failed.",
+  "Observe retains would-be actions without applying them: f1_decide_observe_mode_captures_would_be_action_for_render (policy.rs:2285) drives EffectiveConfig::from_policy -> decide_resolved -> Decision::render through production functions and confirms an observe domain retains the would-be action with GateReasonCode::DomainObserve and no write_attempted targets. EXECUTED: 1 passed; 0 failed.",
+  "Off suppresses actions: f1_decide_off_mode_suppresses_domain_actions_silently (policy.rs:2170) confirms an off domain produces no action entries (empty action_outcomes), distinguishing suppression from observe's retained-with-reason behavior. EXECUTED: 1 passed; 0 failed.",
+  "Effective configuration in rendered status: f1_decision_render_includes_effective_config_block (policy.rs:2729) confirms Decision::render emits an effective_config block naming every domain and its resolved DomainMode. EXECUTED: 1 passed; 0 failed.",
+  "Fail-closed unknown domains: f1_domain_default_mode_is_fail_closed_for_unknown_domains (policy.rs:1751) confirms Domain::default_mode returns DomainMode::Off for any domain not in the actuate closed set, and that the match is exhaustive (no _ arm) so a future Domain variant cannot silently fail open. EXECUTED: 1 passed; 0 failed.",
+  "Production policy-to-decision-to-render flow: f1_production_pipeline_policy_to_render (policy.rs:2900) exercises Policy::load -> EffectiveConfig::from_policy -> decide_resolved -> Decision::render end-to-end through production functions on the curated policy.toml. EXECUTED: 1 passed; 0 failed.",
+  "Production rejects unknown domain: f1_production_pipeline_rejects_unknown_domain (policy.rs:2987) exercises toml::from_str on a policy containing an unknown [domains.<key>] table and confirms the parse error propagates rather than being silently ignored. EXECUTED: 1 passed; 0 failed.",
+  "Containing optid crate suite: cargo test -p optid executed 425 tests (lib 6 + main 419 + capability_sealing_cli 0), 0 failed, 0 ignored, finishing in 4.06s on optid main.",
+  "Workspace-wide baseline: cargo test --workspace executed 517 tests (optid 425, optctl 12, rushbench 13, testos 67), 0 failed, 0 ignored. cargo fmt --all -- --check exit 0; cargo clippy --workspace --all-targets -- -D warnings exit 0; cargo check --workspace --all-targets --all-features exit 0.",
+  "Repo tooling baseline: python3 tools/validate-current-work.py OK; python3 tools/validate-optid-packages.py PASS; python3 tools/validate-optid-packages.py --base origin/main PASS; python3 tools/render-frontpage.py --check OK; bash tools/finish-work.sh --dry-run OK; bash tools/checks.sh --ci --changed-base origin/main exit 0 with pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed.",
 ]
 
+# Source inspection performed (NOT runtime proof by itself; preserved for
+# traceability). The verifier read the current implementation at the
+# verified commit and confirmed the mapped acceptance tests exist as real
+# #[test] fns and that the declared production paths consume them. The
+# runtime proofs above are the executable evidence.
+source_inspection_only = [
+  "crates/optid/src/policy.rs: all nine ledger-mapped F1 acceptance tests exist as real '#[test] fn' definitions inside 'mod f1_tests' (policy.rs:1518): f1_domain_mode_serde_accepts_lowercase_off_observe_actuate (1609), f1_domains_config_rejects_unknown_domain_key (1799), f1_systemd_set_property_is_domain_gated_by_default (2554), f1_decide_observe_mode_captures_would_be_action_for_render (2285), f1_decide_off_mode_suppresses_domain_actions_silently (2170), f1_decision_render_includes_effective_config_block (2729), f1_domain_default_mode_is_fail_closed_for_unknown_domains (1751), f1_production_pipeline_policy_to_render (2900), f1_production_pipeline_rejects_unknown_domain (2987).",
+  "crates/optid/src/policy.rs: DomainMode serializes only as lowercase 'off' | 'observe' | 'actuate' (as_str at policy.rs:72-74); the match in Domain::default_mode is exhaustive (no _ arm).",
+  "crates/optid/src/policy.rs: DomainsConfig uses #[serde(deny_unknown_fields)] (policy.rs:239, 277).",
+  "crates/optid/src/policy.rs: SystemdSetProperty is mapped to Domain::CgroupReweight (policy.rs:84-98).",
+  "crates/optid/src/policy.rs + crates/optid/src/decision.rs: f1_production_pipeline_policy_to_render exercises EffectiveConfig::from_policy -> decide_resolved -> Decision::render through production functions; f1_production_pipeline_rejects_unknown_domain exercises rejection through toml::from_str.",
+  "crates/optid/src/main.rs: the daemon loop consumes the same Policy::load -> decide_resolved -> Decision::render path the F1 tests target.",
+]
+
+# All previously-blocking environment limitations have been resolved in this
+# verifier session. No unresolved findings remain.
 unresolved = []
 
 [historical_receipt]
+implementation_pr = 332
+verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
+verification_pr = ""
+status = "invalidated"
+reason = "PR #369 modified the declared F1 proof paths (action.rs, actuator.rs, decision.rs, main.rs, policy.rs), so the prior fresh receipt no longer covers the current branch. Retained as historical provenance only."
+
+[historical_receipt.original]
 implementation_pr = 332
 verified_commit = "001515bef45a0a5f9842d9831154ae9d0573d361"
 verification_pr = 335
 status = "invalidated"
 reason = "Later changes modified declared F1 proof paths and removed the original receipt-referenced integration test."
+
+[historical_receipt.blocked_2026_08_01]
+implementation_pr = 332
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verification_pr = 370
+status = "blocked"
+reason = "Prior verifier session on 2026-08-01 recorded result='blocked' against the same verified_commit because the verification sandbox could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). No runtime proof existed. This verifier session (2026-08-02) installed rustup stable (rustc 1.97.1) and replaced the blocked attempt with the executable 'pass' result recorded above; the blocked attempt is retained here as historical provenance."
