@@ -1,114 +1,66 @@
-# F1 — Cold Verification Receipt (HISTORICAL — post-#337 repair)
+# Independent cold-verification receipt for:
+# Freeze capability states and domain configuration
 #
-# STATUS: This receipt is preserved as historical evidence only. The F1
-# package was demoted from `completed` to `merged_incomplete` in the
-# post-#337 repair because the receipt is stale:
+# Historical provenance:
+# - The original independent receipt verified PR #332 at commit
+#   001515bef45a0a5f9842d9831154ae9d0573d361.
+# - Later PRs modified F1's declared production and evidence paths and deleted
+#   the receipt-referenced integration test, so that receipt was correctly
+#   invalidated and retained only as historical evidence.
+# - This fresh receipt verifies the current post-repair surface at commit
+#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc.
 #
-#   - The verified commit (001515b, merge of PR #332) is an ancestor of
-#     HEAD, but subsequent PRs (#333, #334, #336, #337) modified F1's
-#     declared runtime_entrypoints (crates/optid/src/policy.rs,
-#     crates/optid/src/action.rs, crates/optid/src/actuator.rs,
-#     crates/optid/src/main.rs, crates/optid/src/decision.rs).
-#   - PR #337 deleted the integration test file this receipt referenced
-#     (crates/optid/tests/f1_effective_config.rs) and replaced it with a
-#     pointer file (crates/optid/tests/f1_behavior.rs) that contained
-#     only name strings and list-length assertions. The post-#337 repair
-#     deleted the pointer file too and replaced it with real #[test] fn
-#     coverage in crates/optid/src/policy.rs
-#     (f1_production_pipeline_policy_to_render,
-#     f1_production_pipeline_rejects_unknown_domain, plus the existing
-#     f1_* behavioral matrix).
-#
-# The `validate_receipt_freshness` rule in
-# tools/validate-optid-packages.py now enforces this invariant: a
-# completed package's receipt is invalidated when a later change
-# modifies any declared runtime_entrypoint / integration_test /
-# completion_evidence file, unless a newer receipt verifies a commit
-# containing that change.
-#
-# A fresh independent cold verification receipt is required before F1
-# may return to `completed`. Do NOT re-use this receipt for the current
-# F1 surface — it verifies an older commit against a deleted test file.
-#
-# ---
-#
-# Original receipt (preserved verbatim for historical provenance):
-#
-# Verifier: independent worker (separate session from the F1 builder,
-# arena-ai-coding-agent[bot], which authored PR #332).
-# Verified commit: 001515bef45a0a5f9842d9831154ae9d0573d361
-#   = the merge commit of PR #332 ("F1: freeze capability states and
-#   domain configuration"), which is the implementation PR the ledger
-#   points at. Verified cold: the verifier did not modify any F1
-#   implementation file. The only files this verification PR adds are
-#   this receipt and the ledger status update.
-#
-# Method: the verifier cloned the repository at the verified commit,
-# installed a clean Rust 1.97.0 stable toolchain (rust-version=1.78 in
-# Cargo.toml is satisfied; 1.97 was chosen because transitive dep
-# `serde_spanned-1.1.1` requires Cargo ≥ 1.85 for edition2024), and ran
-# every command listed in `commands` against the unmodified F1 tree.
-#
-# The runtime proofs below were each confirmed by:
-#   - reading the named production source path; AND
-#   - running a test that enters through the production surface named
-#     in the F1 ledger (the daemon main loop, Decision::render, the
-#     curated config, the actuator's apply path, and the F1
-#     production-surface integration test in
-#     crates/optid/tests/f1_effective_config.rs).
-#
-# The verifier did NOT repair any F1 code. If a check had failed it
-# would have been recorded under `unresolved` and the package would
-# have stayed `candidate`.
+# Verification was performed by a separate GLM 5.2 agent session. The verifier
+# did not modify production or test code.
 
 schema_version = 1
 package = "F1"
 implementation_pr = 332
-verified_commit = "001515bef45a0a5f9842d9831154ae9d0573d361"
-verifier = "super-z (independent cold verifier, distinct session from arena-ai-coding-agent[bot])"
+verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
+verifier = "GLM 5.2 independent cold-verification agent (separate session from the implementation builder)"
 result = "pass"
 
 commands = [
-  "cargo test -p optid --test f1_effective_config",
-  "cargo test -p optid",
-  "cargo build --workspace",
-  "cargo clippy --workspace --all-targets -- -D warnings",
   "cargo fmt --all -- --check",
+  "cargo test -p optid",
+  "cargo test --workspace",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "cargo check --workspace --all-targets --all-features",
+  "cargo test -p optid policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_domains_config_rejects_unknown_domain_key -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_decision_render_includes_effective_config_block -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_production_pipeline_policy_to_render -- --exact",
+  "cargo test -p optid policy::f1_tests::f1_production_pipeline_rejects_unknown_domain -- --exact",
+  "python3 tools/validate-current-work.py",
   "python3 tools/validate-optid-packages.py",
   "python3 tools/validate-optid-packages.py --base origin/main",
+  "python3 tools/render-frontpage.py --check",
+  "bash tools/finish-work.sh --dry-run",
 ]
 
 runtime_proofs = [
-  # F1 plan §"What to do" item 1 — DomainMode enum
-  "crates/optid/src/policy.rs:44-66 defines `enum DomainMode { Off, Observe, Actuate }` with `Default = Actuate` (migration-safety default). Confirmed by reading the source and by `f1_domain_mode_ordering_is_off_observe_actuate`.",
-  # F1 plan §"What to do" item 2 — strict unknown-key validation
-  "crates/optid/src/policy.rs:186 and :224 place `#[serde(deny_unknown_fields)]` on both `DomainConfig` and `DomainsConfig`, so any unrecognized domain key or field is a parse-time error. Confirmed by `f1_domains_config_rejects_unknown_domain_key` and `f1_domain_config_rejects_unknown_field`.",
-  # F1 plan §"What to do" item 3 — explicit migration mapping
-  "crates/optid/src/policy.rs:194-197 documents the migration mapping: a `[domains]` table or `[domains.<name>]` sub-table that omits `mode` defaults to `Actuate` (the v0.6 behavior). Existing curated `config/optid/policy.toml` continues to parse; confirmed by `f1_production_curated_policy_toml_still_parses`.",
-  # F1 plan §"What to do" item 4 — EffectiveConfig object
-  "crates/optid/src/policy.rs:278-295 defines `EffectiveConfig` with `from_policy()` that populates every known `Domain::all()` entry, and `mode_for()` that returns `Off` for any unknown future domain. Confirmed by `f1_effective_config_default_policy_all_actuate`, `f1_effective_config_respects_off_mode`, `f1_effective_config_allows_actuation_only_for_actuate`.",
-  # F1 plan §"What to do" item 4 (companion) — EffectiveConfig exposed to optctl
-  "crates/optid/src/decision.rs:22 carries `effective_config: EffectiveConfig` on every rendered `Decision`. `Decision::render` (decision.rs:99-100) emits an `effective_config:` block. The daemon main loop (crates/optid/src/main.rs:368) calls `policy.decide_resolved(...)` and writes the rendered Decision to `/run/optid/status`, which `optctl status` reads. Confirmed by `f1_production_effective_config_render_is_called_from_decision_render` and `f1_production_decide_resolved_is_called_from_daemon_main_loop`.",
-  # F1 plan §"What to do" item 5 — no Cargo-feature safety switch
-  "No `[features]` table exists in `crates/optid/Cargo.toml`; the runtime safety switch is the typed `DomainMode` enum, not a compile-time feature. (Inspected crates/optid/Cargo.toml.)",
-  # F1 plan §"Desired end state" — every domain has one runtime state
-  "crates/optid/src/policy.rs:79-180 enumerates the closed set of 10 actuation domains plus `CgroupReweight`. `EffectiveConfig::from_policy` populates each one. `Domain::default_mode` is an exhaustive match over every variant, so a future variant cannot fail open: the compiler rejects a non-exhaustive match. Confirmed by `f1_domain_all_returns_ten_known_domains`, `f1_production_default_mode_is_fail_closed_for_future_domains`.",
-  # F1 plan §"Desired end state" — Actuate still requires --apply + allowlist + contract + journal
-  "crates/optid/src/actuator.rs gates every dynamic write behind: `dynamic_writes_armed()` (driven by `--apply` and `BootState::apply_armed` in main.rs:155-162); `allowlist_permits()` (actuator.rs:393, default-deny); `contract_permits()` (actuator.rs:475, calls `fits_contract()` from contracts.rs); `atomic_write_state_file()` + `mark_applied()` for journaling. The 3 critical defects PR #333 fixed (sandbox, inverse restore, contract gate) sit in this same actuator path and are exercised by the contract-gate and context-change revert tests added in PR #333.",
-  # F1 plan §"Tests/pass" — table-test every old/new config combination
-  "crates/optid/src/policy.rs has 48 `#[test]` functions under `mod tests`, covering: off/observe/actuate ordering, serde rejection of invalid strings, unknown-domain-key rejection, unknown-field rejection, mode-default-when-omitted, default-policy-all-actuate, respects-off-mode, respects-observe-mode, allows-actuation-only-for-actuate, render-lists-all-domains-in-canonical-order, decide-default-emits-actions-for-all-domains, decide-off-suppresses-silently, decide-observe-suppresses-but-surfaces-reason, decide-observe-captures-would-be-action-for-render, decide-off-does-not-capture-would-be-action, decide-actuate-preserves-today-behavior, decide-mixed-modes-filter-independently. (Names enumerated by `rg 'fn f1_' crates/optid/src/policy.rs`.)",
-  # F1 plan §"Tests/pass" — invalid modes fail closed in apply mode
-  "crates/optid/src/policy.rs:1511 `f1_domain_mode_serde_rejects_invalid_strings` and :1537 `f1_domain_mode_serde_rejects_uppercase_variants` confirm invalid modes fail at parse time. The `deny_unknown_fields` attribute makes unrecognized domain names parse errors, not silent Off. In apply mode, the actuator's contract gate (actuator.rs:475) and allowlist (actuator.rs:393) default-deny any action whose domain or device is not explicitly approved.",
-  # F1 plan §"Tests/pass" — dry-run prints the effective state
-  "crates/optid/src/decision.rs:99-100 emits an `effective_config:` block in the rendered Decision. The daemon writes this rendered Decision to `/run/optid/status` (consumed by `optctl status`). When `--apply` is absent, `apply_armed` is false, so the actuator logs actions rather than performing them, but the rendered Decision still carries the effective config — so dry-run prints the effective state. Confirmed by `f1_production_decision_renders_suppressed_actions_block` and `f1_production_effective_config_render_is_called_from_decision_render`.",
-  # F1 plan §"Tests/pass" — existing curated default decisions remain unchanged
-  "config/optid/policy.toml (6863 bytes) parses under the F1 schema. `f1_decide_actuate_mode_preserves_today_behavior` (policy.rs:2260) explicitly asserts that the default Actuate-mode decision for the curated policy is byte-identical to the pre-F1 behavior. `f1_production_curated_policy_toml_still_parses` pins that the curated file is non-empty and contains a `[thresholds]` block.",
-  # F1 plan §"Feature flag" — [domains.<name>] mode = \"off|observe|actuate\"; new domains default off
-  "crates/optid/src/policy.rs:182-202 implements `[domains.<name>]` with `mode = \"off|observe|actuate\"`. New sensor-only domains default to `Off` via `Domain::default_mode()` (the exhaustive match at policy.rs:166-179 — a future domain added to the enum forces a compiler error until the author makes a deliberate Actuate/Off choice).",
-  # Production-surface integration test (AGENTS.md §8 item 4)
-  "crates/optid/tests/f1_effective_config.rs is the production-surface integration test. It enters through the daemon main loop (`f1_production_decide_resolved_is_called_from_daemon_main_loop`), the rendered Decision that optctl reads (`f1_production_decision_renders_suppressed_actions_block`, `f1_production_effective_config_render_is_called_from_decision_render`), the action->domain mapping (`f1_production_systemd_set_property_is_domain_gated`, `f1_production_cgroup_reweight_domain_is_enumerated`), the curated config (`f1_production_curated_policy_toml_still_parses`), and the type-level fail-closed invariant (`f1_production_default_mode_is_fail_closed_for_future_domains`). It also forbids new `allow(dead_code)` in optid production code via `f1_production_no_dead_code_allows_added_in_diff`.",
-  # Package completion contract item 5 (AGENTS.md §8)
-  "No F1 module is `mod`-only, hidden behind `allow(dead_code)`, or duplicates accepted shared types. `EffectiveConfig`, `DomainMode`, `DomainConfig`, `DomainsConfig` are all consumed by the daemon main loop and the rendered Decision that `optctl status` reads. The F1 integration test (`f1_production_no_dead_code_allows_added_in_diff`) forbids new dead-code suppression in optid production code; `tools/validate-optid-packages.py --base origin/main` enforces this at the ledger gate.",
+  "crates/optid/src/policy.rs: policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate proves strict lowercase parsing of off, observe, and actuate.",
+  "crates/optid/src/policy.rs: policy::f1_tests::f1_domains_config_rejects_unknown_domain_key proves unknown domain configuration fails during the real TOML parse path rather than silently defaulting.",
+  "crates/optid/src/policy.rs and crates/optid/src/action.rs: policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default proves SystemdSetProperty cannot bypass domain gating.",
+  "policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render proves observe mode retains the action that would have been attempted while suppressing actuation.",
+  "policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently proves off mode suppresses the domain's actions.",
+  "crates/optid/src/decision.rs: policy::f1_tests::f1_decision_render_includes_effective_config_block proves effective configuration reaches rendered runtime status.",
+  "policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains proves a future or unknown domain cannot silently default to actuation.",
+  "policy::f1_tests::f1_production_pipeline_policy_to_render exercises EffectiveConfig::from_policy through decide_resolved to Decision::render using the production functions.",
+  "policy::f1_tests::f1_production_pipeline_rejects_unknown_domain exercises rejection through the production toml::from_str configuration path.",
+  "The verifier inspected the declared F1 runtime entrypoints and confirmed that the daemon consumes the same policy and rendering path exercised by the tests; no pointer-only test or dormant duplicate is counted as integration evidence.",
+  "The verification branch changed only the receipt, package ledger, current-work projection, and generated README; no production or test source was changed.",
 ]
 
 unresolved = []
+
+[historical_receipt]
+implementation_pr = 332
+verified_commit = "001515bef45a0a5f9842d9831154ae9d0573d361"
+verification_pr = 335
+status = "invalidated"
+reason = "Later changes modified declared F1 proof paths and removed the original receipt-referenced integration test."
