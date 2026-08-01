@@ -16,31 +16,37 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Apply the reviewed implementation patch
+      - name: Install Rust system dependencies
         run: |
-          base64 --decode tools/f3-implementation.patch.gz.b64 | gzip --decompress > /tmp/f3.patch
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+      - name: Reconstruct and verify reviewed implementation patch
+        run: |
+          cat tools/f3-patch.part-* > /tmp/f3.patch.gz.b64
+          echo '8b55d01f72c48696f842aed4850d4d07183776d807eebe165085fd0fbd609e71  /tmp/f3.patch.gz.b64' | sha256sum --check
+          base64 --decode /tmp/f3.patch.gz.b64 | gzip --decompress > /tmp/f3.patch
+          echo 'ea93f92ba1644993429301f0ceb2a656b970c4135268b7c2c19da04ddcea15be  /tmp/f3.patch' | sha256sum --check
           git apply --check /tmp/f3.patch
           git apply /tmp/f3.patch
       - name: Format Rust sources
         run: cargo fmt --all
+      - name: Preserve formatted working tree
+        run: git diff --binary > /tmp/f3-formatted-working.patch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f3-formatted-working-tree-${{ github.sha }}
+          path: /tmp/f3-formatted-working.patch
+          retention-days: 1
       - name: Check optid production and test targets
         run: cargo check -p optid --all-targets
       - name: Check optctl production and test targets
         run: cargo check -p optctl --all-targets
       - name: Run focused schema tests
         run: cargo test -p optid envelope::tests
-      - name: Preserve diagnostics on failure
-        if: failure()
-        run: git diff --binary > /tmp/f3-working.patch
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: f3-builder-failed-working-tree-${{ github.sha }}
-          path: /tmp/f3-working.patch
-          retention-days: 1
       - name: Remove staging-only builder files
         run: |
           rm -f tools/f3-implementation.patch.gz.b64
+          rm -f tools/f3-patch.part-*
           rm -f .github/workflows/f3-builder-bootstrap.yml
       - name: Commit checked implementation
         run: |
