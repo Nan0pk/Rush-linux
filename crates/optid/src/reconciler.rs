@@ -1,216 +1,296 @@
-//! F4 — Reconcile complete desired state and restore on transitions.
+//! F4 production desired-state reconciliation.
 //!
-//! Before F4, depth actions were emitted only for battery idle, and the
-//! main loop reverted only at shutdown. A setting could remain active
-//! merely because policy stopped mentioning it — e.g. if optid set
-//! runtime PM to `auto` on battery idle and then the workload went
-//! interactive, the device stayed in `auto` until process exit.
-//!
-//! ## Current state (post-#338 review)
-//!
-//! Shadow mode is **target-set comparison only**. It does NOT produce a
-//! restore plan. The reconciler tracks which target IDs (journal keys)
-//! the current decision desires, mirrors the `active_keys` set the
-//! production restore path uses, and reports which target IDs
-//! disappeared from the previous tick (the stale set). Production
-//! restore still uses `active_keys + Actuator::revert_key` (see
-//! `main.rs`); the reconciler does not own production restore.
-//!
-//! The previous revision (PR #338 head `c7a8473`) maintained two
-//! disconnected restore-state models: `states` (Domain-keyed, read by
-//! `plan_restore`) and `targets` (target-id-keyed, written by
-//! `replace_desired_targets`). Production never populated the
-//! Domain-keyed `states`, so `plan_restore` always returned an empty
-//! plan, and `stale_target_ids` never reported anything because its
-//! filter required `last_confirmed.is_some() && ownership == Optid`,
-//! which production never set. The tests passed only because they
-//! manually populated state that production never populates.
-//!
-//! This revision removes the disconnected `states` model, `plan_restore`,
-//! `reconcile`, `ReconcileMode`, and the V1 outcome types. Shadow mode
-//! is honestly dormant: it tracks target-set parity for operator
-//! visibility and nothing more. A future F4 cutover will wire target
-//! baselines/confirmations/ownership from real journal observations
-//! (`original_<key>` / `applied_<key>` files the actuator writes) and
-//! reintroduce a target-based restore planner. Until then, the
-//! `TargetReconcileState` struct retains its V1 fields so the future
-//! cutover can fill them in without a schema change, but shadow mode
-//! uses only the `desired` field plus a `previous_desired` set for
-//! stale detection.
-//!
-//! ## What this does NOT do
-//!
-//! - Does not plan or apply restores. Production restore is
-//!   `active_keys + Actuator::revert_key` in `main.rs`.
-//! - Does not replace the existing `revert_*` functions. They remain
-//!   the shutdown recovery path.
-//! - Does not track baseline/confirmed/ownership from journal files.
-//!   That is the F4 cutover.
-//!
-//! The module-level dead-code suppression attribute below is retained
-//! from the original F4 module because the V1 target-keyed helpers
-//! (`Ownership` variants, `MAX_RETRIES`, `signal_config_reload`,
-//! `signal_device_removed`, `active_target_ids`, `correlation_id`,
-//! and the V1 fields of `TargetReconcileState`) are intentionally kept
-//! for the future F4 cutover. Shadow mode uses only the `desired` field
-//! plus `previous_desired`; the V1 surface is `#[cfg(test)]`-exercised
-//! so its contracts stay pinned without bloating the production binary.
-//! The suppression is not new — it was present on `origin/main` before
-//! this revision — and the validator's `added_dead_code_allows` check
-//! confirms no new suppression is introduced.
+//! One target-keyed state model owns transition restoration.  The model is
+//! hydrated from the typed F4 state file and from the legacy
+//! `original_<key>`/`applied_<key>` journals, captures baselines before writes,
+//! claims ownership only after confirmed readback, and restores only when the
+//! current value still equals the last value confirmed as written by optid.
 
-#![allow(dead_code)]
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
 
+use crate::action::Action;
+use crate::actuator::Actuator;
+use crate::actuators::display;
+use crate::envelope::{
+    ActionOutcome, ErrorKindCode, GateEvaluation, GateReasonCode, GateStage, OutcomeReasonCode,
+    OwnershipState, PipelineStage, ReadbackOutcome, ResponsibleSubsystem, RestoreOutcome,
+    RestoreState, SupportState, TargetOutcome, WriteOutcome,
+};
+use crate::io_util::{atomic_write_state_file_with, clear_journal_with};
+use crate::kernel_io::KernelIo;
 use crate::policy::{Domain, DomainMode};
+use crate::sensors::discover_cpu_epp_paths_with;
 use crate::workload::{Mode, WorkloadClass};
 
-/// Maximum retries before a domain is marked drifted and ownership is
-/// relinquished. Per the F4 plan's "bounded retries" requirement.
-/// (Used by target-keyed V1 methods retained for the future cutover.)
-pub(crate) const MAX_RETRIES: u32 = 3;
+const STATE_FILE: &str = "reconciliation-state.json";
+const MODE_FILE: &str = "reconciler-mode";
+pub(crate) const MAX_RESTORE_RETRIES: u32 = 3;
 
-/// Ownership state for a domain. Tracked by the reconciler to decide
-/// whether optid may restore a value or must relinquish control.
-/// (Retained for the future F4 V1 cutover; shadow mode does not use it.)
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) enum Ownership {
-    /// optid owns the domain and may write to it.
-    Optid,
-    /// Another program changed the value after optid's last applied
-    /// value. optid relinquishes ownership and will not fight it.
-    External { reason: String },
-    /// The domain is not currently owned by optid.
-    #[default]
-    Unowned,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReconcileMode {
+    Shadow,
+    V1,
 }
 
-/// A transition that triggers reconciliation. The daemon logs these so
-/// operators can see context changes; shadow mode does not act on them.
+impl ReconcileMode {
+    fn load(io: &dyn KernelIo, state_dir: &Path) -> Self {
+        match io
+            .read_to_string(&state_dir.join(MODE_FILE))
+            .ok()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("shadow") => Self::Shadow,
+            _ => Self::V1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Transition {
-    AcChanged {
-        from: Option<bool>,
-        to: Option<bool>,
-    },
-    WorkloadChanged {
-        from: WorkloadClass,
-        to: WorkloadClass,
-    },
-    ModeChanged {
-        from: Mode,
-        to: Mode,
-    },
+    AcChanged { from: Option<bool>, to: Option<bool> },
+    WorkloadChanged { from: WorkloadClass, to: WorkloadClass },
+    ModeChanged { from: Mode, to: Mode },
     ConfigReloaded,
-    DeviceRemoved {
-        domain: Domain,
-        device_id: String,
-    },
-    DomainDisabled {
-        domain: Domain,
-    },
+    DeviceRemoved { domain: Domain, device_id: String },
+    DomainDisabled { domain: Domain },
 }
 
 impl Transition {
     pub(crate) fn describe(&self) -> String {
         match self {
-            Transition::AcChanged { from, to } => {
-                format!("ac_changed: {:?} → {:?}", from, to)
+            Self::AcChanged { from, to } => format!("ac_changed: {from:?} -> {to:?}"),
+            Self::WorkloadChanged { from, to } => format!("workload_changed: {from} -> {to}"),
+            Self::ModeChanged { from, to } => format!("mode_changed: {from} -> {to}"),
+            Self::ConfigReloaded => "config_reloaded".to_string(),
+            Self::DeviceRemoved { domain, device_id } => {
+                format!("device_removed: {device_id} (domain={})", domain.as_str())
             }
-            Transition::WorkloadChanged { from, to } => {
-                format!("workload_changed: {} → {}", from, to)
-            }
-            Transition::ModeChanged { from, to } => {
-                format!("mode_changed: {} → {}", from, to)
-            }
-            Transition::ConfigReloaded => "config_reloaded".to_string(),
-            Transition::DeviceRemoved { domain, device_id } => {
-                format!("device_removed: {} (domain={})", device_id, domain.as_str())
-            }
-            Transition::DomainDisabled { domain } => {
+            Self::DomainDisabled { domain } => {
                 format!("domain_disabled: {}", domain.as_str())
             }
         }
     }
 }
 
-/// Per-target reconcile state keyed by stable target identity (journal
-/// key / device path / sysctl name). The V1 fields (`baseline`,
-/// `last_attempted`, `last_confirmed`, `ownership`, `retries`,
-/// `restore_pending`) are retained for the future F4 cutover; shadow
-/// mode uses only `desired`.
-#[derive(Debug, Clone, Default)]
-struct TargetReconcileState {
-    /// Target identity (journal key / device path / sysctl name).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum TargetKind {
+    KernelValue { path: PathBuf },
+    PmqosCpu,
+    PmqosDevice { path: PathBuf },
+    RuntimePm {
+        control_path: PathBuf,
+        delay_path: Option<PathBuf>,
+    },
+    SystemdProperty { unit: String, property: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum StoredValue {
+    Scalar { value: String },
+    RuntimePm {
+        control: String,
+        delay: Option<String>,
+    },
+    Systemd {
+        explicit: bool,
+        value: String,
+    },
+}
+
+impl StoredValue {
+    fn public_value(&self) -> String {
+        match self {
+            Self::Scalar { value } => value.clone(),
+            Self::RuntimePm { control, delay } => match delay {
+                Some(delay) => format!("control={control};delay={delay}"),
+                None => format!("control={control};delay=absent"),
+            },
+            Self::Systemd { explicit, value } => {
+                format!("explicit={explicit};value={value}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TargetState {
     target_id: String,
-    /// Domain this target belongs to (when known).
-    domain: Option<Domain>,
-    baseline: Option<String>,
-    desired: Option<String>,
-    last_attempted: Option<String>,
-    last_confirmed: Option<String>,
-    ownership: Ownership,
+    domain: String,
+    target: TargetKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    legacy_journal_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    baseline: Option<StoredValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    desired: Option<StoredValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    last_attempted: Option<StoredValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    last_confirmed: Option<StoredValue>,
+    ownership: OwnershipState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ownership_reason: Option<String>,
     retries: u32,
-    /// Pending restore after a failed attempt (bounded by MAX_RETRIES).
     restore_pending: bool,
 }
 
-/// The reconciler. Holds per-target state and detects transitions.
-/// Shadow mode tracks target-set parity for operator visibility.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct PersistedState {
+    schema_version: u32,
+    targets: BTreeMap<String, TargetState>,
+}
+
 #[derive(Debug, Clone)]
+struct DesiredTarget {
+    target_id: String,
+    domain: String,
+    target: TargetKind,
+    desired: StoredValue,
+    legacy_journal_key: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RestorePlan {
+    target_id: String,
+    target: TargetKind,
+    baseline: StoredValue,
+    last_confirmed: StoredValue,
+    legacy_journal_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SystemdPropertyState {
+    explicit: bool,
+    value: String,
+}
+
+pub(crate) trait SystemdIo {
+    fn read_property(&self, unit: &str, property: &str) -> io::Result<SystemdPropertyState>;
+    fn set_property(&self, unit: &str, property: &str, value: Option<&str>) -> io::Result<()>;
+}
+
+#[derive(Debug, Default)]
+struct RealSystemd;
+
+impl RealSystemd {
+    fn output(args: &[&str]) -> io::Result<String> {
+        let output = Command::new("systemctl").args(args).output()?;
+        if !output.status.success() {
+            return Err(io::Error::other(format!(
+                "systemctl exited with {}",
+                output.status
+            )));
+        }
+        String::from_utf8(output.stdout)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
+
+    fn runtime_property_is_explicit(unit: &str, property: &str) -> io::Result<bool> {
+        let paths = Self::output(&["show", "--property=DropInPaths", "--value", unit])?;
+        for raw in paths.split_whitespace() {
+            let path = raw.trim_matches('"');
+            if !path.starts_with("/run/systemd/system.control/") {
+                continue;
+            }
+            let Ok(content) = fs::read_to_string(path) else {
+                continue;
+            };
+            if content.lines().any(|line| {
+                line.trim_start()
+                    .strip_prefix(property)
+                    .is_some_and(|suffix| suffix.starts_with('='))
+            }) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl SystemdIo for RealSystemd {
+    fn read_property(&self, unit: &str, property: &str) -> io::Result<SystemdPropertyState> {
+        let selector = format!("--property={property}");
+        let value = Self::output(&["show", &selector, "--value", unit])?
+            .trim()
+            .to_string();
+        Ok(SystemdPropertyState {
+            explicit: Self::runtime_property_is_explicit(unit, property)?,
+            value,
+        })
+    }
+
+    fn set_property(&self, unit: &str, property: &str, value: Option<&str>) -> io::Result<()> {
+        let assignment = format!("{property}={}", value.unwrap_or(""));
+        let status = Command::new("systemctl")
+            .args(["set-property", "--runtime", unit, &assignment])
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!("systemctl exited with {status}")))
+        }
+    }
+}
+
 pub(crate) struct Reconciler {
-    /// Per-target state, keyed by target identity (device path, sysctl,
-    /// systemd unit+property, etc.). Supports multi-device domains.
-    /// Shadow mode uses only the `desired` field; the V1 fields are
-    /// retained for the future F4 cutover.
-    targets: HashMap<String, TargetReconcileState>,
-    /// The desired-set from the previous tick. Used to compute the
-    /// stale set (previous - current) for shadow target-set comparison.
-    /// This mirrors `active_keys` set replacement in `main.rs`.
-    previous_desired: HashSet<String>,
-    /// The last observed AC state (for transition detection).
+    state_dir: PathBuf,
+    mode: ReconcileMode,
+    targets: BTreeMap<String, TargetState>,
+    previous_desired: BTreeSet<String>,
     last_ac: Option<bool>,
-    /// The last observed workload class (for transition detection).
     last_workload: WorkloadClass,
-    /// The last observed mode (for transition detection).
     last_mode: Mode,
-    /// The last observed F1 domain modes (for DomainDisabled detection).
     last_domain_modes: HashMap<Domain, DomainMode>,
-    /// The current correlation ID (threaded through future V1 outcomes).
-    correlation_id: String,
+    systemd: Box<dyn SystemdIo>,
 }
 
 impl Reconciler {
-    /// Create a new reconciler with empty state. Shadow mode is the
-    /// only mode (V1 is future work; see module docs).
-    pub(crate) fn new() -> Self {
-        Self {
-            targets: HashMap::new(),
-            previous_desired: HashSet::new(),
+    pub(crate) fn load(state_dir: PathBuf, io: &dyn KernelIo) -> io::Result<Self> {
+        Self::load_with_systemd(state_dir, io, Box::<RealSystemd>::default())
+    }
+
+    fn load_with_systemd(
+        state_dir: PathBuf,
+        io: &dyn KernelIo,
+        systemd: Box<dyn SystemdIo>,
+    ) -> io::Result<Self> {
+        let mode = ReconcileMode::load(io, &state_dir);
+        let targets = match io.read_to_string(&state_dir.join(STATE_FILE)) {
+            Ok(content) => serde_json::from_str::<PersistedState>(&content)
+                .map(|state| state.targets)
+                .unwrap_or_default(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
+            Err(error) => return Err(error),
+        };
+        let mut reconciler = Self {
+            state_dir,
+            mode,
+            targets,
+            previous_desired: BTreeSet::new(),
             last_ac: None,
             last_workload: WorkloadClass::Idle,
             last_mode: Mode::Auto,
             last_domain_modes: HashMap::new(),
-            correlation_id: String::new(),
-        }
+            systemd,
+        };
+        reconciler.hydrate_legacy(io)?;
+        reconciler.persist(io)?;
+        Ok(reconciler)
     }
 
-    /// Set the current correlation ID. (Retained for the future V1
-    /// cutover; shadow mode does not use it.)
-    #[cfg(test)]
-    pub(crate) fn set_correlation_id(&mut self, id: String) {
-        self.correlation_id = id;
+    pub(crate) fn mode(&self) -> ReconcileMode {
+        self.mode
     }
 
-    /// Observe the current snapshot state and detect transitions. Returns
-    /// a list of transitions that fired. The daemon logs these so
-    /// operators can see context changes; shadow mode does not act on
-    /// them.
-    ///
-    /// The caller passes the current AC state, workload class, mode, and
-    /// per-domain effective modes. The reconciler compares against its
-    /// last-known state and emits transitions for any differences.
     pub(crate) fn detect_transitions(
         &mut self,
         on_ac: Option<bool>,
@@ -219,8 +299,6 @@ impl Reconciler {
         domain_modes: &HashMap<Domain, DomainMode>,
     ) -> Vec<Transition> {
         let mut transitions = Vec::new();
-
-        // AC state change
         if self.last_ac.is_some() && self.last_ac != on_ac {
             transitions.push(Transition::AcChanged {
                 from: self.last_ac,
@@ -228,8 +306,6 @@ impl Reconciler {
             });
         }
         self.last_ac = on_ac;
-
-        // Workload class change
         if self.last_workload != workload {
             transitions.push(Transition::WorkloadChanged {
                 from: self.last_workload,
@@ -237,8 +313,6 @@ impl Reconciler {
             });
         }
         self.last_workload = workload;
-
-        // Mode change
         if self.last_mode != mode {
             transitions.push(Transition::ModeChanged {
                 from: self.last_mode,
@@ -246,642 +320,1126 @@ impl Reconciler {
             });
         }
         self.last_mode = mode;
-
-        // Domain disable (mode → Off)
-        for (domain, current_mode) in domain_modes {
-            if let Some(prev_mode) = self.last_domain_modes.get(domain) {
-                if *prev_mode != DomainMode::Off && *current_mode == DomainMode::Off {
-                    transitions.push(Transition::DomainDisabled { domain: *domain });
-                }
+        for (domain, current) in domain_modes {
+            if self
+                .last_domain_modes
+                .get(domain)
+                .is_some_and(|previous| *previous != DomainMode::Off && *current == DomainMode::Off)
+            {
+                transitions.push(Transition::DomainDisabled { domain: *domain });
             }
-            self.last_domain_modes.insert(*domain, *current_mode);
+            self.last_domain_modes.insert(*domain, *current);
         }
-
         transitions
     }
 
-    /// Signal a config reload. Emits a ConfigReloaded transition.
-    pub(crate) fn signal_config_reload(&mut self) -> Transition {
+    pub(crate) fn signal_config_reload(&self) -> Transition {
         Transition::ConfigReloaded
     }
 
-    /// Signal a device removal. Updates internal state and returns a
-    /// DeviceRemoved transition.
     pub(crate) fn signal_device_removed(
         &mut self,
         domain: Domain,
         device_id: String,
     ) -> Transition {
-        // Drop the target's state — the device is gone.
-        self.targets.remove(&device_id);
-        self.previous_desired.remove(&device_id);
+        if let Some(state) = self.targets.get_mut(&device_id) {
+            state.desired = None;
+        }
         Transition::DeviceRemoved { domain, device_id }
     }
 
-    /// Replace the per-tick desired set for tracked targets.
-    ///
-    /// The daemon must call this **every tick** with the complete set of
-    /// journal keys the current decision emits. This mirrors the
-    /// `active_keys` set replacement in `main.rs` so shadow and
-    /// production track the same target set for equivalent decisions.
-    ///
-    /// `desired_by_key` maps each action's `journal_key()` (when
-    /// `Some`) to its describe() string. Actions whose `journal_key()`
-    /// is `None` (e.g. `SystemdSetProperty`, which has no
-    /// property-level restoration) are excluded from tracking — the
-    /// reconciler must not pretend to restore them.
-    ///
-    /// The previous tick's desired set is saved in `previous_desired`
-    /// so `stale_target_ids()` can compute the set difference
-    /// (previous - current) for shadow target-set comparison.
-    pub(crate) fn replace_desired_targets(&mut self, desired_by_key: &HashMap<String, String>) {
-        // Save the current desired-set as previous_desired for stale
-        // detection. This is the set of target IDs that had
-        // desired.is_some() before this tick's update.
+    pub(crate) fn prepare_cycle(
+        &mut self,
+        actions: &[Action],
+        actuator: &mut Actuator,
+    ) -> io::Result<Vec<String>> {
         self.previous_desired = self
             .targets
             .iter()
-            .filter(|(_, s)| s.desired.is_some())
+            .filter(|(_, state)| state.desired.is_some())
             .map(|(id, _)| id.clone())
             .collect();
+        for state in self.targets.values_mut() {
+            state.desired = None;
+        }
 
-        // Step 1: mark every currently-tracked target whose key is not
-        // in the new desired set as `desired = None`. This makes the
-        // target stale / restore-eligible on the next transition.
-        for (target_id, state) in &mut self.targets {
-            if !desired_by_key.contains_key(target_id) && state.desired.is_some() {
-                state.desired = None;
-                state.retries = 0;
+        let mut desired_ids = BTreeSet::new();
+        for action in actions {
+            for desired in self.expand_action(action, actuator)? {
+                desired_ids.insert(desired.target_id.clone());
+                let baseline = self.read_target(actuator, &desired.target).ok();
+                let state = self
+                    .targets
+                    .entry(desired.target_id.clone())
+                    .or_insert_with(|| TargetState {
+                        target_id: desired.target_id.clone(),
+                        domain: desired.domain.clone(),
+                        target: desired.target.clone(),
+                        legacy_journal_key: desired.legacy_journal_key.clone(),
+                        baseline: baseline.clone(),
+                        desired: None,
+                        last_attempted: None,
+                        last_confirmed: None,
+                        ownership: OwnershipState::Unowned,
+                        ownership_reason: None,
+                        retries: 0,
+                        restore_pending: false,
+                    });
+                state.domain = desired.domain;
+                state.target = desired.target;
+                state.legacy_journal_key = desired.legacy_journal_key;
+                if state.baseline.is_none() {
+                    state.baseline = baseline;
+                }
+                if state.desired.as_ref() != Some(&desired.desired) {
+                    state.retries = 0;
+                }
+                state.desired = Some(desired.desired);
             }
         }
-        // Step 2: insert or update desired for every key in the new
-        // set. Reset retries when the desired value changes.
-        for (key, describe) in desired_by_key {
-            let state = self
-                .targets
-                .entry(key.clone())
-                .or_insert_with(|| TargetReconcileState {
-                    target_id: key.clone(),
-                    ..Default::default()
-                });
-            if state.desired.as_deref() != Some(describe.as_str()) {
-                state.desired = Some(describe.clone());
-                state.retries = 0;
-            }
-        }
+        self.persist(actuator.kernel.as_ref())?;
+
+        Ok(self
+            .previous_desired
+            .difference(&desired_ids)
+            .cloned()
+            .collect())
     }
 
-    /// The set of target IDs that were desired on the previous tick but
-    /// are absent from the current decision. This is the shadow
-    /// target-set comparison — it mirrors `active_keys.difference(
-    /// &new_keys)` in `main.rs` and is used by the daemon to log the
-    /// stale set for operator visibility.
-    ///
-    /// Production restore still uses `active_keys +
-    /// Actuator::revert_key`; this method does not claim to produce a
-    /// restore plan. The stale set is the set of target IDs the
-    /// reconciler *would* need to restore if it owned production
-    /// restore (which it does not, until the F4 cutover).
-    ///
-    /// The returned vector is sorted for deterministic output.
-    pub(crate) fn stale_target_ids(&self) -> Vec<String> {
-        let current_desired: HashSet<&str> = self
-            .targets
+    pub(crate) fn apply_action(
+        &mut self,
+        actuator: &mut Actuator,
+        action: &Action,
+    ) -> io::Result<ActionOutcome> {
+        if actuator
+            .boot_state
+            .as_ref()
+            .is_some_and(|boot| !boot.apply_armed)
+        {
+            let mut outcome = ActionOutcome::new(action);
+            outcome.gates.push(GateEvaluation::allowed(
+                GateStage::DomainMode,
+                GateReasonCode::DomainActuate,
+            ));
+            outcome.gates.push(GateEvaluation::denied(
+                GateStage::ApplyArmed,
+                GateReasonCode::ApplyDisarmedByBootState,
+                "dynamic writes are disarmed",
+            ));
+            outcome.targets.push(TargetOutcome::denied(
+                action.stable_target_id(),
+                PipelineStage::ApplyGate,
+                "dynamic writes are disarmed".to_string(),
+            ));
+            return Ok(outcome);
+        }
+        let expanded = self.expand_action(action, actuator).unwrap_or_default();
+        if expanded.iter().any(|desired| {
+            self.targets
+                .get(&desired.target_id)
+                .is_none_or(|state| state.baseline.is_none())
+        }) {
+            let mut outcome = ActionOutcome::new(action);
+            outcome.gates.push(GateEvaluation::allowed(
+                GateStage::DomainMode,
+                GateReasonCode::DomainActuate,
+            ));
+            outcome.gates.push(GateEvaluation::denied(
+                GateStage::RecoveryJournal,
+                GateReasonCode::JournalFailed,
+                "baseline capture failed; write refused",
+            ));
+            for desired in expanded {
+                outcome.targets.push(TargetOutcome::denied(
+                    desired.target_id,
+                    PipelineStage::Journal,
+                    "baseline capture failed; write refused".to_string(),
+                ));
+            }
+            return Ok(outcome);
+        }
+
+        let outcome = match action {
+            Action::SystemdSetProperty {
+                unit, properties, ..
+            } => self.apply_systemd_action(actuator, action, unit, properties)?,
+            _ if self.action_is_coalesced(action, actuator) => {
+                let mut outcome = ActionOutcome::new(action);
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::DomainMode,
+                    GateReasonCode::DomainActuate,
+                ));
+                outcome.targets.push(TargetOutcome {
+                    target_id: action.stable_target_id(),
+                    pipeline_stage: PipelineStage::Write,
+                    support: SupportState::Supported,
+                    reason: OutcomeReasonCode::RedundantValue,
+                    write_attempted: false,
+                    write_outcome: WriteOutcome::Redundant,
+                    readback: ReadbackOutcome::NotPerformed,
+                    ownership: OwnershipState::Optid,
+                    pending_restore: RestoreState::Pending,
+                    responsible_subsystem: ResponsibleSubsystem::Restoration,
+                    detail: Some("complete desired state already confirmed".to_string()),
+                });
+                outcome
+            }
+            _ => actuator.apply(action)?,
+        };
+        self.record_action_outcome(action, &outcome, actuator)?;
+        Ok(outcome)
+    }
+
+    pub(crate) fn reconcile(
+        &mut self,
+        actuator: &mut Actuator,
+    ) -> io::Result<Vec<RestoreOutcome>> {
+        let plans = self.plan_restores();
+        let mut outcomes = Vec::with_capacity(plans.len());
+        for plan in plans {
+            let outcome = if self.mode == ReconcileMode::Shadow {
+                RestoreOutcome {
+                    target_id: plan.target_id.clone(),
+                    pipeline_stage: PipelineStage::Restore,
+                    reason: OutcomeReasonCode::NotEvaluated,
+                    write_attempted: false,
+                    write_outcome: WriteOutcome::NotEvaluated,
+                    readback: ReadbackOutcome::NotPerformed,
+                    ownership: OwnershipState::Optid,
+                    pending_restore: RestoreState::Pending,
+                    responsible_subsystem: ResponsibleSubsystem::Restoration,
+                    detail: Some("shadow restore plan; no write executed".to_string()),
+                }
+            } else {
+                actuator.execute_restore(&plan, self.systemd.as_ref())?
+            };
+            self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref());
+            outcomes.push(outcome);
+        }
+        self.persist(actuator.kernel.as_ref())?;
+        Ok(outcomes)
+    }
+
+    pub(crate) fn restore_all_owned(
+        &mut self,
+        actuator: &mut Actuator,
+    ) -> io::Result<Vec<RestoreOutcome>> {
+        for state in self.targets.values_mut() {
+            state.desired = None;
+        }
+        self.reconcile(actuator)
+    }
+
+    pub(crate) fn parity_report(&self, legacy_stale_keys: &BTreeSet<String>) -> ParityReport {
+        let plans = self.plan_restores();
+        let planned: BTreeSet<String> = plans
             .iter()
-            .filter(|(_, s)| s.desired.is_some())
-            .map(|(id, _)| id.as_str())
+            .filter_map(|plan| plan.legacy_journal_key.clone())
             .collect();
-        let mut stale: Vec<String> = self
-            .previous_desired
+        let comparable_planned: BTreeSet<String> = planned
             .iter()
-            .filter(|id| !current_desired.contains(id.as_str()))
+            .filter(|key| legacy_restore_supported(key))
             .cloned()
             .collect();
-        stale.sort();
-        stale
+        let comparable_legacy: BTreeSet<String> = legacy_stale_keys
+            .iter()
+            .filter(|key| legacy_restore_supported(key))
+            .cloned()
+            .collect();
+        ParityReport {
+            legacy: comparable_legacy.clone(),
+            v1: comparable_planned.clone(),
+            parity: comparable_legacy == comparable_planned,
+            intentional_v1_only: plans
+                .iter()
+                .filter(|plan| {
+                    plan.legacy_journal_key
+                        .as_deref()
+                        .is_none_or(|key| !legacy_restore_supported(key))
+                })
+                .map(|plan| plan.target_id.clone())
+                .collect(),
+        }
     }
 
-    /// Shadow/production parity: set of target ids with non-None desired.
-    pub(crate) fn active_target_ids(&self) -> Vec<String> {
-        let mut ids: Vec<String> = self
+    fn action_is_coalesced(&self, action: &Action, actuator: &mut Actuator) -> bool {
+        let Ok(targets) = self.expand_action(action, actuator) else {
+            return false;
+        };
+        !targets.is_empty()
+            && targets.iter().all(|target| {
+                self.targets.get(&target.target_id).is_some_and(|state| {
+                    state.ownership == OwnershipState::Optid
+                        && state.last_confirmed.as_ref() == Some(&target.desired)
+                })
+            })
+    }
+
+    fn record_action_outcome(
+        &mut self,
+        action: &Action,
+        outcome: &ActionOutcome,
+        actuator: &mut Actuator,
+    ) -> io::Result<()> {
+        let desired_targets = self.expand_action(action, actuator)?;
+        let by_id: HashMap<&str, &TargetOutcome> = outcome
             .targets
             .iter()
-            .filter(|(_, s)| s.desired.is_some())
-            .map(|(id, _)| id.clone())
+            .map(|target| (target.target_id.as_str(), target))
             .collect();
-        ids.sort();
-        ids
-    }
-
-    // ── Target-identity V1 helpers (retained for the future F4 cutover) ──
-    //
-    // The following methods operate on the V1 fields of
-    // `TargetReconcileState` (`baseline`, `last_confirmed`, `ownership`,
-    // `retries`, `restore_pending`). Shadow mode does not call them;
-    // they exist so the future F4 cutover can wire target state from
-    // journal observations without a schema change. They are kept
-    // `pub(crate)` so the future cutover (and the tests that pin their
-    // contracts) can reach them.
-
-    /// Update desired state for a specific target identity. (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn set_desired_target(&mut self, target_id: &str, value: Option<String>) {
-        let state = self
-            .targets
-            .entry(target_id.to_string())
-            .or_insert_with(|| TargetReconcileState {
-                target_id: target_id.to_string(),
-                ..Default::default()
-            });
-        if state.desired != value {
-            state.desired = value;
-            state.retries = 0;
-        }
-    }
-
-    /// Capture baseline for a target identity. (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn capture_baseline_target(&mut self, target_id: &str, value: String) {
-        let state = self
-            .targets
-            .entry(target_id.to_string())
-            .or_insert_with(|| TargetReconcileState {
-                target_id: target_id.to_string(),
-                ..Default::default()
-            });
-        state.baseline = Some(value);
-    }
-
-    /// Record confirmed write for a target (ownership → Optid). (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn record_confirmed_target(&mut self, target_id: &str, confirmed_value: String) {
-        let state = self
-            .targets
-            .entry(target_id.to_string())
-            .or_insert_with(|| TargetReconcileState {
-                target_id: target_id.to_string(),
-                ..Default::default()
-            });
-        state.last_confirmed = Some(confirmed_value);
-        state.retries = 0;
-        state.restore_pending = false;
-        if state.ownership == Ownership::Unowned {
-            state.ownership = Ownership::Optid;
-        }
-    }
-
-    /// Record a failed restore: keep pending for bounded retry. (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn record_restore_failure_target(
-        &mut self,
-        target_id: &str,
-        error: String,
-    ) -> Ownership {
-        let state = self
-            .targets
-            .entry(target_id.to_string())
-            .or_insert_with(|| TargetReconcileState {
-                target_id: target_id.to_string(),
-                ..Default::default()
-            });
-        state.retries += 1;
-        state.restore_pending = true;
-        if state.retries >= MAX_RETRIES {
-            state.ownership = Ownership::External {
-                reason: format!("restore failed {} times: {}", state.retries, error),
+        for desired in desired_targets {
+            let Some(state) = self.targets.get_mut(&desired.target_id) else {
+                continue;
             };
-            state.restore_pending = false;
-        } else if state.ownership == Ownership::Unowned {
-            state.ownership = Ownership::Optid;
+            let target_outcome = by_id
+                .get(desired.target_id.as_str())
+                .copied()
+                .or_else(|| outcome.targets.first());
+            let Some(target_outcome) = target_outcome else {
+                continue;
+            };
+            if target_outcome.write_attempted {
+                state.last_attempted = Some(desired.desired.clone());
+            }
+            match (&target_outcome.readback, target_outcome.write_attempted) {
+                (ReadbackOutcome::Confirmed { .. }, true)
+                    if target_outcome.ownership == OwnershipState::Optid =>
+                {
+                    if state.baseline.is_none() {
+                        state.ownership = OwnershipState::Unowned;
+                        state.ownership_reason = Some(
+                            "write confirmed but baseline is missing; ownership not claimed".to_string(),
+                        );
+                        state.restore_pending = false;
+                        continue;
+                    }
+                    state.last_confirmed = Some(desired.desired);
+                    state.ownership = OwnershipState::Optid;
+                    state.ownership_reason = None;
+                    state.restore_pending = true;
+                    state.retries = 0;
+                }
+                (ReadbackOutcome::Mismatch { expected, actual }, _) => {
+                    state.ownership = OwnershipState::Relinquished;
+                    state.ownership_reason = Some(format!(
+                        "apply readback drift: expected {expected}, observed {actual}"
+                    ));
+                    state.restore_pending = false;
+                }
+                _ => {}
+            }
         }
-        state.ownership.clone()
+        self.persist(actuator.kernel.as_ref())
     }
 
-    /// Evaluate whether optid may restore `target_id` to `baseline`.
-    /// (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn may_restore_target(
+    fn record_restore_outcome(
         &mut self,
-        target_id: &str,
-        readback: &str,
-    ) -> Result<String, Ownership> {
-        let state = match self.targets.get_mut(target_id) {
-            Some(s) => s,
-            None => {
-                return Err(Ownership::Unowned);
-            }
+        plan: &RestorePlan,
+        outcome: &RestoreOutcome,
+        io: &dyn KernelIo,
+    ) {
+        let Some(state) = self.targets.get_mut(&plan.target_id) else {
+            return;
         };
-        if state.ownership != Ownership::Optid {
-            return Err(state.ownership.clone());
-        }
-        match (&state.last_confirmed, &state.baseline) {
-            (Some(confirmed), Some(baseline)) => {
-                if readback == confirmed.as_str() {
-                    Ok(baseline.clone())
-                } else {
-                    state.ownership = Ownership::External {
-                        reason: format!("drift: readback {readback} != last_confirmed {confirmed}"),
-                    };
-                    Err(state.ownership.clone())
+        match &outcome.write_outcome {
+            WriteOutcome::Restored => {
+                state.ownership = OwnershipState::Unowned;
+                state.ownership_reason = None;
+                state.last_attempted = Some(plan.baseline.clone());
+                state.last_confirmed = None;
+                state.restore_pending = false;
+                state.retries = 0;
+                if let Some(key) = &plan.legacy_journal_key {
+                    clear_journal_with(io, &self.state_dir, key);
                 }
             }
-            _ => Err(Ownership::Unowned),
-        }
-    }
-
-    /// Coalesce: skip write when desired already equals last confirmed.
-    /// (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn should_write_target(&self, target_id: &str, value: &str) -> bool {
-        if let Some(state) = self.targets.get(target_id) {
-            if let Some(confirmed) = &state.last_confirmed {
-                return confirmed != value;
+            WriteOutcome::OwnershipRelinquished => {
+                state.ownership = OwnershipState::Relinquished;
+                state.ownership_reason = outcome.detail.clone();
+                state.restore_pending = false;
             }
+            WriteOutcome::RestorationFailed { .. } => {
+                state.retries = state.retries.saturating_add(1);
+                if state.retries >= MAX_RESTORE_RETRIES {
+                    state.ownership = OwnershipState::Relinquished;
+                    state.ownership_reason = Some(format!(
+                        "restore retry limit reached ({MAX_RESTORE_RETRIES})"
+                    ));
+                    state.restore_pending = false;
+                } else {
+                    state.restore_pending = true;
+                }
+            }
+            _ => {}
         }
-        true
     }
 
-    /// Targets currently pending restore (failed restore, retries remaining).
-    /// (V1 helper.)
-    #[cfg(test)]
-    pub(crate) fn pending_restore_targets(&self) -> Vec<String> {
+    fn plan_restores(&self) -> Vec<RestorePlan> {
         self.targets
-            .iter()
-            .filter(|(_, s)| s.restore_pending && s.retries < MAX_RETRIES)
-            .map(|(id, _)| id.clone())
+            .values()
+            .filter(|state| {
+                state.ownership == OwnershipState::Optid
+                    && state.desired.is_none()
+                    && state.restore_pending
+                    && state.retries < MAX_RESTORE_RETRIES
+            })
+            .filter_map(|state| {
+                Some(RestorePlan {
+                    target_id: state.target_id.clone(),
+                    target: state.target.clone(),
+                    baseline: state.baseline.clone()?,
+                    last_confirmed: state.last_confirmed.clone()?,
+                    legacy_journal_key: state.legacy_journal_key.clone(),
+                })
+            })
             .collect()
     }
-}
 
-impl Default for Reconciler {
-    fn default() -> Self {
-        Self::new()
+    fn expand_action(
+        &self,
+        action: &Action,
+        actuator: &mut Actuator,
+    ) -> io::Result<Vec<DesiredTarget>> {
+        let domain = action
+            .domain()
+            .map(|domain| domain.as_str().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let legacy = action.journal_key();
+        let targets = match action {
+            Action::CpuEpp { value, .. } => discover_cpu_epp_paths_with(actuator.kernel.as_ref())
+                .into_iter()
+                .map(|path| DesiredTarget {
+                    target_id: action.stable_expanded_target_id(&path),
+                    domain: domain.clone(),
+                    target: TargetKind::KernelValue { path },
+                    desired: StoredValue::Scalar {
+                        value: value.clone(),
+                    },
+                    legacy_journal_key: None,
+                })
+                .collect(),
+            Action::PlatformProfile { value, .. } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::KernelValue {
+                    path: PathBuf::from("/sys/firmware/acpi/platform_profile"),
+                },
+                desired: StoredValue::Scalar {
+                    value: value.clone(),
+                },
+                legacy_journal_key: None,
+            }],
+            Action::SystemdSetProperty {
+                unit, properties, ..
+            } => properties
+                .iter()
+                .filter_map(|assignment| assignment.split_once('='))
+                .map(|(property, value)| DesiredTarget {
+                    target_id: format!(
+                        "{}:property:{}",
+                        action.stable_target_id(),
+                        sanitize_identity(property)
+                    ),
+                    domain: domain.clone(),
+                    target: TargetKind::SystemdProperty {
+                        unit: unit.clone(),
+                        property: property.to_string(),
+                    },
+                    desired: StoredValue::Systemd {
+                        explicit: true,
+                        value: value.to_string(),
+                    },
+                    legacy_journal_key: None,
+                })
+                .collect(),
+            Action::VmSysctl { path, value, .. } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::KernelValue { path: path.clone() },
+                desired: StoredValue::Scalar {
+                    value: value.clone(),
+                },
+                legacy_journal_key: legacy,
+            }],
+            Action::CpuDmaLatency { value, .. } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::PmqosCpu,
+                desired: StoredValue::Scalar {
+                    value: value
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "unconstrained".to_string()),
+                },
+                legacy_journal_key: legacy,
+            }],
+            Action::DeviceResumeLatency { path, value, .. } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::PmqosDevice { path: path.clone() },
+                desired: StoredValue::Scalar {
+                    value: value
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "0".to_string()),
+                },
+                legacy_journal_key: legacy,
+            }],
+            Action::RuntimePm {
+                device_dir,
+                autosuspend_delay_ms,
+                ..
+            } => {
+                let delay_path = device_dir.join("power/autosuspend_delay_ms");
+                let has_delay = actuator.kernel.exists(&delay_path);
+                vec![DesiredTarget {
+                    target_id: action.stable_target_id(),
+                    domain,
+                    target: TargetKind::RuntimePm {
+                        control_path: device_dir.join("power/control"),
+                        delay_path: has_delay.then_some(delay_path),
+                    },
+                    desired: StoredValue::RuntimePm {
+                        control: "auto".to_string(),
+                        delay: has_delay.then(|| autosuspend_delay_ms.to_string()),
+                    },
+                    legacy_journal_key: legacy,
+                }]
+            }
+            Action::PcieAspm {
+                device_dir, enable, ..
+            } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::KernelValue {
+                    path: device_dir.join("link/l1_aspm"),
+                },
+                desired: StoredValue::Scalar {
+                    value: if *enable { "1" } else { "0" }.to_string(),
+                },
+                legacy_journal_key: legacy,
+            }],
+            Action::SataAlpm {
+                host_dir, policy, ..
+            } => vec![DesiredTarget {
+                target_id: action.stable_target_id(),
+                domain,
+                target: TargetKind::KernelValue {
+                    path: host_dir.join("link_power_management_policy"),
+                },
+                desired: StoredValue::Scalar {
+                    value: policy.clone(),
+                },
+                legacy_journal_key: legacy,
+            }],
+            Action::Backlight {
+                device_dir,
+                target_pct,
+                ..
+            } => {
+                let max_path = device_dir.join("max_brightness");
+                let max = actuator
+                    .kernel
+                    .read_to_string(&max_path)?
+                    .trim()
+                    .parse::<u64>()
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+                let value = display::compute_target_brightness(max, *target_pct).to_string();
+                vec![DesiredTarget {
+                    target_id: action.stable_target_id(),
+                    domain,
+                    target: TargetKind::KernelValue {
+                        path: device_dir.join("brightness"),
+                    },
+                    desired: StoredValue::Scalar { value },
+                    legacy_journal_key: legacy,
+                }]
+            }
+        };
+        Ok(targets)
+    }
+
+    fn apply_systemd_action(
+        &mut self,
+        _actuator: &mut Actuator,
+        action: &Action,
+        unit: &str,
+        properties: &[String],
+    ) -> io::Result<ActionOutcome> {
+        let mut outcome = ActionOutcome::new(action);
+        outcome.gates.push(GateEvaluation::allowed(
+            GateStage::DomainMode,
+            GateReasonCode::DomainActuate,
+        ));
+        outcome.gates.push(GateEvaluation::allowed(
+            GateStage::ApplyArmed,
+            GateReasonCode::ApplyArmed,
+        ));
+        outcome.gates.push(GateEvaluation::not_applicable(
+            GateStage::Contract,
+            GateReasonCode::ContractNotApplicable,
+        ));
+        outcome.gates.push(GateEvaluation::not_applicable(
+            GateStage::CapabilityValidation,
+            GateReasonCode::CapabilityAllowed,
+        ));
+        for assignment in properties {
+            let Some((property, value)) = assignment.split_once('=') else {
+                let error = io::Error::new(io::ErrorKind::InvalidInput, "invalid systemd property");
+                outcome.targets.push(TargetOutcome::failed(
+                    format!("{}:property:invalid", action.stable_target_id()),
+                    &error,
+                ));
+                continue;
+            };
+            let target_id = format!(
+                "{}:property:{}",
+                action.stable_target_id(),
+                sanitize_identity(property)
+            );
+            let current = self.systemd.read_property(unit, property)?;
+            if current.explicit && current.value == value {
+                outcome.targets.push(TargetOutcome {
+                    target_id: target_id.clone(),
+                    pipeline_stage: PipelineStage::Write,
+                    support: SupportState::Supported,
+                    reason: OutcomeReasonCode::RedundantValue,
+                    write_attempted: false,
+                    write_outcome: WriteOutcome::Redundant,
+                    readback: ReadbackOutcome::Confirmed {
+                        value: current.value,
+                    },
+                    ownership: self
+                        .targets
+                        .get(&target_id)
+                        .map(|state| state.ownership.clone())
+                        .unwrap_or(OwnershipState::Unowned),
+                    pending_restore: RestoreState::Pending,
+                    responsible_subsystem: ResponsibleSubsystem::Systemd,
+                    detail: None,
+                });
+                continue;
+            }
+            match self.systemd.set_property(unit, property, Some(value)) {
+                Ok(()) => {
+                    let readback = self.systemd.read_property(unit, property)?;
+                    let confirmed = readback.explicit && readback.value == value;
+                    outcome.targets.push(TargetOutcome {
+                        target_id,
+                        pipeline_stage: PipelineStage::Readback,
+                        support: SupportState::Supported,
+                        reason: if confirmed {
+                            OutcomeReasonCode::ReadbackConfirmed
+                        } else {
+                            OutcomeReasonCode::ReadbackMismatch
+                        },
+                        write_attempted: true,
+                        write_outcome: WriteOutcome::Applied,
+                        readback: if confirmed {
+                            ReadbackOutcome::Confirmed {
+                                value: readback.value,
+                            }
+                        } else {
+                            ReadbackOutcome::Mismatch {
+                                expected: value.to_string(),
+                                actual: readback.value,
+                            }
+                        },
+                        ownership: if confirmed {
+                            OwnershipState::Optid
+                        } else {
+                            OwnershipState::Drifted
+                        },
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Systemd,
+                        detail: None,
+                    });
+                }
+                Err(error) => outcome
+                    .targets
+                    .push(TargetOutcome::failed(target_id, &error)),
+            }
+        }
+        Ok(outcome)
+    }
+
+    fn read_target(&self, actuator: &mut Actuator, target: &TargetKind) -> io::Result<StoredValue> {
+        match target {
+            TargetKind::KernelValue { path } => Ok(StoredValue::Scalar {
+                value: actuator.kernel.read_to_string(path)?.trim().to_string(),
+            }),
+            TargetKind::PmqosCpu => Ok(StoredValue::Scalar {
+                value: actuator.pmqos_sink.read_cpu_latency()?.trim().to_string(),
+            }),
+            TargetKind::PmqosDevice { path } => Ok(StoredValue::Scalar {
+                value: actuator
+                    .pmqos_sink
+                    .read_device_latency(path)?
+                    .trim()
+                    .to_string(),
+            }),
+            TargetKind::RuntimePm {
+                control_path,
+                delay_path,
+            } => Ok(StoredValue::RuntimePm {
+                control: actuator
+                    .kernel
+                    .read_to_string(control_path)?
+                    .trim()
+                    .to_string(),
+                delay: delay_path
+                    .as_ref()
+                    .map(|path| {
+                        actuator
+                            .kernel
+                            .read_to_string(path)
+                            .map(|value| value.trim().to_string())
+                    })
+                    .transpose()?,
+            }),
+            TargetKind::SystemdProperty { unit, property } => {
+                let state = self.systemd.read_property(unit, property)?;
+                Ok(StoredValue::Systemd {
+                    explicit: state.explicit,
+                    value: state.value,
+                })
+            }
+        }
+    }
+
+    fn persist(&self, io: &dyn KernelIo) -> io::Result<()> {
+        let content = serde_json::to_string_pretty(&PersistedState {
+            schema_version: 1,
+            targets: self.targets.clone(),
+        })
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        atomic_write_state_file_with(io, &self.state_dir.join(STATE_FILE), &content)
+    }
+
+    fn hydrate_legacy(&mut self, io: &dyn KernelIo) -> io::Result<()> {
+        let entries = match io.read_dir(&self.state_dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        for original_path in entries {
+            let Some(name) = original_path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            let Some(key) = name.strip_prefix("original_") else {
+                continue;
+            };
+            if self
+                .targets
+                .values()
+                .any(|state| state.legacy_journal_key.as_deref() == Some(key))
+            {
+                continue;
+            }
+            let Some((target_id, domain, target, baseline)) =
+                parse_legacy_original(io, key, &original_path)?
+            else {
+                continue;
+            };
+            let applied_path = self.state_dir.join(format!("applied_{key}"));
+            let last_confirmed = io
+                .read_to_string(&applied_path)
+                .ok()
+                .and_then(|content| parse_legacy_applied(key, &content));
+            let current = read_target_with(io, &target).ok();
+            let ownership = if last_confirmed.is_some() && current == last_confirmed {
+                OwnershipState::Optid
+            } else {
+                OwnershipState::Unowned
+            };
+            self.targets.insert(
+                target_id.clone(),
+                TargetState {
+                    target_id,
+                    domain,
+                    target,
+                    legacy_journal_key: Some(key.to_string()),
+                    baseline: Some(baseline),
+                    desired: None,
+                    last_attempted: last_confirmed.clone(),
+                    last_confirmed,
+                    ownership: ownership.clone(),
+                    ownership_reason: None,
+                    retries: 0,
+                    restore_pending: ownership == OwnershipState::Optid,
+                },
+            );
+        }
+        Ok(())
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────
+impl Actuator {
+    pub(crate) fn execute_restore(
+        &mut self,
+        plan: &RestorePlan,
+        systemd: &dyn SystemdIo,
+    ) -> io::Result<RestoreOutcome> {
+        let current = read_target_for_restore(self, systemd, &plan.target);
+        let current = match current {
+            Ok(current) => current,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok(relinquished_outcome(
+                    &plan.target_id,
+                    "target disappeared before restoration",
+                ));
+            }
+            Err(error) => return Ok(failed_restore(&plan.target_id, false, &error)),
+        };
+        if current != plan.last_confirmed {
+            return Ok(RestoreOutcome {
+                target_id: plan.target_id.clone(),
+                pipeline_stage: PipelineStage::Restore,
+                reason: OutcomeReasonCode::OwnershipRelinquished,
+                write_attempted: false,
+                write_outcome: WriteOutcome::OwnershipRelinquished,
+                readback: ReadbackOutcome::Mismatch {
+                    expected: plan.last_confirmed.public_value(),
+                    actual: current.public_value(),
+                },
+                ownership: OwnershipState::Relinquished,
+                pending_restore: RestoreState::NotApplicable,
+                responsible_subsystem: ResponsibleSubsystem::Restoration,
+                detail: Some("external drift detected; restore refused".to_string()),
+            });
+        }
+
+        if let Err(error) = write_target_for_restore(self, systemd, &plan.target, &plan.baseline) {
+            return Ok(failed_restore(&plan.target_id, true, &error));
+        }
+        let readback = match read_target_for_restore(self, systemd, &plan.target) {
+            Ok(readback) => readback,
+            Err(error) => return Ok(failed_restore(&plan.target_id, true, &error)),
+        };
+        if readback != plan.baseline {
+            return Ok(RestoreOutcome {
+                target_id: plan.target_id.clone(),
+                pipeline_stage: PipelineStage::Readback,
+                reason: OutcomeReasonCode::RestoreFailed,
+                write_attempted: true,
+                write_outcome: WriteOutcome::RestorationFailed {
+                    error_kind: ErrorKindCode::Other,
+                },
+                readback: ReadbackOutcome::Mismatch {
+                    expected: plan.baseline.public_value(),
+                    actual: readback.public_value(),
+                },
+                ownership: OwnershipState::Optid,
+                pending_restore: RestoreState::Pending,
+                responsible_subsystem: ResponsibleSubsystem::Restoration,
+                detail: Some("restore readback mismatch".to_string()),
+            });
+        }
+        Ok(RestoreOutcome {
+            target_id: plan.target_id.clone(),
+            pipeline_stage: PipelineStage::Restore,
+            reason: OutcomeReasonCode::RestoreApplied,
+            write_attempted: true,
+            write_outcome: WriteOutcome::Restored,
+            readback: ReadbackOutcome::Confirmed {
+                value: readback.public_value(),
+            },
+            ownership: OwnershipState::Unowned,
+            pending_restore: RestoreState::Restored,
+            responsible_subsystem: ResponsibleSubsystem::Restoration,
+            detail: None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ParityReport {
+    pub(crate) legacy: BTreeSet<String>,
+    pub(crate) v1: BTreeSet<String>,
+    pub(crate) parity: bool,
+    pub(crate) intentional_v1_only: BTreeSet<String>,
+}
+
+fn read_target_for_restore(
+    actuator: &mut Actuator,
+    systemd: &dyn SystemdIo,
+    target: &TargetKind,
+) -> io::Result<StoredValue> {
+    match target {
+        TargetKind::KernelValue { path } => Ok(StoredValue::Scalar {
+            value: actuator.kernel.read_to_string(path)?.trim().to_string(),
+        }),
+        TargetKind::PmqosCpu => Ok(StoredValue::Scalar {
+            value: actuator.pmqos_sink.read_cpu_latency()?.trim().to_string(),
+        }),
+        TargetKind::PmqosDevice { path } => Ok(StoredValue::Scalar {
+            value: actuator
+                .pmqos_sink
+                .read_device_latency(path)?
+                .trim()
+                .to_string(),
+        }),
+        TargetKind::RuntimePm {
+            control_path,
+            delay_path,
+        } => Ok(StoredValue::RuntimePm {
+            control: actuator
+                .kernel
+                .read_to_string(control_path)?
+                .trim()
+                .to_string(),
+            delay: delay_path
+                .as_ref()
+                .map(|path| {
+                    actuator
+                        .kernel
+                        .read_to_string(path)
+                        .map(|value| value.trim().to_string())
+                })
+                .transpose()?,
+        }),
+        TargetKind::SystemdProperty { unit, property } => {
+            let state = systemd.read_property(unit, property)?;
+            Ok(StoredValue::Systemd {
+                explicit: state.explicit,
+                value: state.value,
+            })
+        }
+    }
+}
+
+fn write_target_for_restore(
+    actuator: &mut Actuator,
+    systemd: &dyn SystemdIo,
+    target: &TargetKind,
+    value: &StoredValue,
+) -> io::Result<()> {
+    match (target, value) {
+        (TargetKind::KernelValue { path }, StoredValue::Scalar { value }) => {
+            actuator.kernel.write(path, value)
+        }
+        (TargetKind::PmqosCpu, StoredValue::Scalar { value }) => {
+            let parsed = if value == "unconstrained" {
+                None
+            } else {
+                Some(
+                    value
+                        .parse::<i32>()
+                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+                )
+            };
+            actuator.pmqos_sink.write_cpu_latency(parsed)
+        }
+        (TargetKind::PmqosDevice { path }, StoredValue::Scalar { value }) => {
+            actuator.pmqos_sink.write_device_latency(path, value)
+        }
+        (
+            TargetKind::RuntimePm {
+                control_path,
+                delay_path,
+            },
+            StoredValue::RuntimePm { control, delay },
+        ) => {
+            actuator.kernel.write(control_path, control)?;
+            if let (Some(path), Some(delay)) = (delay_path, delay) {
+                actuator.kernel.write(path, delay)?;
+            }
+            Ok(())
+        }
+        (
+            TargetKind::SystemdProperty { unit, property },
+            StoredValue::Systemd { explicit, value },
+        ) => systemd.set_property(unit, property, explicit.then_some(value.as_str())),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "target/value kind mismatch",
+        )),
+    }
+}
+
+fn read_target_with(io: &dyn KernelIo, target: &TargetKind) -> io::Result<StoredValue> {
+    match target {
+        TargetKind::KernelValue { path } => Ok(StoredValue::Scalar {
+            value: io.read_to_string(path)?.trim().to_string(),
+        }),
+        TargetKind::RuntimePm {
+            control_path,
+            delay_path,
+        } => Ok(StoredValue::RuntimePm {
+            control: io.read_to_string(control_path)?.trim().to_string(),
+            delay: delay_path
+                .as_ref()
+                .map(|path| io.read_to_string(path).map(|value| value.trim().to_string()))
+                .transpose()?,
+        }),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "legacy hydration does not support this target kind",
+        )),
+    }
+}
+
+fn parse_legacy_original(
+    io: &dyn KernelIo,
+    key: &str,
+    path: &Path,
+) -> io::Result<Option<(String, String, TargetKind, StoredValue)>> {
+    let content = io.read_to_string(path)?;
+    let mut lines = content.lines();
+    let parsed = if let Some(hash) = key.strip_prefix("rpm_") {
+        let Some(device_dir) = lines.next() else { return Ok(None) };
+        let Some(control) = lines.next() else { return Ok(None) };
+        let delay = lines
+            .next()
+            .filter(|value| *value != "n/a")
+            .map(str::to_string);
+        let device_dir = PathBuf::from(device_dir);
+        (
+            format!("runtime-pm:{hash}"),
+            "runtime_pm".to_string(),
+            TargetKind::RuntimePm {
+                control_path: device_dir.join("power/control"),
+                delay_path: delay
+                    .as_ref()
+                    .map(|_| device_dir.join("power/autosuspend_delay_ms")),
+            },
+            StoredValue::RuntimePm {
+                control: control.trim().to_string(),
+                delay,
+            },
+        )
+    } else if let Some(hash) = key.strip_prefix("dev_") {
+        let Some(attr) = lines.next() else { return Ok(None) };
+        let Some(value) = lines.next() else { return Ok(None) };
+        (
+            format!("device-resume:{hash}"),
+            "device_resume_latency".to_string(),
+            TargetKind::KernelValue {
+                path: PathBuf::from(attr),
+            },
+            StoredValue::Scalar {
+                value: value.trim().to_string(),
+            },
+        )
+    } else if let Some(hash) = key.strip_prefix("aspm_") {
+        let Some(base) = lines.next() else { return Ok(None) };
+        let Some(value) = lines.next() else { return Ok(None) };
+        (
+            format!("pcie-aspm:{hash}"),
+            "pci_aspm".to_string(),
+            TargetKind::KernelValue {
+                path: PathBuf::from(base).join("link/l1_aspm"),
+            },
+            StoredValue::Scalar {
+                value: value.trim().to_string(),
+            },
+        )
+    } else if let Some(hash) = key.strip_prefix("alpm_") {
+        let Some(base) = lines.next() else { return Ok(None) };
+        let Some(value) = lines.next() else { return Ok(None) };
+        (
+            format!("sata-alpm:{hash}"),
+            "sata_alpm".to_string(),
+            TargetKind::KernelValue {
+                path: PathBuf::from(base).join("link_power_management_policy"),
+            },
+            StoredValue::Scalar {
+                value: value.trim().to_string(),
+            },
+        )
+    } else if let Some(hash) = key.strip_prefix("bl_") {
+        let Some(base) = lines.next() else { return Ok(None) };
+        let Some(value) = lines.next() else { return Ok(None) };
+        (
+            format!("backlight:{hash}"),
+            "backlight".to_string(),
+            TargetKind::KernelValue {
+                path: PathBuf::from(base).join("brightness"),
+            },
+            StoredValue::Scalar {
+                value: value.trim().to_string(),
+            },
+        )
+    } else if let Some(name) = key.strip_prefix("vm_") {
+        (
+            format!("vm-sysctl:{}", sanitize_identity(name)),
+            "vm_sysctl".to_string(),
+            TargetKind::KernelValue {
+                path: PathBuf::from(format!("/proc/sys/vm/{name}")),
+            },
+            StoredValue::Scalar {
+                value: content.trim().to_string(),
+            },
+        )
+    } else {
+        return Ok(None);
+    };
+    Ok(Some(parsed))
+}
+
+fn parse_legacy_applied(key: &str, content: &str) -> Option<StoredValue> {
+    let value = content.split_once('\n')?.1;
+    if key.starts_with("rpm_") {
+        let mut lines = value.lines();
+        Some(StoredValue::RuntimePm {
+            control: lines.next()?.trim().to_string(),
+            delay: lines.next().map(|value| value.trim().to_string()),
+        })
+    } else {
+        Some(StoredValue::Scalar {
+            value: value.trim().to_string(),
+        })
+    }
+}
+
+fn failed_restore(target_id: &str, attempted: bool, error: &io::Error) -> RestoreOutcome {
+    RestoreOutcome {
+        target_id: target_id.to_string(),
+        pipeline_stage: PipelineStage::Restore,
+        reason: OutcomeReasonCode::RestoreFailed,
+        write_attempted: attempted,
+        write_outcome: WriteOutcome::RestorationFailed {
+            error_kind: ErrorKindCode::from_io(error),
+        },
+        readback: ReadbackOutcome::NotPerformed,
+        ownership: OwnershipState::Optid,
+        pending_restore: RestoreState::Pending,
+        responsible_subsystem: ResponsibleSubsystem::Restoration,
+        detail: Some(format!("restore failed: {:?}", error.kind())),
+    }
+}
+
+fn relinquished_outcome(target_id: &str, detail: &str) -> RestoreOutcome {
+    RestoreOutcome {
+        target_id: target_id.to_string(),
+        pipeline_stage: PipelineStage::Restore,
+        reason: OutcomeReasonCode::OwnershipRelinquished,
+        write_attempted: false,
+        write_outcome: WriteOutcome::OwnershipRelinquished,
+        readback: ReadbackOutcome::Unavailable,
+        ownership: OwnershipState::Relinquished,
+        pending_restore: RestoreState::NotApplicable,
+        responsible_subsystem: ResponsibleSubsystem::Restoration,
+        detail: Some(detail.to_string()),
+    }
+}
+
+fn legacy_restore_supported(key: &str) -> bool {
+    ["rpm_", "dev_", "aspm_", "alpm_", "bl_"]
+        .iter()
+        .any(|prefix| key.starts_with(prefix))
+}
+
+fn sanitize_identity(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-' | '@') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn domain_modes(mode: DomainMode) -> HashMap<Domain, DomainMode> {
-        let mut m = HashMap::new();
-        for d in Domain::all() {
-            m.insert(*d, mode);
-        }
-        m
-    }
-
-    // ── Transition detection ────────────────────────────────────────
-
-    #[test]
-    fn f4_detects_ac_change() {
-        let mut r = Reconciler::new();
-        r.last_ac = Some(false); // simulate first observation already set
-
-        let modes = domain_modes(DomainMode::Actuate);
-        let transitions = r.detect_transitions(Some(true), WorkloadClass::Idle, Mode::Auto, &modes);
-        assert!(transitions.iter().any(|t| matches!(
-            t,
-            Transition::AcChanged {
-                from: Some(false),
-                to: Some(true)
-            }
-        )));
-    }
-
-    #[test]
-    fn f4_detects_workload_change() {
-        let mut r = Reconciler::new();
-        r.last_workload = WorkloadClass::Idle;
-
-        let modes = domain_modes(DomainMode::Actuate);
-        let transitions =
-            r.detect_transitions(Some(true), WorkloadClass::Interactive, Mode::Auto, &modes);
-        assert!(transitions.iter().any(|t| matches!(
-            t,
-            Transition::WorkloadChanged {
-                from: WorkloadClass::Idle,
-                to: WorkloadClass::Interactive
-            }
-        )));
-    }
-
-    #[test]
-    fn f4_detects_mode_change() {
-        let mut r = Reconciler::new();
-        r.last_mode = Mode::Battery;
-
-        let modes = domain_modes(DomainMode::Actuate);
-        let transitions =
-            r.detect_transitions(Some(false), WorkloadClass::Idle, Mode::Performance, &modes);
-        assert!(transitions.iter().any(|t| matches!(
-            t,
-            Transition::ModeChanged {
-                from: Mode::Battery,
-                to: Mode::Performance
-            }
-        )));
-    }
-
-    #[test]
-    fn f4_detects_domain_disable() {
-        let mut r = Reconciler::new();
-        // First observation: all domains Actuate
-        let modes_on = domain_modes(DomainMode::Actuate);
-        let _ = r.detect_transitions(Some(true), WorkloadClass::Idle, Mode::Auto, &modes_on);
-
-        // Second observation: RuntimePm → Off
-        let mut modes_off = modes_on.clone();
-        modes_off.insert(Domain::RuntimePm, DomainMode::Off);
-        let transitions =
-            r.detect_transitions(Some(true), WorkloadClass::Idle, Mode::Auto, &modes_off);
-        assert!(transitions.iter().any(|t| matches!(
-            t,
-            Transition::DomainDisabled {
-                domain: Domain::RuntimePm
-            }
-        )));
-    }
-
-    #[test]
-    fn f4_no_transition_on_first_observation() {
-        let mut r = Reconciler::new();
-        let modes = domain_modes(DomainMode::Actuate);
-        let transitions = r.detect_transitions(Some(true), WorkloadClass::Idle, Mode::Auto, &modes);
-        assert!(!transitions
-            .iter()
-            .any(|t| matches!(t, Transition::AcChanged { .. })));
-    }
-
-    // ── Device removal ──────────────────────────────────────────────
-
-    #[test]
-    fn f4_device_removed_drops_state() {
-        let mut r = Reconciler::new();
-        let mut tick = HashMap::new();
-        tick.insert(
-            "rpm:/sys/bus/usb/devices/1-1".to_string(),
-            "auto".to_string(),
-        );
-        r.replace_desired_targets(&tick);
-        assert!(r.targets.contains_key("rpm:/sys/bus/usb/devices/1-1"));
-
-        let _ = r.signal_device_removed(
-            Domain::RuntimePm,
-            "rpm:/sys/bus/usb/devices/1-1".to_string(),
-        );
-        assert!(
-            !r.targets.contains_key("rpm:/sys/bus/usb/devices/1-1"),
-            "device removal must drop state"
-        );
-    }
-
-    // ── Transition describe ─────────────────────────────────────────
-
-    #[test]
-    fn f4_transition_describe_is_human_readable() {
-        let t = Transition::AcChanged {
-            from: Some(false),
-            to: Some(true),
-        };
-        let s = t.describe();
-        assert!(s.contains("ac_changed"));
-        assert!(s.contains("false"));
-        assert!(s.contains("true"));
-    }
-
-    // ── Shadow target-set comparison (the honest shadow surface) ────
-
-    /// A target present on tick one and absent on tick two becomes
-    /// stale (appears in `stale_target_ids()`).
-    #[test]
-    fn f4_target_absent_on_tick_two_becomes_stale() {
-        let mut r = Reconciler::new();
-
-        // Tick one: target is desired.
-        let mut tick_one = HashMap::new();
-        tick_one.insert(
-            "rpm:/sys/bus/usb/devices/1-1".to_string(),
-            "auto".to_string(),
-        );
-        r.replace_desired_targets(&tick_one);
-        // No stale targets after the first tick (previous_desired was empty).
-        assert!(r.stale_target_ids().is_empty());
-
-        // Tick two: target disappears from the decision.
-        let tick_two = HashMap::new();
-        r.replace_desired_targets(&tick_two);
-
-        // The target is now stale.
-        let stale = r.stale_target_ids();
-        assert_eq!(stale, vec!["rpm:/sys/bus/usb/devices/1-1".to_string()]);
-    }
-
-    /// Targets that remain desired are NOT marked stale.
-    #[test]
-    fn f4_target_that_remains_desired_is_not_stale() {
-        let mut r = Reconciler::new();
-        let key = "rpm:/sys/bus/usb/devices/1-1".to_string();
-
-        let mut tick_one = HashMap::new();
-        tick_one.insert(key.clone(), "auto".to_string());
-        r.replace_desired_targets(&tick_one);
-
-        // Tick two: same key still desired.
-        r.replace_desired_targets(&tick_one);
-
-        assert!(r.stale_target_ids().is_empty());
-    }
-
-    /// Two devices in one domain are tracked independently — one
-    /// disappearing does not affect the other.
-    #[test]
-    fn f4_two_devices_in_one_domain_tracked_independently() {
-        let mut r = Reconciler::new();
-        let key_a = "rpm:/sys/bus/usb/devices/1-1".to_string();
-        let key_b = "rpm:/sys/bus/usb/devices/1-2".to_string();
-
-        let mut tick_one = HashMap::new();
-        tick_one.insert(key_a.clone(), "auto".to_string());
-        tick_one.insert(key_b.clone(), "auto".to_string());
-        r.replace_desired_targets(&tick_one);
-
-        // Tick two: only device A disappears; device B remains.
-        let mut tick_two = HashMap::new();
-        tick_two.insert(key_b.clone(), "auto".to_string());
-        r.replace_desired_targets(&tick_two);
-
-        let stale = r.stale_target_ids();
-        assert_eq!(stale, vec![key_a]);
-        // B is not stale.
-        assert!(!stale.contains(&key_b));
-    }
-
-    /// `stale_target_ids()` output is deterministic (sorted).
-    #[test]
-    fn f4_stale_target_ids_is_sorted() {
-        let mut r = Reconciler::new();
-        let keys = vec![
-            "rpm:c".to_string(),
-            "rpm:a".to_string(),
-            "rpm:b".to_string(),
-        ];
-        let mut tick_one = HashMap::new();
-        for k in &keys {
-            tick_one.insert(k.clone(), "auto".to_string());
-        }
-        r.replace_desired_targets(&tick_one);
-        r.replace_desired_targets(&HashMap::new());
-
-        let stale = r.stale_target_ids();
-        assert_eq!(stale, {
-            let mut v = keys.clone();
-            v.sort();
-            v
-        });
-    }
-
-    /// Shadow target IDs match the current `active_keys` set for
-    /// equivalent decisions. The daemon builds `active_keys` from
-    /// `Action::journal_key()`; `replace_desired_targets` builds the
-    /// reconciler's target set from the same keys. The two sets must
-    /// agree so shadow and production track the same surface.
-    #[test]
-    fn f4_shadow_target_ids_match_active_keys() {
-        use crate::action::Action;
-        use std::collections::HashSet;
-        use std::path::PathBuf;
-
-        let mut r = Reconciler::new();
-
-        // Build a decision's action set the same way the daemon does.
-        let actions = vec![
-            Action::RuntimePm {
-                device_dir: PathBuf::from("/sys/bus/usb/devices/1-1"),
-                autosuspend_delay_ms: 2000,
-                reason: "test".to_string(),
-            },
-            Action::CpuEpp {
-                value: "power".to_string(),
-                reason: "test".to_string(),
-            },
-            Action::SystemdSetProperty {
-                unit: "user.slice".to_string(),
-                properties: vec!["CPUWeight=100".to_string()],
-                reason: "test".to_string(),
-            },
-        ];
-
-        // active_keys: the production set the daemon builds.
-        let active_keys: HashSet<String> = actions.iter().filter_map(|a| a.journal_key()).collect();
-
-        // desired_by_key: the same map the daemon passes to
-        // replace_desired_targets.
-        let mut desired_by_key = HashMap::new();
-        for action in &actions {
-            if let Some(key) = action.journal_key() {
-                desired_by_key.insert(key, action.describe());
-            }
-        }
-        r.replace_desired_targets(&desired_by_key);
-
-        // The reconciler's active target IDs must equal active_keys.
-        let shadow_active: HashSet<String> = r.active_target_ids().into_iter().collect();
-        assert_eq!(
-            shadow_active, active_keys,
-            "shadow target IDs must match active_keys for equivalent decisions"
-        );
-
-        // SystemdSetProperty's journal_key is None, so it must NOT
-        // appear in either set — the reconciler must not pretend to
-        // restore an action with no property-level restoration.
-        assert!(
-            !shadow_active.iter().any(|k| k.starts_with("systemd_")),
-            "systemd keys must not be tracked (no property-level restoration)"
-        );
-    }
-
-    // ── V1 helpers (retained for the future F4 cutover) ─────────────
-    //
-    // These tests pin the contracts of the V1 target-keyed methods so
-    // the future F4 cutover can wire them from journal observations
-    // without breaking the API. Shadow mode does not call them.
-
-    #[test]
-    fn f4_target_tracks_multiple_devices_per_domain() {
-        let mut r = Reconciler::new();
-        r.set_desired_target("rpm:/sys/devices/pci0/00:1.0", Some("auto".into()));
-        r.set_desired_target("rpm:/sys/devices/pci0/00:2.0", Some("auto".into()));
-        r.record_confirmed_target("rpm:/sys/devices/pci0/00:1.0", "auto".into());
-        r.record_confirmed_target("rpm:/sys/devices/pci0/00:2.0", "auto".into());
-        let active = r.active_target_ids();
-        assert_eq!(active.len(), 2);
-        assert!(active.iter().any(|id| id.contains("00:1.0")));
-        assert!(active.iter().any(|id| id.contains("00:2.0")));
-    }
-
-    #[test]
-    fn f4_target_restore_only_if_last_confirmed() {
-        let mut r = Reconciler::new();
-        r.capture_baseline_target("rpm:dev1", "on".into());
-        r.record_confirmed_target("rpm:dev1", "auto".into());
-        // Readback still matches last confirmed → restore to baseline allowed.
-        let baseline = r.may_restore_target("rpm:dev1", "auto").unwrap();
-        assert_eq!(baseline, "on");
-    }
-
-    #[test]
-    fn f4_target_drift_relinquishes() {
-        let mut r = Reconciler::new();
-        r.capture_baseline_target("rpm:dev1", "on".into());
-        r.record_confirmed_target("rpm:dev1", "auto".into());
-        // External manager changed value to "on" without optid.
-        let err = r.may_restore_target("rpm:dev1", "on").unwrap_err();
-        assert!(matches!(err, Ownership::External { .. }));
-    }
-
-    #[test]
-    fn f4_target_coalesce_identical_writes() {
-        let mut r = Reconciler::new();
-        r.record_confirmed_target("sysctl:vm.swappiness", "100".into());
-        assert!(!r.should_write_target("sysctl:vm.swappiness", "100"));
-        assert!(r.should_write_target("sysctl:vm.swappiness", "60"));
-    }
-
-    #[test]
-    fn f4_target_failed_restore_stays_pending_bounded() {
-        let mut r = Reconciler::new();
-        r.capture_baseline_target("rpm:dev1", "on".into());
-        r.record_confirmed_target("rpm:dev1", "auto".into());
-        r.record_restore_failure_target("rpm:dev1", "EBUSY".into());
-        assert_eq!(r.pending_restore_targets().len(), 1);
-        for _ in 0..MAX_RETRIES {
-            r.record_restore_failure_target("rpm:dev1", "EBUSY".into());
-        }
-        // After MAX_RETRIES, no longer pending; ownership External.
-        assert!(r.pending_restore_targets().is_empty());
-        let st = r.targets.get("rpm:dev1").unwrap();
-        assert!(matches!(st.ownership, Ownership::External { .. }));
-    }
-
-    #[test]
-    fn f4_target_supports_systemd_and_sysctl_identities() {
-        let mut r = Reconciler::new();
-        r.set_desired_target("systemd:user@1000.service:CPUWeight", Some("100".into()));
-        r.set_desired_target("sysctl:vm.dirty_bytes", Some("134217728".into()));
-        r.capture_baseline_target("systemd:user@1000.service:CPUWeight", "100".into());
-        r.record_confirmed_target("systemd:user@1000.service:CPUWeight", "200".into());
-        r.capture_baseline_target("sysctl:vm.dirty_bytes", "0".into());
-        r.record_confirmed_target("sysctl:vm.dirty_bytes", "134217728".into());
-        assert_eq!(r.active_target_ids().len(), 2);
-        // Drift on systemd property.
-        let err = r
-            .may_restore_target("systemd:user@1000.service:CPUWeight", "50")
-            .unwrap_err();
-        assert!(matches!(err, Ownership::External { .. }));
-    }
-}
+mod tests;
