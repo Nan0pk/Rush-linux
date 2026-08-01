@@ -20,13 +20,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
-      - name: Apply verified outcome-hardening patch
+      - name: Apply verified outcome-hardening and lint patches
         run: |
           echo '2772915750828e98f6c76ba3a16ca1e331438221b99692534df46a8e372114dd  tools/f3-hardening.patch.gz.b64' | sha256sum --check
           base64 --decode tools/f3-hardening.patch.gz.b64 | gzip --decompress > /tmp/f3-hardening.patch
           echo 'c05ba8fc29995d15fac68295a66d6fa28c305596f5085fc6db78ba26d6a17a40  /tmp/f3-hardening.patch' | sha256sum --check
           git apply --check /tmp/f3-hardening.patch
           git apply /tmp/f3-hardening.patch
+          cargo fmt --all
+          echo 'faaa460ef54527917fb5366eaed60ff6ea358e1915bb366d423f07bf78f25e7c  tools/f3-lint-fixes.patch.gz.b64' | sha256sum --check
+          base64 --decode tools/f3-lint-fixes.patch.gz.b64 | gzip --decompress > /tmp/f3-lint-fixes.patch
+          echo '7de3a243922039c19b97b73e36b1d3a3a910eda67a91b3f865295ad03f473d4d  /tmp/f3-lint-fixes.patch' | sha256sum --check
+          git apply --check /tmp/f3-lint-fixes.patch
+          git apply /tmp/f3-lint-fixes.patch
           cargo fmt --all
           git diff --check
       - name: Run exact F3 outcome acceptance tests
@@ -54,6 +60,7 @@ jobs:
       - name: Remove staging-only files and commit
         run: |
           rm -f tools/f3-hardening.patch.gz.b64
+          rm -f tools/f3-lint-fixes.patch.gz.b64
           rm -f .github/workflows/f3-source-export.yml
           rm -f .github/workflows/f3-hardening-builder.yml
           git config user.name 'rush-f3-builder'
