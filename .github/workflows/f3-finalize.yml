@@ -1,9 +1,11 @@
 name: F3 finalize
 
 on:
-  push:
+  pull_request:
+    types:
+      - synchronize
     branches:
-      - fix/f3-versioned-runtime-outcomes
+      - main
     paths:
       - .github/workflows/f3-finalize.yml
 
