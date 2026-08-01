@@ -1,25 +1,18 @@
 schema_version = 2
-updated = "2026-07-31"
+updated = "2026-08-01"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Post-#338 review: F1 was `completed` against PR #332's cold-verification
-# receipt, but the receipt is stale (subsequent PRs modified F1's runtime
-# entrypoints and PR #337 deleted the receipt-referenced integration test
-# file). F1 is now `merged_incomplete` until a fresh cold verification
-# receipt verifies a commit containing the post-#337 F1 surface. The old
-# receipt is preserved as historical evidence at
-# docs/plans/optid-verification/f1.toml.
+# F2 has a fresh independent cold-verification receipt and is completed.
+# F1 remains `merged_incomplete` because its previous receipt became stale
+# after later changes modified its declared production and evidence paths.
+# The historical F1 receipt remains preserved at
+# docs/plans/optid-verification/f1.toml until a fresh receipt replaces it.
 #
-# active_general is F2 (not F3) because F3 explicitly depends on F1, and
-# F1 is `merged_incomplete`. The repository's own rule is that
-# dependencies unlock only from `completed`; pointing active_general at
-# a package whose dependency is incomplete would be dishonest. F2 has
-# no dependency on F1 and can proceed independently. The maintainer may
-# re-point active_general to F1 once F1's fresh verification lands, or
-# to F3 once F1 returns to `completed`. No package is self-certified
-# completed.
-active_general = "F2"
+# active_general is F1 because it is now the earliest unfinished foundation
+# package whose completion directly unlocks F3. Dependencies unlock only
+# from `completed`; no package self-certifies completion.
+active_general = "F1"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
@@ -101,9 +94,10 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-status = "candidate"
+status = "completed"
 depends = []
 pr = "365"
+verification_receipt = "docs/plans/optid-verification/f2.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/kernel_io.rs",
@@ -334,7 +328,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete for cold verification: (1) F2 is candidate but not completed, so its dependency remains locked pending independent cold verification; (2) F3 envelope remains dormant so budget/decision observations are not versioned envelopes; (3) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (4) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (5) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 is completed, but F3 remains incomplete, so the versioned observation/decision dependency is still locked; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
