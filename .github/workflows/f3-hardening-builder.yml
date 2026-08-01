@@ -33,6 +33,11 @@ jobs:
           echo '7de3a243922039c19b97b73e36b1d3a3a910eda67a91b3f865295ad03f473d4d  /tmp/f3-lint-fixes.patch' | sha256sum --check
           git apply --check /tmp/f3-lint-fixes.patch
           git apply /tmp/f3-lint-fixes.patch
+          echo '7058805126ab904a595eaecc72cfd060d71547d90f6f025eca31bda92faf0c1d  tools/f3-import-fix.patch.gz.b64' | sha256sum --check
+          base64 --decode tools/f3-import-fix.patch.gz.b64 | gzip --decompress > /tmp/f3-import-fix.patch
+          echo 'f10a98decbac888a449d1ccf7c182872948657312784191f9efd76b56d890e1d  /tmp/f3-import-fix.patch' | sha256sum --check
+          git apply --check /tmp/f3-import-fix.patch
+          git apply /tmp/f3-import-fix.patch
           cargo fmt --all
           git diff --check
       - name: Run exact F3 outcome acceptance tests
@@ -61,6 +66,7 @@ jobs:
         run: |
           rm -f tools/f3-hardening.patch.gz.b64
           rm -f tools/f3-lint-fixes.patch.gz.b64
+          rm -f tools/f3-import-fix.patch.gz.b64
           rm -f .github/workflows/f3-source-export.yml
           rm -f .github/workflows/f3-hardening-builder.yml
           git config user.name 'rush-f3-builder'
