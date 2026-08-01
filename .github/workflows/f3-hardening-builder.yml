@@ -33,11 +33,14 @@ jobs:
           echo '7de3a243922039c19b97b73e36b1d3a3a910eda67a91b3f865295ad03f473d4d  /tmp/f3-lint-fixes.patch' | sha256sum --check
           git apply --check /tmp/f3-lint-fixes.patch
           git apply /tmp/f3-lint-fixes.patch
-          echo 'e16d96f0dbab78f8aa86b498927982e89119f6f1332afa28cc33a20ac38ecc29  tools/f3-import-fix.patch.gz.b64' | sha256sum --check
-          base64 --decode tools/f3-import-fix.patch.gz.b64 | gzip --decompress > /tmp/f3-import-fix.patch
-          echo 'e3a96fad404094bf91ccf29389e11b9fbc0f563d75602303079aadcc03cffa1d  /tmp/f3-import-fix.patch' | sha256sum --check
-          git apply --check /tmp/f3-import-fix.patch
-          git apply /tmp/f3-import-fix.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/optid/src/main.rs')
+          text = path.read_text()
+          old = 'use kernel_io::Clock;\n#[cfg(test)]\nuse kernel_io::KernelWrite;\n'
+          assert old in text, 'formatted unused KernelWrite import was not found'
+          path.write_text(text.replace(old, 'use kernel_io::Clock;\n', 1))
+          PY
           cargo fmt --all
           git diff --check
       - name: Run exact F3 outcome acceptance tests
