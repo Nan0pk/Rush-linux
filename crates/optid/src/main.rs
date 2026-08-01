@@ -86,8 +86,10 @@ fn main() {
 /// regression tests are migrated. Merely taking function pointers cannot run
 /// them; production restoration is owned exclusively by `Reconciler`.
 fn link_retired_restore_compatibility_surface() {
-    let _legacy_transition_restore: fn(&mut Actuator, &str) -> io::Result<envelope::RestoreOutcome> =
-        Actuator::revert_key_outcome;
+    let _legacy_transition_restore: fn(
+        &mut Actuator,
+        &str,
+    ) -> io::Result<envelope::RestoreOutcome> = Actuator::revert_key_outcome;
     let _legacy_vm_baseline: fn(&mut Actuator) -> io::Result<()> = Actuator::apply_baseline;
     let _legacy_shutdown_restores: [fn(&std::path::Path); 5] = [
         io_util::revert_sysctls,
