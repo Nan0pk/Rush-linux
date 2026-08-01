@@ -81,9 +81,7 @@ fn f3_optctl_status_json_rejects_malformed_and_missing_machine_state() {
     let malformed_before = state_snapshot(&malformed_dir);
     let malformed = run_optctl(&malformed_dir, &["status", "--json"]);
     assert!(!malformed.status.success());
-    assert!(
-        String::from_utf8_lossy(&malformed.stderr).contains("malformed daemon status.json")
-    );
+    assert!(String::from_utf8_lossy(&malformed.stderr).contains("malformed daemon status.json"));
     assert_eq!(state_snapshot(&malformed_dir), malformed_before);
     fs::remove_dir_all(malformed_dir).expect("remove malformed state directory");
 
