@@ -54,12 +54,21 @@ impl ReconcileMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Transition {
-    AcChanged { from: Option<bool>, to: Option<bool> },
-    WorkloadChanged { from: WorkloadClass, to: WorkloadClass },
-    ModeChanged { from: Mode, to: Mode },
-    ConfigReloaded,
-    DeviceRemoved { domain: Domain, device_id: String },
-    DomainDisabled { domain: Domain },
+    AcChanged {
+        from: Option<bool>,
+        to: Option<bool>,
+    },
+    WorkloadChanged {
+        from: WorkloadClass,
+        to: WorkloadClass,
+    },
+    ModeChanged {
+        from: Mode,
+        to: Mode,
+    },
+    DomainDisabled {
+        domain: Domain,
+    },
 }
 
 impl Transition {
@@ -68,10 +77,6 @@ impl Transition {
             Self::AcChanged { from, to } => format!("ac_changed: {from:?} -> {to:?}"),
             Self::WorkloadChanged { from, to } => format!("workload_changed: {from} -> {to}"),
             Self::ModeChanged { from, to } => format!("mode_changed: {from} -> {to}"),
-            Self::ConfigReloaded => "config_reloaded".to_string(),
-            Self::DeviceRemoved { domain, device_id } => {
-                format!("device_removed: {device_id} (domain={})", domain.as_str())
-            }
             Self::DomainDisabled { domain } => {
                 format!("domain_disabled: {}", domain.as_str())
             }
@@ -82,20 +87,29 @@ impl Transition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum TargetKind {
-    KernelValue { path: PathBuf },
+    KernelValue {
+        path: PathBuf,
+    },
     PmqosCpu,
-    PmqosDevice { path: PathBuf },
+    PmqosDevice {
+        path: PathBuf,
+    },
     RuntimePm {
         control_path: PathBuf,
         delay_path: Option<PathBuf>,
     },
-    SystemdProperty { unit: String, property: String },
+    SystemdProperty {
+        unit: String,
+        property: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum StoredValue {
-    Scalar { value: String },
+    Scalar {
+        value: String,
+    },
     RuntimePm {
         control: String,
         delay: Option<String>,
@@ -267,7 +281,7 @@ impl Reconciler {
         let targets = match io.read_to_string(&state_dir.join(STATE_FILE)) {
             Ok(content) => serde_json::from_str::<PersistedState>(&content)
                 .map(|state| state.targets)
-                .unwrap_or_default(),
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
             Err(error) => return Err(error),
         };
@@ -333,21 +347,6 @@ impl Reconciler {
         transitions
     }
 
-    pub(crate) fn signal_config_reload(&self) -> Transition {
-        Transition::ConfigReloaded
-    }
-
-    pub(crate) fn signal_device_removed(
-        &mut self,
-        domain: Domain,
-        device_id: String,
-    ) -> Transition {
-        if let Some(state) = self.targets.get_mut(&device_id) {
-            state.desired = None;
-        }
-        Transition::DeviceRemoved { domain, device_id }
-    }
-
     pub(crate) fn prepare_cycle(
         &mut self,
         actions: &[Action],
@@ -367,7 +366,20 @@ impl Reconciler {
         for action in actions {
             for desired in self.expand_action(action, actuator)? {
                 desired_ids.insert(desired.target_id.clone());
-                let baseline = self.read_target(actuator, &desired.target).ok();
+                let may_capture_baseline = self
+                    .targets
+                    .get(&desired.target_id)
+                    .map(|state| {
+                        state.baseline.is_none()
+                            && state.ownership == OwnershipState::Unowned
+                            && state.last_confirmed.is_none()
+                    })
+                    .unwrap_or(true);
+                let baseline = if may_capture_baseline {
+                    self.read_target(actuator, &desired.target).ok()
+                } else {
+                    None
+                };
                 let state = self
                     .targets
                     .entry(desired.target_id.clone())
@@ -388,7 +400,7 @@ impl Reconciler {
                 state.domain = desired.domain;
                 state.target = desired.target;
                 state.legacy_journal_key = desired.legacy_journal_key;
-                if state.baseline.is_none() {
+                if may_capture_baseline && state.baseline.is_none() {
                     state.baseline = baseline;
                 }
                 if state.desired.as_ref() != Some(&desired.desired) {
@@ -437,7 +449,7 @@ impl Reconciler {
         if expanded.iter().any(|desired| {
             self.targets
                 .get(&desired.target_id)
-                .is_none_or(|state| state.baseline.is_none())
+                .map_or(true, |state| state.baseline.is_none())
         }) {
             let mut outcome = ActionOutcome::new(action);
             outcome.gates.push(GateEvaluation::allowed(
@@ -490,10 +502,7 @@ impl Reconciler {
         Ok(outcome)
     }
 
-    pub(crate) fn reconcile(
-        &mut self,
-        actuator: &mut Actuator,
-    ) -> io::Result<Vec<RestoreOutcome>> {
+    pub(crate) fn reconcile(&mut self, actuator: &mut Actuator) -> io::Result<Vec<RestoreOutcome>> {
         let plans = self.plan_restores();
         let mut outcomes = Vec::with_capacity(plans.len());
         for plan in plans {
@@ -555,7 +564,7 @@ impl Reconciler {
                 .filter(|plan| {
                     plan.legacy_journal_key
                         .as_deref()
-                        .is_none_or(|key| !legacy_restore_supported(key))
+                        .map_or(true, |key| !legacy_restore_supported(key))
                 })
                 .map(|plan| plan.target_id.clone())
                 .collect(),
@@ -608,7 +617,8 @@ impl Reconciler {
                     if state.baseline.is_none() {
                         state.ownership = OwnershipState::Unowned;
                         state.ownership_reason = Some(
-                            "write confirmed but baseline is missing; ownership not claimed".to_string(),
+                            "write confirmed but baseline is missing; ownership not claimed"
+                                .to_string(),
                         );
                         state.restore_pending = false;
                         continue;
@@ -898,7 +908,7 @@ impl Reconciler {
             let current = self.systemd.read_property(unit, property)?;
             if current.explicit && current.value == value {
                 outcome.targets.push(TargetOutcome {
-                    target_id: target_id.clone(),
+                    target_id,
                     pipeline_stage: PipelineStage::Write,
                     support: SupportState::Supported,
                     reason: OutcomeReasonCode::RedundantValue,
@@ -1267,7 +1277,10 @@ fn read_target_with(io: &dyn KernelIo, target: &TargetKind) -> io::Result<Stored
             control: io.read_to_string(control_path)?.trim().to_string(),
             delay: delay_path
                 .as_ref()
-                .map(|path| io.read_to_string(path).map(|value| value.trim().to_string()))
+                .map(|path| {
+                    io.read_to_string(path)
+                        .map(|value| value.trim().to_string())
+                })
                 .transpose()?,
         }),
         _ => Err(io::Error::new(
@@ -1285,8 +1298,12 @@ fn parse_legacy_original(
     let content = io.read_to_string(path)?;
     let mut lines = content.lines();
     let parsed = if let Some(hash) = key.strip_prefix("rpm_") {
-        let Some(device_dir) = lines.next() else { return Ok(None) };
-        let Some(control) = lines.next() else { return Ok(None) };
+        let Some(device_dir) = lines.next() else {
+            return Ok(None);
+        };
+        let Some(control) = lines.next() else {
+            return Ok(None);
+        };
         let delay = lines
             .next()
             .filter(|value| *value != "n/a")
@@ -1307,8 +1324,12 @@ fn parse_legacy_original(
             },
         )
     } else if let Some(hash) = key.strip_prefix("dev_") {
-        let Some(attr) = lines.next() else { return Ok(None) };
-        let Some(value) = lines.next() else { return Ok(None) };
+        let Some(attr) = lines.next() else {
+            return Ok(None);
+        };
+        let Some(value) = lines.next() else {
+            return Ok(None);
+        };
         (
             format!("device-resume:{hash}"),
             "device_resume_latency".to_string(),
@@ -1320,8 +1341,12 @@ fn parse_legacy_original(
             },
         )
     } else if let Some(hash) = key.strip_prefix("aspm_") {
-        let Some(base) = lines.next() else { return Ok(None) };
-        let Some(value) = lines.next() else { return Ok(None) };
+        let Some(base) = lines.next() else {
+            return Ok(None);
+        };
+        let Some(value) = lines.next() else {
+            return Ok(None);
+        };
         (
             format!("pcie-aspm:{hash}"),
             "pci_aspm".to_string(),
@@ -1333,8 +1358,12 @@ fn parse_legacy_original(
             },
         )
     } else if let Some(hash) = key.strip_prefix("alpm_") {
-        let Some(base) = lines.next() else { return Ok(None) };
-        let Some(value) = lines.next() else { return Ok(None) };
+        let Some(base) = lines.next() else {
+            return Ok(None);
+        };
+        let Some(value) = lines.next() else {
+            return Ok(None);
+        };
         (
             format!("sata-alpm:{hash}"),
             "sata_alpm".to_string(),
@@ -1346,8 +1375,12 @@ fn parse_legacy_original(
             },
         )
     } else if let Some(hash) = key.strip_prefix("bl_") {
-        let Some(base) = lines.next() else { return Ok(None) };
-        let Some(value) = lines.next() else { return Ok(None) };
+        let Some(base) = lines.next() else {
+            return Ok(None);
+        };
+        let Some(value) = lines.next() else {
+            return Ok(None);
+        };
         (
             format!("backlight:{hash}"),
             "backlight".to_string(),
