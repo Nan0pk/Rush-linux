@@ -1,0 +1,150 @@
+{
+  "schema_version": 2,
+  "correlation_id": "cycle-golden",
+  "cycle_timestamp": 7,
+  "pipeline_stage": "complete",
+  "boot": {
+    "policy_load_state": "ok",
+    "allowlist_load_state": "ok",
+    "allowlist_gate_enabled": false,
+    "apply_armed": false,
+    "baseline_armed": false
+  },
+  "observation": {
+    "values": [
+      {
+        "component_id": "power-source",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": true,
+        "source": "power_supply",
+        "provenance": "kernel_interface",
+        "responsible_subsystem": "sensors"
+      }
+    ]
+  },
+  "decision": {
+    "selected_mode": "balanced",
+    "workload_class": "idle",
+    "workload_reason": "golden fixture",
+    "reasons": [],
+    "contract": {
+      "workload_class": "idle",
+      "cpu_wakeup_latency_us": null,
+      "device_resume_latency_us": null
+    }
+  },
+  "domains": [
+    {
+      "domain": "cpu_epp",
+      "pipeline_stage": "complete",
+      "selected_mode": "off",
+      "support": "unknown",
+      "component_id": "cpu:epp",
+      "action_outcomes": [
+        {
+          "domain": "cpu_epp",
+          "desired": {
+            "operation": "set_cpu_epp",
+            "value": "balance_power",
+            "target_id": "cpu:epp"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "denied",
+              "reason": "domain_off",
+              "detail": "domain is off"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "not_evaluated",
+              "reason": "not_reached"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "cpu:epp",
+              "pipeline_stage": "domain_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "off-mode action suppressed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "vm_sysctl",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "supported",
+      "component_id": "vm-sysctl:swappiness",
+      "action_outcomes": [
+        {
+          "domain": "vm_sysctl",
+          "desired": {
+            "operation": "set_vm_sysctl",
+            "value": "60",
+            "target_id": "vm-sysctl:swappiness"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "contract",
+              "disposition": "not_applicable",
+              "reason": "contract_not_applicable"
+            },
+            {
+              "stage": "hardware_allowlist",
+              "disposition": "not_applicable",
+              "reason": "allowlist_disabled"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "allowed",
+              "reason": "capability_allowed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "vm-sysctl:swappiness",
+              "pipeline_stage": "write",
+              "support": "supported",
+              "reason": "write_failed",
+              "write_attempted": true,
+              "write_outcome": {
+                "failed": {
+                  "error_kind": "permission_denied"
+                }
+              },
+              "readback": "not_performed",
+              "ownership": "unknown",
+              "pending_restore": "not_evaluated",
+              "responsible_subsystem": "kernel_io",
+              "detail": "kernel I/O failed: PermissionDenied"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "restore_outcomes": [],
+  "recovery_state": "known_current_cycle"
+}
