@@ -17,11 +17,11 @@ Read these before implementation:
 
 <!-- RUSH_CURRENT_WORK:START -->
 ```toml
-active_general = "F1"
+active_general = "F3"
 active_safety = "D0"
 ready_parallel = ["R1", "R2", "R3"]
-other_merged_incomplete = ["F3", "F4", "T1"]
-unlocks_after_active_general = ["F3"]
+other_merged_incomplete = ["F4", "T1"]
+unlocks_after_active_general = ["C1", "F4", "I1", "O1", "O2", "T1"]
 unlocks_after_active_safety = ["S1D"]
 ```
 <!-- RUSH_CURRENT_WORK:END -->
