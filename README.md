@@ -53,7 +53,7 @@ This table is generated from the repository's canonical version, build, and work
 | Version | `0.7.0-beta.4` |
 | Active general repair | `F4` — Reconcile complete desired state and restore on transitions (`merged_incomplete`) |
 | Active safety repair | `D0` — Prototype capability sealing and supervisor-managed cold restart (`candidate`) |
-| Other merged, incomplete packages | `T1` |
+| Other merged, incomplete packages | `F1`, `F2`, `F3`, `T1` |
 | Build profiles | `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos` |
 | Safety architecture | [D2 fail-passive](docs/architecture/optid-d2-amendment.md) |
 | Canonical work state | [optid package ledger](docs/plans/optid-package-status.toml) |
