@@ -104,7 +104,10 @@ fn vm_action(path: &Path, value: &str) -> Action {
 fn systemd_action(properties: &[&str]) -> Action {
     Action::SystemdSetProperty {
         unit: "background.slice".to_string(),
-        properties: properties.iter().map(|value| (*value).to_string()).collect(),
+        properties: properties
+            .iter()
+            .map(|value| (*value).to_string())
+            .collect(),
         reason: "F4 production acceptance".to_string(),
     }
 }
