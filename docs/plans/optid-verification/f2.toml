@@ -1,0 +1,37 @@
+# Independent cold-verification receipt for:
+# Introduce injectable kernel I/O, clock, and event boundaries
+#
+# Verification was performed by a separate GLM 5.2 agent session after the
+# implementation had merged. The verifier did not modify production or test
+# code. This receipt records the re-run performed after the verifier's
+# environment reset.
+
+schema_version = 1
+package = "F2"
+implementation_pr = 365
+verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
+verifier = "GLM 5.2 independent cold-verification agent (separate session from the implementation builder)"
+result = "pass"
+
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo test --workspace",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "cargo check --workspace --all-targets --all-features",
+  "cargo test -p optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact",
+  "python3 tools/validate-current-work.py",
+  "python3 tools/validate-optid-packages.py",
+  "python3 tools/validate-optid-packages.py --base origin/main",
+  "python3 tools/render-frontpage.py --check",
+  "bash tools/finish-work.sh --dry-run",
+]
+
+runtime_proofs = [
+  "crates/optid/src/tests.rs: tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io enters through the real daemon run(args) entry rather than calling an isolated helper.",
+  "The acceptance test installs a test-only failure for decisions.log through the production-facing RealKernel boundary, receives the injected error through the daemon path, and proves that bypassing the boundary would have created the file.",
+  "crates/optid/src/main.rs consumes RealKernel through the production daemon path; crates/optid/src/kernel_io.rs and kernel_io_impl.rs provide the injected boundary and production adapter used by sensors, actuator, and I/O helpers.",
+  "The verifier inspected every runtime_entrypoint, integration_test, and completion_evidence path declared for F2 and found no dormant duplicate or module-only acceptance path.",
+  "The verification branch changed only the receipt, package ledger, current-work projection, and generated README; no production or test source was changed.",
+]
+
+unresolved = []
