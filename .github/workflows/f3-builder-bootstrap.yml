@@ -1,0 +1,26 @@
+name: F3 builder bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export-clean-source:
+    if: github.head_ref == 'fix/f3-versioned-runtime-outcomes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Run repository start-work gate
+        run: bash tools/start-work.sh "complete versioned observations decisions and action outcomes"
+      - name: Export exact source tree for the builder
+        uses: actions/upload-artifact@v4
+        with:
+          name: f3-exact-source-${{ github.sha }}
+          path: .
+          include-hidden-files: true
+          retention-days: 1
