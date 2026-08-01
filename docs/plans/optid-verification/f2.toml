@@ -1,37 +1,85 @@
 # Independent cold-verification receipt for:
 # Introduce injectable kernel I/O, clock, and event boundaries
 #
-# Verification was performed by a separate GLM 5.2 agent session after the
-# implementation had merged. The verifier did not modify production or test
-# code. This receipt records the re-run performed after the verifier's
-# environment reset.
+# Historical provenance (preserved, invalidated):
+# - The prior independent receipt verified PR #365 at commit
+#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc. Invalidated because PR #369
+#   modified the declared F2 proof paths (actuator.rs, main.rs, sensors.rs,
+#   tests.rs, tests_impl.rs).
+#
+# This receipt records the independent cold-verification attempt against the
+# current post-#369 implementation commit
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge commit of PR #369), the
+# exact commit that is HEAD of `main` for this run.
+#
+# RESULT IS NOT "pass". The independent verification sandbox could not
+# execute the Rust toolchain at all (see `unresolved`). No Rust acceptance
+# test could be executed, so nothing in this receipt claims runtime proof.
+# F2 remains `merged_incomplete` in the ledger; this receipt does NOT
+# certify F2.
 
 schema_version = 1
 package = "F2"
 implementation_pr = 365
-verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
-verifier = "GLM 5.2 independent cold-verification agent (separate session from the implementation builder)"
-result = "pass"
+# Commit under verification for this run: HEAD of main, merge commit of PR
+# #369, which contains the F2 production surface that this receipt must
+# cover. No test executed against it because the environment cannot run
+# cargo.
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verifier = "Independent cold-verification agent session (Arena.ai agent on branch arena/019fbea1-rush-linux), separate from the implementation builder; executed 2026-08-01"
+result = "blocked"
 
+# Exact commands this verifier attempted, with their observed outcomes.
+# Commands marked EXECUTED produced the stated result. Commands marked NOT
+# EXECUTED could not run because no Rust toolchain is available in the
+# verification environment.
 commands = [
-  "cargo fmt --all -- --check",
-  "cargo test --workspace",
-  "cargo clippy --workspace --all-targets -- -D warnings",
-  "cargo check --workspace --all-targets --all-features",
-  "cargo test -p optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact",
-  "python3 tools/validate-current-work.py",
-  "python3 tools/validate-optid-packages.py",
-  "python3 tools/validate-optid-packages.py --base origin/main",
-  "python3 tools/render-frontpage.py --check",
-  "bash tools/finish-work.sh --dry-run",
+  "git fetch --all --prune; git checkout main; git reset --hard origin/main; git clean -fd; git rev-parse HEAD -> EXECUTED, HEAD=107a4330e2d0505a6b48b35c7d4148482a426f3d",
+  "gh pr view 369 --repo Nan0pk/Rush-linux -> EXECUTED, state=MERGED, mergeCommit=107a4330e2d0505a6b48b35c7d4148482a426f3d",
+  "command -v cargo; command -v rustc -> EXECUTED, not found (no Rust toolchain in image)",
+  "rustup (1.29.0 via PyPI wheel) -> EXECUTED; rustup default stable FAILED: could not download https://static.rust-lang.org/dist/channel-rust-stable.toml.sha256 (tls handshake eof)",
+  "cargo fmt --all -- --check -> NOT EXECUTED (rustup shim: no toolchain configured; download unreachable)",
+  "cargo test --workspace -> NOT EXECUTED (same)",
+  "cargo clippy --workspace --all-targets -- -D warnings -> NOT EXECUTED (same)",
+  "cargo check --workspace --all-targets --all-features -> NOT EXECUTED (same)",
+  "cargo test -p optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact -> NOT EXECUTED (no toolchain)",
+  "python3 tools/validate-current-work.py -> EXECUTED, OK",
+  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED, PASS",
+  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
+  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
+  "bash tools/checks.sh --ci --changed-base origin/main -> EXECUTED, all runnable sections passed; BLOCKED on missing 'pwsh' (policy section, R4/R8, exit 127)",
 ]
 
-runtime_proofs = [
-  "crates/optid/src/tests.rs: tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io enters through the real daemon run(args) entry rather than calling an isolated helper.",
-  "The acceptance test installs a test-only failure for decisions.log through the production-facing RealKernel boundary, receives the injected error through the daemon path, and proves that bypassing the boundary would have created the file.",
-  "crates/optid/src/main.rs consumes RealKernel through the production daemon path; crates/optid/src/kernel_io.rs and kernel_io_impl.rs provide the injected boundary and production adapter used by sensors, actuator, and I/O helpers.",
-  "The verifier inspected every runtime_entrypoint, integration_test, and completion_evidence path declared for F2 and found no dormant duplicate or module-only acceptance path.",
-  "The verification branch changed only the receipt, package ledger, current-work projection, and generated README; no production or test source was changed.",
+# NO runtime proofs exist for this run: the acceptance test could not be
+# executed. This list is intentionally empty; nothing below is a runtime
+# claim.
+runtime_proofs = []
+
+# Source inspection performed this run (NOT runtime proof). The verifier
+# read the current implementation at the verified commit and confirmed the
+# mapped acceptance test exists as a real #[test] fn and that the declared
+# production paths consume the injected boundary. This is inspection
+# evidence only; it does not certify behavior.
+source_inspection_only = [
+  "crates/optid/src/tests.rs: the ledger-mapped F2 acceptance test f2_production_daemon_run_consumes_injected_kernel_io exists as a real '#[test] fn' inside 'mod f2_production_surface' (tests.rs:10-68).",
+  "The F2 acceptance test enters through the real daemon entry crate::run(args) wrapped in with_real_kernel_override (crates/optid/src/kernel_io.rs:174), injects a FaultKernel over MemoryKernel that fails the next append to decisions.log with PermissionDenied, and asserts the daemon surfaces the injected error ('injected append fault') and that bypassing the seam would have created decisions.log.",
+  "crates/optid/src/kernel_io.rs: RealKernel is a production facade (kernel_io.rs:65) that delegates through a thread-local REAL_KERNEL_OVERRIDE (kernel_io.rs:153-154) to the production adapter implementation::RealKernel (crates/optid/src/kernel_io_impl.rs:132). The override is opt-in and empty by default, so production runs use the real adapter.",
+  "crates/optid/src/main.rs: the daemon constructs kernel_io::RealKernel::new() once per run (main.rs:314) and uses that injected boundary for Snapshot::collect_with_thermal (sensors), actuator writes (actuator.apply), state-file writes (atomic_write_state_file_with, append_log_with), and the F2 clock (cycle_kernel.now_unix).",
+  "crates/optid/src/kernel_io.rs: f2_real_kernel_override_is_visible_to_library_target (kernel_io.rs:188) confirms the override seam reaches the facade used by production code.",
+  "PR #369 diff: F2 declared proof paths actuator.rs, main.rs, sensors.rs, tests.rs, tests_impl.rs were modified by PR #369, confirming the ledger's stale-receipt reasoning.",
 ]
 
-unresolved = []
+unresolved = [
+  "Environment blocker (this run): the verification sandbox has no Rust toolchain and cannot obtain one (static.rust-lang.org, crates.io, static.crates.io, index.crates.io unreachable; no Linux toolchain wheel on PyPI or npm; from-source bootstrap infeasible at 2 vCPU / 3.8 GiB RAM / 20 GiB disk).",
+  "pwsh is unavailable in the sandbox, so 'bash tools/checks.sh --ci --changed-base origin/main' cannot complete its policy section locally; all other sections passed.",
+  "Consequence: the F2 acceptance test was NOT executed. No runtime proof exists. F2 must remain merged_incomplete until a cold verifier with a working Rust toolchain executes the mapped test against a commit containing PR #369.",
+  "The GitHub CI runs on the verification branch exercise the repository checks on GitHub runners (which have Rust and pwsh) and are inspected separately; CI results are not a substitute for the independent local cold run and are recorded in the verification PR.",
+]
+
+[historical_receipt]
+implementation_pr = 365
+verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
+verification_pr = ""
+status = "invalidated"
+reason = "PR #369 modified the declared F2 proof paths (actuator.rs, main.rs, sensors.rs, tests.rs, tests_impl.rs), so the prior receipt no longer covers the current branch. Retained as historical provenance only."
