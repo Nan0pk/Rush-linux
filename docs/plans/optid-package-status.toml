@@ -1,17 +1,22 @@
 schema_version = 2
-updated = "2026-08-01"
+updated = "2026-08-02"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F3 modifies proof paths previously cold-verified for F1 and F2, so those
-# receipts are retained as historical provenance but are no longer fresh for
-# this branch. F1 and F2 are therefore demoted until independent cold
-# verification covers a commit containing the F3 changes.
+# F1, F2, and F3 were independently cold-verified on 2026-08-02 by a verifier
+# session with a working Rust toolchain (rustc 1.97.1). All three receipts
+# record result="pass" against verified_commit
+# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369), which is an
+# ancestor of this branch's HEAD with no declared proof paths modified after
+# it. The earlier 2026-08-01 blocked attempt is retained as historical
+# provenance in each receipt.
 #
-# active_general remains F3 because its production implementation is the
-# current repair target. It cannot advance to `candidate` while its F1
-# dependency is not `completed`; no package self-certifies completion.
-active_general = "F3"
+# active_general moves to F4 (Reconcile complete desired state and restore on
+# transitions). F4 depends on [F2, F3], both now completed; its merged_incomplete
+# blocking reason describes the still-outstanding reconciler and restoration
+# work, which the next builder phase must address. No package self-certifies
+# completion.
+active_general = "F4"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
@@ -33,14 +38,17 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-# The original receipt verified PR #332 at commit
-# 001515bef45a0a5f9842d9831154ae9d0573d361, then became stale after later
-# changes modified the declared F1 proof paths. The current receipt verifies
-# the post-repair production surface at a commit containing those changes.
-status = "merged_incomplete"
+# Independently cold-verified on 2026-08-02 by a verifier session with a
+# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
+# docs/plans/optid-verification/f1.toml records result="pass" against
+# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
+# an ancestor of this branch's HEAD with no F1 declared proof path modified
+# after it. All nine mapped F1 acceptance tests were executed individually
+# with --exact. The earlier 2026-08-01 blocked attempt is retained as
+# historical provenance inside the receipt.
+status = "completed"
 depends = []
 pr = "332"
-blocking_reason = "F3 PR #369 modifies F1 declared proof paths (action.rs, actuator.rs, decision.rs, main.rs, and policy.rs), so the existing cold-verification receipt is stale for this branch. A fresh independent cold verification receipt against a commit containing these changes is required before F1 may return to completed. On 2026-08-01 an independent verifier refreshed this receipt against current main (107a4330e2d0505a6b48b35c7d4148482a426f3d, merge of PR #369) but could not execute the Rust toolchain in its sandbox (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). The receipt result is 'blocked', not 'pass', and F1 remains merged_incomplete. A verifier with a working Rust toolchain must execute the mapped acceptance tests before F1 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f1.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -82,10 +90,18 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-status = "merged_incomplete"
+# Independently cold-verified on 2026-08-02 by a verifier session with a
+# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
+# docs/plans/optid-verification/f2.toml records result="pass" against
+# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
+# an ancestor of this branch's HEAD with no F2 declared proof path modified
+# after it. The mapped F2 acceptance test was executed individually with
+# --exact and confirms the injected kernel-I/O boundary is consumed by the
+# real daemon run path. The earlier 2026-08-01 blocked attempt is retained
+# as historical provenance inside the receipt.
+status = "completed"
 depends = []
 pr = "365"
-blocking_reason = "F3 PR #369 modifies F2 declared proof paths (actuator.rs, main.rs, sensors.rs, tests.rs, and tests_impl.rs), so the existing cold-verification receipt is stale for this branch. A fresh independent cold verification receipt against a commit containing these changes is required before F2 may return to completed. On 2026-08-01 an independent verifier refreshed this receipt against current main (107a4330e2d0505a6b48b35c7d4148482a426f3d, merge of PR #369) but could not execute the Rust toolchain in its sandbox (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). The receipt result is 'blocked', not 'pass', and F2 remains merged_incomplete. A verifier with a working Rust toolchain must execute the mapped acceptance test before F2 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f2.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -113,10 +129,20 @@ production_daemon_consumes_injected_kernel_io = "f2_production_daemon_run_consum
 id = "F3"
 lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
-status = "merged_incomplete"
+# Independently cold-verified on 2026-08-02 by a verifier session with a
+# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
+# docs/plans/optid-verification/f3.toml records result="pass" against
+# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
+# an ancestor of this branch's HEAD with no F3 declared proof path modified
+# after it. All six mapped in-crate F3 acceptance tests and all three mapped
+# optctl status_cli integration tests were executed individually with --exact.
+# F1 was independently verified first, so the F3 dependency gate is satisfied.
+# The earlier 2026-08-01 blocked attempt is retained as historical provenance
+# inside the receipt.
+status = "completed"
 depends = ["F1"]
 pr = "369"
-blocking_reason = "Production integration, machine-readable status, typed gate and outcome evidence, golden schema coverage, and CLI pass-through tests are present in PR #369. F3 cannot advance to candidate while its required F1 dependency is demoted because this PR invalidated F1's earlier proof-path receipt. Restore F1 with a fresh independent cold-verification receipt, then perform F3's independent cold verification; no package self-certifies completion. On 2026-08-01 an independent verifier created the first F3 receipt against current main (107a4330e2d0505a6b48b35c7d4148482a426f3d, merge of PR #369) but could not execute the Rust toolchain in its sandbox (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). The F3 receipt result is 'blocked', not 'pass'; F1 is not restored to completed; F3 remains merged_incomplete."
+verification_receipt = "docs/plans/optid-verification/f3.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/envelope.rs",
