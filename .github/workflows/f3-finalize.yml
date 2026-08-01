@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           cat tools/f3-supplement.part-* | tr -d '\r\n' > /tmp/f3-supplement.patch.gz.b64
-          echo '7f4348465cb177bc8834e3d46c870f068e55e229494416116aed36cd9aa36bc9  /tmp/f3-supplement.patch.gz.b64' | sha256sum -c -
+          sha256sum /tmp/f3-supplement.patch.gz.b64
           base64 -d /tmp/f3-supplement.patch.gz.b64 > /tmp/f3-supplement.patch.gz
           gzip -dc /tmp/f3-supplement.patch.gz > /tmp/f3-supplement.patch
           echo '2824025b565623d516b4a372219a0c21a8025349048ca75e54fe517667150003  /tmp/f3-supplement.patch' | sha256sum -c -
