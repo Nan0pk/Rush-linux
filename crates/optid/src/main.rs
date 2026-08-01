@@ -17,6 +17,11 @@ use std::time::{Duration, Instant};
 use zbus::blocking::connection::Builder as ConnectionBuilder;
 
 mod action;
+// Legacy reversion helpers remain compiled for historical regression tests, but
+// F4 removed every production caller. Keep them quarantined until a later
+// dedicated deletion can remove the compatibility surface without obscuring
+// this architectural cutover.
+#[allow(dead_code)]
 mod actuator;
 mod actuators;
 mod allowlist;
@@ -27,6 +32,7 @@ mod dbus;
 mod decision;
 mod envelope;
 mod foreground;
+#[allow(dead_code)]
 mod io_util;
 mod kernel_io;
 mod load_state;
@@ -188,10 +194,8 @@ fn run(args: Args) -> io::Result<()> {
 
     let cycle_kernel = kernel_io::RealKernel::new();
     let mut cycle_ids = CycleIdGenerator::new(cycle_kernel.now_unix());
-    let mut reconciler = reconciler::Reconciler::load(
-        args.state_dir.clone(),
-        actuator.kernel.as_ref(),
-    )?;
+    let mut reconciler =
+        reconciler::Reconciler::load(args.state_dir.clone(), actuator.kernel.as_ref())?;
     append_log(
         &args.state_dir.join("decisions.log"),
         &format!("optid: F4 reconciler mode={:?}\n", reconciler.mode()),
@@ -297,11 +301,8 @@ fn run(args: Args) -> io::Result<()> {
             )?;
         }
 
-        let reconciled_actions: &[action::Action] = if apply_armed {
-            &decision.actions
-        } else {
-            &[]
-        };
+        let reconciled_actions: &[action::Action] =
+            if apply_armed { &decision.actions } else { &[] };
         let stale_target_ids = reconciler.prepare_cycle(reconciled_actions, &mut actuator)?;
         if !stale_target_ids.is_empty() {
             append_log(
@@ -450,12 +451,9 @@ fn spawn_dbus_servers(state_dir: PathBuf, policy: &Policy, disabled: bool) {
             state_dir: state_dir.clone(),
         };
         let ppd_server = PpdServer::new(state_dir.clone(), ppd_profile_map);
-        let gamemode_server =
-            GameModeServer::new(state_dir, gamemode_pin_class, gamemode_ttl_sec);
+        let gamemode_server = GameModeServer::new(state_dir, gamemode_pin_class, gamemode_ttl_sec);
         if !gamemode_server.pin_class_is_valid() {
-            eprintln!(
-                "optid: GameMode shim disabled — invalid [shim.gamemode].pin_class"
-            );
+            eprintln!("optid: GameMode shim disabled — invalid [shim.gamemode].pin_class");
         }
         let run_server = || -> zbus::Result<()> {
             let mut builder = ConnectionBuilder::system()?
