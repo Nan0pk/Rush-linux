@@ -20,8 +20,8 @@ Read these before implementation:
 active_general = "F4"
 active_safety = "D0"
 ready_parallel = ["R1", "R2", "R3"]
-other_merged_incomplete = ["T1"]
-unlocks_after_active_general = ["I2"]
+other_merged_incomplete = ["F1", "F2", "F3", "T1"]
+unlocks_after_active_general = []
 unlocks_after_active_safety = ["S1D"]
 ```
 <!-- RUSH_CURRENT_WORK:END -->
