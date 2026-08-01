@@ -1,0 +1,90 @@
+# Independent cold-verification receipt for:
+# Version observations, decisions, and action outcomes
+#
+# This is the first verification receipt for F3. It records the independent
+# cold-verification attempt against the current post-#369 implementation
+# commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge commit of the F3
+# implementation PR #369), the exact commit that is HEAD of `main` for this
+# run.
+#
+# RESULT IS NOT "pass". The independent verification sandbox could not
+# execute the Rust toolchain at all (see `unresolved`). No Rust acceptance
+# test could be executed, so nothing in this receipt claims runtime proof.
+# F3 remains `merged_incomplete` in the ledger; this receipt does NOT
+# certify F3. Per the package contract, F3 may become `completed` only when
+# F1 is restored to `completed` by fresh independent verification AND all
+# F3 verification passes AND the repository validators accept the ledger.
+
+schema_version = 1
+package = "F3"
+implementation_pr = 369
+# Commit under verification for this run: HEAD of main, merge commit of PR
+# #369 (the F3 implementation). No test executed against it because the
+# environment cannot run cargo.
+verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
+verifier = "Independent cold-verification agent session (Arena.ai agent on branch arena/019fbea1-rush-linux), separate from the implementation builder; executed 2026-08-01"
+result = "blocked"
+
+# Exact commands this verifier attempted, with their observed outcomes.
+# Commands marked EXECUTED produced the stated result. Commands marked NOT
+# EXECUTED could not run because no Rust toolchain is available in the
+# verification environment.
+commands = [
+  "git fetch --all --prune; git checkout main; git reset --hard origin/main; git clean -fd; git rev-parse HEAD -> EXECUTED, HEAD=107a4330e2d0505a6b48b35c7d4148482a426f3d",
+  "git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD -> EXECUTED, ancestor (exit 0)",
+  "gh pr view 369 --repo Nan0pk/Rush-linux --json number,state,mergedAt,mergeCommit,title,url -> EXECUTED, state=MERGED, mergeCommit=107a4330e2d0505a6b48b35c7d4148482a426f3d, mergedAt=2026-08-01T17:52:10Z",
+  "gh pr diff 369 --repo Nan0pk/Rush-linux --name-only -> EXECUTED, 18 files (see PR body)",
+  "command -v cargo; command -v rustc -> EXECUTED, not found (no Rust toolchain in image)",
+  "rustup (1.29.0 via PyPI wheel) -> EXECUTED; rustup default stable FAILED: could not download https://static.rust-lang.org/dist/channel-rust-stable.toml.sha256 (tls handshake eof)",
+  "cargo fmt --all -- --check -> NOT EXECUTED (rustup shim: no toolchain configured; download unreachable)",
+  "cargo test --workspace -> NOT EXECUTED (same)",
+  "cargo test -p optid tests::f3_production_surface::f3_production_daemon_run_writes_one_correlated_versioned_cycle -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optid tests::f3_outcome_matrix::f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optid tests::f3_outcome_matrix::f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optid tests::f3_outcome_matrix::f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optid tests::f3_outcome_matrix::f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optid tests::f3_outcome_matrix::f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optctl --test status_cli -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optctl --test status_cli f3_optctl_status_json_passthrough_uses_state_fallback_and_is_read_only -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optctl --test status_cli f3_optctl_status_json_rejects_malformed_and_missing_machine_state -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo test -p optctl --test status_cli f3_optctl_human_status_remains_backward_compatible_and_read_only -- --exact -> NOT EXECUTED (no toolchain)",
+  "cargo clippy --workspace --all-targets -- -D warnings -> NOT EXECUTED (no toolchain)",
+  "cargo check --workspace --all-targets --all-features -> NOT EXECUTED (no toolchain)",
+  "python3 tools/validate-current-work.py -> EXECUTED, OK",
+  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED, PASS",
+  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
+  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
+  "bash tools/checks.sh --ci --changed-base origin/main -> EXECUTED, all runnable sections passed; BLOCKED on missing 'pwsh' (policy section, R4/R8, exit 127)",
+]
+
+# NO runtime proofs exist for this run: the acceptance tests could not be
+# executed. This list is intentionally empty; nothing below is a runtime
+# claim.
+runtime_proofs = []
+
+# Source inspection performed this run (NOT runtime proof). The verifier
+# read the current implementation at the verified commit and confirmed the
+# mapped acceptance tests exist as real #[test] fns and reach the declared
+# production paths. This is inspection evidence only; it does not certify
+# behavior.
+source_inspection_only = [
+  "crates/optid/src/tests.rs: all six ledger-mapped F3 in-crate acceptance tests exist as real '#[test] fn' definitions: f3_production_daemon_run_writes_one_correlated_versioned_cycle (mod f3_production_surface, tests.rs:148), f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm, f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials, f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy, f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable, f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads (mod f3_outcome_matrix, tests.rs:266).",
+  "crates/optid/src/tests.rs: f3_production_daemon_run_writes_one_correlated_versioned_cycle enters through the real daemon crate::run(args) under with_real_kernel_override with a deterministic injected clock, then asserts: status.json parses as ControlCycleEnvelope with ENVELOPE_SCHEMA_VERSION (2), cycle_timestamp equals the injected clock, off/observe/actuate domains appear with correct selected_mode, observe retains the would-be action with GateReasonCode::DomainObserve and no write_attempted targets, exactly one control-cycles.jsonl line matching status.json byte-for-byte, and the same correlation_id in human status and decisions.log, with the deterministic value optid-000000006553f100-0000000000000000.",
+  "crates/optid/src/tests.rs: the five outcome-matrix tests drive the real production Actuator (Actuator::new_with_kernel) through injected MemoryKernel/FaultKernel I/O and production Action variants, covering dry-run/observe/off/boot-disarm gates, missing/unsupported/contract/allowlist denials, success/failure/readback-drift/redundancy outcomes, restore success/failure/malformed/not-applicable via the real revert_key_outcome path (including original_<key> journal files and OwnershipState), and malformed vs permission-denied observation reads.",
+  "crates/optctl/tests/status_cli.rs: three integration tests run the real optctl binary (CARGO_BIN_EXE_optctl) against an isolated state dir with a dead D-Bus address: f3_optctl_status_json_passthrough_uses_state_fallback_and_is_read_only (byte-exact pass-through of the daemon JSON golden fixture and read-only), f3_optctl_status_json_rejects_malformed_and_missing_machine_state ('malformed daemon status.json' and 'refusing to reconstruct machine status from text'), f3_optctl_human_status_remains_backward_compatible_and_read_only.",
+  "crates/optid/src/envelope.rs: ENVELOPE_SCHEMA_VERSION=2 (envelope.rs:26); ControlCycleEnvelope::validate_schema (envelope.rs:817) rejects non-matching schema_version, empty correlation_id, and any public JSON containing prohibited markers /sys/, /proc/, /dev/, /home/, /root/, .rs: (also RUST_ and TOKEN= in the static marker list at envelope.rs:137); the golden fixture crates/optid/tests/fixtures/f3-control-cycle-v2.json is committed (schema_version 2, correlation_id 'cycle-golden') and referenced by the optctl passthrough test.",
+  "crates/optid/src/dbus.rs: the StatusJson D-Bus method (dbus.rs:117-120) reads status.json from the daemon state directory and returns the daemon-generated JSON string.",
+  "crates/optid/src/main.rs: the daemon loop builds one ControlCycleEnvelope per iteration with a boot-scoped CycleIdGenerator correlation ID, calls validate_schema/to_pretty_json/to_json_line, writes human 'status' (prefixed with correlation_id), 'status.json' (atomic), appends 'control-cycles.jsonl', and drives restore outcomes from the real active_keys difference via actuator.revert_key_outcome (main.rs:314, 437-597).",
+  "crates/optid/src/envelope.rs: f3_correlation_ids_are_deterministic_and_distinct unit test covers CycleIdGenerator determinism; envelope module tests cover golden compatibility and prohibited-marker rejection at the JSON level (envelope.rs:948-954).",
+  "PR #369 diff: 18 files including envelope.rs, dbus.rs, main.rs, actuator.rs, sensors.rs, policy.rs, action.rs, decision.rs, tests.rs, tests_impl.rs, optctl main + status_cli tests, the golden fixture, packaging/dbus/io.rushlinux.Optid.xml, and docs.",
+]
+
+unresolved = [
+  "Environment blocker (this run): the verification sandbox has no Rust toolchain and cannot obtain one (static.rust-lang.org, crates.io, static.crates.io, index.crates.io unreachable; no Linux toolchain wheel on PyPI or npm; from-source bootstrap infeasible at 2 vCPU / 3.8 GiB RAM / 20 GiB disk).",
+  "pwsh is unavailable in the sandbox, so 'bash tools/checks.sh --ci --changed-base origin/main' cannot complete its policy section locally; all other sections passed.",
+  "Consequence: no F3 acceptance test was executed. No runtime proof exists. F3 must remain merged_incomplete until a cold verifier with a working Rust toolchain executes the mapped tests against a commit containing PR #369.",
+  "F1 is not restored to completed (its fresh verification is blocked by the same environment), and F3's dependency contract requires F1 completed before F3 may be completed.",
+  "Assertions about D-Bus StatusJson behavior, schema/correlation validation, golden-fixture compatibility, and public-diagnostic exclusion are currently supported only by source inspection, not by executable testing; they must be re-validated at runtime by a capable verifier.",
+  "The GitHub CI runs on the verification branch exercise the repository checks on GitHub runners (which have Rust and pwsh) and are inspected separately; CI results are not a substitute for the independent local cold run and are recorded in the verification PR.",
+]
