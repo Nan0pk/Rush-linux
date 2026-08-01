@@ -130,7 +130,10 @@ fn f4_shadow_parity_reports_systemd_as_intentional_v1_only() {
     let legacy = BTreeSet::from(["rpm_a".to_string()]);
     let report = reconciler.parity_report(&legacy);
     assert!(report.parity);
-    assert_eq!(report.intentional_v1_only, BTreeSet::from(["systemd".to_string()]));
+    assert_eq!(
+        report.intentional_v1_only,
+        BTreeSet::from(["systemd".to_string()])
+    );
 }
 
 #[test]
@@ -138,23 +141,35 @@ fn f4_restart_hydrates_real_legacy_journal_and_ownership() {
     let io = MemoryKernel::new();
     let state_dir = PathBuf::from("/run/optid-test");
     let device = PathBuf::from("/sys/test/device");
+    let original = state_dir.join("original_rpm_abc");
+    let applied = state_dir.join("applied_rpm_abc");
     io.add_dir(Path::new("/run"), &state_dir);
-    io.write_raw(
-        &state_dir.join("original_rpm_abc"),
-        "/sys/test/device\non\n1000",
-    );
-    io.write_raw(&state_dir.join("applied_rpm_abc"), "1\nauto\n2000");
+    io.add_dir(&state_dir, &original);
+    io.add_dir(&state_dir, &applied);
+    io.write_raw(&original, "/sys/test/device\non\n1000");
+    io.write_raw(&applied, "1\nauto\n2000");
     io.write_raw(&device.join("power/control"), "auto");
     io.write_raw(&device.join("power/autosuspend_delay_ms"), "2000");
-    let reconciler = Reconciler::load_with_systemd(
-        state_dir,
-        &io,
-        Box::<FakeSystemd>::default(),
-    )
-    .expect("hydrate");
+    let reconciler = Reconciler::load_with_systemd(state_dir, &io, Box::<FakeSystemd>::default())
+        .expect("hydrate");
     let hydrated = reconciler.targets.get("runtime-pm:abc").expect("target");
     assert_eq!(hydrated.ownership, OwnershipState::Optid);
     assert!(hydrated.restore_pending);
+}
+
+#[test]
+fn f4_malformed_typed_state_fails_closed() {
+    let io = MemoryKernel::new();
+    let state_dir = PathBuf::from("/run/optid-malformed");
+    let state_file = state_dir.join(STATE_FILE);
+    io.add_dir(Path::new("/run"), &state_dir);
+    io.add_dir(&state_dir, &state_file);
+    io.write_raw(&state_file, "{not-json");
+
+    let error = Reconciler::load_with_systemd(state_dir, &io, Box::<FakeSystemd>::default())
+        .err()
+        .expect("malformed state must fail closed");
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
 }
 
 #[test]
