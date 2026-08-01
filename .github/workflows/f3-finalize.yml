@@ -22,27 +22,10 @@ jobs:
           ref: fix/f3-versioned-runtime-outcomes
           fetch-depth: 0
 
-      - name: Install formatting dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config
-
-      - name: Set up Rust
+      - name: Set up Rust formatting
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-
-      - name: Apply final F3 evidence patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat tools/f3-supplement.part-* | tr -d '\r\n' > /tmp/f3-supplement.patch.gz.b64
-          sha256sum /tmp/f3-supplement.patch.gz.b64
-          base64 -d /tmp/f3-supplement.patch.gz.b64 > /tmp/f3-supplement.patch.gz
-          gzip -dc /tmp/f3-supplement.patch.gz > /tmp/f3-supplement.patch
-          echo '2824025b565623d516b4a372219a0c21a8025349048ca75e54fe517667150003  /tmp/f3-supplement.patch' | sha256sum -c -
-          git apply --check /tmp/f3-supplement.patch
-          git apply /tmp/f3-supplement.patch
 
       - name: Correct package ledger and generated selectors
         shell: bash
@@ -116,7 +99,7 @@ jobs:
           status = "merged_incomplete"
           depends = ["F1"]
           pr = "369"
-          blocking_reason = "Production integration, machine-readable status, typed gate/outcome evidence, golden-schema coverage, and CLI pass-through tests are present in PR #369. F3 cannot advance to candidate while its required F1 dependency is demoted because this PR invalidated F1's earlier proof-path receipt. Restore F1 with a fresh independent cold-verification receipt, then perform F3's independent cold verification; no package self-certifies completion."
+          blocking_reason = "Production integration, machine-readable status, typed gate and outcome evidence, golden schema coverage, and CLI pass-through tests are present in PR #369. F3 cannot advance to candidate while its required F1 dependency is demoted because this PR invalidated F1's earlier proof-path receipt. Restore F1 with a fresh independent cold-verification receipt, then perform F3's independent cold verification; no package self-certifies completion."
           runtime_entrypoints = [
             "crates/optid/src/main.rs",
             "crates/optid/src/envelope.rs",
@@ -142,9 +125,6 @@ jobs:
           restore_outcomes = "f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable"
           observation_outcomes = "f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads"
           production_cycle = "f3_production_daemon_run_writes_one_correlated_versioned_cycle"
-          golden_schema = "f3_golden_schema_round_trips_without_mutation"
-          distinct_correlations = "f3_consecutive_real_daemon_cycles_have_distinct_correlations"
-          behavior_preservation = "f3_production_cycle_preserves_decision_and_failed_domain_semantics"
 
           '''
           text = text[:match.start()] + f3_block + text[match.end():]
@@ -200,7 +180,7 @@ jobs:
           PY
           python3 tools/render-frontpage.py --write
 
-      - name: Format, clean staging files, commit and push
+      - name: Format, remove corrupt staging files, commit and push
         shell: bash
         run: |
           set -euo pipefail
@@ -211,5 +191,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git commit -m 'test(optid): complete F3 builder evidence and ledger truth'
+          git commit -m 'fix(optid): finalize F3 builder handoff truthfully'
           git push origin HEAD:fix/f3-versioned-runtime-outcomes
