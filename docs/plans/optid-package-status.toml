@@ -3,23 +3,21 @@ updated = "2026-08-01"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F2 has a fresh independent cold-verification receipt and is completed.
-# F1 remains `merged_incomplete` because its previous receipt became stale
-# after later changes modified its declared production and evidence paths.
-# The historical F1 receipt remains preserved at
-# docs/plans/optid-verification/f1.toml until a fresh receipt replaces it.
+# F1 and F2 have fresh independent cold-verification receipts and are
+# completed. F1's new receipt replaces the stale historical certification
+# while preserving its provenance in docs/plans/optid-verification/f1.toml.
 #
-# active_general is F1 because it is now the earliest unfinished foundation
-# package whose completion directly unlocks F3. Dependencies unlock only
+# active_general is F3 because its F1 dependency is now completed and its
+# versioned envelope remains dormant in production. Dependencies unlock only
 # from `completed`; no package self-certifies completion.
-active_general = "F1"
+active_general = "F3"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
 # Status vocabulary:
 # next           = canonical next package for its lane
-# ready_parallel = independent work may start without displacing the lane's next package
+# ready_parallel = independent work may start without displacing either active lane
 # planned        = waits for listed dependencies or an accepted dependent specification
 # candidate      = integrated builder result with runtime paths and tests, awaiting cold verification
 # merged_incomplete = code merged, but the package end state or required proof is missing
@@ -34,25 +32,14 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-# Post-#337 repair: F1 was `completed` against PR #332's cold-verification
-# receipt (docs/plans/optid-verification/f1.toml, verified_commit
-# 001515bef45a0a5f9842d9831154ae9d0573d361). Subsequent PRs (#333, #334,
-# #336, #337) modified F1's declared runtime_entrypoints (policy.rs,
-# action.rs, actuator.rs, main.rs, decision.rs) and deleted the F1
-# integration test the receipt referenced (crates/optid/tests/
-# f1_effective_config.rs, removed in PR #337). The receipt is stale: it
-# verifies an older commit against a deleted test file. The
-# `validate_receipt_freshness` rule now enforces this invariant.
-#
-# F1 is demoted to `merged_incomplete` until a fresh cold verification
-# receipt verifies a commit containing the post-#337 F1 surface. The
-# old receipt is preserved as historical evidence at
-# docs/plans/optid-verification/f1.toml; the `verification_receipt`
-# field is removed because the package is no longer `completed`.
-status = "merged_incomplete"
+# The original receipt verified PR #332 at commit
+# 001515bef45a0a5f9842d9831154ae9d0573d361, then became stale after later
+# changes modified the declared F1 proof paths. The current receipt verifies
+# the post-repair production surface at a commit containing those changes.
+status = "completed"
 depends = []
 pr = "332"
-blocking_reason = "F1 cold-verification receipt (PR #332, commit 001515b) is stale: subsequent PRs (#333, #334, #336, #337) modified declared runtime_entrypoints (policy.rs, action.rs, actuator.rs, main.rs, decision.rs) and PR #337 deleted the receipt-referenced integration test (crates/optid/tests/f1_effective_config.rs, replaced by behavioral tests in crates/optid/tests/f1_behavior.rs which PR #337 also reduced to a pointer file — that pointer file is now deleted and replaced with real #[test] fn coverage in crates/optid/src/policy.rs). A fresh independent cold verification of the current F1 implementation is required before F1 may return to `completed`. No package self-certifies completed."
+verification_receipt = "docs/plans/optid-verification/f1.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/policy.rs",
@@ -73,7 +60,6 @@ completion_evidence = [
   "crates/optid/src/decision.rs",
   "crates/optid/src/action.rs",
   "crates/optid/src/actuator.rs",
-  "docs/plans/optid-verification/f1.toml",
 ]
 # Post-#337: explicit acceptance_tests mapping. Each value names a real
 # `#[test] fn` in the declared integration_tests / completion_evidence
