@@ -149,6 +149,7 @@ mod integration_tests {
 
         let snapshot_with_zram = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -186,6 +187,7 @@ mod integration_tests {
 
         let snapshot_no_zram = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -230,6 +232,7 @@ mod integration_tests {
         // 1. Idle snapshot
         let idle_snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -254,6 +257,7 @@ mod integration_tests {
         // 2. Light snapshot
         let light_snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -278,6 +282,7 @@ mod integration_tests {
         // 3. Interactive snapshot
         let int_snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -302,6 +307,7 @@ mod integration_tests {
         // 4. Latency-critical snapshot
         let lc_snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -329,6 +335,7 @@ mod integration_tests {
         // 5. Throughput snapshot
         let tp_snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -359,6 +366,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -388,6 +396,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 1,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -430,6 +439,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -459,6 +469,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: Some(50_000),
@@ -490,6 +501,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -518,6 +530,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: Some(15),
             max_temp_millic: None,
@@ -546,6 +559,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: Some(95_000),
@@ -596,6 +610,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -640,6 +655,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -690,6 +706,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(false),
             battery_pct: Some(10),
             max_temp_millic: None,
@@ -730,6 +747,7 @@ mod integration_tests {
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: None,
             battery_pct: None,
             max_temp_millic: None,
@@ -2089,6 +2107,7 @@ device_resume_latency = 100000
         let policy = Policy::default();
         let make = |on_ac: Option<bool>| Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac,
             battery_pct: None,
             max_temp_millic: None,
@@ -2665,6 +2684,7 @@ device_resume_latency = 100000
         let policy = Policy::default();
         let make = |on_ac: Option<bool>| Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac,
             battery_pct: None,
             max_temp_millic: None,
@@ -2840,6 +2860,7 @@ device_resume_latency = 100000
         let policy = Policy::default();
         let make = |on_ac: Option<bool>| Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac,
             battery_pct: None,
             max_temp_millic: None,
@@ -2980,6 +3001,7 @@ device_resume_latency = 100000
         let policy = Policy::default();
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -3067,6 +3089,7 @@ device_resume_latency = 100000
         // We will construct a snapshot with no global pin and default/idle fields.
         let snap = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,

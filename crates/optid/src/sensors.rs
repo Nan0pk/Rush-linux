@@ -13,10 +13,32 @@
 //! preserves bit-for-bit behavior while making fault-injection and
 //! deterministic simulation possible from tests.
 
+use std::collections::BTreeMap;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::kernel_io::{Clock, KernelRead, RealKernel};
 use crate::workload::WorkloadClass;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ObservationFailureKind {
+    NotFound,
+    PermissionDenied,
+    InvalidData,
+    Malformed,
+    Other,
+}
+
+impl ObservationFailureKind {
+    fn from_io(error: &io::Error) -> Self {
+        match error.kind() {
+            io::ErrorKind::NotFound => Self::NotFound,
+            io::ErrorKind::PermissionDenied => Self::PermissionDenied,
+            io::ErrorKind::InvalidData | io::ErrorKind::InvalidInput => Self::InvalidData,
+            _ => Self::Other,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Pressure {
@@ -35,14 +57,28 @@ impl Pressure {
 
     /// F2: injectable read path for tests.
     pub(crate) fn read_with(read: &dyn KernelRead, path: &str) -> Option<Self> {
-        let text = read.read_to_string(Path::new(path)).ok()?;
-        parse_pressure(&text)
+        Self::read_with_diagnostic(read, path).0
+    }
+
+    pub(crate) fn read_with_diagnostic(
+        read: &dyn KernelRead,
+        path: &str,
+    ) -> (Option<Self>, Option<ObservationFailureKind>) {
+        let text = match read.read_to_string(Path::new(path)) {
+            Ok(text) => text,
+            Err(error) => return (None, Some(ObservationFailureKind::from_io(&error))),
+        };
+        match parse_pressure(&text) {
+            Some(pressure) => (Some(pressure), None),
+            None => (None, Some(ObservationFailureKind::Malformed)),
+        }
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Snapshot {
     pub(crate) timestamp: u64,
+    pub(crate) observation_failures: BTreeMap<String, ObservationFailureKind>,
     pub(crate) on_ac: Option<bool>,
     pub(crate) battery_pct: Option<u8>,
     pub(crate) max_temp_millic: Option<i64>,
@@ -114,15 +150,33 @@ impl Snapshot {
             read_max_thermal_millic_with(read)
         };
 
+        let (cpu_pressure, cpu_pressure_failure) =
+            Pressure::read_with_diagnostic(read, "/proc/pressure/cpu");
+        let (memory_pressure, memory_pressure_failure) =
+            Pressure::read_with_diagnostic(read, "/proc/pressure/memory");
+        let (io_pressure, io_pressure_failure) =
+            Pressure::read_with_diagnostic(read, "/proc/pressure/io");
+        let mut observation_failures = BTreeMap::new();
+        for (component, failure) in [
+            ("cpu-pressure", cpu_pressure_failure),
+            ("memory-pressure", memory_pressure_failure),
+            ("io-pressure", io_pressure_failure),
+        ] {
+            if let Some(failure) = failure {
+                observation_failures.insert(component.to_string(), failure);
+            }
+        }
+
         Self {
             timestamp: clock.now_unix(),
+            observation_failures,
             on_ac: read_on_ac_with(read),
             battery_pct: read_battery_pct_with(read),
             max_temp_millic,
             loadavg_1: read_loadavg_1_with(read),
-            cpu_pressure: Pressure::read_with(read, "/proc/pressure/cpu"),
-            memory_pressure: Pressure::read_with(read, "/proc/pressure/memory"),
-            io_pressure: Pressure::read_with(read, "/proc/pressure/io"),
+            cpu_pressure,
+            memory_pressure,
+            io_pressure,
             zram_swap_active: read_zram_swap_active_with(read),
             foreground_app: None,
             pinned_class: None,

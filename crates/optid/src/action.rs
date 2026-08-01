@@ -364,6 +364,19 @@ impl Action {
     }
 }
 
+fn sanitize_identity(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | '@') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,17 +618,4 @@ mod tests {
         };
         assert!(b.describe().contains("=None"));
     }
-}
-
-fn sanitize_identity(value: &str) -> String {
-    value
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | '@') {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect()
 }

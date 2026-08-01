@@ -53,7 +53,7 @@ use io_util::{
     append_log, append_log_with, atomic_write_state_file_with, revert_display, revert_pm_qos,
     revert_runtime_pm, revert_storage, revert_sysctls,
 };
-use kernel_io::{Clock, KernelWrite};
+use kernel_io::Clock;
 use load_state::{BootState, LoadState};
 use policy::Policy;
 use sensors::Snapshot;

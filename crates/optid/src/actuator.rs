@@ -25,9 +25,10 @@ use crate::contracts::{
     ContractGateResult, ExitLatencyEvidence,
 };
 use crate::envelope::{
-    readback_from_result, ActionOutcome, ErrorKindCode, GateDisposition, GateEvaluation,
-    GateReasonCode, GateStage, OutcomeReasonCode, OwnershipState, PipelineStage, ReadbackOutcome,
-    ResponsibleSubsystem, RestoreOutcome, RestoreState, SupportState, TargetOutcome, WriteOutcome,
+    readback_from_result, sanitize_public_detail, ActionOutcome, ErrorKindCode, GateDisposition,
+    GateEvaluation, GateReasonCode, GateStage, OutcomeReasonCode, OwnershipState, PipelineStage,
+    ReadbackOutcome, ResponsibleSubsystem, RestoreOutcome, RestoreState, SupportState,
+    TargetOutcome, WriteOutcome,
 };
 use crate::io_util::{
     append_log_with, atomic_write_state_file_with, clear_journal_with, get_path_hash,
@@ -148,6 +149,19 @@ pub(crate) struct Actuator {
     /// production builds.
     #[cfg(test)]
     pub(crate) bypass_contract_gate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RevertKeyResult {
+    Restored,
+    Failed {
+        write_attempted: bool,
+        error_kind: ErrorKindCode,
+        detail: String,
+    },
+    NotApplicable {
+        detail: String,
+    },
 }
 
 impl Actuator {
@@ -629,7 +643,7 @@ impl Actuator {
                                 target_id,
                                 OutcomeReasonCode::UnsupportedTarget,
                             );
-                            target.detail = Some(error.to_string());
+                            target.detail = Some(sanitize_public_detail(error.to_string()));
                             outcome.targets.push(target);
                             continue;
                         }
@@ -647,7 +661,7 @@ impl Actuator {
                             pipeline_stage: PipelineStage::Write,
                             support: SupportState::Supported,
                             reason: OutcomeReasonCode::RedundantValue,
-                            write_attempted: true,
+                            write_attempted: false,
                             write_outcome: WriteOutcome::Redundant,
                             readback: ReadbackOutcome::Confirmed { value: old_value },
                             ownership: OwnershipState::Optid,
@@ -704,7 +718,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -812,7 +826,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -946,7 +960,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -1075,7 +1089,7 @@ impl Actuator {
                             action.stable_target_id(),
                             OutcomeReasonCode::UnsupportedTarget,
                         );
-                        target_outcome.detail = Some(error.to_string());
+                        target_outcome.detail = Some(sanitize_public_detail(error.to_string()));
                         outcome.targets.push(target_outcome);
                         return Ok(outcome);
                     }
@@ -1299,7 +1313,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -1417,7 +1431,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -1510,7 +1524,7 @@ impl Actuator {
                         action.stable_target_id(),
                         OutcomeReasonCode::UnsupportedTarget,
                     );
-                    target.detail = Some(error.to_string());
+                    target.detail = Some(sanitize_public_detail(error.to_string()));
                     outcome.targets.push(target);
                     return Ok(outcome);
                 }
@@ -1641,11 +1655,9 @@ impl Actuator {
     /// journal is **retained** so the shutdown revert can retry, and
     /// `Ok(false)` is returned.
     pub(crate) fn revert_key_outcome(&mut self, key: &str) -> io::Result<RestoreOutcome> {
-        let journal = self.state_dir.join(format!("original_{key}"));
-        let existed = self.kernel.exists(&journal);
-        let restored = self.revert_key(key)?;
-        if restored {
-            return Ok(RestoreOutcome {
+        let result = self.revert_key_detailed(key)?;
+        Ok(match result {
+            RevertKeyResult::Restored => RestoreOutcome {
                 target_id: format!("journal:{key}"),
                 pipeline_stage: PipelineStage::Restore,
                 reason: OutcomeReasonCode::RestoreApplied,
@@ -1656,52 +1668,74 @@ impl Actuator {
                 pending_restore: RestoreState::Restored,
                 responsible_subsystem: ResponsibleSubsystem::Restoration,
                 detail: None,
-            });
-        }
-        if existed && self.kernel.exists(&journal) {
-            return Ok(RestoreOutcome {
+            },
+            RevertKeyResult::Failed {
+                write_attempted,
+                error_kind,
+                detail,
+            } => RestoreOutcome {
                 target_id: format!("journal:{key}"),
                 pipeline_stage: PipelineStage::Restore,
                 reason: OutcomeReasonCode::RestoreFailed,
-                write_attempted: true,
-                write_outcome: WriteOutcome::RestorationFailed {
-                    error_kind: ErrorKindCode::Other,
-                },
+                write_attempted,
+                write_outcome: WriteOutcome::RestorationFailed { error_kind },
                 readback: ReadbackOutcome::NotPerformed,
                 ownership: OwnershipState::Optid,
                 pending_restore: RestoreState::Pending,
                 responsible_subsystem: ResponsibleSubsystem::Restoration,
-                detail: Some("restore did not complete; journal retained".to_string()),
-            });
-        }
-        Ok(RestoreOutcome {
-            target_id: format!("journal:{key}"),
-            pipeline_stage: PipelineStage::Restore,
-            reason: OutcomeReasonCode::NotApplicable,
-            write_attempted: false,
-            write_outcome: WriteOutcome::NotApplicable,
-            readback: ReadbackOutcome::NotPerformed,
-            ownership: OwnershipState::Relinquished,
-            pending_restore: RestoreState::NotApplicable,
-            responsible_subsystem: ResponsibleSubsystem::Restoration,
-            detail: Some("no supported current inverse-restoration journal".to_string()),
+                detail: Some(detail),
+            },
+            RevertKeyResult::NotApplicable { detail } => RestoreOutcome {
+                target_id: format!("journal:{key}"),
+                pipeline_stage: PipelineStage::Restore,
+                reason: OutcomeReasonCode::NotApplicable,
+                write_attempted: false,
+                write_outcome: WriteOutcome::NotApplicable,
+                readback: ReadbackOutcome::NotPerformed,
+                ownership: OwnershipState::Relinquished,
+                pending_restore: RestoreState::NotApplicable,
+                responsible_subsystem: ResponsibleSubsystem::Restoration,
+                detail: Some(detail),
+            },
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn revert_key(&mut self, key: &str) -> io::Result<bool> {
+        Ok(matches!(
+            self.revert_key_detailed(key)?,
+            RevertKeyResult::Restored
+        ))
+    }
+
+    fn revert_key_detailed(&mut self, key: &str) -> io::Result<RevertKeyResult> {
         let orig_file = self.state_dir.join(format!("original_{key}"));
         if !self.kernel.exists(&orig_file) {
-            return Ok(false);
+            return Ok(RevertKeyResult::NotApplicable {
+                detail: "no supported current inverse-restoration journal".to_string(),
+            });
         }
-        let Ok(content) = self.kernel.read_to_string(&orig_file) else {
-            return Ok(false);
+        let content = match self.kernel.read_to_string(&orig_file) {
+            Ok(content) => content,
+            Err(error) => {
+                return Ok(RevertKeyResult::Failed {
+                    write_attempted: false,
+                    error_kind: ErrorKindCode::from_io(&error),
+                    detail: sanitize_public_detail(format!(
+                        "failed to read restoration journal: {error}"
+                    )),
+                });
+            }
         };
         let mut lines = content.lines();
 
         let restored = if key.starts_with("rpm_") {
-            // Three-line journal: device dir, control, delay.
             let (Some(dev_dir), Some(orig_control)) = (lines.next(), lines.next()) else {
-                return Ok(false);
+                return Ok(RevertKeyResult::Failed {
+                    write_attempted: false,
+                    error_kind: ErrorKindCode::InvalidData,
+                    detail: "malformed runtime-PM restoration journal".to_string(),
+                });
             };
             let orig_delay = lines.next().unwrap_or("n/a").trim().to_string();
             let dev_dir = PathBuf::from(dev_dir);
@@ -1710,46 +1744,55 @@ impl Actuator {
 
             match self.kernel.write(&control_path, &orig_control) {
                 Ok(()) => {
-                    // Restore the delay too, when the device had one.
-                    let mut ok = true;
                     if orig_delay != "n/a" {
                         let delay_path = dev_dir.join("power").join("autosuspend_delay_ms");
-                        if let Err(e) = self.kernel.write(&delay_path, &orig_delay) {
+                        if let Err(error) = self.kernel.write(&delay_path, &orig_delay) {
                             self.log(&format!(
-                                "context-change revert {key}: failed to restore autosuspend_delay_ms for {}: {e}",
+                                "context-change revert {key}: failed to restore autosuspend_delay_ms for {}: {error}",
                                 dev_dir.display()
                             ))?;
-                            ok = false;
+                            return Ok(RevertKeyResult::Failed {
+                                write_attempted: true,
+                                error_kind: ErrorKindCode::from_io(&error),
+                                detail: sanitize_public_detail(format!(
+                                    "failed to restore autosuspend delay for logical target runtime-pm:{}: {error}",
+                                    get_path_hash(&dev_dir)
+                                )),
+                            });
                         }
                     }
-                    if ok {
-                        self.last_runtime_pm.remove(&dev_dir);
-                        self.log(&format!(
-                            "context-change revert {key}: restored {} control={orig_control} autosuspend_delay_ms={orig_delay}",
-                            dev_dir.display()
-                        ))?;
-                    }
-                    ok
-                }
-                Err(e) => {
+                    self.last_runtime_pm.remove(&dev_dir);
                     self.log(&format!(
-                        "context-change revert {key}: failed to restore control for {}: {e}",
+                        "context-change revert {key}: restored {} control={orig_control} autosuspend_delay_ms={orig_delay}",
                         dev_dir.display()
                     ))?;
-                    false
+                    true
+                }
+                Err(error) => {
+                    self.log(&format!(
+                        "context-change revert {key}: failed to restore control for {}: {error}",
+                        dev_dir.display()
+                    ))?;
+                    return Ok(RevertKeyResult::Failed {
+                        write_attempted: true,
+                        error_kind: ErrorKindCode::from_io(&error),
+                        detail: sanitize_public_detail(format!(
+                            "failed to restore runtime-PM control for logical target runtime-pm:{}: {error}",
+                            get_path_hash(&dev_dir)
+                        )),
+                    });
                 }
             }
         } else if key.starts_with("dev_") {
-            // Two-line journal: attribute path, original value.
             let (Some(attr_path), Some(orig_val)) = (lines.next(), lines.next()) else {
-                return Ok(false);
+                return Ok(RevertKeyResult::Failed {
+                    write_attempted: false,
+                    error_kind: ErrorKindCode::InvalidData,
+                    detail: "malformed device-latency restoration journal".to_string(),
+                });
             };
             let attr_path = PathBuf::from(attr_path);
             let orig_val = orig_val.trim().to_string();
-            // DeviceResumeLatency applies through the PM QoS sink, so the
-            // restore must go back through the same sink — not the raw
-            // kernel writer — or a mocked sink would diverge from what the
-            // apply path actually mutated.
             match self.pmqos_sink.write_device_latency(&attr_path, &orig_val) {
                 Ok(()) => {
                     self.last_device_latencies.remove(&attr_path);
@@ -1759,19 +1802,27 @@ impl Actuator {
                     ))?;
                     true
                 }
-                Err(e) => {
+                Err(error) => {
                     self.log(&format!(
-                        "context-change revert {key}: failed to restore {}: {e}",
+                        "context-change revert {key}: failed to restore {}: {error}",
                         attr_path.display()
                     ))?;
-                    false
+                    return Ok(RevertKeyResult::Failed {
+                        write_attempted: true,
+                        error_kind: ErrorKindCode::from_io(&error),
+                        detail: sanitize_public_detail(format!(
+                            "failed to restore device-latency target {key}: {error}"
+                        )),
+                    });
                 }
             }
         } else if key.starts_with("aspm_") || key.starts_with("alpm_") || key.starts_with("bl_") {
-            // Two-line journal: base directory, original value. Only the
-            // attribute path relative to that base differs per domain.
             let (Some(base), Some(orig_val)) = (lines.next(), lines.next()) else {
-                return Ok(false);
+                return Ok(RevertKeyResult::Failed {
+                    write_attempted: false,
+                    error_kind: ErrorKindCode::InvalidData,
+                    detail: "malformed device restoration journal".to_string(),
+                });
             };
             let base = PathBuf::from(base);
             let orig_val = orig_val.trim().to_string();
@@ -1798,30 +1849,32 @@ impl Actuator {
                     ))?;
                     true
                 }
-                Err(e) => {
+                Err(error) => {
                     self.log(&format!(
-                        "context-change revert {key}: failed to restore {}: {e}",
+                        "context-change revert {key}: failed to restore {}: {error}",
                         target.display()
                     ))?;
-                    false
+                    return Ok(RevertKeyResult::Failed {
+                        write_attempted: true,
+                        error_kind: ErrorKindCode::from_io(&error),
+                        detail: sanitize_public_detail(format!(
+                            "failed to restore logical target journal:{key}: {error}"
+                        )),
+                    });
                 }
             }
         } else {
-            // System-wide knobs (cpu_epp, platform_profile, vm_*,
-            // cpu_dma_latency) are continuously overwritten by later
-            // ticks; nothing to do here.
-            return Ok(false);
+            return Ok(RevertKeyResult::NotApplicable {
+                detail: "no supported current inverse-restoration journal".to_string(),
+            });
         };
 
         if restored {
-            // Drop original_/intended_/applied_ together.
             clear_journal_with(&*self.kernel, &self.state_dir, key);
+            Ok(RevertKeyResult::Restored)
         } else {
-            self.log(&format!(
-                "context-change revert {key}: journal retained; restore did not complete"
-            ))?;
+            unreachable!("all failed restoration branches return a typed failure")
         }
-        Ok(restored)
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {

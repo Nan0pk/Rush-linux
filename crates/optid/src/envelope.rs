@@ -21,7 +21,7 @@ use crate::action::Action;
 use crate::decision::Decision;
 use crate::load_state::BootState;
 use crate::policy::{Domain, DomainMode};
-use crate::sensors::{Pressure, Snapshot};
+use crate::sensors::{ObservationFailureKind, Pressure, Snapshot};
 
 pub(crate) const ENVELOPE_SCHEMA_VERSION: u32 = 2;
 pub(crate) type CorrelationId = String;
@@ -131,6 +131,18 @@ pub(crate) enum GateReasonCode {
     NotReached,
 }
 
+pub(crate) fn sanitize_public_detail(detail: impl Into<String>) -> String {
+    let detail = detail.into();
+    const PROHIBITED: [&str; 8] = [
+        "/sys/", "/proc/", "/dev/", "/home/", "/root/", ".rs:", "RUST_", "TOKEN=",
+    ];
+    if PROHIBITED.iter().any(|needle| detail.contains(needle)) {
+        "diagnostic detail redacted; consult local daemon logs".to_string()
+    } else {
+        detail
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct GateEvaluation {
     pub(crate) stage: GateStage,
@@ -159,7 +171,7 @@ impl GateEvaluation {
             stage,
             disposition: GateDisposition::Denied,
             reason,
-            detail: Some(detail.into()),
+            detail: Some(sanitize_public_detail(detail)),
         }
     }
 
@@ -303,22 +315,6 @@ pub(crate) struct TargetOutcome {
 }
 
 impl TargetOutcome {
-    pub(crate) fn not_evaluated(target_id: String) -> Self {
-        Self {
-            target_id,
-            pipeline_stage: PipelineStage::Decision,
-            support: SupportState::NotEvaluated,
-            reason: OutcomeReasonCode::NotEvaluated,
-            write_attempted: false,
-            write_outcome: WriteOutcome::NotEvaluated,
-            readback: ReadbackOutcome::NotPerformed,
-            ownership: OwnershipState::Unknown,
-            pending_restore: RestoreState::NotEvaluated,
-            responsible_subsystem: ResponsibleSubsystem::Daemon,
-            detail: None,
-        }
-    }
-
     pub(crate) fn denied(target_id: String, stage: PipelineStage, detail: String) -> Self {
         Self {
             target_id,
@@ -394,7 +390,7 @@ impl TargetOutcome {
             ownership: OwnershipState::Unknown,
             pending_restore: RestoreState::NotEvaluated,
             responsible_subsystem: ResponsibleSubsystem::KernelIo,
-            detail: Some(error.to_string()),
+            detail: Some(format!("kernel I/O failed: {:?}", error.kind())),
         }
     }
 }
@@ -482,12 +478,40 @@ pub(crate) struct RestoreOutcome {
     pub(crate) detail: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ObservationReasonCode {
+    Observed,
+    Unavailable,
+    NotFound,
+    PermissionDenied,
+    InvalidData,
+    Malformed,
+    ReadFailed,
+}
+
+impl ObservationReasonCode {
+    fn from_failure(failure: ObservationFailureKind) -> Self {
+        match failure {
+            ObservationFailureKind::NotFound => Self::NotFound,
+            ObservationFailureKind::PermissionDenied => Self::PermissionDenied,
+            ObservationFailureKind::InvalidData => Self::InvalidData,
+            ObservationFailureKind::Malformed => Self::Malformed,
+            ObservationFailureKind::Other => Self::ReadFailed,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct ObservationValue {
     pub(crate) component_id: String,
+    pub(crate) pipeline_stage: PipelineStage,
+    pub(crate) support: SupportState,
+    pub(crate) reason: ObservationReasonCode,
     pub(crate) value: serde_json::Value,
     pub(crate) source: String,
     pub(crate) provenance: String,
+    pub(crate) responsible_subsystem: ResponsibleSubsystem,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -509,61 +533,107 @@ impl ObservationEnvelope {
                 })
                 .unwrap_or(serde_json::Value::Null)
         }
+
+        fn observation(
+            snapshot: &Snapshot,
+            component_id: &str,
+            value: serde_json::Value,
+            source: &str,
+            provenance: &str,
+        ) -> ObservationValue {
+            let reason = snapshot
+                .observation_failures
+                .get(component_id)
+                .copied()
+                .map(ObservationReasonCode::from_failure)
+                .unwrap_or_else(|| {
+                    if value.is_null() {
+                        ObservationReasonCode::Unavailable
+                    } else {
+                        ObservationReasonCode::Observed
+                    }
+                });
+            let support = if reason == ObservationReasonCode::Observed {
+                SupportState::Supported
+            } else {
+                SupportState::Unknown
+            };
+            ObservationValue {
+                component_id: component_id.to_string(),
+                pipeline_stage: PipelineStage::Observation,
+                support,
+                reason,
+                value,
+                source: source.to_string(),
+                provenance: provenance.to_string(),
+                responsible_subsystem: ResponsibleSubsystem::Sensors,
+            }
+        }
+
         let values = vec![
-            ObservationValue {
-                component_id: "power-source".to_string(),
-                value: serde_json::json!(snapshot.on_ac),
-                source: "power_supply".to_string(),
-                provenance: "kernel_interface".to_string(),
-            },
-            ObservationValue {
-                component_id: "battery-charge".to_string(),
-                value: serde_json::json!(snapshot.battery_pct),
-                source: "power_supply".to_string(),
-                provenance: "kernel_interface".to_string(),
-            },
-            ObservationValue {
-                component_id: "thermal-budget".to_string(),
-                value: serde_json::json!(snapshot.thermal_c()),
-                source: "thermal".to_string(),
-                provenance: "resolved_sensor_budget".to_string(),
-            },
-            ObservationValue {
-                component_id: "load-average".to_string(),
-                value: serde_json::json!(snapshot.loadavg_1),
-                source: "procfs".to_string(),
-                provenance: "kernel_interface".to_string(),
-            },
-            ObservationValue {
-                component_id: "cpu-pressure".to_string(),
-                value: pressure(snapshot.cpu_pressure),
-                source: "psi".to_string(),
-                provenance: "procfs".to_string(),
-            },
-            ObservationValue {
-                component_id: "memory-pressure".to_string(),
-                value: pressure(snapshot.memory_pressure),
-                source: "psi".to_string(),
-                provenance: "procfs".to_string(),
-            },
-            ObservationValue {
-                component_id: "io-pressure".to_string(),
-                value: pressure(snapshot.io_pressure),
-                source: "psi".to_string(),
-                provenance: "procfs".to_string(),
-            },
-            ObservationValue {
-                component_id: "zram-swap".to_string(),
-                value: serde_json::json!(snapshot.zram_swap_active),
-                source: "procfs".to_string(),
-                provenance: "kernel_interface".to_string(),
-            },
-            ObservationValue {
-                component_id: "virtual-machine".to_string(),
-                value: serde_json::json!(snapshot.is_vm_guest),
-                source: "dmi".to_string(),
-                provenance: "platform_identity".to_string(),
-            },
+            observation(
+                snapshot,
+                "power-source",
+                serde_json::json!(snapshot.on_ac),
+                "power_supply",
+                "kernel_interface",
+            ),
+            observation(
+                snapshot,
+                "battery-charge",
+                serde_json::json!(snapshot.battery_pct),
+                "power_supply",
+                "kernel_interface",
+            ),
+            observation(
+                snapshot,
+                "thermal-budget",
+                serde_json::json!(snapshot.thermal_c()),
+                "thermal",
+                "resolved_sensor_budget",
+            ),
+            observation(
+                snapshot,
+                "load-average",
+                serde_json::json!(snapshot.loadavg_1),
+                "procfs",
+                "kernel_interface",
+            ),
+            observation(
+                snapshot,
+                "cpu-pressure",
+                pressure(snapshot.cpu_pressure),
+                "psi",
+                "procfs",
+            ),
+            observation(
+                snapshot,
+                "memory-pressure",
+                pressure(snapshot.memory_pressure),
+                "psi",
+                "procfs",
+            ),
+            observation(
+                snapshot,
+                "io-pressure",
+                pressure(snapshot.io_pressure),
+                "psi",
+                "procfs",
+            ),
+            observation(
+                snapshot,
+                "zram-swap",
+                serde_json::json!(snapshot.zram_swap_active),
+                "procfs",
+                "kernel_interface",
+            ),
+            observation(
+                snapshot,
+                "virtual-machine",
+                serde_json::json!(snapshot.is_vm_guest),
+                "dmi",
+                "platform_identity",
+            ),
         ];
         Self { values }
     }
@@ -590,8 +660,13 @@ impl DecisionEnvelope {
         Self {
             selected_mode: decision.mode.to_string(),
             workload_class: decision.workload_class.to_string(),
-            workload_reason: decision.workload_reason.clone(),
-            reasons: decision.reasons.clone(),
+            workload_reason: sanitize_public_detail(decision.workload_reason.clone()),
+            reasons: decision
+                .reasons
+                .iter()
+                .cloned()
+                .map(sanitize_public_detail)
+                .collect(),
             contract: ContractIdentity {
                 workload_class: decision.workload_class.to_string(),
                 cpu_wakeup_latency_us: decision.cpu_wakeup_latency,
@@ -747,6 +822,15 @@ impl ControlCycleEnvelope {
         }
         if self.correlation_id.is_empty() {
             return Err("missing correlation_id".to_string());
+        }
+        let public_json = serde_json::to_string(self)
+            .map_err(|error| format!("failed to validate public envelope: {error}"))?;
+        for prohibited in ["/sys/", "/proc/", "/dev/", "/home/", "/root/", ".rs:"] {
+            if public_json.contains(prohibited) {
+                return Err(format!(
+                    "public envelope contains prohibited diagnostic data: {prohibited}"
+                ));
+            }
         }
         Ok(())
     }

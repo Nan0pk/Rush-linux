@@ -1323,6 +1323,7 @@ mod tests {
         });
         Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac,
             battery_pct: None,
             max_temp_millic: None,
@@ -1551,6 +1552,7 @@ mod f1_tests {
         };
         Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(false),
             battery_pct: Some(80),
             max_temp_millic: None,
@@ -2607,6 +2609,7 @@ mode = "off"
         };
         let snapshot = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
