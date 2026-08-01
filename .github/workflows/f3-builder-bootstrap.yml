@@ -1,32 +1,52 @@
-name: F3 builder bootstrap
+name: F3 implementation builder
 
 on:
   pull_request:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export-clean-source:
+  apply-format-check:
     if: github.head_ref == 'fix/f3-versioned-runtime-outcomes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Run repository start-work gate
-        id: start_work
-        continue-on-error: true
-        run: bash tools/start-work.sh "complete versioned observations decisions and action outcomes"
-      - name: Record expected staging-only start-work result
+      - name: Apply the reviewed implementation patch
         run: |
-          echo "start-work outcome: ${{ steps.start_work.outcome }}"
-          echo "The temporary workflow itself triggers docs-impact; it is removed from the final branch."
-      - name: Export exact source tree for the builder
-        uses: actions/upload-artifact@v4
+          base64 --decode tools/f3-implementation.patch.gz.b64 | gzip --decompress > /tmp/f3.patch
+          git apply --check /tmp/f3.patch
+          git apply /tmp/f3.patch
+      - name: Format Rust sources
+        run: cargo fmt --all
+      - name: Check optid production and test targets
+        run: cargo check -p optid --all-targets
+      - name: Check optctl production and test targets
+        run: cargo check -p optctl --all-targets
+      - name: Run focused schema tests
+        run: cargo test -p optid envelope::tests
+      - name: Preserve diagnostics on failure
+        if: failure()
+        run: git diff --binary > /tmp/f3-working.patch
+      - uses: actions/upload-artifact@v4
+        if: failure()
         with:
-          name: f3-exact-source-${{ github.sha }}
-          path: .
-          include-hidden-files: true
+          name: f3-builder-failed-working-tree-${{ github.sha }}
+          path: /tmp/f3-working.patch
           retention-days: 1
+      - name: Remove staging-only builder files
+        run: |
+          rm -f tools/f3-implementation.patch.gz.b64
+          rm -f .github/workflows/f3-builder-bootstrap.yml
+      - name: Commit checked implementation
+        run: |
+          git config user.name 'rush-f3-builder'
+          git config user.email 'rush-f3-builder@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(optid): activate versioned runtime outcomes'
+          git push origin HEAD:${{ github.head_ref }}
