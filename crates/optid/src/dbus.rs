@@ -114,6 +114,11 @@ impl OptidServer {
             .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read status: {e}")))
     }
 
+    fn status_json(&self) -> zbus::fdo::Result<String> {
+        fs::read_to_string(self.state_dir.join("status.json"))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read status.json: {e}")))
+    }
+
     fn explain(&self) -> zbus::fdo::Result<String> {
         fs::read_to_string(self.state_dir.join("decisions.log"))
             .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read decisions.log: {e}")))

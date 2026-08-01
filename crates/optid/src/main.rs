@@ -48,9 +48,12 @@ use args::{
 };
 use contracts::Contracts;
 use dbus::OptidServer;
+use envelope::{ActionOutcome, ControlCycleEnvelope, CycleIdGenerator};
 use io_util::{
-    append_log, revert_display, revert_pm_qos, revert_runtime_pm, revert_storage, revert_sysctls,
+    append_log, append_log_with, atomic_write_state_file_with, revert_display, revert_pm_qos,
+    revert_runtime_pm, revert_storage, revert_sysctls,
 };
+use kernel_io::Clock;
 use load_state::{BootState, LoadState};
 use policy::Policy;
 use sensors::Snapshot;
@@ -297,13 +300,19 @@ fn run(args: Args) -> io::Result<()> {
     // After this call, every dynamic Action is gated by boot_state.apply_armed
     // (see Actuator::dynamic_writes_armed), and the curated baseline is gated
     // by boot_state.baseline_armed (see Actuator::apply_baseline).
-    actuator.set_boot_state(boot_state);
+    actuator.set_boot_state(boot_state.clone());
 
     // optid-safety: apply the curated baseline once at startup. This puts
     // the system into a known-good state (vm.swappiness = balanced default)
     // regardless of whether dynamic writes are armed. The baseline is gated
     // by baseline_armed, so it is skipped in dry-run mode.
     actuator.apply_baseline()?;
+
+    // F3: one deterministic boot-scoped sequence supplies one correlation ID
+    // per real control-loop iteration. The injected F2 clock keeps tests
+    // deterministic without adding a UUID dependency.
+    let cycle_kernel = kernel_io::RealKernel::new();
+    let mut cycle_ids = CycleIdGenerator::new(cycle_kernel.now_unix());
 
     // v0.6 Phase C1: foreground-app detection. When --foreground=auto,
     // spawn the subscriber thread. In v0.6 this is a stub that never
@@ -373,7 +382,7 @@ fn run(args: Args) -> io::Result<()> {
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let policy = Policy::load(&args.config_path);
-        let kernel = kernel_io::RealKernel::new();
+        let kernel = cycle_kernel.clone();
         let mut snapshot = Snapshot::collect_with_thermal(
             &kernel,
             &kernel,
@@ -434,10 +443,8 @@ fn run(args: Args) -> io::Result<()> {
             Some(resolved_mode),
             mode_hysteresis_reason,
         );
-        let report = decision.render(&snapshot);
-
-        fs::write(args.state_dir.join("status"), &report)?;
-        append_log(&args.state_dir.join("decisions.log"), &report)?;
+        let correlation_id = cycle_ids.next();
+        actuator.set_correlation_id(correlation_id.clone());
 
         // F4 shadow: detect transitions for operator-visible logging and
         // track target-set parity. The reconciler does NOT plan or apply
@@ -463,7 +470,8 @@ fn run(args: Args) -> io::Result<()> {
                 append_log(
                     &args.state_dir.join("decisions.log"),
                     &format!(
-                        "reconciler_shadow: transition={} (production restore uses active_keys)\n",
+                        "correlation_id={} reconciler_shadow: transition={} (production restore uses active_keys)\n",
+                        correlation_id,
                         t.describe()
                     ),
                 )?;
@@ -495,38 +503,91 @@ fn run(args: Args) -> io::Result<()> {
                 append_log(
                     &args.state_dir.join("decisions.log"),
                     &format!(
-                        "reconciler_shadow: stale_targets={} (production restore still uses active_keys)\n",
+                        "correlation_id={} reconciler_shadow: stale_targets={} (production restore still uses active_keys)\n",
+                        correlation_id,
                         stale.len()
                     ),
                 )?;
             }
         }
 
+        let mut action_outcomes: Vec<ActionOutcome> = Vec::new();
         if args.apply {
             for action in &decision.actions {
-                actuator.apply(action)?;
+                action_outcomes.push(actuator.apply(action)?);
             }
+        } else {
+            for action in &decision.actions {
+                action_outcomes.push(ActionOutcome::suppressed(
+                    action,
+                    policy::DomainMode::Actuate,
+                    false,
+                ));
+            }
+        }
+        for (_, action) in &decision.suppressed_actions {
+            action_outcomes.push(ActionOutcome::suppressed(
+                action,
+                policy::DomainMode::Observe,
+                args.apply,
+            ));
+        }
 
-            // Inverse restore on context change. Any key the previous
-            // decision applied that this decision no longer contains is
-            // reverted to its journaled original now, instead of
-            // lingering until shutdown. Without this a battery→AC
-            // transition left battery-idle sysfs values in place for the
-            // rest of the uptime.
-            //
-            // Only per-device depth-enabler keys are actually restored;
-            // Actuator::revert_key ignores the system-wide knobs, which
-            // every tick rewrites unconditionally.
+        let mut restore_outcomes = Vec::new();
+        if args.apply {
+            // Inverse restoration remains the existing active_keys path. F3
+            // records the result returned by the actual restoration call; it
+            // does not move ownership into the dormant reconciler.
             let new_keys: HashSet<String> = decision
                 .actions
                 .iter()
                 .filter_map(|action| action.journal_key())
                 .collect();
             for stale in active_keys.difference(&new_keys) {
-                actuator.revert_key(stale)?;
+                restore_outcomes.push(actuator.revert_key_outcome(stale)?);
             }
             active_keys = new_keys;
         }
+
+        let cycle = ControlCycleEnvelope::build(
+            correlation_id.clone(),
+            &snapshot,
+            &decision,
+            &boot_state,
+            action_outcomes,
+            restore_outcomes,
+        );
+        cycle
+            .validate_schema()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let status_json = cycle
+            .to_pretty_json()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let cycle_line = cycle
+            .to_json_line()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let report = format!(
+            "correlation_id={}\n{}",
+            correlation_id,
+            decision.render(&snapshot)
+        );
+
+        atomic_write_state_file_with(&cycle_kernel, &args.state_dir.join("status"), &report)?;
+        atomic_write_state_file_with(
+            &cycle_kernel,
+            &args.state_dir.join("status.json"),
+            &status_json,
+        )?;
+        append_log_with(
+            &cycle_kernel,
+            &args.state_dir.join("control-cycles.jsonl"),
+            &cycle_line,
+        )?;
+        append_log_with(
+            &cycle_kernel,
+            &args.state_dir.join("decisions.log"),
+            &report,
+        )?;
 
         if args.once || term.load(Ordering::Relaxed) {
             break;

@@ -1167,7 +1167,7 @@ impl Policy {
         // `[domains.cgroup_reweight] mode = "off"` to suppress cgroup
         // reweighting the same way they suppress any other lever.
         let effective = EffectiveConfig::from_policy(self);
-        let mut suppressed_actions: Vec<(Domain, String)> = Vec::new();
+        let mut suppressed_actions: Vec<(Domain, Action)> = Vec::new();
         let actions: Vec<Action> = actions
             .into_iter()
             .filter(|a| {
@@ -1190,7 +1190,7 @@ impl Policy {
                     // many devices of the same domain are
                     // nominated (e.g., 10 USB devices under
                     // runtime_pm).
-                    suppressed_actions.push((d, a.describe()));
+                    suppressed_actions.push((d, a.clone()));
                 }
                 false
             })
@@ -1203,14 +1203,15 @@ impl Policy {
         // mode" entry, but each distinct would-be action description
         // is still listed once in the `suppressed_actions` block
         // rendered by `Decision::render`.
-        suppressed_actions.sort_by(|a, b| (a.0.as_str(), &a.1).cmp(&(b.0.as_str(), &b.1)));
-        suppressed_actions.dedup();
+        suppressed_actions
+            .sort_by(|a, b| (a.0.as_str(), a.1.describe()).cmp(&(b.0.as_str(), b.1.describe())));
+        suppressed_actions.dedup_by(|a, b| a.0 == b.0 && a.1.describe() == b.1.describe());
         let mut seen_observe_reasons: std::collections::BTreeSet<&'static str> =
             std::collections::BTreeSet::new();
         // Iterate by reference; each element is `&(Domain, String)`,
         // so the pattern must be `&(d, _)` (Rust does not implicitly
         // deref tuple patterns inside `for` loops).
-        for &(d, _) in &suppressed_actions {
+        for (d, _) in &suppressed_actions {
             if seen_observe_reasons.insert(d.as_str()) {
                 reasons.push(format!(
                     "domain {} in observe mode: action suppressed, would-act logged",
@@ -1322,6 +1323,7 @@ mod tests {
         });
         Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac,
             battery_pct: None,
             max_temp_millic: None,
@@ -1550,6 +1552,7 @@ mod f1_tests {
         };
         Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(false),
             battery_pct: Some(80),
             max_temp_millic: None,
@@ -2336,7 +2339,7 @@ mode = "observe"
         let suppressed_domains: Vec<Domain> = decision
             .suppressed_actions
             .iter()
-            .map(|&(d, _)| d)
+            .map(|(d, _)| *d)
             .collect();
         assert!(
             suppressed_domains.contains(&Domain::RuntimePm),
@@ -2356,7 +2359,8 @@ mode = "observe"
         // actuator — operators need to see *what* optid would have set.
         // Iterating by reference yields `&(Domain, String)`, so the
         // pattern must be `&(d, desc)`.
-        for &(d, ref desc) in &decision.suppressed_actions {
+        for (d, action) in &decision.suppressed_actions {
+            let desc = action.describe();
             assert!(
                 !desc.is_empty(),
                 "suppressed action for domain {} has empty description",
@@ -2425,7 +2429,7 @@ mode = "off"
         let has_runtime_pm = decision
             .suppressed_actions
             .iter()
-            .any(|&(d, _)| d == Domain::RuntimePm);
+            .any(|(d, _)| *d == Domain::RuntimePm);
         assert!(
             !has_runtime_pm,
             "off-mode suppression must NOT capture would-be actions, suppressed: {:?}",
@@ -2605,6 +2609,7 @@ mode = "off"
         };
         let snapshot = Snapshot {
             timestamp: 0,
+            observation_failures: Default::default(),
             on_ac: Some(true),
             battery_pct: None,
             max_temp_millic: None,
@@ -2708,7 +2713,7 @@ mode = "observe"
         let has_suppressed = decision_observe
             .suppressed_actions
             .iter()
-            .any(|&(d, _)| d == Domain::CgroupReweight);
+            .any(|(d, _)| *d == Domain::CgroupReweight);
         assert!(
             has_suppressed,
             "SystemdSetProperty would-be action must be in suppressed_actions when cgroup_reweight=observe, suppressed: {:?}",

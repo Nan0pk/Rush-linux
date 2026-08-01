@@ -3,13 +3,14 @@ updated = "2026-08-01"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F1 and F2 have fresh independent cold-verification receipts and are
-# completed. F1's new receipt replaces the stale historical certification
-# while preserving its provenance in docs/plans/optid-verification/f1.toml.
+# F3 modifies proof paths previously cold-verified for F1 and F2, so those
+# receipts are retained as historical provenance but are no longer fresh for
+# this branch. F1 and F2 are therefore demoted until independent cold
+# verification covers a commit containing the F3 changes.
 #
-# active_general is F3 because its F1 dependency is now completed and its
-# versioned envelope remains dormant in production. Dependencies unlock only
-# from `completed`; no package self-certifies completion.
+# active_general remains F3 because its production implementation is the
+# current repair target. It cannot advance to `candidate` while its F1
+# dependency is not `completed`; no package self-certifies completion.
 active_general = "F3"
 active_safety = "D0"
 
@@ -36,9 +37,10 @@ title = "Freeze capability states and domain configuration"
 # 001515bef45a0a5f9842d9831154ae9d0573d361, then became stale after later
 # changes modified the declared F1 proof paths. The current receipt verifies
 # the post-repair production surface at a commit containing those changes.
-status = "completed"
+status = "merged_incomplete"
 depends = []
 pr = "332"
+blocking_reason = "F3 PR #369 modifies F1 declared proof paths (action.rs, actuator.rs, decision.rs, main.rs, and policy.rs), so the existing cold-verification receipt is stale for this branch. A fresh independent cold verification receipt against a commit containing these changes is required before F1 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f1.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -80,9 +82,10 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-status = "completed"
+status = "merged_incomplete"
 depends = []
 pr = "365"
+blocking_reason = "F3 PR #369 modifies F2 declared proof paths (actuator.rs, main.rs, sensors.rs, tests.rs, and tests_impl.rs), so the existing cold-verification receipt is stale for this branch. A fresh independent cold verification receipt against a commit containing these changes is required before F2 may return to completed."
 verification_receipt = "docs/plans/optid-verification/f2.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
@@ -112,9 +115,33 @@ lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
 status = "merged_incomplete"
 depends = ["F1"]
-pr = "326"
-blocking_reason = "The envelope module is explicitly dormant; the daemon, optctl, logs, and action outcomes do not construct or consume it."
-completion_evidence = []
+pr = "369"
+blocking_reason = "Production integration, machine-readable status, typed gate and outcome evidence, golden schema coverage, and CLI pass-through tests are present in PR #369. F3 cannot advance to candidate while its required F1 dependency is demoted because this PR invalidated F1's earlier proof-path receipt. Restore F1 with a fresh independent cold-verification receipt, then perform F3's independent cold verification; no package self-certifies completion."
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/envelope.rs",
+  "crates/optid/src/dbus.rs",
+  "crates/optctl/src/main.rs",
+  "packaging/dbus/io.rushlinux.Optid.xml",
+]
+integration_tests = [
+  "crates/optid/src/tests.rs",
+  "crates/optctl/tests/status_cli.rs",
+]
+completion_evidence = [
+  "crates/optid/src/envelope.rs",
+  "crates/optid/src/tests.rs",
+  "crates/optid/tests/fixtures/f3-control-cycle-v2.json",
+  "crates/optctl/tests/status_cli.rs",
+  "docs/architecture/optid-f3-control-cycle-envelope.md",
+]
+[package.acceptance_tests]
+gate_matrix = "f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm"
+actuator_denials = "f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials"
+action_outcomes = "f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy"
+restore_outcomes = "f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable"
+observation_outcomes = "f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads"
+production_cycle = "f3_production_daemon_run_writes_one_correlated_versioned_cycle"
 
 [[package]]
 id = "F4"
