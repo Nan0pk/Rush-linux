@@ -26,7 +26,7 @@ impl Reconciler {
             ));
             return Ok(outcome);
         }
-        let expanded = self.expand_action(action, actuator).unwrap_or_default();
+        let expanded = self.expand_action(action, actuator)?;
         if !matches!(action, Action::SystemdSetProperty { .. })
             && expanded.iter().any(|desired| {
                 self.targets
@@ -58,28 +58,10 @@ impl Reconciler {
             Action::SystemdSetProperty {
                 unit, properties, ..
             } => self.apply_systemd_action(actuator, action, unit, properties)?,
-            _ if self.action_is_coalesced(action, actuator) => {
-                let mut outcome = ActionOutcome::new(action);
-                outcome.gates.push(GateEvaluation::allowed(
-                    GateStage::DomainMode,
-                    GateReasonCode::DomainActuate,
-                ));
-                outcome.targets.push(TargetOutcome {
-                    target_id: action.stable_target_id(),
-                    pipeline_stage: PipelineStage::Write,
-                    support: SupportState::Supported,
-                    reason: OutcomeReasonCode::RedundantValue,
-                    write_attempted: false,
-                    write_outcome: WriteOutcome::Redundant,
-                    readback: ReadbackOutcome::NotPerformed,
-                    ownership: OwnershipState::Optid,
-                    pending_restore: RestoreState::Pending,
-                    responsible_subsystem: ResponsibleSubsystem::Restoration,
-                    detail: Some("complete desired state already confirmed".to_string()),
-                });
-                outcome
-            }
-            _ => actuator.apply(action)?,
+            _ => match self.active_non_systemd_outcome(action, actuator, &expanded)? {
+                Some(outcome) => outcome,
+                None => actuator.apply(action)?,
+            },
         };
         self.record_action_outcome(action, &outcome, actuator)?;
         Ok(outcome)
@@ -154,17 +136,122 @@ impl Reconciler {
         }
     }
 
-    fn action_is_coalesced(&self, action: &Action, actuator: &mut Actuator) -> bool {
-        let Ok(targets) = self.expand_action(action, actuator) else {
-            return false;
-        };
-        !targets.is_empty()
-            && targets.iter().all(|target| {
-                self.targets.get(&target.target_id).is_some_and(|state| {
-                    state.ownership == OwnershipState::Optid
-                        && state.last_confirmed.as_ref() == Some(&target.desired)
-                })
+    fn active_non_systemd_outcome(
+        &self,
+        action: &Action,
+        actuator: &mut Actuator,
+        targets: &[DesiredTarget],
+    ) -> io::Result<Option<ActionOutcome>> {
+        if targets.is_empty() {
+            return Ok(None);
+        }
+
+        if targets.iter().any(|desired| {
+            self.targets
+                .get(&desired.target_id)
+                .is_some_and(|state| state.ownership == OwnershipState::Relinquished)
+        }) {
+            let mut outcome = active_action_outcome(action);
+            for desired in targets {
+                let ownership = self
+                    .targets
+                    .get(&desired.target_id)
+                    .map(|state| state.ownership.clone())
+                    .unwrap_or(OwnershipState::Unknown);
+                outcome.targets.push(TargetOutcome {
+                    target_id: desired.target_id.clone(),
+                    pipeline_stage: PipelineStage::Readback,
+                    support: SupportState::Supported,
+                    reason: OutcomeReasonCode::OwnershipRelinquished,
+                    write_attempted: false,
+                    write_outcome: WriteOutcome::OwnershipRelinquished,
+                    readback: ReadbackOutcome::NotPerformed,
+                    ownership,
+                    pending_restore: RestoreState::NotApplicable,
+                    responsible_subsystem: ResponsibleSubsystem::Restoration,
+                    detail: Some(
+                        "ownership was previously relinquished; desired value was not reasserted"
+                            .to_string(),
+                    ),
+                });
+            }
+            return Ok(Some(outcome));
+        }
+
+        let all_confirmed_owned = targets.iter().all(|desired| {
+            self.targets.get(&desired.target_id).is_some_and(|state| {
+                state.ownership == OwnershipState::Optid
+                    && state.last_confirmed.as_ref() == Some(&desired.desired)
             })
+        });
+        if !all_confirmed_owned {
+            return Ok(None);
+        }
+
+        let mut outcome = active_action_outcome(action);
+        for desired in targets {
+            match self.read_target(actuator, &desired.target) {
+                Ok(current) if current == desired.desired => {
+                    outcome.targets.push(TargetOutcome {
+                        target_id: desired.target_id.clone(),
+                        pipeline_stage: PipelineStage::Readback,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::RedundantValue,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Redundant,
+                        readback: ReadbackOutcome::Confirmed {
+                            value: current.public_value(),
+                        },
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Restoration,
+                        detail: Some(
+                            "complete desired state remains confirmed; write coalesced".to_string(),
+                        ),
+                    });
+                }
+                Ok(current) => {
+                    outcome.targets.push(TargetOutcome {
+                        target_id: desired.target_id.clone(),
+                        pipeline_stage: PipelineStage::Readback,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::OwnershipRelinquished,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::OwnershipRelinquished,
+                        readback: ReadbackOutcome::Mismatch {
+                            expected: desired.desired.public_value(),
+                            actual: current.public_value(),
+                        },
+                        ownership: OwnershipState::Relinquished,
+                        pending_restore: RestoreState::NotApplicable,
+                        responsible_subsystem: ResponsibleSubsystem::Restoration,
+                        detail: Some(
+                            "external drift detected while target remained desired; write refused"
+                                .to_string(),
+                        ),
+                    });
+                }
+                Err(error) => {
+                    outcome.targets.push(TargetOutcome {
+                        target_id: desired.target_id.clone(),
+                        pipeline_stage: PipelineStage::Readback,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::ReadbackUnavailable,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Skipped,
+                        readback: ReadbackOutcome::Unavailable,
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::KernelIo,
+                        detail: Some(format!(
+                            "active ownership readback failed: {:?}",
+                            error.kind()
+                        )),
+                    });
+                }
+            }
+        }
+        Ok(Some(outcome))
     }
 
     fn record_action_outcome(
@@ -287,4 +374,17 @@ impl Reconciler {
             })
             .collect()
     }
+}
+
+fn active_action_outcome(action: &Action) -> ActionOutcome {
+    let mut outcome = ActionOutcome::new(action);
+    outcome.gates.push(GateEvaluation::allowed(
+        GateStage::DomainMode,
+        GateReasonCode::DomainActuate,
+    ));
+    outcome.gates.push(GateEvaluation::allowed(
+        GateStage::ApplyArmed,
+        GateReasonCode::ApplyArmed,
+    ));
+    outcome
 }
