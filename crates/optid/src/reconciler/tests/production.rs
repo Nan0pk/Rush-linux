@@ -151,6 +151,65 @@ fn f4_production_coalesces_confirmed_value_and_writes_one_change() {
 }
 
 #[test]
+fn f4_active_kernel_drift_relinquishes_and_stays_handed_back() {
+    let state_dir = PathBuf::from("/run/optid-f4-active-drift");
+    let path = PathBuf::from("/proc/sys/vm/swappiness");
+    let kernel = MemoryKernel::new();
+    kernel.write_raw(&path, "60");
+    let mut actuator = armed_actuator(state_dir.clone(), kernel);
+    let mut reconciler = Reconciler::load_with_systemd(
+        state_dir,
+        &mut actuator,
+        Box::<FakeSystemd>::default(),
+    )
+    .expect("load reconciler");
+    let action = vm_action(&path, "10");
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare first");
+    reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("apply first");
+
+    actuator.kernel.write(&path, "25").expect("external drift");
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare still desired");
+    let drift = reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("detect active drift");
+    assert_eq!(
+        drift.targets[0].reason,
+        OutcomeReasonCode::OwnershipRelinquished
+    );
+    assert!(!drift.targets[0].write_attempted);
+    assert!(matches!(
+        drift.targets[0].readback,
+        ReadbackOutcome::Mismatch { .. }
+    ));
+    assert_eq!(
+        actuator.kernel.read_to_string(&path).expect("drift remains"),
+        "25"
+    );
+
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare handed-back cycle");
+    let handed_back = reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("preserve handback");
+    assert_eq!(
+        handed_back.targets[0].write_outcome,
+        WriteOutcome::OwnershipRelinquished
+    );
+    assert!(!handed_back.targets[0].write_attempted);
+    assert_eq!(
+        actuator.kernel.read_to_string(&path).expect("still external"),
+        "25"
+    );
+}
+
+#[test]
 fn f4_production_multiple_targets_restore_only_disappeared_target() {
     let state_dir = PathBuf::from("/run/optid-f4-multiple");
     let swappiness = PathBuf::from("/proc/sys/vm/swappiness");
