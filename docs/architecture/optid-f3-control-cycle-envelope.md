@@ -66,3 +66,7 @@ The envelope uses stable logical component and target identities. It must not ex
 ## Deliberate limits
 
 F3 records current behavior only. It does not implement the F4 desired-state reconciler cutover, Systemd property restoration, persistent write-ahead transactions, capability sealing, circuit breakers, event-reactor work, full diagnostics capture, journal bundles, telemetry repair, or new hardware controls. Unsupported restoration remains explicit instead of being reported as success. Package completion still requires an independent cold verifier and a separately committed verification receipt.
+
+## Builder handoff and verification boundary
+
+PR #369 is a builder handoff, not a completion receipt. Its production wiring, acceptance tests, CLI integration tests, schema fixture, and public-boundary documentation are committed, but the package ledger remains truthful: F3 is `merged_incomplete` until its F1 dependency is restored to `completed` by fresh independent verification and F3 itself is then cold-verified. The historical F1 and F2 receipts remain preserved as provenance, but this change modifies their declared proof paths, so they cannot certify this branch without new receipts.
