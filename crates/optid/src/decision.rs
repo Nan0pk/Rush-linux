@@ -30,7 +30,7 @@ pub(crate) struct Decision {
     /// `Off`-mode suppressions are deliberately not recorded here: the
     /// domain is invisible by design. `Observe` is the only mode that
     /// surfaces the would-be action.
-    pub(crate) suppressed_actions: Vec<(Domain, String)>,
+    pub(crate) suppressed_actions: Vec<(Domain, Action)>,
 }
 
 impl Decision {
@@ -99,11 +99,11 @@ impl Decision {
             out.push_str("suppressed_actions:\n");
             // `&self.suppressed_actions` iterates as `&(Domain, String)`,
             // so the pattern must be `&(domain, description)`.
-            for &(domain, ref description) in &self.suppressed_actions {
+            for (domain, action) in &self.suppressed_actions {
                 out.push_str(&format!(
                     "- domain={} would_act={}\n",
                     domain.as_str(),
-                    description
+                    action.describe()
                 ));
             }
         }

@@ -24,6 +24,11 @@ use crate::contracts::{
     contract_gate_device_resume_constraint, contract_gate_runtime_pm, ContractFloors,
     ContractGateResult, ExitLatencyEvidence,
 };
+use crate::envelope::{
+    readback_from_result, ActionOutcome, ErrorKindCode, GateDisposition, GateEvaluation,
+    GateReasonCode, GateStage, OutcomeReasonCode, OwnershipState, PipelineStage, ReadbackOutcome,
+    ResponsibleSubsystem, RestoreOutcome, RestoreState, SupportState, TargetOutcome, WriteOutcome,
+};
 use crate::io_util::{
     append_log_with, atomic_write_state_file_with, clear_journal_with, get_path_hash,
     mark_applied_with,
@@ -122,6 +127,8 @@ pub(crate) struct Actuator {
     /// via `new_with_kernel` and pass a `FaultKernel` to simulate missing
     /// paths, permission-denied, short writes, and disappearing devices.
     pub(crate) kernel: Box<dyn KernelIo>,
+    /// Correlation ID for the current control-loop iteration.
+    pub(crate) correlation_id: String,
     /// Test-only hook: when `Some(n)`, the `n`-th `guarded_write` call within
     /// a single `Action::RuntimePm` apply (1 = delay write, 2 = control write,
     /// 3 = rollback delay write) returns a synthetic `Err`. This field is
@@ -169,6 +176,7 @@ impl Actuator {
             boot_state: None,
             active_floors: None,
             kernel,
+            correlation_id: String::new(),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
             #[cfg(test)]
@@ -195,6 +203,7 @@ impl Actuator {
             boot_state: None,
             active_floors: None,
             kernel: Box::new(RealKernel::new()),
+            correlation_id: String::new(),
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
             #[cfg(test)]
@@ -214,6 +223,10 @@ impl Actuator {
     /// daemon actually committed to this cycle.
     pub(crate) fn set_active_floors(&mut self, floors: ContractFloors) {
         self.active_floors = Some(floors);
+    }
+
+    pub(crate) fn set_correlation_id(&mut self, correlation_id: String) {
+        self.correlation_id = correlation_id;
     }
 
     /// SPEC §3 contract gate:
@@ -257,87 +270,86 @@ impl Actuator {
     ///
     /// Every denial is logged so the operator can see why a
     /// depth-enabler was blocked and fix the configuration.
-    fn contract_permits(&mut self, action: &Action) -> io::Result<bool> {
-        // Test-only bypass: tests that exercise the actuator's
-        // apply/journal/rollback paths (not the contract gate) set this
-        // flag so the post-#338 fail-closed gate does not block them.
-        // The contract gate itself is tested separately in the
-        // `test_contract_gate_*` tests. This flag does not exist in
-        // production builds.
+    fn contract_gate(&mut self, action: &Action) -> io::Result<GateEvaluation> {
         #[cfg(test)]
         if self.bypass_contract_gate {
-            return Ok(true);
+            return Ok(GateEvaluation::allowed(
+                GateStage::Contract,
+                GateReasonCode::ContractAllowed,
+            ));
         }
 
-        // Only the two depth-enablers are gated. Everything else is
-        // ungated and must not be blocked by contract state.
-        let gated_label = match action {
-            Action::DeviceResumeLatency { path, .. } => Some(path.display().to_string()),
-            Action::RuntimePm { device_dir, .. } => Some(device_dir.display().to_string()),
-            _ => return Ok(true),
+        let label = match action {
+            Action::DeviceResumeLatency { .. } | Action::RuntimePm { .. } => {
+                action.stable_target_id()
+            }
+            _ => {
+                return Ok(GateEvaluation::not_applicable(
+                    GateStage::Contract,
+                    GateReasonCode::ContractNotApplicable,
+                ));
+            }
         };
-        let label = gated_label.expect("depth-enabler label");
 
-        // No contract installed → deny both depth-enablers (fail closed).
-        // The spec requires "missing contract floors must deny
-        // depth-enabling actions". A missing contract is the strongest
-        // form of missing floor; the previous `Ok(true)` was fail-open.
         let Some(floors) = self.active_floors else {
             self.log(&format!(
-                "contract gate BLOCKED {}: no active contract installed \
-                 (set_active_floors never called); fail closed for depth-enabler",
-                label
+                "contract gate BLOCKED {label}: no active contract installed"
             ))?;
-            return Ok(false);
+            return Ok(GateEvaluation::denied(
+                GateStage::Contract,
+                GateReasonCode::ContractMissing,
+                "no active contract installed",
+            ));
         };
 
-        // A non-positive floor is a malformed contract, not an open gate.
-        // Deny both depth-enablers and log the reason so the operator
-        // can fix `contracts.toml` instead of silently shipping
-        // depth-enabling writes with no usable floor.
         let floor_us: u64 = match u64::try_from(floors.device_resume_latency) {
-            Ok(f) if f > 0 => f,
+            Ok(floor) if floor > 0 => floor,
             _ => {
                 self.log(&format!(
-                    "contract gate BLOCKED {}: floor={}us is zero/negative; \
-                     fail closed (fix [contracts] device_resume_latency for this class)",
-                    label, floors.device_resume_latency
+                    "contract gate BLOCKED {label}: floor={}us is zero/negative",
+                    floors.device_resume_latency
                 ))?;
-                return Ok(false);
+                return Ok(GateEvaluation::denied(
+                    GateStage::Contract,
+                    GateReasonCode::ContractFloorInvalid,
+                    format!(
+                        "invalid device resume floor {}us",
+                        floors.device_resume_latency
+                    ),
+                ));
             }
         };
 
         let result = match action {
-            Action::DeviceResumeLatency { path, value, .. } => {
-                contract_gate_device_resume_constraint(
-                    value.map(i64::from),
-                    floor_us,
-                    &path.display().to_string(),
-                )
+            Action::DeviceResumeLatency { value, .. } => {
+                contract_gate_device_resume_constraint(value.map(i64::from), floor_us, &label)
             }
-            Action::RuntimePm { device_dir, .. } => {
-                // Until C1 supplies per-device ExitLatencyEvidence, evidence
-                // is always None → fail closed. Autosuspend delay is ignored.
-                // Keep the evidence constructors referenced so C1 can plug in
-                // without the gate API rotting; values are not used for gating.
+            Action::RuntimePm { .. } => {
                 let _c1_api_surface = (
                     ExitLatencyEvidence::measured_us,
                     ExitLatencyEvidence::hardware_proven_us,
                 );
                 let evidence: Option<&ExitLatencyEvidence> = None;
-                if let Some(ev) = evidence {
-                    let _ = ev.is_usable();
+                if let Some(evidence) = evidence {
+                    let _ = evidence.is_usable();
                 }
-                contract_gate_runtime_pm(evidence, floor_us, &device_dir.display().to_string())
+                contract_gate_runtime_pm(evidence, floor_us, &label)
             }
-            _ => return Ok(true),
+            _ => unreachable!("non-depth action returned above"),
         };
 
         match result {
-            ContractGateResult::Permit => Ok(true),
+            ContractGateResult::Permit => Ok(GateEvaluation::allowed(
+                GateStage::Contract,
+                GateReasonCode::ContractAllowed,
+            )),
             ContractGateResult::Deny { reason } => {
                 self.log(&reason)?;
-                Ok(false)
+                Ok(GateEvaluation::denied(
+                    GateStage::Contract,
+                    GateReasonCode::ContractDenied,
+                    reason,
+                ))
             }
         }
     }
@@ -433,23 +445,30 @@ impl Actuator {
     /// gate is open — the actuator behaves as before. This preserves
     /// back-compat for tests that construct an `Actuator` directly without
     /// calling `set_boot_state`.
-    fn dynamic_writes_armed(&mut self) -> io::Result<bool> {
+    fn apply_gate(&mut self) -> io::Result<GateEvaluation> {
         match self.boot_state.as_ref() {
-            None => Ok(true),
-            Some(bs) => {
-                if bs.apply_armed {
-                    Ok(true)
-                } else {
-                    self.log(&format!(
-                        "skip dynamic write: apply_armed=false \
-                         (policy_load_state={} allowlist_load_state={} allowlist_gate={} baseline_armed={})",
-                        bs.policy_load_state,
-                        bs.allowlist_load_state,
-                        bs.allowlist_gate_enabled,
-                        bs.baseline_armed,
-                    ))?;
-                    Ok(false)
-                }
+            None => Ok(GateEvaluation::allowed(
+                GateStage::ApplyArmed,
+                GateReasonCode::ApplyArmed,
+            )),
+            Some(boot) if boot.apply_armed => Ok(GateEvaluation::allowed(
+                GateStage::ApplyArmed,
+                GateReasonCode::ApplyArmed,
+            )),
+            Some(boot) => {
+                let detail = format!(
+                    "apply_armed=false policy_load_state={} allowlist_load_state={} allowlist_gate={} baseline_armed={}",
+                    boot.policy_load_state,
+                    boot.allowlist_load_state,
+                    boot.allowlist_gate_enabled,
+                    boot.baseline_armed,
+                );
+                self.log(&format!("skip dynamic write: {detail}"))?;
+                Ok(GateEvaluation::denied(
+                    GateStage::ApplyArmed,
+                    GateReasonCode::ApplyDisarmedByBootState,
+                    detail,
+                ))
             }
         }
     }
@@ -461,24 +480,23 @@ impl Actuator {
     /// gate is disabled this is a no-op that returns `true`. On denial it
     /// appends an audit record and a log line, then returns `false` so the
     /// caller skips the write — default-deny, denial logged with reason.
-    fn allowlist_permits(
+    fn allowlist_gate(
         &mut self,
         domain: &str,
         hwid: Option<String>,
         requested_state: u32,
         context_path: &Path,
-    ) -> io::Result<bool> {
-        // Resolve the verdict while only borrowing the allowlist, so the
-        // subsequent &mut self logging calls don't conflict with the borrow.
+    ) -> io::Result<GateEvaluation> {
         let outcome = match self.allowlist.as_ref() {
             None => None,
-            Some(al) => {
-                let version = al.version().to_string();
+            Some(allowlist) => {
+                let version = allowlist.version().to_string();
                 match hwid {
-                    Some(hwid) => {
-                        let verdict = al.check(domain, &hwid, requested_state);
-                        Some((hwid, verdict, version))
-                    }
+                    Some(hwid) => Some((
+                        hwid.clone(),
+                        allowlist.check(domain, &hwid, requested_state),
+                        version,
+                    )),
                     None => Some((
                         "unknown".to_string(),
                         Verdict::Deny {
@@ -491,11 +509,17 @@ impl Actuator {
         };
 
         let Some((hwid, verdict, version)) = outcome else {
-            return Ok(true); // gate disabled
+            return Ok(GateEvaluation::not_applicable(
+                GateStage::HardwareAllowlist,
+                GateReasonCode::AllowlistDisabled,
+            ));
         };
 
         if verdict.is_allow() {
-            return Ok(true);
+            return Ok(GateEvaluation::allowed(
+                GateStage::HardwareAllowlist,
+                GateReasonCode::AllowlistAllowed,
+            ));
         }
         let reason = verdict.deny_reason().unwrap_or("denied").to_string();
         self.audit_denied(&hwid, domain, requested_state, &reason, &version)?;
@@ -503,7 +527,15 @@ impl Actuator {
             "deny {domain} on {} ({hwid}): {reason}",
             context_path.display()
         ))?;
-        Ok(false)
+        Ok(GateEvaluation::denied(
+            GateStage::HardwareAllowlist,
+            if hwid == "unknown" {
+                GateReasonCode::HwidUnresolved
+            } else {
+                GateReasonCode::AllowlistDenied
+            },
+            reason,
+        ))
     }
 
     /// Append a structured denial record to the audit log (JSONL, one object
@@ -519,51 +551,88 @@ impl Actuator {
         let line = format!(
             "{{\"ts_unix\":{ts},\"event\":\"actuation_denied\",\"hwid\":\"{hwid}\",\
 \"domain\":\"{domain}\",\"requested_state\":{requested_state},\
-\"deny_reason\":\"{reason}\",\"allowlist_version\":\"{version}\"}}\n",
+\"deny_reason\":\"{reason}\",\"allowlist_version\":\"{version}\",\"correlation_id\":\"{correlation_id}\"}}\n",
             ts = self.kernel.now_unix(),
             hwid = json_escape(hwid),
             domain = json_escape(domain),
             requested_state = requested_state,
             reason = json_escape(reason),
             version = json_escape(version),
+            correlation_id = json_escape(&self.correlation_id),
         );
         append_log_with(&*self.kernel, &self.audit_path, &line)
     }
 
-    pub(crate) fn apply(&mut self, action: &Action) -> io::Result<()> {
-        // optid-safety: gate ALL dynamic Actions on boot_state.apply_armed.
-        // This is the single chokepoint — there is no alternate actuator path
-        // that bypasses this gate. When apply_armed is false (config failure,
-        // dry-run, or competing-daemon downgrade), every Action is skipped
-        // with a logged reason. The curated baseline is applied separately
-        // via apply_baseline(), gated by baseline_armed.
-        if !self.dynamic_writes_armed()? {
-            return Ok(());
+    pub(crate) fn apply(&mut self, action: &Action) -> io::Result<ActionOutcome> {
+        let mut outcome = ActionOutcome::new(action);
+        outcome.gates.push(GateEvaluation::allowed(
+            GateStage::DomainMode,
+            GateReasonCode::DomainActuate,
+        ));
+
+        let apply_gate = self.apply_gate()?;
+        let apply_denied = apply_gate.disposition == GateDisposition::Denied;
+        outcome.gates.push(apply_gate);
+        if apply_denied {
+            outcome.targets.push(TargetOutcome::denied(
+                action.stable_target_id(),
+                PipelineStage::ApplyGate,
+                "dynamic writes are disarmed".to_string(),
+            ));
+            return Ok(outcome);
         }
-        // SPEC §3 contract gate. Evaluated before capability validation,
-        // the hardware allowlist, journaling and any mutation, so a
-        // blocked action leaves no trace on the device or in the state
-        // directory.
-        if !self.contract_permits(action)? {
-            return Ok(());
+
+        let contract_gate = self.contract_gate(action)?;
+        let contract_denied = contract_gate.disposition == GateDisposition::Denied;
+        outcome.gates.push(contract_gate);
+        if contract_denied {
+            outcome.targets.push(TargetOutcome::denied(
+                action.stable_target_id(),
+                PipelineStage::ContractGate,
+                "responsiveness contract denied the action".to_string(),
+            ));
+            return Ok(outcome);
         }
+
         match action {
             Action::CpuEpp { value, .. } => {
                 let paths = discover_cpu_epp_paths_with(self.kernel.as_ref());
                 if paths.is_empty() {
                     self.log("skip cpu.epp: no energy_performance_preference paths")?;
-                    return Ok(());
+                    outcome.gates.push(GateEvaluation::not_evaluated(
+                        GateStage::CapabilityValidation,
+                    ));
+                    outcome.targets.push(TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::MissingTarget,
+                    ));
+                    return Ok(outcome);
                 }
                 for path in paths {
-                    // Phase 5 hardening: typed capability check before
-                    // guarded_write. Defence-in-depth against path discovery
-                    // changes.
-                    if let Err(e) = Capability::CpuEpp.validate_target(&path) {
-                        self.log(&format!(
-                            "skip cpu.epp {}: capability validation failed: {e}",
-                            path.display()
-                        ))?;
-                        continue;
+                    let target_id = action.stable_expanded_target_id(&path);
+                    match Capability::CpuEpp.validate_target(&path) {
+                        Ok(()) => outcome.gates.push(GateEvaluation::allowed(
+                            GateStage::CapabilityValidation,
+                            GateReasonCode::CapabilityAllowed,
+                        )),
+                        Err(error) => {
+                            outcome.gates.push(GateEvaluation::denied(
+                                GateStage::CapabilityValidation,
+                                GateReasonCode::CapabilityDenied,
+                                error.to_string(),
+                            ));
+                            self.log(&format!(
+                                "skip cpu.epp {}: capability validation failed: {error}",
+                                path.display()
+                            ))?;
+                            let mut target = TargetOutcome::unsupported(
+                                target_id,
+                                OutcomeReasonCode::UnsupportedTarget,
+                            );
+                            target.detail = Some(error.to_string());
+                            outcome.targets.push(target);
+                            continue;
+                        }
                     }
                     let old_value = self
                         .kernel
@@ -572,123 +641,77 @@ impl Actuator {
                         .unwrap_or_default()
                         .trim()
                         .to_string();
-                    // Soft-fail per CPU: a hotplug or transient EBUSY on one
-                    // core should not terminate the daemon.
+                    if old_value == *value {
+                        outcome.targets.push(TargetOutcome {
+                            target_id,
+                            pipeline_stage: PipelineStage::Write,
+                            support: SupportState::Supported,
+                            reason: OutcomeReasonCode::RedundantValue,
+                            write_attempted: true,
+                            write_outcome: WriteOutcome::Redundant,
+                            readback: ReadbackOutcome::Confirmed { value: old_value },
+                            ownership: OwnershipState::Optid,
+                            pending_restore: RestoreState::NotApplicable,
+                            responsible_subsystem: ResponsibleSubsystem::KernelIo,
+                            detail: None,
+                        });
+                        continue;
+                    }
                     match self.kernel.write(&path, value) {
-                        Ok(_) => {
+                        Ok(()) => {
                             self.log(&format!(
                                 "write {} = {value} (was {old_value})",
                                 path.display()
                             ))?;
+                            let readback =
+                                readback_from_result(value, self.kernel.read_to_string(&path));
+                            outcome
+                                .targets
+                                .push(TargetOutcome::applied(target_id, value, readback));
                         }
-                        Err(e) => {
+                        Err(error) => {
                             self.log(&format!(
-                                "skip cpu.epp {}: write failed: {e}",
+                                "skip cpu.epp {}: write failed: {error}",
                                 path.display()
                             ))?;
+                            outcome
+                                .targets
+                                .push(TargetOutcome::failed(target_id, &error));
                         }
                     }
                 }
             }
             Action::PlatformProfile { value, .. } => {
                 let path = Path::new("/sys/firmware/acpi/platform_profile");
-                if self.kernel.exists(path) {
-                    let old_value = self
-                        .kernel
-                        .read_to_string(path)
-                        .ok()
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string();
-                    // Phase 5 hardening: typed capability check.
-                    if let Err(e) = Capability::PlatformProfile.validate_target(path) {
-                        self.log(&format!(
-                            "skip platform.profile: capability validation failed: {e}"
-                        ))?;
-                        return Ok(());
-                    }
-                    // Soft-fail: a write rejection here should not crash the
-                    // daemon. Log and move on; next cycle will retry.
-                    match self.kernel.write(path, value) {
-                        Ok(_) => {
-                            self.log(&format!(
-                                "write {} = {value} (was {old_value})",
-                                path.display()
-                            ))?;
-                        }
-                        Err(e) => {
-                            self.log(&format!("skip platform.profile: write failed: {e}"))?;
-                        }
-                    }
-                } else {
+                if !self.kernel.exists(path) {
                     self.log("skip platform.profile: platform_profile is unavailable")?;
+                    outcome.targets.push(TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::MissingTarget,
+                    ));
+                    return Ok(outcome);
                 }
-            }
-            Action::SystemdSetProperty {
-                unit, properties, ..
-            } => {
-                // INVARIANT: `properties` must be produced by typed code paths
-                // (Action::SystemdSetProperty constructors in Decision). It is
-                // splatted directly into `systemctl set-property` argv with no
-                // shell quoting. If a future code path ever lets policy.toml or
-                // any other untrusted source feed strings into this Vec, this
-                // becomes a systemd-syntax injection vector — guard at the
-                // construction site, not here.
-                let status = Command::new("systemctl")
-                    .arg("set-property")
-                    .arg("--runtime")
-                    .arg(unit)
-                    .args(properties)
-                    .status();
-                match status {
-                    Ok(status) if status.success() => {
-                        self.log(&format!(
-                            "systemctl set-property --runtime {unit} {}",
-                            properties.join(" ")
-                        ))?;
-                    }
-                    Ok(status) => {
-                        self.log(&format!(
-                            "skip systemd.set-property {unit}: systemctl exited with {status}"
-                        ))?;
-                    }
-                    Err(err) => {
-                        self.log(&format!(
-                            "skip systemd.set-property {unit}: systemctl unavailable: {err}"
-                        ))?;
-                    }
-                }
-            }
-            Action::VmSysctl { path, value, .. } => {
-                let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-                let key = format!("vm_{filename}");
-
-                // Phase 5 hardening: typed capability check BEFORE journaling
-                // or writing. Rejects paths not matching the VmSysctl shape.
-                if let Err(e) = Capability::VmSysctl.validate_target(path) {
+                if let Err(error) = Capability::PlatformProfile.validate_target(path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
                     self.log(&format!(
-                        "skip vm.sysctl {filename}: capability validation failed: {e}"
+                        "skip platform.profile: capability validation failed: {error}"
                     ))?;
-                    return Ok(());
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
                 }
-
-                // Back up original value if not already backed up
-                let orig_file = self.state_dir.join(format!("original_{key}"));
-                if !self.kernel.exists(&orig_file) {
-                    if let Ok(current_val) = self.kernel.read_to_string(path) {
-                        let _ = atomic_write_state_file_with(
-                            &*self.kernel,
-                            &orig_file,
-                            current_val.trim(),
-                        );
-                    }
-                }
-
-                // Write intended value
-                let intended_file = self.state_dir.join(format!("intended_{key}"));
-                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, value);
-
-                // Write new value to sysctl path
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
                 let old_value = self
                     .kernel
                     .read_to_string(path)
@@ -697,56 +720,209 @@ impl Actuator {
                     .trim()
                     .to_string();
                 match self.kernel.write(path, value) {
-                    Ok(_) => {
+                    Ok(()) => {
+                        self.log(&format!(
+                            "write {} = {value} (was {old_value})",
+                            path.display()
+                        ))?;
+                        let readback =
+                            readback_from_result(value, self.kernel.read_to_string(path));
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            value,
+                            readback,
+                        ));
+                    }
+                    Err(error) => {
+                        self.log(&format!("skip platform.profile: write failed: {error}"))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
+                    }
+                }
+            }
+            Action::SystemdSetProperty {
+                unit, properties, ..
+            } => {
+                outcome.gates.push(GateEvaluation::not_applicable(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let result = Command::new("systemctl")
+                    .arg("set-property")
+                    .arg("--runtime")
+                    .arg(unit)
+                    .args(properties)
+                    .status();
+                match result {
+                    Ok(status) if status.success() => {
+                        self.log(&format!(
+                            "systemctl set-property --runtime {unit} {}",
+                            properties.join(" ")
+                        ))?;
+                        outcome.targets.push(TargetOutcome {
+                            target_id: action.stable_target_id(),
+                            pipeline_stage: PipelineStage::Write,
+                            support: SupportState::NotApplicable,
+                            reason: OutcomeReasonCode::WriteApplied,
+                            write_attempted: true,
+                            write_outcome: WriteOutcome::Applied,
+                            readback: ReadbackOutcome::NotPerformed,
+                            ownership: OwnershipState::Optid,
+                            pending_restore: RestoreState::NotApplicable,
+                            responsible_subsystem: ResponsibleSubsystem::Systemd,
+                            detail: None,
+                        });
+                    }
+                    Ok(status) => {
+                        let error = io::Error::other(format!("systemctl exited with {status}"));
+                        self.log(&format!(
+                            "skip systemd.set-property {unit}: systemctl exited with {status}"
+                        ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
+                    }
+                    Err(error) => {
+                        self.log(&format!(
+                            "skip systemd.set-property {unit}: systemctl unavailable: {error}"
+                        ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
+                    }
+                }
+            }
+            Action::VmSysctl { path, value, .. } => {
+                let filename = path
+                    .file_name()
+                    .and_then(|file| file.to_str())
+                    .unwrap_or("");
+                let key = format!("vm_{filename}");
+                if let Err(error) = Capability::VmSysctl.validate_target(path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
+                    self.log(&format!(
+                        "skip vm.sysctl {filename}: capability validation failed: {error}"
+                    ))?;
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
+                }
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let orig_file = self.state_dir.join(format!("original_{key}"));
+                let journal_result = if !self.kernel.exists(&orig_file) {
+                    self.kernel.read_to_string(path).and_then(|current| {
+                        atomic_write_state_file_with(&*self.kernel, &orig_file, current.trim())
+                    })
+                } else {
+                    Ok(())
+                };
+                outcome.gates.push(match journal_result {
+                    Ok(()) => GateEvaluation::allowed(
+                        GateStage::RecoveryJournal,
+                        GateReasonCode::JournalSucceeded,
+                    ),
+                    Err(error) => GateEvaluation::denied(
+                        GateStage::RecoveryJournal,
+                        GateReasonCode::JournalFailed,
+                        error.to_string(),
+                    ),
+                });
+                let intended_file = self.state_dir.join(format!("intended_{key}"));
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, value);
+                let old_value = self
+                    .kernel
+                    .read_to_string(path)
+                    .ok()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                match self.kernel.write(path, value) {
+                    Ok(()) => {
                         mark_applied_with(&*self.kernel, &self.state_dir, &key, value);
                         self.log(&format!(
                             "write {} = {value} (was {old_value})",
                             path.display()
                         ))?;
+                        let readback =
+                            readback_from_result(value, self.kernel.read_to_string(path));
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            value,
+                            readback,
+                        ));
                     }
-                    Err(e) => {
-                        self.log(&format!("skip vm.sysctl {filename}: write failed: {e}"))?;
+                    Err(error) => {
+                        self.log(&format!("skip vm.sysctl {filename}: write failed: {error}"))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
             Action::CpuDmaLatency { value, reason } => {
-                let should_apply = match self.last_cpu_latency {
-                    Some(last_val) => last_val != *value,
-                    None => true,
-                };
-                if should_apply {
-                    let old_value = self
-                        .pmqos_sink
-                        .read_cpu_latency()
-                        .unwrap_or_else(|_| "n/a".to_string());
-                    // Soft-fail: missing /dev/cpu_dma_latency (e.g. running in
-                    // a container or on a kernel without it) should not crash
-                    // the daemon. Skip and log; `last_cpu_latency` is left
-                    // untouched so a future success will still take effect.
-                    let val_str = value
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "n/a".to_string());
-                    match self.pmqos_sink.write_cpu_latency(*value) {
-                        Ok(_) => {
-                            self.last_cpu_latency = Some(*value);
-                            // optid-safety: mark applied so crash recovery
-                            // knows the write landed. The PM QoS sink has no
-                            // stable sysfs path; the journal key is fixed.
-                            mark_applied_with(
-                                &*self.kernel,
-                                &self.state_dir,
-                                "cpu_dma_latency",
-                                &val_str,
-                            );
-                            self.log(&format!(
-                                "write /dev/cpu_dma_latency = {val_str} (was {old_value}) reason: {reason}"
-                            ))?;
-                        }
-                        Err(e) => {
-                            self.log(&format!(
-                                "skip /dev/cpu_dma_latency = {val_str}: write failed: {e} reason: {reason}"
-                            ))?;
-                        }
+                let should_apply = self.last_cpu_latency != Some(*value);
+                if !should_apply {
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::RedundantValue,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Redundant,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: None,
+                    });
+                    return Ok(outcome);
+                }
+                let old_value = self
+                    .pmqos_sink
+                    .read_cpu_latency()
+                    .unwrap_or_else(|_| "n/a".to_string());
+                let value_string = value
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "unconstrained".to_string());
+                match self.pmqos_sink.write_cpu_latency(*value) {
+                    Ok(()) => {
+                        self.last_cpu_latency = Some(*value);
+                        mark_applied_with(
+                            &*self.kernel,
+                            &self.state_dir,
+                            "cpu_dma_latency",
+                            &value_string,
+                        );
+                        self.log(&format!(
+                            "write /dev/cpu_dma_latency = {value_string} (was {old_value}) reason: {reason}"
+                        ))?;
+                        let readback =
+                            readback_from_result(&value_string, self.pmqos_sink.read_cpu_latency());
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            &value_string,
+                            readback,
+                        ));
+                    }
+                    Err(error) => {
+                        self.log(&format!(
+                            "skip /dev/cpu_dma_latency = {value_string}: write failed: {error} reason: {reason}"
+                        ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
@@ -754,72 +930,123 @@ impl Actuator {
                 path,
                 value,
                 reason,
+                ..
             } => {
-                // Phase 5 hardening: typed capability check BEFORE the
-                // allowlist gate or any journaling.
-                if let Err(e) = Capability::DeviceResumeLatency.validate_target(path) {
+                if let Err(error) = Capability::DeviceResumeLatency.validate_target(path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
                     self.log(&format!(
-                        "skip device_resume_latency {}: capability validation failed: {e}",
+                        "skip device_resume_latency {}: capability validation failed: {error}",
                         path.display()
                     ))?;
-                    return Ok(());
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
                 }
-                // WP-N4 safety gate: per-device runtime-PM resume latency is a
-                // depth-enabler knob, so it must clear the hardware allowlist
-                // before any write. Default-deny when the gate is enabled and
-                // the HWID is unknown; skip (no write) on denial. Disabled by
-                // default, in which case this is a no-op.
-                if !self.allowlist_permits("runtime_pm", hwid_from_attr_path(path), 0, path)? {
-                    return Ok(());
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let allowlist =
+                    self.allowlist_gate("runtime_pm", hwid_from_attr_path(path), 0, path)?;
+                let denied = allowlist.disposition == GateDisposition::Denied;
+                outcome.gates.push(allowlist);
+                if denied {
+                    outcome.targets.push(TargetOutcome::denied(
+                        action.stable_target_id(),
+                        PipelineStage::AllowlistGate,
+                        "hardware allowlist denied target".to_string(),
+                    ));
+                    return Ok(outcome);
                 }
-                let should_apply = match self.last_device_latencies.get(path) {
-                    Some(last_val) => last_val != value,
-                    None => true,
-                };
-                if should_apply {
-                    let hash = get_path_hash(path);
-                    let key = format!("dev_{hash}");
-
-                    // Back up original value if not already backed up
-                    let orig_file = self.state_dir.join(format!("original_{key}"));
-                    if !self.kernel.exists(&orig_file) {
-                        if let Ok(current_val) = self.pmqos_sink.read_device_latency(path) {
-                            let content = format!("{}\n{}", path.display(), current_val.trim());
-                            let _ =
-                                atomic_write_state_file_with(&*self.kernel, &orig_file, &content);
-                        }
-                    }
-
-                    // Write intended value
-                    let val_str = value
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "0".to_string());
-                    let intended_file = self.state_dir.join(format!("intended_{key}"));
-                    let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &val_str);
-
-                    let old_value = self
-                        .pmqos_sink
+                if self.last_device_latencies.get(path) == Some(value) {
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::RedundantValue,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Redundant,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: None,
+                    });
+                    return Ok(outcome);
+                }
+                let hash = get_path_hash(path);
+                let key = format!("dev_{hash}");
+                let orig_file = self.state_dir.join(format!("original_{key}"));
+                let journal_result = if !self.kernel.exists(&orig_file) {
+                    self.pmqos_sink
                         .read_device_latency(path)
-                        .ok()
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string();
-
-                    match self.pmqos_sink.write_device_latency(path, &val_str) {
-                        Ok(_) => {
-                            self.last_device_latencies.insert(path.clone(), *value);
-                            mark_applied_with(&*self.kernel, &self.state_dir, &key, &val_str);
-                            self.log(&format!(
-                                "write {} = {val_str} (was {old_value}) reason: {reason}",
-                                path.display()
-                            ))?;
-                        }
-                        Err(e) => {
-                            self.log(&format!(
-                                "skip device latency {}: write failed: {e}",
-                                path.display()
-                            ))?;
-                        }
+                        .and_then(|current| {
+                            atomic_write_state_file_with(
+                                &*self.kernel,
+                                &orig_file,
+                                &format!("{}\n{}", path.display(), current.trim()),
+                            )
+                        })
+                } else {
+                    Ok(())
+                };
+                outcome.gates.push(match journal_result {
+                    Ok(()) => GateEvaluation::allowed(
+                        GateStage::RecoveryJournal,
+                        GateReasonCode::JournalSucceeded,
+                    ),
+                    Err(error) => GateEvaluation::denied(
+                        GateStage::RecoveryJournal,
+                        GateReasonCode::JournalFailed,
+                        error.to_string(),
+                    ),
+                });
+                let value_string = value
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "0".to_string());
+                let intended_file = self.state_dir.join(format!("intended_{key}"));
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &value_string);
+                let old_value = self
+                    .pmqos_sink
+                    .read_device_latency(path)
+                    .ok()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                match self.pmqos_sink.write_device_latency(path, &value_string) {
+                    Ok(()) => {
+                        self.last_device_latencies.insert(path.clone(), *value);
+                        mark_applied_with(&*self.kernel, &self.state_dir, &key, &value_string);
+                        self.log(&format!(
+                            "write {} = {value_string} (was {old_value}) reason: {reason}",
+                            path.display()
+                        ))?;
+                        let readback = readback_from_result(
+                            &value_string,
+                            self.pmqos_sink.read_device_latency(path),
+                        );
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            &value_string,
+                            readback,
+                        ));
+                    }
+                    Err(error) => {
+                        self.log(&format!(
+                            "skip device latency {}: write failed: {error}",
+                            path.display()
+                        ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
@@ -828,195 +1055,227 @@ impl Actuator {
                 autosuspend_delay_ms,
                 reason,
             } => {
-                // Phase 5 hardening: typed capability check BEFORE the
-                // allowlist gate or any journaling. Validate both target
-                // paths (power/control and power/autosuspend_delay_ms).
                 let control_path = device_dir.join("power").join("control");
                 let delay_path = device_dir.join("power").join("autosuspend_delay_ms");
-                if let Err(e) = Capability::RuntimePm.validate_target(&control_path) {
-                    self.log(&format!(
-                        "skip runtime_pm {}: capability validation failed for control path: {e}",
-                        device_dir.display()
-                    ))?;
-                    return Ok(());
-                }
-                if self.kernel.exists(&delay_path) {
-                    if let Err(e) = Capability::RuntimePm.validate_target(&delay_path) {
+                for target in [&control_path, &delay_path] {
+                    if target == &delay_path && !self.kernel.exists(target) {
+                        continue;
+                    }
+                    if let Err(error) = Capability::RuntimePm.validate_target(target) {
+                        outcome.gates.push(GateEvaluation::denied(
+                            GateStage::CapabilityValidation,
+                            GateReasonCode::CapabilityDenied,
+                            error.to_string(),
+                        ));
                         self.log(&format!(
-                            "skip runtime_pm {}: capability validation failed for delay path: {e}",
+                            "skip runtime_pm {}: capability validation failed: {error}",
                             device_dir.display()
                         ))?;
-                        return Ok(());
+                        let mut target_outcome = TargetOutcome::unsupported(
+                            action.stable_target_id(),
+                            OutcomeReasonCode::UnsupportedTarget,
+                        );
+                        target_outcome.detail = Some(error.to_string());
+                        outcome.targets.push(target_outcome);
+                        return Ok(outcome);
                     }
                 }
-                // WP-N5 safety gate: enabling autosuspend is a depth-enabler, so
-                // it must clear the N4 allowlist (domain runtime_pm). Default-deny
-                // + skip when the HWID is unknown. No-op when the gate is off.
-                if !self.allowlist_permits(
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let allowlist = self.allowlist_gate(
                     "runtime_pm",
                     hwid_from_device_dir(device_dir),
                     0,
                     device_dir,
-                )? {
-                    return Ok(());
+                )?;
+                let denied = allowlist.disposition == GateDisposition::Denied;
+                outcome.gates.push(allowlist);
+                if denied {
+                    outcome.targets.push(TargetOutcome::denied(
+                        action.stable_target_id(),
+                        PipelineStage::AllowlistGate,
+                        "hardware allowlist denied target".to_string(),
+                    ));
+                    return Ok(outcome);
                 }
-
-                // §1.6: never autosuspend a network device whose link is up — it
-                // would silently drop packets. Re-checked every cycle.
                 if runtime_pm::network_carrier_up(device_dir) {
                     self.log(&format!(
                         "skip runtime_pm {}: network carrier up",
                         device_dir.display()
                     ))?;
-                    return Ok(());
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::NetworkCarrierUp,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Skipped,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Unowned,
+                        pending_restore: RestoreState::NotApplicable,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: Some("network carrier is up".to_string()),
+                    });
+                    return Ok(outcome);
                 }
-
-                // §1.3: warn (do not modify) when autosuspending an input device
-                // whose wakeup is disabled. optid never writes power/wakeup.
                 if let Some(warning) = runtime_pm::wakeup_warning(device_dir) {
                     self.log(&format!("warn runtime_pm: {warning}"))?;
                 }
-
-                // Idempotence: skip redundant re-writes within the session.
                 if self.last_runtime_pm.get(device_dir) == Some(autosuspend_delay_ms) {
-                    return Ok(());
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::RedundantValue,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Redundant,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: None,
+                    });
+                    return Ok(outcome);
                 }
-
-                let delay_str = autosuspend_delay_ms.to_string();
-
-                // ── Phase 6: journaled transactional application ──────────
-                //
-                // 1. Resolve and validate every target (done above).
-                // 2. Read all original values.
-                // 3. Persist the complete recovery journal durably.
-                // 4. Apply writes in deterministic order: delay, then control.
-                // 5. If the second write fails, roll back the first.
-                // 6. If rollback fails, retain the journal and report.
-                // 7. Do not mark applied until every write succeeds.
-                //
-                // We do NOT claim atomicity across kernel sysfs files. This
-                // is journaled transactional application with compensating
-                // rollback: the journal makes the operation recoverable,
-                // and the rollback makes the failure mode well-defined.
-
+                let delay_string = autosuspend_delay_ms.to_string();
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_rpm_{hash}"));
                 let intended_file = self.state_dir.join(format!("intended_rpm_{hash}"));
-
-                // Step 2: read originals (reuse existing journal if present
-                // from a previous cycle that crashed before marking applied).
                 let (orig_control, orig_delay) = if self.kernel.exists(&orig_file) {
                     let content = self.kernel.read_to_string(&orig_file).unwrap_or_default();
                     let mut lines = content.lines();
-                    let _dev = lines.next();
-                    let c = lines.next().unwrap_or("on").to_string();
-                    let d = lines.next().unwrap_or("n/a").to_string();
-                    (c, d)
+                    let _ = lines.next();
+                    (
+                        lines.next().unwrap_or("on").to_string(),
+                        lines.next().unwrap_or("n/a").trim().to_string(),
+                    )
                 } else {
-                    let c = self
-                        .kernel
-                        .read_to_string(&control_path)
-                        .ok()
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_else(|| "on".to_string());
-                    let d = if self.kernel.exists(&delay_path) {
+                    (
                         self.kernel
-                            .read_to_string(&delay_path)
+                            .read_to_string(&control_path)
                             .ok()
-                            .map(|s| s.trim().to_string())
-                            .unwrap_or_else(|| "n/a".to_string())
-                    } else {
-                        "n/a".to_string()
-                    };
-                    (c, d)
+                            .map(|value| value.trim().to_string())
+                            .unwrap_or_else(|| "on".to_string()),
+                        if self.kernel.exists(&delay_path) {
+                            self.kernel
+                                .read_to_string(&delay_path)
+                                .ok()
+                                .map(|value| value.trim().to_string())
+                                .unwrap_or_else(|| "n/a".to_string())
+                        } else {
+                            "n/a".to_string()
+                        },
+                    )
                 };
-
-                // Step 3: persist the recovery journal durably BEFORE any
-                // mutation so a crash during apply leaves a complete record.
-                let journal_content =
-                    format!("{}\n{orig_control}\n{orig_delay}", device_dir.display());
-                if let Err(e) =
-                    atomic_write_state_file_with(&*self.kernel, &orig_file, &journal_content)
-                {
-                    self.log(&format!(
-                        "skip runtime_pm {}: failed to write recovery journal: {e}",
-                        device_dir.display()
-                    ))?;
-                    return Ok(());
+                let journal = atomic_write_state_file_with(
+                    &*self.kernel,
+                    &orig_file,
+                    &format!("{}\n{orig_control}\n{orig_delay}", device_dir.display()),
+                );
+                match journal {
+                    Ok(()) => outcome.gates.push(GateEvaluation::allowed(
+                        GateStage::RecoveryJournal,
+                        GateReasonCode::JournalSucceeded,
+                    )),
+                    Err(error) => {
+                        outcome.gates.push(GateEvaluation::denied(
+                            GateStage::RecoveryJournal,
+                            GateReasonCode::JournalFailed,
+                            error.to_string(),
+                        ));
+                        self.log(&format!(
+                            "skip runtime_pm {}: failed to write recovery journal: {error}",
+                            device_dir.display()
+                        ))?;
+                        outcome.targets.push(TargetOutcome::denied(
+                            action.stable_target_id(),
+                            PipelineStage::Journal,
+                            "recovery journal failed".to_string(),
+                        ));
+                        return Ok(outcome);
+                    }
                 }
                 let _ = atomic_write_state_file_with(
                     &*self.kernel,
                     &intended_file,
-                    &format!("auto\n{delay_str}"),
+                    &format!("auto\n{delay_string}"),
                 );
-
-                // Step 4: apply writes in deterministic order.
-                // delay first (harmless while control is still "on"),
-                // then control=auto (which actually enables autosuspend).
-                //
-                // Test hook: `fail_nth_runtime_pm_write` (#[cfg(test)] only)
-                // injects a synthetic failure at write #1, #2, or #3 to
-                // exercise each failure point deterministically. In production
-                // builds this field does not exist and the cfg!(test) branches
-                // are compiled out.
-                let delay_applied = if self.kernel.exists(&delay_path) {
-                    match self.runtime_pm_write(&delay_path, &delay_str, 1) {
-                        Ok(_) => true,
-                        Err(e) => {
-                            self.log(&format!(
-                                "skip runtime_pm delay {}: write failed (no rollback needed): {e}",
-                                device_dir.display()
-                            ))?;
-                            false
-                        }
+                if self.kernel.exists(&delay_path) {
+                    if let Err(error) = self.runtime_pm_write(&delay_path, &delay_string, 1) {
+                        self.log(&format!(
+                            "skip runtime_pm delay {}: write failed (no rollback needed): {error}",
+                            device_dir.display()
+                        ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
+                        return Ok(outcome);
                     }
-                } else {
-                    true
-                };
-
-                if !delay_applied {
-                    return Ok(());
                 }
-
-                // Step 5: second write. If this fails, roll back the first.
                 match self.runtime_pm_write(&control_path, "auto", 2) {
-                    Ok(_) => {
+                    Ok(()) => {
                         self.last_runtime_pm
                             .insert(device_dir.clone(), *autosuspend_delay_ms);
-                        let rpm_key = format!("rpm_{hash}");
                         mark_applied_with(
                             &*self.kernel,
                             &self.state_dir,
-                            &rpm_key,
-                            &format!("auto\n{delay_str}"),
+                            &format!("rpm_{hash}"),
+                            &format!("auto\n{delay_string}"),
                         );
                         self.log(&format!(
-                            "write {} control=auto autosuspend_delay_ms={delay_str} reason: {reason}",
+                            "write {} control=auto autosuspend_delay_ms={delay_string} reason: {reason}",
                             device_dir.display()
                         ))?;
+                        let control_readback =
+                            readback_from_result("auto", self.kernel.read_to_string(&control_path));
+                        let mut target = TargetOutcome::applied(
+                            action.stable_target_id(),
+                            "auto",
+                            control_readback,
+                        );
+                        if self.kernel.exists(&delay_path) {
+                            let delay_readback = readback_from_result(
+                                &delay_string,
+                                self.kernel.read_to_string(&delay_path),
+                            );
+                            if matches!(delay_readback, ReadbackOutcome::Mismatch { .. }) {
+                                target.reason = OutcomeReasonCode::ReadbackMismatch;
+                                target.ownership = OwnershipState::Drifted;
+                                target.readback = delay_readback;
+                            }
+                        }
+                        outcome.targets.push(target);
                     }
-                    Err(e) => {
+                    Err(error) => {
                         self.log(&format!(
-                            "runtime_pm {}: control write failed after delay write succeeded; rolling back delay: {e}",
+                            "runtime_pm {}: control write failed after delay write succeeded; rolling back delay: {error}",
                             device_dir.display()
                         ))?;
+                        let mut target = TargetOutcome::failed(action.stable_target_id(), &error);
                         if self.kernel.exists(&delay_path) && orig_delay != "n/a" {
                             match self.runtime_pm_write(&delay_path, &orig_delay, 3) {
-                                Ok(_) => {
+                                Ok(()) => {
                                     self.log(&format!(
                                         "runtime_pm {}: rolled back delay to {orig_delay}",
                                         device_dir.display()
                                     ))?;
+                                    target.pending_restore = RestoreState::Restored;
                                 }
-                                Err(re_err) => {
+                                Err(rollback_error) => {
                                     self.log(&format!(
-                                        "runtime_pm {}: ROLLBACK FAILED — delay left at {delay_str}, control unchanged. Journal retained for recovery. Rollback error: {re_err}",
+                                        "runtime_pm {}: ROLLBACK FAILED — journal retained: {rollback_error}",
                                         device_dir.display()
                                     ))?;
+                                    target.pending_restore = RestoreState::Pending;
+                                    target.detail = Some(format!(
+                                        "control write failed: {error}; rollback failed: {rollback_error}"
+                                    ));
                                 }
                             }
                         }
-                        // Do NOT mark applied. last_runtime_pm is not updated.
+                        outcome.targets.push(target);
                     }
                 }
             }
@@ -1025,72 +1284,116 @@ impl Actuator {
                 enable,
                 reason,
             } => {
-                // Phase 5 hardening: typed capability check.
-                let aspm_path = device_dir.join("link").join("l1_aspm");
-                if let Err(e) = Capability::PcieAspm.validate_target(&aspm_path) {
+                let target_path = device_dir.join("link").join("l1_aspm");
+                if let Err(error) = Capability::PcieAspm.validate_target(&target_path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
                     self.log(&format!(
-                        "skip pcie_aspm {}: capability validation failed: {e}",
+                        "skip pcie_aspm {}: capability validation failed: {error}",
                         device_dir.display()
                     ))?;
-                    return Ok(());
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
                 }
-                // WP-N6 PCIe ASPM, gated on the N4 allowlist (domain pci_aspm).
-                if !self.allowlist_permits(
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let allowlist = self.allowlist_gate(
                     "pci_aspm",
                     hwid_from_device_dir(device_dir),
                     0,
                     device_dir,
-                )? {
-                    return Ok(());
+                )?;
+                let denied = allowlist.disposition == GateDisposition::Denied;
+                outcome.gates.push(allowlist);
+                if denied {
+                    outcome.targets.push(TargetOutcome::denied(
+                        action.stable_target_id(),
+                        PipelineStage::AllowlistGate,
+                        "hardware allowlist denied target".to_string(),
+                    ));
+                    return Ok(outcome);
                 }
-                // §1.4: CNVi radios are not standard PCIe endpoints; their link
-                // PM is firmware-managed and l1_aspm writes do not apply. Skip.
                 if storage::is_cnvi(device_dir) {
                     self.log(&format!(
                         "skip pcie_aspm {}: CNVi device (link PM is firmware-managed)",
                         device_dir.display()
                     ))?;
-                    return Ok(());
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::NotApplicable,
+                        reason: OutcomeReasonCode::NotApplicable,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::NotApplicable,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Unowned,
+                        pending_restore: RestoreState::NotApplicable,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: Some("CNVi link power is firmware-managed".to_string()),
+                    });
+                    return Ok(outcome);
                 }
                 if self.last_pcie_aspm.get(device_dir) == Some(enable) {
-                    return Ok(());
+                    outcome.targets.push(redundant_target(action));
+                    return Ok(outcome);
                 }
-
-                let aspm_path = device_dir.join("link").join("l1_aspm");
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_aspm_{hash}"));
                 if !self.kernel.exists(&orig_file) {
-                    let orig = self
+                    let original = self
                         .kernel
-                        .read_to_string(&aspm_path)
+                        .read_to_string(&target_path)
                         .ok()
-                        .map(|s| s.trim().to_string())
+                        .map(|value| value.trim().to_string())
                         .unwrap_or_else(|| "0".to_string());
                     let _ = atomic_write_state_file_with(
                         &*self.kernel,
                         &orig_file,
-                        &format!("{}\n{orig}", device_dir.display()),
+                        &format!("{}\n{original}", device_dir.display()),
                     );
                 }
-                let val = if *enable { "1" } else { "0" };
+                let value = if *enable { "1" } else { "0" };
                 let intended_file = self.state_dir.join(format!("intended_aspm_{hash}"));
-                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, val);
-
-                match self.kernel.write(&aspm_path, val) {
-                    Ok(_) => {
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, value);
+                match self.kernel.write(&target_path, value) {
+                    Ok(()) => {
                         self.last_pcie_aspm.insert(device_dir.clone(), *enable);
-                        let aspm_key = format!("aspm_{hash}");
-                        mark_applied_with(&*self.kernel, &self.state_dir, &aspm_key, val);
+                        mark_applied_with(
+                            &*self.kernel,
+                            &self.state_dir,
+                            &format!("aspm_{hash}"),
+                            value,
+                        );
                         self.log(&format!(
-                            "write {} l1_aspm={val} reason: {reason}",
-                            aspm_path.display()
+                            "write {} l1_aspm={value} reason: {reason}",
+                            target_path.display()
                         ))?;
+                        let readback =
+                            readback_from_result(value, self.kernel.read_to_string(&target_path));
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            value,
+                            readback,
+                        ));
                     }
-                    Err(e) => {
+                    Err(error) => {
                         self.log(&format!(
-                            "skip pcie_aspm {}: write failed: {e}",
+                            "skip pcie_aspm {}: write failed: {error}",
                             device_dir.display()
                         ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
@@ -1099,64 +1402,91 @@ impl Actuator {
                 policy,
                 reason,
             } => {
-                // Phase 5 hardening: typed capability check.
-                let policy_path = host_dir.join("link_power_management_policy");
-                if let Err(e) = Capability::SataAlpm.validate_target(&policy_path) {
+                let target_path = host_dir.join("link_power_management_policy");
+                if let Err(error) = Capability::SataAlpm.validate_target(&target_path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
                     self.log(&format!(
-                        "skip sata_alpm {}: capability validation failed: {e}",
+                        "skip sata_alpm {}: capability validation failed: {error}",
                         host_dir.display()
                     ))?;
-                    return Ok(());
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
                 }
-                // WP-N6 SATA ALPM, gated on the N4 allowlist (domain sata_alpm).
-                // The scsi_host has no modalias of its own — resolve the backing
-                // PCI controller's HWID by walking ancestors.
-                if !self.allowlist_permits(
-                    "sata_alpm",
-                    hwid_from_ancestors(host_dir),
-                    0,
-                    host_dir,
-                )? {
-                    return Ok(());
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let allowlist =
+                    self.allowlist_gate("sata_alpm", hwid_from_ancestors(host_dir), 0, host_dir)?;
+                let denied = allowlist.disposition == GateDisposition::Denied;
+                outcome.gates.push(allowlist);
+                if denied {
+                    outcome.targets.push(TargetOutcome::denied(
+                        action.stable_target_id(),
+                        PipelineStage::AllowlistGate,
+                        "hardware allowlist denied target".to_string(),
+                    ));
+                    return Ok(outcome);
                 }
                 if self.last_sata_alpm.get(host_dir).map(String::as_str) == Some(policy.as_str()) {
-                    return Ok(());
+                    outcome.targets.push(redundant_target(action));
+                    return Ok(outcome);
                 }
-
-                let policy_path = host_dir.join("link_power_management_policy");
                 let hash = get_path_hash(host_dir);
                 let orig_file = self.state_dir.join(format!("original_alpm_{hash}"));
                 if !self.kernel.exists(&orig_file) {
-                    let orig = self
+                    let original = self
                         .kernel
-                        .read_to_string(&policy_path)
+                        .read_to_string(&target_path)
                         .ok()
-                        .map(|s| s.trim().to_string())
+                        .map(|value| value.trim().to_string())
                         .unwrap_or_else(|| "max_performance".to_string());
                     let _ = atomic_write_state_file_with(
                         &*self.kernel,
                         &orig_file,
-                        &format!("{}\n{orig}", host_dir.display()),
+                        &format!("{}\n{original}", host_dir.display()),
                     );
                 }
                 let intended_file = self.state_dir.join(format!("intended_alpm_{hash}"));
                 let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, policy);
-
-                match self.kernel.write(&policy_path, policy) {
-                    Ok(_) => {
+                match self.kernel.write(&target_path, policy) {
+                    Ok(()) => {
                         self.last_sata_alpm.insert(host_dir.clone(), policy.clone());
-                        let alpm_key = format!("alpm_{hash}");
-                        mark_applied_with(&*self.kernel, &self.state_dir, &alpm_key, policy);
+                        mark_applied_with(
+                            &*self.kernel,
+                            &self.state_dir,
+                            &format!("alpm_{hash}"),
+                            policy,
+                        );
                         self.log(&format!(
                             "write {} policy={policy} reason: {reason}",
-                            policy_path.display()
+                            target_path.display()
                         ))?;
+                        let readback =
+                            readback_from_result(policy, self.kernel.read_to_string(&target_path));
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            policy,
+                            readback,
+                        ));
                     }
-                    Err(e) => {
+                    Err(error) => {
                         self.log(&format!(
-                            "skip sata_alpm {}: write failed: {e}",
+                            "skip sata_alpm {}: write failed: {error}",
                             host_dir.display()
                         ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
@@ -1165,81 +1495,118 @@ impl Actuator {
                 target_pct,
                 reason,
             } => {
-                // Phase 5 hardening: typed capability check.
-                let bright_path = device_dir.join("brightness");
-                if let Err(e) = Capability::Backlight.validate_target(&bright_path) {
+                let target_path = device_dir.join("brightness");
+                if let Err(error) = Capability::Backlight.validate_target(&target_path) {
+                    outcome.gates.push(GateEvaluation::denied(
+                        GateStage::CapabilityValidation,
+                        GateReasonCode::CapabilityDenied,
+                        error.to_string(),
+                    ));
                     self.log(&format!(
-                        "skip backlight {}: capability validation failed: {e}",
+                        "skip backlight {}: capability validation failed: {error}",
                         device_dir.display()
                     ))?;
-                    return Ok(());
+                    let mut target = TargetOutcome::unsupported(
+                        action.stable_target_id(),
+                        OutcomeReasonCode::UnsupportedTarget,
+                    );
+                    target.detail = Some(error.to_string());
+                    outcome.targets.push(target);
+                    return Ok(outcome);
                 }
-                // WP-N7 backlight, gated on the N4 allowlist (domain backlight,
-                // HWID from the backing GPU via ancestor-walk).
-                if !self.allowlist_permits(
+                outcome.gates.push(GateEvaluation::allowed(
+                    GateStage::CapabilityValidation,
+                    GateReasonCode::CapabilityAllowed,
+                ));
+                let allowlist = self.allowlist_gate(
                     "backlight",
                     hwid_from_ancestors(device_dir),
                     0,
                     device_dir,
-                )? {
-                    return Ok(());
+                )?;
+                let denied = allowlist.disposition == GateDisposition::Denied;
+                outcome.gates.push(allowlist);
+                if denied {
+                    outcome.targets.push(TargetOutcome::denied(
+                        action.stable_target_id(),
+                        PipelineStage::AllowlistGate,
+                        "hardware allowlist denied target".to_string(),
+                    ));
+                    return Ok(outcome);
                 }
                 let max = match display::read_max_brightness(device_dir) {
-                    Some(m) if m > 0 => m,
+                    Some(max) if max > 0 => max,
                     _ => {
                         self.log(&format!(
                             "skip backlight {}: no usable max_brightness",
                             device_dir.display()
                         ))?;
-                        return Ok(());
+                        outcome.targets.push(TargetOutcome::unsupported(
+                            action.stable_target_id(),
+                            OutcomeReasonCode::MissingTarget,
+                        ));
+                        return Ok(outcome);
                     }
                 };
-                // Floor-clamped target — never black, never below the interactive floor.
                 let target = display::compute_target_brightness(max, *target_pct);
                 if self.last_backlight.get(device_dir) == Some(&target) {
-                    return Ok(());
+                    outcome.targets.push(redundant_target(action));
+                    return Ok(outcome);
                 }
-
-                let bright_path = device_dir.join("brightness");
                 let hash = get_path_hash(device_dir);
                 let orig_file = self.state_dir.join(format!("original_bl_{hash}"));
                 if !self.kernel.exists(&orig_file) {
-                    let orig = self
+                    let original = self
                         .kernel
-                        .read_to_string(&bright_path)
+                        .read_to_string(&target_path)
                         .ok()
-                        .map(|s| s.trim().to_string())
+                        .map(|value| value.trim().to_string())
                         .unwrap_or_default();
                     let _ = atomic_write_state_file_with(
                         &*self.kernel,
                         &orig_file,
-                        &format!("{}\n{orig}", device_dir.display()),
+                        &format!("{}\n{original}", device_dir.display()),
                     );
                 }
-                let target_str = target.to_string();
+                let target_string = target.to_string();
                 let intended_file = self.state_dir.join(format!("intended_bl_{hash}"));
-                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &target_str);
-
-                match self.kernel.write(&bright_path, &target_str) {
-                    Ok(_) => {
+                let _ = atomic_write_state_file_with(&*self.kernel, &intended_file, &target_string);
+                match self.kernel.write(&target_path, &target_string) {
+                    Ok(()) => {
                         self.last_backlight.insert(device_dir.clone(), target);
-                        let bl_key = format!("bl_{hash}");
-                        mark_applied_with(&*self.kernel, &self.state_dir, &bl_key, &target_str);
+                        mark_applied_with(
+                            &*self.kernel,
+                            &self.state_dir,
+                            &format!("bl_{hash}"),
+                            &target_string,
+                        );
                         self.log(&format!(
-                            "write {} brightness={target_str} (target {target_pct}% of {max}) reason: {reason}",
-                            bright_path.display()
+                            "write {} brightness={target_string} (target {target_pct}% of {max}) reason: {reason}",
+                            target_path.display()
                         ))?;
+                        let readback = readback_from_result(
+                            &target_string,
+                            self.kernel.read_to_string(&target_path),
+                        );
+                        outcome.targets.push(TargetOutcome::applied(
+                            action.stable_target_id(),
+                            &target_string,
+                            readback,
+                        ));
                     }
-                    Err(e) => {
+                    Err(error) => {
                         self.log(&format!(
-                            "skip backlight {}: write failed: {e}",
+                            "skip backlight {}: write failed: {error}",
                             device_dir.display()
                         ))?;
+                        outcome
+                            .targets
+                            .push(TargetOutcome::failed(action.stable_target_id(), &error));
                     }
                 }
             }
         }
-        Ok(())
+        Ok(outcome)
     }
 
     /// Revert a single journaled action, identified by the journal key
@@ -1273,6 +1640,54 @@ impl Actuator {
     /// non-revertible key, or no journal on disk). On a failed write the
     /// journal is **retained** so the shutdown revert can retry, and
     /// `Ok(false)` is returned.
+    pub(crate) fn revert_key_outcome(&mut self, key: &str) -> io::Result<RestoreOutcome> {
+        let journal = self.state_dir.join(format!("original_{key}"));
+        let existed = self.kernel.exists(&journal);
+        let restored = self.revert_key(key)?;
+        if restored {
+            return Ok(RestoreOutcome {
+                target_id: format!("journal:{key}"),
+                pipeline_stage: PipelineStage::Restore,
+                reason: OutcomeReasonCode::RestoreApplied,
+                write_attempted: true,
+                write_outcome: WriteOutcome::Restored,
+                readback: ReadbackOutcome::NotPerformed,
+                ownership: OwnershipState::Unowned,
+                pending_restore: RestoreState::Restored,
+                responsible_subsystem: ResponsibleSubsystem::Restoration,
+                detail: None,
+            });
+        }
+        if existed && self.kernel.exists(&journal) {
+            return Ok(RestoreOutcome {
+                target_id: format!("journal:{key}"),
+                pipeline_stage: PipelineStage::Restore,
+                reason: OutcomeReasonCode::RestoreFailed,
+                write_attempted: true,
+                write_outcome: WriteOutcome::RestorationFailed {
+                    error_kind: ErrorKindCode::Other,
+                },
+                readback: ReadbackOutcome::NotPerformed,
+                ownership: OwnershipState::Optid,
+                pending_restore: RestoreState::Pending,
+                responsible_subsystem: ResponsibleSubsystem::Restoration,
+                detail: Some("restore did not complete; journal retained".to_string()),
+            });
+        }
+        Ok(RestoreOutcome {
+            target_id: format!("journal:{key}"),
+            pipeline_stage: PipelineStage::Restore,
+            reason: OutcomeReasonCode::NotApplicable,
+            write_attempted: false,
+            write_outcome: WriteOutcome::NotApplicable,
+            readback: ReadbackOutcome::NotPerformed,
+            ownership: OwnershipState::Relinquished,
+            pending_restore: RestoreState::NotApplicable,
+            responsible_subsystem: ResponsibleSubsystem::Restoration,
+            detail: Some("no supported current inverse-restoration journal".to_string()),
+        })
+    }
+
     pub(crate) fn revert_key(&mut self, key: &str) -> io::Result<bool> {
         let orig_file = self.state_dir.join(format!("original_{key}"));
         if !self.kernel.exists(&orig_file) {
@@ -1410,10 +1825,19 @@ impl Actuator {
     }
 
     fn log(&mut self, message: &str) -> io::Result<()> {
+        let correlation_id = if self.correlation_id.is_empty() {
+            "unscoped"
+        } else {
+            &self.correlation_id
+        };
         append_log_with(
             &*self.kernel,
             &self.log_path,
-            &format!("{} {message}\n", self.kernel.now_unix()),
+            &format!(
+                "{} correlation_id={} {message}\n",
+                self.kernel.now_unix(),
+                correlation_id
+            ),
         )
     }
 
@@ -1447,6 +1871,22 @@ impl Actuator {
             let _ = write_num; // suppress unused-variable warning in production
         }
         self.kernel.write(path, value)
+    }
+}
+
+fn redundant_target(action: &Action) -> TargetOutcome {
+    TargetOutcome {
+        target_id: action.stable_target_id(),
+        pipeline_stage: PipelineStage::Write,
+        support: SupportState::Supported,
+        reason: OutcomeReasonCode::RedundantValue,
+        write_attempted: false,
+        write_outcome: WriteOutcome::Redundant,
+        readback: ReadbackOutcome::NotPerformed,
+        ownership: OwnershipState::Optid,
+        pending_restore: RestoreState::Pending,
+        responsible_subsystem: ResponsibleSubsystem::Actuator,
+        detail: None,
     }
 }
 

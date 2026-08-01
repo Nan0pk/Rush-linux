@@ -196,6 +196,85 @@ impl Action {
         }
     }
 
+    /// Stable, privacy-safe identity for the logical target. Raw sysfs/procfs
+    /// paths are intentionally never exposed by the public F3 envelope.
+    pub(crate) fn stable_target_id(&self) -> String {
+        match self {
+            Self::CpuEpp { .. } => "cpu:epp".to_string(),
+            Self::PlatformProfile { .. } => "platform:profile".to_string(),
+            Self::SystemdSetProperty { unit, .. } => {
+                format!("systemd-unit:{}", sanitize_identity(unit))
+            }
+            Self::VmSysctl { path, .. } => format!(
+                "vm-sysctl:{}",
+                sanitize_identity(
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("unknown")
+                )
+            ),
+            Self::CpuDmaLatency { .. } => "cpu:pm-qos-latency".to_string(),
+            Self::DeviceResumeLatency { path, .. } => {
+                format!("device-resume:{}", get_path_hash(path))
+            }
+            Self::RuntimePm { device_dir, .. } => {
+                format!("runtime-pm:{}", get_path_hash(device_dir))
+            }
+            Self::PcieAspm { device_dir, .. } => {
+                format!("pcie-aspm:{}", get_path_hash(device_dir))
+            }
+            Self::SataAlpm { host_dir, .. } => {
+                format!("sata-alpm:{}", get_path_hash(host_dir))
+            }
+            Self::Backlight { device_dir, .. } => {
+                format!("backlight:{}", get_path_hash(device_dir))
+            }
+        }
+    }
+
+    /// Stable identity for an action that expands to a concrete target, such
+    /// as one CPU EPP attribute per CPU.
+    pub(crate) fn stable_expanded_target_id(&self, concrete: &std::path::Path) -> String {
+        match self {
+            Self::CpuEpp { .. } => format!("cpu-epp:{}", get_path_hash(concrete)),
+            _ => self.stable_target_id(),
+        }
+    }
+
+    pub(crate) fn desired_operation(&self) -> &'static str {
+        match self {
+            Self::CpuEpp { .. } => "set_cpu_epp",
+            Self::PlatformProfile { .. } => "set_platform_profile",
+            Self::SystemdSetProperty { .. } => "set_systemd_properties",
+            Self::VmSysctl { .. } => "set_vm_sysctl",
+            Self::CpuDmaLatency { .. } => "set_cpu_dma_latency",
+            Self::DeviceResumeLatency { .. } => "set_device_resume_latency",
+            Self::RuntimePm { .. } => "enable_runtime_pm",
+            Self::PcieAspm { .. } => "set_pcie_aspm",
+            Self::SataAlpm { .. } => "set_sata_alpm",
+            Self::Backlight { .. } => "set_backlight",
+        }
+    }
+
+    pub(crate) fn desired_value(&self) -> String {
+        match self {
+            Self::CpuEpp { value, .. }
+            | Self::PlatformProfile { value, .. }
+            | Self::VmSysctl { value, .. } => value.clone(),
+            Self::SystemdSetProperty { properties, .. } => properties.join(" "),
+            Self::CpuDmaLatency { value, .. } | Self::DeviceResumeLatency { value, .. } => value
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unconstrained".to_string()),
+            Self::RuntimePm {
+                autosuspend_delay_ms,
+                ..
+            } => format!("control=auto;autosuspend_delay_ms={autosuspend_delay_ms}"),
+            Self::PcieAspm { enable, .. } => (if *enable { "1" } else { "0" }).to_string(),
+            Self::SataAlpm { policy, .. } => policy.clone(),
+            Self::Backlight { target_pct, .. } => format!("{target_pct}%"),
+        }
+    }
+
     /// One-line human-readable description, used by `optctl explain` and the
     /// `decisions.log` audit trail.
     pub(crate) fn describe(&self) -> String {
@@ -526,4 +605,17 @@ mod tests {
         };
         assert!(b.describe().contains("=None"));
     }
+}
+
+fn sanitize_identity(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | '@') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }

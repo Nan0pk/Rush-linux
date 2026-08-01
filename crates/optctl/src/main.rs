@@ -14,6 +14,7 @@ mod allow;
 )]
 trait Optid {
     fn status(&self) -> zbus::Result<String>;
+    fn status_json(&self) -> zbus::Result<String>;
     fn explain(&self) -> zbus::Result<String>;
     fn set_mode(&self, mode: &str) -> zbus::Result<()>;
     fn pin_application(&self, app_id: &str, class: &str) -> zbus::Result<()>;
@@ -73,43 +74,35 @@ fn run(args: Vec<String>) -> io::Result<()> {
     let command = positional.first().map(String::as_str).unwrap_or("status");
     match command {
         "status" => {
-            let status_str = if let Some(ref p) = proxy {
-                p.status().ok()
+            if json {
+                let status_json = if let Some(ref proxy) = proxy {
+                    proxy.status_json().ok()
+                } else {
+                    None
+                }
+                .map(Ok)
+                .unwrap_or_else(|| read_status_json_file(&state_dir))?;
+                let validated = validate_daemon_status_json(&status_json)?;
+                println!("{}", validated.trim_end());
+                return Ok(());
+            }
+
+            let status = if let Some(ref proxy) = proxy {
+                proxy.status().ok()
             } else {
                 None
             };
-            let status_str = match status_str {
-                Some(s) => s,
+            match status {
+                Some(status) => print!("{status}"),
                 None => match fs::read_to_string(state_dir.join("status")) {
-                    Ok(s) => s,
-                    Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                        if json {
-                            println!("{{\"error\": \"optid has not written status yet\"}}");
-                            return Ok(());
-                        } else {
-                            println!("optid has not written status yet");
-                            return Ok(());
-                        }
+                    Ok(status) => print!("{status}"),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        println!("optid has not written status yet");
                     }
-                    Err(err) => return Err(err),
+                    Err(error) => return Err(error),
                 },
-            };
-
-            if json {
-                match format_status_as_json(&status_str) {
-                    Ok(json_str) => {
-                        println!("{json_str}");
-                        Ok(())
-                    }
-                    Err(e) => Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("failed to format status as JSON: {e}"),
-                    )),
-                }
-            } else {
-                print!("{status_str}");
-                Ok(())
             }
+            Ok(())
         }
         "explain" => {
             if let Some(ref p) = proxy {
@@ -263,239 +256,112 @@ fn print_usage() {
     );
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct PressureJson {
-    avg10: f32,
-    avg60: f32,
-    avg300: f32,
-    total: u64,
+fn read_status_json_file(state_dir: &Path) -> io::Result<String> {
+    fs::read_to_string(state_dir.join("status.json")).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "optid has not written status.json; refusing to reconstruct machine status from text",
+            )
+        } else {
+            error
+        }
+    })
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct StatusReport {
-    timestamp: u64,
-    mode: String,
-    workload_class: String,
-    workload_reason: String,
-    cpu_wakeup_latency: Option<i64>,
-    device_resume_latency: Option<i64>,
-    on_ac: Option<bool>,
-    battery_pct: Option<u8>,
-    thermal_c: Option<f32>,
-    loadavg_1: Option<f32>,
-    cpu_pressure: Option<PressureJson>,
-    memory_pressure: Option<PressureJson>,
-    io_pressure: Option<PressureJson>,
-    reasons: Vec<String>,
-    actions: Vec<String>,
-}
-
-fn format_status_as_json(status_str: &str) -> Result<String, String> {
-    let mut report = StatusReport {
-        timestamp: 0,
-        mode: String::new(),
-        workload_class: String::new(),
-        workload_reason: String::new(),
-        cpu_wakeup_latency: None,
-        device_resume_latency: None,
-        on_ac: None,
-        battery_pct: None,
-        thermal_c: None,
-        loadavg_1: None,
-        cpu_pressure: None,
-        memory_pressure: None,
-        io_pressure: None,
-        reasons: Vec::new(),
-        actions: Vec::new(),
-    };
-
-    let mut current_section = "";
-
-    for line in status_str.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if line == "reasons:" {
-            current_section = "reasons";
-            continue;
-        }
-        if line == "actions:" {
-            current_section = "actions";
-            continue;
-        }
-
-        if current_section == "reasons" {
-            if let Some(stripped) = line.strip_prefix("- ") {
-                report.reasons.push(stripped.to_string());
-            }
-            continue;
-        }
-        if current_section == "actions" {
-            if let Some(stripped) = line.strip_prefix("- ") {
-                report.actions.push(stripped.to_string());
-            }
-            continue;
-        }
-
-        let (key, val) = match line.split_once('=') {
-            Some(pair) => pair,
-            None => continue,
-        };
-
-        let parse_option_bool = |s: &str| -> Option<bool> {
-            if s == "None" {
-                None
-            } else if s.starts_with("Some(") && s.ends_with(')') {
-                s[5..s.len() - 1].parse().ok()
-            } else {
-                s.parse().ok()
-            }
-        };
-
-        let parse_option_u8 = |s: &str| -> Option<u8> {
-            if s == "None" {
-                None
-            } else if s.starts_with("Some(") && s.ends_with(')') {
-                s[5..s.len() - 1].parse().ok()
-            } else {
-                s.parse().ok()
-            }
-        };
-
-        let parse_option_f32 = |s: &str| -> Option<f32> {
-            if s == "None" {
-                None
-            } else if s.starts_with("Some(") && s.ends_with(')') {
-                s[5..s.len() - 1].parse().ok()
-            } else {
-                s.parse().ok()
-            }
-        };
-
-        let parse_pressure = |s: &str| -> Option<PressureJson> {
-            if s == "unavailable" {
-                return None;
-            }
-            let mut avg10 = 0.0;
-            let mut avg60 = 0.0;
-            let mut avg300 = 0.0;
-            let mut total = 0;
-            for token in s.split_whitespace() {
-                if let Some((k, v)) = token.split_once('=') {
-                    match k {
-                        "avg10" => avg10 = v.parse().unwrap_or(0.0),
-                        "avg60" => avg60 = v.parse().unwrap_or(0.0),
-                        "avg300" => avg300 = v.parse().unwrap_or(0.0),
-                        "total" => total = v.parse().unwrap_or(0),
-                        _ => {}
-                    }
-                }
-            }
-            Some(PressureJson {
-                avg10,
-                avg60,
-                avg300,
-                total,
-            })
-        };
-
-        match key {
-            "timestamp" => report.timestamp = val.parse().unwrap_or(0),
-            "mode" => report.mode = val.to_string(),
-            "workload_class" => report.workload_class = val.to_string(),
-            "workload_reason" => report.workload_reason = val.to_string(),
-            "cpu_wakeup_latency" => report.cpu_wakeup_latency = val.parse().ok(),
-            "device_resume_latency" => report.device_resume_latency = val.parse().ok(),
-            "on_ac" => report.on_ac = parse_option_bool(val),
-            "battery_pct" => report.battery_pct = parse_option_u8(val),
-            "thermal_c" => report.thermal_c = parse_option_f32(val),
-            "loadavg_1" => report.loadavg_1 = parse_option_f32(val),
-            "cpu_pressure" => report.cpu_pressure = parse_pressure(val),
-            "memory_pressure" => report.memory_pressure = parse_pressure(val),
-            "io_pressure" => report.io_pressure = parse_pressure(val),
-            _ => {}
-        }
+fn validate_daemon_status_json(status_json: &str) -> io::Result<String> {
+    let value: serde_json::Value = serde_json::from_str(status_json).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("malformed daemon status.json: {error}"),
+        )
+    })?;
+    let schema_version = value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "daemon status.json is missing numeric schema_version",
+            )
+        })?;
+    if schema_version == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "daemon status.json has invalid schema_version 0",
+        ));
     }
-
-    serde_json::to_string_pretty(&report).map_err(|e| e.to_string())
+    let correlation_id = value
+        .get("correlation_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "daemon status.json is missing correlation_id",
+            )
+        })?;
+    let _ = correlation_id;
+    Ok(status_json.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-    #[test]
-    fn test_format_status_as_json_all_values() {
-        let input = "\
-timestamp=1717500000
-mode=balanced
-workload_class=interactive
-workload_reason=pinned override for foreground app
-cpu_wakeup_latency=1000
-device_resume_latency=10000
-on_ac=Some(true)
-battery_pct=Some(95)
-thermal_c=Some(45.5)
-loadavg_1=Some(0.45)
-cpu_pressure=avg10=0.01 avg60=0.02 avg300=0.03 total=42
-memory_pressure=avg10=0.04 avg60=0.05 avg300=0.06 total=84
-io_pressure=avg10=0.07 avg60=0.08 avg300=0.09 total=126
-reasons:
-- reason 1
-- reason 2
-actions:
-- action 1
-- action 2
-";
-        let result = format_status_as_json(input).unwrap();
-        assert!(result.contains("\"timestamp\": 1717500000"));
-        assert!(result.contains("\"mode\": \"balanced\""));
-        assert!(result.contains("\"workload_class\": \"interactive\""));
-        assert!(result.contains("\"workload_reason\": \"pinned override for foreground app\""));
-        assert!(result.contains("\"cpu_wakeup_latency\": 1000"));
-        assert!(result.contains("\"device_resume_latency\": 10000"));
-        assert!(result.contains("\"on_ac\": true"));
-        assert!(result.contains("\"battery_pct\": 95"));
-        assert!(result.contains("\"thermal_c\": 45.5"));
-        assert!(result.contains("\"loadavg_1\": 0.45"));
-        assert!(result.contains(
-            "\"cpu_pressure\": {\n    \"avg10\": 0.01,\n    \"avg60\": 0.02,\n    \"avg300\": 0.03,\n    \"total\": 42\n  }"
-        ));
-        assert!(result.contains(
-            "\"memory_pressure\": {\n    \"avg10\": 0.04,\n    \"avg60\": 0.05,\n    \"avg300\": 0.06,\n    \"total\": 84\n  }"
-        ));
-        assert!(result.contains(
-            "\"io_pressure\": {\n    \"avg10\": 0.07,\n    \"avg60\": 0.08,\n    \"avg300\": 0.09,\n    \"total\": 126\n  }"
-        ));
-        assert!(result.contains("\"reasons\": [\n    \"reason 1\",\n    \"reason 2\"\n  ]"));
-        assert!(result.contains("\"actions\": [\n    \"action 1\",\n    \"action 2\"\n  ]"));
+    fn temp_state_dir(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("optctl-{name}-{nonce}"));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn sample_json() -> String {
+        r#"{"schema_version":2,"correlation_id":"cycle-1","future_field":true}"#.to_string()
     }
 
     #[test]
-    fn test_format_status_as_json_none_values() {
-        let input = "\
-timestamp=1717500000
-mode=battery
-on_ac=None
-battery_pct=None
-thermal_c=None
-loadavg_1=None
-cpu_pressure=unavailable
-memory_pressure=unavailable
-io_pressure=unavailable
-reasons:
-actions:
-";
-        let result = format_status_as_json(input).unwrap();
-        assert!(result.contains("\"on_ac\": null"));
-        assert!(result.contains("\"battery_pct\": null"));
-        assert!(result.contains("\"thermal_c\": null"));
-        assert!(result.contains("\"loadavg_1\": null"));
-        assert!(result.contains("\"cpu_pressure\": null"));
-        assert!(result.contains("\"cpu_wakeup_latency\": null"));
-        assert!(result.contains("\"device_resume_latency\": null"));
-        assert!(result.contains("\"reasons\": []"));
-        assert!(result.contains("\"actions\": []"));
+    fn f3_status_json_passes_through_daemon_schema() {
+        let input = sample_json();
+        assert_eq!(validate_daemon_status_json(&input).unwrap(), input);
+    }
+
+    #[test]
+    fn f3_status_json_tolerates_unknown_fields() {
+        assert!(validate_daemon_status_json(&sample_json()).is_ok());
+    }
+
+    #[test]
+    fn f3_malformed_status_json_fails_clearly() {
+        let error = validate_daemon_status_json("{not-json").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("malformed daemon status.json"));
+    }
+
+    #[test]
+    fn f3_missing_json_never_reconstructs_from_text() {
+        let state_dir = temp_state_dir("missing-json");
+        fs::write(state_dir.join("status"), "mode=balanced\n").unwrap();
+        let error = read_status_json_file(&state_dir).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert!(error.to_string().contains("refusing to reconstruct"));
+        fs::remove_dir_all(state_dir).unwrap();
+    }
+
+    #[test]
+    fn f3_offline_status_json_reads_daemon_file_without_mutation() {
+        let state_dir = temp_state_dir("offline-json");
+        let input = sample_json();
+        fs::write(state_dir.join("status.json"), &input).unwrap();
+        let before: Vec<_> = fs::read_dir(&state_dir).unwrap().collect();
+        let read = read_status_json_file(&state_dir).unwrap();
+        let after: Vec<_> = fs::read_dir(&state_dir).unwrap().collect();
+        assert_eq!(validate_daemon_status_json(&read).unwrap(), input);
+        assert_eq!(before.len(), after.len());
+        fs::remove_dir_all(state_dir).unwrap();
     }
 }

@@ -5,6 +5,9 @@
     <method name="Status">
       <arg name="status" type="s" direction="out"/>
     </method>
+    <method name="StatusJson">
+      <arg name="status_json" type="s" direction="out"/>
+    </method>
     <method name="Explain">
       <arg name="explanation" type="s" direction="out"/>
     </method>
