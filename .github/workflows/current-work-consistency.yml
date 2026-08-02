@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        # v7 uses the Node 24 action runtime supported by hosted runners.
+        # v7 uses the Node 24 runtime supported by current hosted runners.
         uses: actions/checkout@v7
 
       - name: Set up Python
