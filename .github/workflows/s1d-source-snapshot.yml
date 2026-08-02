@@ -1,0 +1,24 @@
+name: S1D source snapshot
+
+on:
+  push:
+    branches:
+      - work/20260803-s1d-lever-contracts
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: s1d-source-snapshot
+          path: .
+          include-hidden-files: true
+          if-no-files-found: error
