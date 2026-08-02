@@ -1,6 +1,9 @@
 name: S1D source snapshot
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/s1d-source-snapshot.yml"
   push:
     branches:
       - work/20260803-s1d-lever-contracts
@@ -14,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/upload-artifact@v7
         with:
