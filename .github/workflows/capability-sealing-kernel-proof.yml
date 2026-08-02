@@ -18,9 +18,12 @@ jobs:
   kernel-proof:
     name: Prove Landlock and cold-restart contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -49,6 +52,8 @@ jobs:
         run: |
           set -euo pipefail
           {
+            echo "verified_commit=$(git rev-parse HEAD)"
+            echo "workflow_head_sha=${{ github.event.pull_request.head.sha || github.sha }}"
             echo "kernel_uname=$(uname -a)"
             if [[ -r /sys/kernel/security/lsm ]]; then
               echo "active_lsms=$(cat /sys/kernel/security/lsm)"
@@ -57,6 +62,125 @@ jobs:
             fi
             /usr/local/libexec/optid-capability-seal-test --probe
           } 2>&1 | tee capability-sealing-kernel-proof.log
+
+      - name: Run the supervised two-cycle cold restart
+        run: |
+          set -euo pipefail
+
+          sudo install -D -m 0644 \
+            packaging/systemd/optid-capability-seal-test.service \
+            /etc/systemd/system/optid-capability-seal-test.service
+          sudo touch /run/optid-capability-seal-test-enabled
+          sudo rm -rf /run/optid-capability-seal-test
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
+          proof_started=$(date --iso-8601=seconds)
+          sudo systemctl start optid-capability-seal-test.service
+
+          for _ in $(seq 1 30); do
+            active_state=$(systemctl show optid-capability-seal-test.service \
+              -p ActiveState --value)
+            result=$(systemctl show optid-capability-seal-test.service \
+              -p Result --value)
+            if [[ "$active_state" == "inactive" && "$result" == "success" ]]; then
+              break
+            fi
+            if [[ "$active_state" == "failed" ]]; then
+              break
+            fi
+            sleep 1
+          done
+
+          sudo journalctl --sync
+          sudo journalctl -u optid-capability-seal-test.service \
+            --since "$proof_started" --no-pager -o cat \
+            | tee /tmp/d0-supervisor-success.log
+          systemctl show optid-capability-seal-test.service \
+            -p ActiveState -p SubState -p Result -p ExecMainCode \
+            -p ExecMainStatus -p NRestarts | tee /tmp/d0-supervisor-success.status
+
+          active_state=$(systemctl show optid-capability-seal-test.service \
+            -p ActiveState --value)
+          result=$(systemctl show optid-capability-seal-test.service \
+            -p Result --value)
+          exec_status=$(systemctl show optid-capability-seal-test.service \
+            -p ExecMainStatus --value)
+
+          test "$active_state" = "inactive"
+          test "$result" = "success"
+          test "$exec_status" = "0"
+          test "$(grep -cF 'Scheduled restart job, restart counter is at 1.' /tmp/d0-supervisor-success.log)" -eq 1
+          test "$(grep -cF 'recovery step completed:' /tmp/d0-supervisor-success.log)" -eq 2
+          test "$(grep -cF 'recovery marker verified before capability discovery:' /tmp/d0-supervisor-success.log)" -eq 2
+          test "$(grep -cF 'capability-sealing proof passed (8 checks)' /tmp/d0-supervisor-success.log)" -eq 2
+          test "$(grep -cF 'first sealed cycle complete; requesting topology rebuild with status 75' /tmp/d0-supervisor-success.log)" -eq 1
+          test "$(grep -cF 'fresh sealed process started after recovery; supervisor cycle complete' /tmp/d0-supervisor-success.log)" -eq 1
+
+          {
+            echo
+            echo "supervised_restart=pass"
+            echo "supervisor_restarts_observed=1"
+            echo "note=NRestarts is a current-state counter and returns to zero after successful deactivation; the journal event above is the durable restart proof"
+            cat /tmp/d0-supervisor-success.status
+            cat /tmp/d0-supervisor-success.log
+          } >> capability-sealing-kernel-proof.log
+
+      - name: Prove non-75 failures do not restart
+        run: |
+          set -euo pipefail
+
+          sudo mkdir -p \
+            /run/systemd/system/optid-capability-seal-test.service.d
+          sudo tee \
+            /run/systemd/system/optid-capability-seal-test.service.d/non75.conf \
+            >/dev/null <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/bin/sh -c 'exit 1'
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
+          failure_started=$(date --iso-8601=seconds)
+
+          set +e
+          sudo systemctl start optid-capability-seal-test.service
+          start_status=$?
+          set -e
+          sleep 3
+          sudo journalctl --sync
+
+          sudo journalctl -u optid-capability-seal-test.service \
+            --since "$failure_started" --no-pager -o cat \
+            | tee /tmp/d0-non75.log
+          systemctl show optid-capability-seal-test.service \
+            -p ActiveState -p SubState -p Result -p ExecMainCode \
+            -p ExecMainStatus -p NRestarts | tee /tmp/d0-non75.status
+
+          result=$(systemctl show optid-capability-seal-test.service \
+            -p Result --value)
+          exec_status=$(systemctl show optid-capability-seal-test.service \
+            -p ExecMainStatus --value)
+          restart_count=$(systemctl show optid-capability-seal-test.service \
+            -p NRestarts --value)
+
+          test "$result" = "exit-code"
+          test "$exec_status" = "1"
+          test "$restart_count" = "0"
+          ! grep -qF 'Scheduled restart job' /tmp/d0-non75.log
+
+          {
+            echo
+            echo "non_75_restart_suppression=pass"
+            echo "systemctl_start_status=$start_status"
+            echo "note=Type=exec may report start success before the process later exits; final unit state and journal determine restart behavior"
+            cat /tmp/d0-non75.status
+            cat /tmp/d0-non75.log
+          } >> capability-sealing-kernel-proof.log
+
+          sudo rm -rf \
+            /run/systemd/system/optid-capability-seal-test.service.d
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
 
       - name: Upload the proof log
         if: always()
