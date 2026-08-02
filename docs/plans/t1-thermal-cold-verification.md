@@ -82,7 +82,9 @@ python3 tools/collect-t1-thermal-proof.py \
   --require-completion-ready
 ```
 
-The collector records only sanitized class, chip, channel, label, temperature, critical threshold, alarm/fault state, fan RPM, ACPI zone type/trips, and thermal status fields. It does not collect hostnames, usernames, serial numbers, MAC addresses, UUIDs, network details, home paths, full sysfs device paths, or unrelated optid status.
+Completion-ready mode requires the live `/` sysfs root. The hidden `--sys-root` override exists only for deterministic developer tests; any non-root value is recorded as unresolved and cannot produce a completion-ready bundle.
+
+The collector records only sanitized class, chip, channel, label, temperature, critical threshold, alarm/fault state, fan RPM, ACPI zone type and instance, trips, and thermal status fields. Hwmon channel names and ACPI thermal-zone instances remain in the sanitized identity so repeated labels or zone types cannot silently collide. It does not collect hostnames, usernames, serial numbers, MAC addresses, UUIDs, network details, home paths, full sysfs device paths, or unrelated optid status.
 
 A passing collection must contain:
 
@@ -94,14 +96,14 @@ threshold-decision-reference.json
 command-results.json
 ```
 
-The manifest must report `result = pass`, a clean exact source commit, at least one plausible physical temperature observation, a complete production thermal status, all command checks passing, a digest of the accepted threshold decision, and an empty unresolved list.
+The manifest must report `result = pass`, `live_sys_root = true`, a clean exact source commit, at least one plausible physical temperature observation, a complete production thermal status, all command checks passing, a digest of the accepted threshold decision, and an empty unresolved list.
 
 ## Verifier inspection
 
 The independent verifier must inspect, not merely generate, the bundle:
 
 1. compare the hottest plausible physical die/package observation with the selected die sensor and state in `optid-thermal-status.txt`;
-2. confirm stable ordering and identities across all samples;
+2. confirm stable ordering and unique identities across all samples;
 3. confirm malformed, implausible, faulted, or unavailable readings are visible and never create a `Cool` claim by absence;
 4. confirm fan readings are observation only and no write path was invoked;
 5. inspect every mapped test result and the full repository gates;
