@@ -37,6 +37,7 @@ current completion plan, current-work selector, and package ledger remain author
 - [0019 — GPU scaling and ambient light](0019-gpu-upscaling-resolution-scaling-als.md)
 - [0020 — Third-pass technical-debt audit](0020-third-pass-tech-debt-audit.md)
 - [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
+- [0022 — Platform primitive disposition](0022-platform-primitives-disposition.md)
 
 New numbered papers must be linked here. Machine checks enforce the index
 without duplicating every paper's metadata in `docmap.toml`.
