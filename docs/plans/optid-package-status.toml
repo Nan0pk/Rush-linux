@@ -3,20 +3,25 @@ updated = "2026-08-02"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# F1, F2, and F3 were independently cold-verified on 2026-08-02 by a verifier
-# session with a working Rust toolchain (rustc 1.97.1). All three receipts
-# record result="pass" against verified_commit
-# 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369), which is an
-# ancestor of this branch's HEAD with no declared proof paths modified after
-# it. The earlier 2026-08-01 blocked attempt is retained as historical
-# provenance in each receipt.
+# Independent cold-verification of F1, F2, F3, and F4 at implementation commit
+# 52919c2ac1582e56737d568a576899e10ae43d15 (HEAD of fix/f4-complete-reconciliation,
+# PR #371) completed on 2026-08-02. The F4 cutover made the F4 Reconciler the
+# sole production reconciliation authority in crates/optid/src/main.rs; F1, F2,
+# and F3 were re-verified against the F4-cutover commit and re-certified.
+# Receipts: docs/plans/optid-verification/{f1,f2,f3,f4}.toml. All four packages
+# are now `completed` and their dependencies unlock naturally.
 #
-# active_general moves to F4 (Reconcile complete desired state and restore on
-# transitions). F4 depends on [F2, F3], both now completed; its merged_incomplete
-# blocking reason describes the still-outstanding reconciler and restoration
-# work, which the next builder phase must address. No package self-certifies
-# completion.
-active_general = "F4"
+# active_general is T1 because T1 is already `merged_incomplete` (actionable)
+# and its F2/F3 dependencies are now satisfied, so its remaining blockers
+# (cold hardware verification and reviewed threshold acceptance) are the next
+# truth-preserving repair target in the general construction lane. C1 (contracts)
+# is the next NEW package to start per the completion plan's track ordering
+# ("Truth and state" F1-F4 is complete; the next track "Safe mutation" includes
+# C1), but C1 remains `planned` because this verification PR may advance only
+# one package (F4) per the one-package-per-PR rule; a builder picking up C1
+# will set it to `next` in a separate implementation PR. The safety lane
+# (D0) is unchanged. No package self-certifies completion.
+active_general = "T1"
 active_safety = "D0"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
@@ -38,14 +43,6 @@ active_safety = "D0"
 id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f1.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F1 declared proof path modified
-# after it. All nine mapped F1 acceptance tests were executed individually
-# with --exact. The earlier 2026-08-01 blocked attempt is retained as
-# historical provenance inside the receipt.
 status = "completed"
 depends = []
 pr = "332"
@@ -90,15 +87,6 @@ production_pipeline_rejects_unknown_domain = "f1_production_pipeline_rejects_unk
 id = "F2"
 lane = "foundation"
 title = "Introduce injectable kernel I/O, clock, and event boundaries"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f2.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F2 declared proof path modified
-# after it. The mapped F2 acceptance test was executed individually with
-# --exact and confirms the injected kernel-I/O boundary is consumed by the
-# real daemon run path. The earlier 2026-08-01 blocked attempt is retained
-# as historical provenance inside the receipt.
 status = "completed"
 depends = []
 pr = "365"
@@ -129,16 +117,6 @@ production_daemon_consumes_injected_kernel_io = "f2_production_daemon_run_consum
 id = "F3"
 lane = "foundation"
 title = "Version observations, decisions, and action outcomes"
-# Independently cold-verified on 2026-08-02 by a verifier session with a
-# working Rust toolchain (rustc 1.97.1, cargo 1.97.1). The receipt at
-# docs/plans/optid-verification/f3.toml records result="pass" against
-# verified_commit 107a4330e2d0505a6b48b35c7d4148482a426f3d (merge of PR #369),
-# an ancestor of this branch's HEAD with no F3 declared proof path modified
-# after it. All six mapped in-crate F3 acceptance tests and all three mapped
-# optctl status_cli integration tests were executed individually with --exact.
-# F1 was independently verified first, so the F3 dependency gate is satisfied.
-# The earlier 2026-08-01 blocked attempt is retained as historical provenance
-# inside the receipt.
 status = "completed"
 depends = ["F1"]
 pr = "369"
@@ -173,11 +151,45 @@ production_cycle = "f3_production_daemon_run_writes_one_correlated_versioned_cyc
 id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
-status = "merged_incomplete"
+status = "completed"
 depends = ["F2", "F3"]
-pr = "327"
-blocking_reason = "Reconciler shadow mode is honestly dormant: it tracks target-set parity (which journal keys the current decision desires vs the previous tick) via replace_desired_targets + stale_target_ids, and detects transitions for operator-visible logging. It does NOT plan or apply restores. The post-#338-review repair removed the disconnected Domain-keyed states model and plan_restore/reconcile methods that production never populated; the target-keyed V1 helpers (baseline/confirmed/ownership/may_restore) are retained under #[cfg(test)] for the future cutover. Production restore still uses active_keys + Actuator::revert_key in main.rs; the ledger must clearly state this. Remaining blockers: (1) wire target state (baseline, last_confirmed, ownership) from real journal observations (original_<key> / applied_<key> files the actuator writes) so may_restore_target can evaluate real restores; (2) reintroduce a target-based restore planner that reads the wired target state (the old Domain-keyed plan_restore was removed because it read a model production never populated); (3) F3 envelope alignment (reconciler still has local Ownership type); (4) full systemd property restore — Action::SystemdSetProperty::journal_key() returns None because the Systemd apply path captures no original properties and has no property-level restoration; a real implementation must enumerate each changed property, read its original runtime value, distinguish absent from explicit, restore each, verify readback, and avoid overwriting external changes; (5) VM/sysctl restore through the reconciler rather than only journal keys; (6) shadow/v1 parity gate before defaulting reconciler=v1. Package is not completed."
-completion_evidence = []
+pr = "371"
+verification_receipt = "docs/plans/optid-verification/f4.toml"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/state.rs",
+  "crates/optid/src/reconciler/targets.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+]
+integration_tests = [
+  "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/src/reconciler/tests/systemd.rs",
+  "crates/optid/src/reconciler/tests/unit.rs",
+]
+completion_evidence = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/state.rs",
+  "crates/optid/src/reconciler/targets.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/src/reconciler/tests/systemd.rs",
+  "crates/optid/src/reconciler/tests/unit.rs",
+]
+[package.acceptance_tests]
+production_coalesces_confirmed_value = "f4_production_coalesces_confirmed_value_and_writes_one_change"
+runtime_pm_transition_restores_baseline = "f4_production_runtime_pm_transition_restores_baseline"
+external_drift_is_not_overwritten = "f4_production_external_drift_relinquishes_without_overwrite"
+restart_hydrates_legacy_journal = "f4_restart_hydrates_real_legacy_journal_and_ownership"
+restart_hydrates_typed_vm_state = "f4_restart_hydrates_typed_vm_state_and_restores"
+systemd_property_restore = "f4_systemd_multiple_properties_apply_restore_and_unset"
+systemd_partial_failure_is_independent = "f4_systemd_partial_property_failure_is_typed_and_independent"
+systemd_readback_mismatch_denies_ownership = "f4_systemd_readback_mismatch_never_claims_ownership"
+transition_detection = "f4_transition_detection_covers_ac_workload_mode_and_domain_off"
+malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
 
 [[package]]
 id = "D0"
@@ -367,7 +379,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 is completed, but F3 remains incomplete, so the versioned observation/decision dependency is still locked; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
