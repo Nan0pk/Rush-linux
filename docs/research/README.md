@@ -9,8 +9,10 @@ for the question at hand.
 Read [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
 before using the broad WIP papers as implementation guidance. It records the
 newer validated disposition of the staged optid research mission and identifies
-which older research and proposed ADRs still require amendment. The executable
-repository-change sequence is
+which older research and proposed ADRs still require amendment. For platform
+primitive implementation questions, also read
+[0022 — Platform primitive disposition](0022-platform-primitives-disposition.md).
+The executable repository-change sequence is
 [`docs/plans/optid-research-integration-plan.md`](../plans/optid-research-integration-plan.md).
 
 The synthesis is research, not an accepted decision: the Northstar, accepted ADRs,
