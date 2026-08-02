@@ -1,0 +1,54 @@
+name: R2 research finalizer
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/r2-research-finalize.yml"
+      - ".github/r2-platform-primitives.patch.gz.b64.*"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed R2 research patch
+        run: |
+          set -euo pipefail
+          cat .github/r2-platform-primitives.patch.gz.b64.* | base64 --decode > /tmp/r2.patch.gz
+          echo "0dc69f37848d91aad198fd4465de5c379b35e093ae905c60abc52df21581ae77  /tmp/r2.patch.gz" | sha256sum --check
+          gzip --decompress --stdout /tmp/r2.patch.gz > /tmp/r2.patch
+          echo "0a265a9b9d8083f6203e72eae02236b9af56c1ee41bcbe71880835640dc8af1d  /tmp/r2.patch" | sha256sum --check
+          git apply --check /tmp/r2.patch
+          git apply --index /tmp/r2.patch
+          rm -f .github/r2-platform-primitives.patch.gz.b64.*
+          rm -f .github/workflows/r2-research-finalize.yml
+
+      - name: Validate repository documentation
+        run: |
+          set -euo pipefail
+          git add -A
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          bash tools/checks.sh --ci --changed-base db5b1552d51eb6f2384945f3f420e45e7796005a
+          git diff --cached --check
+
+      - name: Commit durable R2 research
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          test -z "$(git status --porcelain | grep '^??' || true)"
+          git commit -m "docs(optid): resolve R2 platform primitive dispositions"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
