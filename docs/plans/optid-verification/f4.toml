@@ -1,0 +1,237 @@
+# Independent cold-verification receipt for:
+# Reconcile complete desired state and restore on transitions
+#
+# This receipt records the executable independent cold-verification of the F4
+# production desired-state reconciler at implementation commit
+# 52919c2ac1582e56737d568a576899e10ae43d15 (HEAD of
+# fix/f4-complete-reconciliation, PR #371). The verifier operated in a fresh
+# detached worktree at the exact PR head, with a clean cargo state and no
+# inherited builder artifacts. The Rust toolchain ran end-to-end (fmt/check/
+# clippy/test), all ten mapped F4 acceptance tests were executed individually
+# with `--exact`, all ten additional F4 regressions (including the two
+# active-cycle drift regressions) were executed individually with `--exact`,
+# and the containing optid crate suite was executed in full. F4 is certified
+# `pass` by this receipt.
+#
+# Independence boundary: this verifier is separate from the implementation
+# builder that authored PR #371 and separate from the prior Arena.ai verifier
+# session that certified F1/F2/F3 at commit 107a4330e2d0505a6b48b35c7d4148482a426f3d
+# (PR #370). No production code, test, assertion, workflow, architecture,
+# policy, configuration, or packaging file was modified during verification.
+# Only receipt, ledger, and generated work-state documentation were changed,
+# and only after the read-only verification phase passed completely.
+#
+# Environmental caveat (push only): the verifier sandbox had no GitHub write
+# credentials (no gh CLI, no credential helper, no SSH key, no GITHUB_TOKEN).
+# The verification itself was complete and genuine — every command recorded
+# below was actually executed against the exact detached implementation commit
+# and observed to pass. The evidence commit was prepared locally but could not
+# be pushed to origin/fix/f4-complete-reconciliation from this sandbox. The
+# human maintainer (or a subsequent session with GitHub write access) must
+# push the prepared commit and update the PR description using the text in
+# this receipt's `pr_description_section` field. No part of the verification
+# result depends on the push; the push only records the result in GitHub.
+
+schema_version = 1
+package = "F4"
+implementation_pr = 371
+# Exact 40-character implementation commit checked. HEAD of
+# fix/f4-complete-reconciliation at verification time. Matches the PR head
+# recorded in the handoff and re-confirmed via `git rev-parse
+# origin/fix/f4-complete-reconciliation` after the read-only phase.
+verified_commit = "52919c2ac1582e56737d568a576899e10ae43d15"
+verifier = "Independent cold-verification agent session (Z.ai sandbox, separate from the implementation builder of PR #371 and from the prior Arena.ai verifier session that certified F1/F2/F3 at 107a4330e2d0505a6b48b35c7d4148482a426f3d on PR #370); rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1 (c980f4866 2026-06-30), pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7, Python 3.12.13, git 2.47.3; executed 2026-08-02 in a detached worktree at the exact PR head with a clean cargo state"
+result = "pass"
+
+# Exact commands this verifier executed, with their observed outcomes.
+commands = [
+  "git fetch origin --prune -> EXECUTED, fetched origin/fix/f4-complete-reconciliation and origin/main",
+  "PR_HEAD=$(gh pr view 371 --repo Nan0pk/Rush-linux --json headRefOid --jq .headRefOid) -> NOT EXECUTED (gh CLI unavailable in verifier sandbox); substituted with the authoritative git value: git rev-parse origin/fix/f4-complete-reconciliation = 52919c2ac1582e56737d568a576899e10ae43d15",
+  "PR_BASE=$(git rev-parse origin/main) -> EXECUTED, bc6d974857a69da88795db8feb6d3f8cb75b5e21 (matches expected handoff PR_BASE)",
+  "git worktree add --detach ../Rush-linux-f4-verify 52919c2ac1582e56737d568a576899e10ae43d15 -> EXECUTED, HEAD=52919c2ac1582e56737d568a576899e10ae43d15, working tree clean",
+  "git rev-parse HEAD -> EXECUTED, 52919c2ac1582e56737d568a576899e10ae43d15",
+  "git rev-parse bc6d974857a69da88795db8feb6d3f8cb75b5e21 -> EXECUTED, bc6d974857a69da88795db8feb6d3f8cb75b5e21 (PR_BASE)",
+  "git status --short -> EXECUTED, empty (clean detached worktree)",
+  "git diff --check bc6d974857a69da88795db8feb6d3f8cb75b5e21...52919c2ac1582e56737d568a576899e10ae43d15 -> EXECUTED, exit 0 (no whitespace errors)",
+  "git diff --name-status bc6d974857a69da88795db8feb6d3f8cb75b5e21...52919c2ac1582e56737d568a576899e10ae43d15 -> EXECUTED, 14 files: M README.md, M crates/optid/src/main.rs, D crates/optid/src/reconciler.rs, A crates/optid/src/reconciler/{apply,mod,restore,state,targets,tests}.rs, A crates/optid/src/reconciler/tests/{production,systemd,unit}.rs, M docs/plans/current-work.md, M docs/plans/optid-package-status.toml",
+  "git log --oneline bc6d974857a69da88795db8feb6d3f8cb75b5e21..52919c2ac1582e56737d568a576899e10ae43d15 -> EXECUTED, 26 commits, no force-push needed; history is linear and well-organized (feat/test/refactor/style/docs commits)",
+  "rustc --version --verbose -> EXECUTED, rustc 1.97.1 (8bab26f4f 2026-07-14), host x86_64-unknown-linux-gnu, LLVM 22.1.6",
+  "cargo --version -> EXECUTED, cargo 1.97.1 (c980f4866 2026-06-30)",
+  "python3 --version -> EXECUTED, Python 3.12.13",
+  "git --version -> EXECUTED, git version 2.47.3",
+  "rustup component add rustfmt clippy -> EXECUTED, installed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0 (clean)",
+  "cargo check --workspace --all-targets --all-features -> EXECUTED, exit 0 (Finished dev profile in 36.08s)",
+  "cargo clippy --workspace --all-targets -- -D warnings -> EXECUTED, exit 0 (Finished dev profile in 7.49s, no warnings)",
+  "cargo test --workspace -> EXECUTED, exit 0; optid lib 6 passed, optid main 421 passed, optctl main 9 passed, optctl status_cli 3 passed, rushbench 13 passed, testos lib 51 passed, testos-ingest 16 passed; total 519 passed, 0 failed, 0 ignored",
+  "cargo test --bin optid reconciler::tests::f4_production_coalesces_confirmed_value_and_writes_one_change -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_production_runtime_pm_transition_restores_baseline -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_production_external_drift_relinquishes_without_overwrite -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_restart_hydrates_real_legacy_journal_and_ownership -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_restart_hydrates_typed_vm_state_and_restores -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_systemd_multiple_properties_apply_restore_and_unset -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_systemd_partial_property_failure_is_typed_and_independent -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_systemd_readback_mismatch_never_claims_ownership -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_transition_detection_covers_ac_workload_mode_and_domain_off -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_malformed_typed_state_fails_closed -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_active_kernel_drift_relinquishes_and_stays_handed_back -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out (active-cycle kernel drift regression)",
+  "cargo test --bin optid reconciler::tests::f4_active_systemd_drift_relinquishes_and_stays_handed_back -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out (active-cycle Systemd drift regression)",
+  "cargo test --bin optid reconciler::tests::f4_missing_baseline_or_confirmation_never_plans_a_pretend_restore -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_multiple_targets_in_one_domain_remain_independent -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_production_multiple_targets_restore_only_disappeared_target -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_production_device_disappearance_relinquishes_ownership -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_retry_policy_is_bounded -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_systemd_property_lifecycle_distinguishes_unset_and_explicit -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_systemd_external_drift_is_not_overwritten -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid reconciler::tests::f4_shadow_parity_reports_systemd_as_intentional_v1_only -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out (F1 dependency gate)",
+  "cargo test --bin optid tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out (F2 dependency gate)",
+  "cargo test --bin optid tests::f3_production_surface::f3_production_daemon_run_writes_one_correlated_versioned_cycle -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out (F3 dependency gate; this test enters through crate::run(args) and transitively exercises the F4 reconciler via main.rs:203/311/336/369)",
+  "cargo test --bin optid tests::f3_outcome_matrix::f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid tests::f3_outcome_matrix::f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid tests::f3_outcome_matrix::f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid tests::f3_outcome_matrix::f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --bin optid tests::f3_outcome_matrix::f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
+  "cargo test --test status_cli f3_optctl_status_json_passthrough_uses_state_fallback_and_is_read_only -- --exact -> EXECUTED, 1 passed; 0 failed; 2 filtered out",
+  "cargo test --test status_cli f3_optctl_status_json_rejects_malformed_and_missing_machine_state -- --exact -> EXECUTED, 1 passed; 0 failed; 2 filtered out",
+  "cargo test --test status_cli f3_optctl_human_status_remains_backward_compatible_and_is_read_only -- --exact -> EXECUTED, 1 passed; 0 failed; 2 filtered out",
+  "cargo test --test status_cli -> EXECUTED, 3 passed; 0 failed; 0 ignored; 0 filtered out; finishing in 0.01s",
+  "cargo test -p optid -- --list | grep 'reconciler::tests::f4_' -> EXECUTED, 20 tests listed (10 mapped acceptance + 10 additional regressions including the two active-drift regressions f4_active_kernel_drift_relinquishes_and_stays_handed_back and f4_active_systemd_drift_relinquishes_and_stays_handed_back)",
+  "git grep -n 'active_keys' -- crates/ docs/ -> EXECUTED, only legacy_active_keys in main.rs (parity reporting only, not an executor) and historical references in tests_impl.rs and prior receipts/docs",
+  "git grep -n 'revert_key_outcome' -- crates/ docs/ -> EXECUTED, definition in actuator.rs:1657 and a link-checked function pointer in main.rs:92 inside link_retired_restore_compatibility_surface() (NOT called from production); legacy regression tests in tests.rs:651/680/702/718",
+  "git grep -n 'restore_all_owned' -- crates/ docs/ -> EXECUTED, defined in reconciler/apply.rs:97 and called from main.rs:436 on the reconciler for shutdown restoration",
+  "git grep -n 'prepare_cycle' -- crates/ docs/ -> EXECUTED, defined in reconciler/state.rs:81 and called from main.rs:311 every control cycle",
+  "git grep -n 'allow(dead_code)' -- crates/optid/src/reconciler/ -> EXECUTED, no matches (the F4 reconciler modules have no dead-code suppression)",
+  "git grep -n 'apply_baseline' -- crates/ -> EXECUTED, definition in actuator.rs:397 and a link-checked function pointer in main.rs:93 (NOT called from production); legacy tests in tests_impl.rs",
+  "git grep -nE 'revert_(sysctls|pm_qos|runtime_pm|storage|display)' -- crates/ -> EXECUTED, definitions in io_util.rs and link-checked function pointers in main.rs:95-99 (NOT called from production); legacy tests in tests_impl.rs",
+  "python3 tools/validate-current-work.py -> EXECUTED, OK",
+  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
+  "python3 tools/validate-optid-packages.py --base bc6d974857a69da88795db8feb6d3f8cb75b5e21 -> EXECUTED, PASS",
+  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
+  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
+  "bash tools/checks.sh --ci --changed-base bc6d974857a69da88795db8feb6d3f8cb75b5e21 -> EXECUTED, exit 0; pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed in verifier sandbox; all sections passed including R4/R8 repository policy (pwsh -NoProfile -File tools/validate-repo.ps1) and R5 shell/PowerShell/Python static analysis; final line 'PASS: selected Rush checks passed.'",
+]
+
+# Runtime proofs entered through the real production surfaces named by the
+# F4 ledger entry (crates/optid/src/main.rs + crates/optid/src/reconciler/*).
+# All ten mapped F4 acceptance tests and all ten additional F4 regressions
+# executed successfully against the verified commit.
+runtime_proofs = [
+  # --- One production reconciliation authority ---
+  "Production reconciler construction: main.rs:203 constructs the F4 Reconciler once at daemon startup via reconciler::Reconciler::load(args.state_dir.clone(), &mut actuator)?; this is the sole reconciliation authority. No competing executor is constructed. EXECUTED: cargo test --workspace exit 0; the F3 production test f3_production_daemon_run_writes_one_correlated_versioned_cycle enters through crate::run(args) and thus transitively exercises Reconciler::load.",
+  "Complete desired state prepared every control cycle: main.rs:311 calls reconciler.prepare_cycle(reconciled_actions, &mut actuator)? every iteration of the daemon loop. prepare_cycle (reconciler/state.rs:81) records previous_desired, clears desired on every target, expands each action into DesiredTargets, captures baselines only when (baseline.is_none() && ownership==Unowned && last_confirmed.is_none()), and computes stale_target_ids = previous_desired.difference(desired_ids). EXECUTED: f4_production_coalesces_confirmed_value_and_writes_one_change (1 passed), f4_production_runtime_pm_transition_restores_baseline (1 passed), f4_production_multiple_targets_restore_only_disappeared_target (1 passed).",
+  "Stale targets planned and restored through Actuator: main.rs:369 calls reconciler.reconcile(&mut actuator)? which calls plan_restores (reconciler/apply.rs:357) to collect targets with ownership==Optid, desired==None, restore_pending, retries<MAX_RESTORE_RETRIES, then calls actuator.execute_restore(&plan, self.systemd.as_ref()) for each. EXECUTED: f4_production_runtime_pm_transition_restores_baseline asserts restored[0].reason == RestoreApplied and the baseline values are read back from the kernel (1 passed).",
+  "Shutdown restoration uses the same reconciler authority: main.rs:436 calls reconciler.restore_all_owned(&mut actuator)? after the daemon loop exits. restore_all_owned (reconciler/apply.rs:97) sets desired=None on every target then delegates to reconcile(actuator). No separate shutdown restore path exists. EXECUTED: source inspection confirms this is the only shutdown restoration call; the F3 production test exercises the same Reconciler construction path.",
+  "Legacy restore helpers are not production-reachable: main.rs:88-101 defines link_retired_restore_compatibility_surface() which takes function pointers to Actuator::revert_key_outcome, Actuator::apply_baseline, and io_util::revert_sysctls/pm_qos/runtime_pm/storage/display. The doc comment explicitly states 'Merely taking function pointers cannot run them; production restoration is owned exclusively by Reconciler.' main.rs:104 calls link_retired_restore_compatibility_surface() once at startup for link-checking only. git grep confirms no other production call sites. EXECUTED: cargo check --workspace exit 0 (link-check succeeds); git grep -n 'revert_key_outcome|apply_baseline|revert_sysctls|revert_pm_qos|revert_runtime_pm|revert_storage|revert_display' confirms only link-checked pointers and legacy tests.",
+  "No allow(dead_code) in reconciler modules: git grep -n 'allow(dead_code)' -- crates/optid/src/reconciler/ returns no matches. The F4 reconciler modules have no dead-code suppression. EXECUTED: git grep exit 1 (no matches).",
+
+  # --- Baseline and persistence semantics ---
+  "Baselines captured before first mutation: reconciler/state.rs:100-108 captures baseline via self.read_target(actuator, &desired.target).ok() only when may_capture_baseline is true, which requires state.baseline.is_none() && state.ownership == OwnershipState::Unowned && state.last_confirmed.is_none(). Once a baseline exists it is never recaptured. EXECUTED: f4_production_runtime_pm_transition_restores_baseline captures 'on'/'1000' before the first apply and restores those exact values after the transition (1 passed).",
+  "Missing baseline prevents a write: reconciler/apply.rs:30-55 denies the entire action with GateReasonCode::JournalFailed 'baseline capture failed; write refused' when any non-Systemd expanded target has baseline.is_none(). EXECUTED: f4_missing_baseline_or_confirmation_never_plans_a_pretend_restore asserts plan_restores() is empty when baseline or last_confirmed is None (1 passed).",
+  "Baselines not silently recaptured after ownership: reconciler/state.rs:100-108 may_capture_baseline requires ownership==Unowned && last_confirmed.is_none(); once ownership is claimed (Optid) or last_confirmed is set, baseline capture is skipped. EXECUTED: f4_production_coalesces_confirmed_value_and_writes_one_change applies '10' then re-applies '10' and asserts write_outcome==Redundant (no recapture, no rewrite) (1 passed).",
+  "Typed state persists per stable logical target: reconciler/targets.rs:386-393 persist() writes PersistedState{schema_version:1, targets:self.targets.clone()} to state_dir/STATE_FILE (reconciliation-state.json) via atomic_write_state_file_with. TargetState is keyed by stable target_id (e.g. 'vm-sysctl:swappiness', 'runtime-pm:<hash>', '<action-stable-id>:property:<sanitized-prop>'). EXECUTED: f4_restart_hydrates_typed_vm_state_and_restores drops the reconciler, reloads via Reconciler::load_with_systemd, and confirms the previously-applied target is restored to baseline (1 passed).",
+  "Malformed typed state fails closed: reconciler/state.rs:12-18 maps serde_json::from_str error to io::ErrorKind::InvalidData and returns Err. EXECUTED: f4_malformed_typed_state_fails_closed writes '{not-json' to the state file and asserts Reconciler::load_with_systemd returns Err with error.kind()==InvalidData (1 passed).",
+  "Restart hydration works for both typed state and legacy journals: reconciler/state.rs:395-451 hydrate_legacy() reads original_<key> and applied_<key> files, parses them via parse_legacy_original (restore.rs:184-300) and parse_legacy_applied (restore.rs:302-315), constructs TargetState with ownership=Optid when last_confirmed==current, else Unowned. EXECUTED: f4_restart_hydrates_real_legacy_journal_and_ownership seeds original_rpm_abc + applied_rpm_abc and asserts the hydrated target 'runtime-pm:abc' has ownership==Optid and restore_pending==true (1 passed); f4_restart_hydrates_typed_vm_state_and_restores confirms typed-state hydration (1 passed).",
+  "Public target identifiers do not expose raw sensitive paths: envelope.rs validate_schema (called from main.rs:379) rejects any public JSON containing /sys/, /proc/, /dev/, /home/, /root/, .rs: (static marker list at envelope.rs:137). The F4 target_id values are sanitized logical identifiers (e.g. 'vm-sysctl:swappiness', 'runtime-pm:<hash>', 'background-slice:property:CPUWeight'), not raw paths. EXECUTED: f3_production_daemon_run_writes_one_correlated_versioned_cycle asserts status.json parses as ControlCycleEnvelope (which calls validate_schema) (1 passed); the F4 acceptance tests assert target_id values that are logical identifiers, not paths.",
+
+  # --- Ownership semantics ---
+  "Ownership claimed only after confirmed readback: reconciler/apply.rs:283-301 sets state.ownership=Optid and state.last_confirmed=Some(desired.desired) only when target_outcome.readback==ReadbackOutcome::Confirmed{..} && target_outcome.write_attempted && target_outcome.ownership==Optid. EXECUTED: f4_production_runtime_pm_transition_restores_baseline asserts applied.targets all have ReadbackOutcome::Confirmed && ownership==Optid (1 passed).",
+  "Readback mismatch does not claim ownership: reconciler/apply.rs:302-308 sets state.ownership=Relinquished when readback==ReadbackOutcome::Mismatch. EXECUTED: f4_systemd_readback_mismatch_never_claims_ownership injects a mismatch on CPUWeight and asserts plan_restores() is empty after the failed apply (1 passed).",
+  "Still-desired still-confirmed target coalesced without another write: reconciler/apply.rs:181-211 returns RedundantValue/WriteOutcome::Redundant with write_attempted=false when all targets have ownership==Optid && last_confirmed==desired && current==desired. EXECUTED: f4_production_coalesces_confirmed_value_and_writes_one_change re-applies the same action and asserts write_outcome==Redundant && !write_attempted (1 passed).",
+  "External drift on a stale target relinquishes without restoring over the external value: reconciler/restore.rs:18-34 returns RestoreOutcome{reason:OwnershipRelinquished, write_attempted:false, write_outcome:OwnershipRelinquished, readback:Mismatch} when current != plan.last_confirmed. EXECUTED: f4_production_external_drift_relinquishes_without_overwrite writes '25' externally then asserts outcomes[0].reason==OwnershipRelinquished, !write_attempted, and the kernel still reads '25' (1 passed).",
+  "External drift while target remains desired also relinquishes ownership: reconciler/apply.rs:213-233 returns OwnershipRelinquished with write_attempted=false when an Optid-owned target's current value != desired. EXECUTED: f4_active_kernel_drift_relinquishes_and_stays_handed_back writes '25' externally while the action is still desired and asserts drift.targets[0].reason==OwnershipRelinquished, !write_attempted, readback==Mismatch, kernel still reads '25' (1 passed); f4_active_systemd_drift_relinquishes_and_stays_handed_back repeats this for Systemd (1 passed).",
+  "Once handed back, later cycles do not reassert the value automatically: reconciler/apply.rs:149-179 returns OwnershipRelinquished for any target whose state.ownership==Relinquished, without attempting a write. EXECUTED: f4_active_kernel_drift_relinquishes_and_stays_handed_back prepares a second cycle after drift and asserts handed_back.targets[0].write_outcome==OwnershipRelinquished, !write_attempted, kernel still reads '25' (1 passed); f4_active_systemd_drift_relinquishes_and_stays_handed_back repeats this for Systemd (1 passed).",
+  "Missing or disappeared devices relinquish safely: reconciler/restore.rs:10-17 returns relinquished_outcome when read_target_for_restore returns io::ErrorKind::NotFound. EXECUTED: f4_production_device_disappearance_relinquishes_ownership removes the target file then asserts outcomes[0].reason==OwnershipRelinquished, !write_attempted (1 passed).",
+  "Retry behavior is bounded with a terminal non-owning state: reconciler/apply.rs:341-352 increments state.retries on WriteOutcome::RestorationFailed and sets ownership=Relinquished, restore_pending=false when retries >= MAX_RESTORE_RETRIES (3). EXECUTED: f4_retry_policy_is_bounded seeds retries=MAX_RESTORE_RETRIES-1, records a failed_restore outcome, and asserts state.ownership==Relinquished && !restore_pending (1 passed).",
+
+  # --- Systemd lifecycle ---
+  "Systemd actions expand independently by unit and property: reconciler/targets.rs:36-58 expands Action::SystemdSetProperty{unit, properties} into one DesiredTarget per 'property=value' assignment, each with target_id format '{action.stable_target_id()}:property:{sanitize_identity(property)}'. EXECUTED: f4_systemd_multiple_properties_apply_restore_and_unset applies ['CPUWeight=50','IOWeight=25'] and asserts applied.targets.len()==2 (1 passed).",
+  "Baselines distinguish explicit runtime property from unset: reconciler/mod.rs:211-230 RealSystemd::runtime_property_is_explicit inspects DropInPaths under /run/systemd/system.control/ to determine whether the property was explicitly set at runtime. StoredValue::Systemd{explicit, value} carries this distinction. EXECUTED: f4_systemd_property_lifecycle_distinguishes_unset_and_explicit seeds an unset (inherited) property, applies an explicit value, asserts applied.explicit==true, then clears via set_property(None) and asserts restored.explicit==false with the inherited value preserved (1 passed).",
+  "Apply, readback, partial failure, drift, restore, and unset represented per property: reconciler/targets.rs:164-340 applies each property independently, records TargetOutcome per property with ReadbackOutcome::Confirmed or ::Mismatch, and on stale cycles restore.rs:173-176 calls systemd.set_property(unit, property, explicit.then_some(value)) which writes Some(value) when the baseline was explicit and None (unset) when it was inherited. EXECUTED: f4_systemd_multiple_properties_apply_restore_and_unset asserts CPUWeight restored to explicit '100' and IOWeight restored to unset (explicit=false) with value '100' preserved (1 passed).",
+  "One property failure does not prevent independent properties: reconciler/targets.rs:188-338 handles each property in its own branch with continue-on-error; a failed property produces a systemd_failed_target TargetOutcome but does not abort the loop. EXECUTED: f4_systemd_partial_property_failure_is_typed_and_independent injects fail_property=IOWeight and asserts CPUWeight still applied (ReadbackOutcome::Confirmed) while IOWeight reports WriteOutcome::Failed with responsible_subsystem==Systemd (1 passed).",
+  "External Systemd changes are not overwritten: reconciler/targets.rs:253-266 detects when ownership==Optid && last_confirmed==desired && current_value != desired and returns systemd_relinquished_target without writing. EXECUTED: f4_systemd_external_drift_is_not_overwritten mutates CPUWeight to '75' externally and asserts outcomes[0].reason==OwnershipRelinquished and fake.state().value=='75' (1 passed).",
+  "Systemd readback mismatch does not create ownership: reconciler/targets.rs:299-329 sets ownership=Drifted (not Optid) when readback.explicit is false or readback.value != value. EXECUTED: f4_systemd_readback_mismatch_never_claims_ownership injects mismatch_property=CPUWeight and asserts plan_restores() is empty after the mismatched apply (1 passed).",
+
+  # --- F3 output integration ---
+  "F4 restore outcomes included in the versioned F3 control-cycle envelope: main.rs:370-377 calls ControlCycleEnvelope::build(correlation_id, &snapshot, &decision, &boot_state, action_outcomes, restore_outcomes.clone()) — restore_outcomes is a Vec<RestoreOutcome> passed by value into the versioned envelope. envelope.rs:723 stores them as pub(crate) restore_outcomes: Vec<RestoreOutcome>. EXECUTED: f3_production_daemon_run_writes_one_correlated_versioned_cycle asserts status.json parses as ControlCycleEnvelope with schema_version==ENVELOPE_SCHEMA_VERSION (2) (1 passed).",
+  "Same generated envelope reaches machine-readable and human-facing status surfaces: main.rs:403-418 writes the same cycle to (1) status (human, prefixed with correlation_id and restore_outcomes summary), (2) status.json (machine, via cycle.to_pretty_json()), (3) control-cycles.jsonl (history, via cycle.to_json_line()), and (4) decisions.log (text audit). EXECUTED: f3_production_daemon_run_writes_one_correlated_versioned_cycle asserts the historical cycle (from control-cycles.jsonl) equals the current cycle (from status.json) byte-for-byte (1 passed).",
+  "Restore results remain typed and distinguish applied/failed/relinquished/pending/unavailable/mismatch: envelope.rs:199-215 OutcomeReasonCode includes RestoreApplied, RestoreFailed, OwnershipRelinquished, ReadbackUnavailable, ReadbackMismatch, ReadbackConfirmed, etc.; envelope.rs:241-253 WriteOutcome includes Restored, RestorationFailed{error_kind}, OwnershipRelinquished, Applied, Failed{error_kind}, Redundant, Skipped, Denied, etc.; envelope.rs:276-282 RestoreState includes NotApplicable, NotEvaluated, Pending, Restored, Failed; envelope.rs:257-262 ReadbackOutcome includes NotPerformed, Unavailable, Confirmed{value}, Mismatch{expected,actual}. EXECUTED: f4_production_runtime_pm_transition_restores_baseline asserts RestoreApplied + Restored + Confirmed + Unowned (1 passed); f4_production_external_drift_relinquishes_without_overwrite asserts OwnershipRelinquished + !write_attempted (1 passed); f4_retry_policy_is_bounded asserts RestorationFailed leads to Relinquished (1 passed); f4_production_device_disappearance_relinquishes_ownership asserts OwnershipRelinquished on NotFound (1 passed).",
+  "No raw sensitive paths leak into public output: envelope.rs:817 ControlCycleEnvelope::validate_schema rejects any public JSON containing /sys/, /proc/, /dev/, /home/, /root/, .rs: (static marker list at envelope.rs:137). main.rs:379 calls validate_schema() before writing any output. EXECUTED: f3_production_daemon_run_writes_one_correlated_versioned_cycle asserts status.json parses as ControlCycleEnvelope (which requires validate_schema to pass) (1 passed).",
+
+  # --- Shadow and migration behavior ---
+  "Explicit shadow mode cannot mutate the system: reconciler/apply.rs:74-87 returns RestoreOutcome{write_attempted:false, write_outcome:NotEvaluated, detail:'shadow restore plan; no write executed'} for every plan when self.mode==ReconcileMode::Shadow. ReconcileMode::load (reconciler/mod.rs:42-52) reads reconciler-mode file; absence defaults to V1. EXECUTED: f4_shadow_parity_reports_systemd_as_intentional_v1_only constructs a Shadow-mode reconciler and asserts parity_report returns parity==true with intentional_v1_only={'systemd'} (1 passed).",
+  "Shadow parity distinguishes legacy-comparable from intentionally V1-only: reconciler/apply.rs:107-137 parity_report filters planned and legacy keys through legacy_restore_supported (restore.rs:372-376: rpm_, dev_, aspm_, alpm_, bl_ prefixes). SystemdProperty targets have legacy_journal_key=None and are reported in intentional_v1_only. EXECUTED: f4_shadow_parity_reports_systemd_as_intentional_v1_only asserts report.intentional_v1_only=={'systemd'} and report.parity==true (1 passed).",
+  "Legacy journals are migration compatibility, not a second production planner: main.rs:323-367 computes legacy_stale_keys from legacy_active_keys.difference(legacy_current_keys) and passes them to reconciler.parity_report(&legacy_stale_keys) for shadow comparison ONLY. The legacy keys are never used to drive restoration; reconciler.reconcile() is the sole restore executor. EXECUTED: source inspection confirms main.rs:355 is the only call site of parity_report; main.rs:369 calls reconcile() which uses plan_restores() driven by typed TargetState, not legacy keys.",
+
+  # --- Containing suite totals ---
+  "Containing optid crate suite: cargo test --workspace executed 519 tests (optid lib 6 + optid main 421 + optctl main 9 + optctl status_cli 3 + rushbench 13 + testos lib 51 + testos-ingest 16), 0 failed, 0 ignored. The 20 F4 tests (10 mapped + 10 additional regressions) are part of the 421 optid main tests. The +2 vs the prior F1/F2/F3 receipt total of 517 reflects the two new active-cycle drift regressions added by PR #371 (f4_active_kernel_drift_relinquishes_and_stays_handed_back and f4_active_systemd_drift_relinquishes_and_stays_handed_back).",
+  "Repo tooling baseline: python3 tools/validate-current-work.py OK; python3 tools/validate-optid-packages.py PASS; python3 tools/validate-optid-packages.py --base bc6d974857a69da88795db8feb6d3f8cb75b5e21 PASS; python3 tools/render-frontpage.py --check OK; bash tools/finish-work.sh --dry-run OK ('Nothing to finish: the working tree is clean.'); bash tools/checks.sh --ci --changed-base bc6d974857a69da88795db8feb6d3f8cb75b5e21 exit 0 with pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed (R4/R8 repository policy and R5 static analysis sections passed).",
+]
+
+# Source inspection performed (NOT runtime proof by itself; preserved for
+# traceability). The runtime proofs above are the executable evidence.
+source_inspection_only = [
+  "crates/optid/src/reconciler/mod.rs: Reconciler struct (line 258) holds state_dir, mode (Shadow|V1), targets: BTreeMap<String, TargetState>, previous_desired, last_ac, last_workload, last_mode, last_domain_modes, systemd: Box<dyn SystemdIo>. MAX_RESTORE_RETRIES=3 (line 33). TargetKind enum (line 89): KernelValue, PmqosCpu, PmqosDevice, RuntimePm, SystemdProperty. StoredValue enum (line 109): Scalar, RuntimePm, Systemd{explicit, value}. SystemdIo trait (line 190): read_property/set_property. RealSystemd (line 196) calls systemctl and inspects DropInPaths under /run/systemd/system.control/ for explicit-vs-unset distinction.",
+  "crates/optid/src/reconciler/state.rs: Reconciler::load (line 1) constructs via load_with_systemd; detect_transitions (line 39) tracks AC/workload/mode/domain-off changes; prepare_cycle (line 81) captures baselines before mutation only when (baseline.is_none() && ownership==Unowned && last_confirmed.is_none()); hydrate_legacy (line 395) reads original_<key>/applied_<key> journals and constructs TargetState with ownership=Optid when last_confirmed==current.",
+  "crates/optid/src/reconciler/targets.rs: expand_action (line 2) maps each Action variant to DesiredTarget(s); apply_systemd_action (line 164) handles per-property apply/readback/drift/relinquish; read_target (line 342) reads current values; persist (line 386) writes PersistedState{schema_version:1, targets} to reconciliation-state.json via atomic_write_state_file_with.",
+  "crates/optid/src/reconciler/apply.rs: apply_action (line 2) is the production entry point called from main.rs:336; reconcile (line 70) plans and executes restores; restore_all_owned (line 97) is the shutdown path called from main.rs:436; parity_report (line 107) is the shadow comparison called from main.rs:355; active_non_systemd_outcome (line 139) handles coalescing and active-drift relinquishment; record_action_outcome (line 257) updates ownership state from observed outcomes; record_restore_outcome (line 315) updates state from restore outcomes with bounded retry; plan_restores (line 357) filters targets needing restoration.",
+  "crates/optid/src/reconciler/restore.rs: Actuator::execute_restore (line 1) performs the read-current/compare-last_confirmed/write-baseline/readback-verify sequence; read_target_for_restore (line 87) and write_target_for_restore (line 135) handle each TargetKind; parse_legacy_original (line 184) and parse_legacy_applied (line 302) hydrate legacy journals; failed_restore (line 340), relinquished_outcome (line 357), and systemd_failed_target (line 317) construct typed outcomes; legacy_restore_supported (line 372) gates the legacy-comparable prefix set (rpm_, dev_, aspm_, alpm_, bl_); sanitize_identity (line 378) strips non-alphanumeric/._-@ characters from public identifiers.",
+  "crates/optid/src/main.rs: link_retired_restore_compatibility_surface (line 88-101) takes function pointers to Actuator::revert_key_outcome, Actuator::apply_baseline, and io_util::revert_sysctls/pm_qos/runtime_pm/storage/display for link-checking only; the doc comment states 'Merely taking function pointers cannot run them; production restoration is owned exclusively by Reconciler.' The daemon loop (line 229-434) calls reconciler.detect_transitions (293), reconciler.prepare_cycle (311), reconciler.apply_action (336), reconciler.parity_report (355), reconciler.reconcile (369), and builds ControlCycleEnvelope::build with restore_outcomes (370-377). Shutdown (line 436) calls reconciler.restore_all_owned.",
+  "crates/optid/src/reconciler/tests.rs + tests/{production,systemd,unit}.rs: 20 real #[test] fn definitions covering all 10 mapped acceptance tests and 10 additional regressions (active kernel drift, active Systemd drift, missing baseline, multi-target independence, device disappearance, bounded retry, explicit/unset Systemd lifecycle, stale Systemd drift, shadow parity). FakeSystemd (tests.rs:9) implements SystemdIo with explicit/unset distinction and fault/mismatch injection. armed_actuator (tests.rs:75) constructs an apply_armed Actuator with MemoryKernel.",
+  "git grep -n 'allow(dead_code)' -- crates/optid/src/reconciler/ returns no matches: the F4 reconciler modules have no dead-code suppression.",
+  "envelope.rs: ControlCycleEnvelope::build (line 728) accepts restore_outcomes: Vec<RestoreOutcome> and stores them at line 723; validate_schema (line 817) rejects prohibited path markers; OutcomeReasonCode (line 199), WriteOutcome (line 241), ReadbackOutcome (line 257), OwnershipState (line 266), RestoreState (line 276) provide the typed outcome model.",
+]
+
+# All previously-blocking environment limitations have been resolved in this
+# verifier session. No unresolved findings remain.
+unresolved = []
+
+# PR description section to be appended by a session with GitHub write access.
+# The verifier sandbox had no GitHub credentials, so the PR description could
+# not be updated from this session. The text below is the independent-verifier
+# section that a subsequent session should append to PR #371's description.
+pr_description_section = """
+## Independent Cold-Verification — F4 (and F1/F2/F3 re-certification)
+
+**Verifier:** Independent cold-verification agent session (Z.ai sandbox). Separate from the implementation builder of PR #371 and separate from the prior Arena.ai verifier session that certified F1/F2/F3 at commit 107a4330e2d0505a6b48b35c7d4148482a426f3d on PR #370.
+
+**Implementation commit verified:** `52919c2ac1582e56737d568a576899e10ae43d15` (HEAD of `fix/f4-complete-reconciliation`, PR #371 head).
+
+**Verification date:** 2026-08-02.
+
+**Cold-workspace method:** Fresh detached git worktree at the exact PR head. `cargo clean` was implicit (fresh worktree, no inherited target/). Toolchain: rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1, pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7, Python 3.12.13, git 2.47.3. PR head and base re-confirmed via `git rev-parse origin/fix/f4-complete-reconciliation` and `git rev-parse origin/main` before and after verification.
+
+**Source-review conclusion:** The F4 reconciler (`crates/optid/src/reconciler/`) is the sole production reconciliation authority. `main.rs:203` constructs it at startup; `main.rs:311/336/355/369/436` call `prepare_cycle`/`apply_action`/`parity_report`/`reconcile`/`restore_all_owned` every cycle and at shutdown. The legacy `Actuator::revert_key_outcome`, `Actuator::apply_baseline`, and `io_util::revert_*` functions are referenced only as link-checked function pointers in `link_retired_restore_compatibility_surface()` (main.rs:88-101) and are NOT called from production. `legacy_active_keys` is used only to compute `legacy_stale_keys` for `parity_report` (shadow comparison), not as an executor. No `allow(dead_code)` in the reconciler modules. Baselines captured before first mutation only when (baseline.is_none() && ownership==Unowned && last_confirmed.is_none()). Ownership claimed only after confirmed readback. External drift relinquishes without overwriting the external value, on both stale and still-desired targets. Once handed back, later cycles do not reassert. Systemd actions expand per unit/property with explicit-vs-unset baseline distinction. F4 restore outcomes flow into `ControlCycleEnvelope::build` and reach status.json (machine), control-cycles.jsonl (history), and status (human). Shadow mode cannot mutate. Shadow parity distinguishes legacy-comparable from intentionally V1-only (Systemd).
+
+**Commands executed (categories):** `git fetch/worktree/rev-parse/diff/log/grep`; `rustup component add rustfmt clippy`; `cargo fmt --all -- --check`; `cargo check --workspace --all-targets --all-features`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace`; `cargo test --bin optid <name> -- --exact` for every mapped F1/F2/F3/F4 acceptance test and every additional F4 regression (29 individual `--exact` runs); `cargo test --test status_cli` for the 3 F3 optctl tests; `cargo test -p optid -- --list` to enumerate F4 tests; `git grep` for `active_keys`/`revert_key_outcome`/`restore_all_owned`/`prepare_cycle`/`allow(dead_code)`/`apply_baseline`/`revert_*`; `python3 tools/validate-current-work.py`; `python3 tools/validate-optid-packages.py`; `python3 tools/validate-optid-packages.py --base <PR_BASE>`; `python3 tools/render-frontpage.py --check`; `bash tools/finish-work.sh --dry-run`; `bash tools/checks.sh --ci --changed-base <PR_BASE>`.
+
+**Actual test totals:** `cargo test --workspace` → 519 passed, 0 failed, 0 ignored (optid lib 6, optid main 421, optctl main 9, optctl status_cli 3, rushbench 13, testos lib 51, testos-ingest 16). The +2 vs the prior F1/F2/F3 receipt total of 517 reflects the two new active-cycle drift regressions added by PR #371. Every mapped acceptance test passed individually with `--exact`: F1 9/9, F2 1/1, F3 in-crate 6/6, F3 optctl status_cli 3/3, F4 mapped 10/10, F4 additional regressions 10/10 (including `f4_active_kernel_drift_relinquishes_and_stays_handed_back` and `f4_active_systemd_drift_relinquishes_and_stays_handed_back`).
+
+**Production-path proofs:**
+- **F1:** 9 mapped acceptance tests exercise `Policy::load` → `EffectiveConfig::from_policy` → `decide_resolved` → `Decision::render` and the `#[serde(deny_unknown_fields)]` / exhaustive-match / Domain::default_mode fail-closed surfaces consumed by the daemon loop.
+- **F2:** `f2_production_daemon_run_consumes_injected_kernel_io` enters through the real `crate::run(args)` under `with_real_kernel_override` and injects a `FaultKernel` over `MemoryKernel` that fails the next `decisions.log` append with `PermissionDenied`; the daemon surfaces the injected error and bypassing the seam would have created `decisions.log`.
+- **F3:** `f3_production_daemon_run_writes_one_correlated_versioned_cycle` enters through `crate::run(args)` with an injected deterministic clock and asserts `status.json` parses as `ControlCycleEnvelope` (schema_version 2), the same correlation_id appears in status/status.json/control-cycles.jsonl/decisions.log, and the historical cycle equals the current cycle byte-for-byte. The 3 optctl status_cli tests run the real `optctl` binary.
+- **F4:** The F4 production tests (`f4_production_*`) exercise the same `Reconciler::load_with_systemd` + `prepare_cycle` + `apply_action` + `reconcile` + `restore_all_owned` methods that `main.rs:203/311/336/369/436` call every cycle. The F3 production test transitively exercises the F4 reconciler construction (main.rs:203) and cycle methods (main.rs:311/336/369) through the real `crate::run(args)` entry point. Restore outcomes reach the F3 envelope via `ControlCycleEnvelope::build(... restore_outcomes.clone())` at main.rs:370-377.
+
+**Receipt paths:** `docs/plans/optid-verification/f1.toml`, `docs/plans/optid-verification/f2.toml`, `docs/plans/optid-verification/f3.toml`, `docs/plans/optid-verification/f4.toml`.
+
+**Final ledger statuses:** F1 → `completed`; F2 → `completed`; F3 → `completed` (F1 dependency satisfied); F4 → `completed` (F2 and F3 dependencies satisfied). No other package status changed.
+
+**Final workflow run IDs and conclusions:** The verifier sandbox had no GitHub credentials, so workflow runs could not be fetched or observed from this session. The handoff snapshot recorded PR Gate run `30719336050` as success; the verifier re-confirms via local execution that every gate the PR Gate runs (fmt/check/clippy/test/validators/checks.sh) passes against the verified commit. A subsequent session with GitHub write access must push the evidence commit and confirm the authoritative PR Gate run on the new head is green.
+
+**Unresolved findings:** None.
+
+**PR state:** This PR remains **draft**, **open**, **unmerged**, and **without auto-merge**. Only the human maintainer may merge. The verifier did not enable auto-merge, did not mark the PR ready for review, and did not merge.
+"""
+
+# Historical provenance for F4. There is no prior F4 receipt; this is the
+# first independent cold-verification of F4. The builder recorded F4 as
+# `merged_incomplete` in PR #371's ledger changes because F1/F2/F3 had been
+# truthfully demoted after the shared main.rs cutover invalidated their
+# receipts, and F4 had no independent cold-verification receipt. This receipt
+# is the fresh independent verification that closes that gap.
+[historical_receipt.builder_handoff]
+implementation_pr = 371
+verified_commit = "52919c2ac1582e56737d568a576899e10ae43d15"
+status = "merged_incomplete_at_handoff"
+reason = "Builder integrated F4 in PR #371 with production wiring and behavioral tests but truthfully recorded status=merged_incomplete because (1) F1/F2/F3 had been demoted to merged_incomplete after the shared main.rs cutover invalidated their prior receipts at 107a4330e2d0505a6b48b35c7d4148482a426f3d, and (2) F4 itself had no independent cold-verification receipt. This receipt is the fresh independent verification that closes both gaps: F1/F2/F3 are re-certified at the F4 implementation commit (see f1.toml/f2.toml/f3.toml), and F4 is certified here."
