@@ -233,10 +233,35 @@ invalid_recovery_marker_is_rejected = "invalid_recovery_marker_is_rejected"
 id = "S1D"
 lane = "safety"
 title = "Freeze per-lever rollback, stabilization, and semantic envelopes"
-status = "next"
+status = "candidate"
 depends = ["D0"]
-pr = ""
-completion_evidence = []
+pr = "382"
+runtime_entrypoints = [
+  "crates/optid/src/bin/optid-lever-contracts.rs",
+  "crates/optid/src/lib.rs",
+  "crates/optid/src/lever_contract.rs",
+]
+integration_tests = [
+  "crates/optid/src/lever_contract.rs",
+  "crates/optid/tests/lever_contract_cli.rs",
+]
+completion_evidence = [
+  "crates/optid/src/lever_contract.rs",
+  "crates/optid/src/bin/optid-lever-contracts.rs",
+  "crates/optid/tests/fixtures/s1d-lever-contracts-v1.toml",
+  "crates/optid/tests/lever_contract_cli.rs",
+  "docs/architecture/optid-d2-amendment.md",
+]
+[package.acceptance_tests]
+all_eleven_contracts_complete = "s1d_registry_contains_all_eleven_complete_lever_contracts"
+fixture_requires_all_fields = "s1d_fixture_requires_every_field_for_every_lever"
+rollback_and_stabilization_are_distinct = "s1d_each_lever_has_exact_rollback_and_distinct_stabilization"
+missing_contract_evidence_denies = "s1d_missing_identity_original_envelope_or_verification_denies_actuation"
+missing_stabilization_evidence_fails_closed = "s1d_missing_stabilization_evidence_fails_closed"
+envelope_tightening_is_monotonic = "s1d_tightening_an_envelope_never_authorizes_a_denied_value"
+current_defaults_and_unknown_values = "s1d_current_defaults_are_allowed_and_unknown_values_fail_closed"
+planned_levers_fail_closed = "s1d_planned_levers_remain_fail_closed_until_their_write_packages_exist"
+production_contract_checker = "s1d_contract_cli_checks_registry_through_production_surface"
 
 [[package]]
 id = "S2D"
