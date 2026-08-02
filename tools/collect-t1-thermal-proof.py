@@ -122,7 +122,7 @@ def collect_hwmon(sys_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, 
             label = sanitize_token(safe_read(hwmon / f"{channel}_label") or channel)
             record: dict[str, Any] = {
                 "source": "hwmon",
-                "stable_id": f"hwmon:{device}:{chip}:{label}",
+                "stable_id": f"hwmon:{device}:{chip}:{channel}:{label}",
                 "chip": chip,
                 "channel": channel,
                 "label": label,
@@ -141,7 +141,7 @@ def collect_hwmon(sys_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, 
             fans.append(
                 {
                     "source": "hwmon",
-                    "stable_id": f"hwmon:{device}:{chip}:{label}",
+                    "stable_id": f"hwmon:{device}:{chip}:{channel}:{label}",
                     "chip": chip,
                     "channel": channel,
                     "label": label,
@@ -164,6 +164,8 @@ def collect_thermal_zones(sys_root: Path) -> list[dict[str, Any]]:
 
     for zone in sorted(thermal_root.glob("thermal_zone*"), key=lambda item: item.name):
         zone_type = sanitize_token(safe_read(zone / "type") or "unknown")
+        zone_instance = sanitize_token(zone.name)
+        zone_temp = read_int(zone / "temp")
         trips: list[dict[str, Any]] = []
         for trip_type_path in sorted(zone.glob("trip_point_*_type"), key=lambda item: item.name):
             prefix = trip_type_path.name.removesuffix("_type")
@@ -176,11 +178,12 @@ def collect_thermal_zones(sys_root: Path) -> list[dict[str, Any]]:
         zones.append(
             {
                 "source": "thermal_zone",
-                "stable_id": f"thermal_zone:{zone_type}",
+                "stable_id": f"thermal_zone:{zone_type}:{zone_instance}",
                 "type": zone_type,
-                "readable": read_int(zone / "temp") is not None,
-                "plausible": plausible_temp_millic(read_int(zone / "temp")),
-                "temp_millic": read_int(zone / "temp"),
+                "instance": zone_instance,
+                "readable": zone_temp is not None,
+                "plausible": plausible_temp_millic(zone_temp),
+                "temp_millic": zone_temp,
                 "trips": trips,
             }
         )
@@ -353,6 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = args.repo_root.resolve()
+    sys_root = args.sys_root.resolve()
     output = args.output.resolve()
     if output.exists():
         print(f"ERROR: output path already exists: {output}", file=sys.stderr)
@@ -366,6 +370,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     output.mkdir(parents=True)
     unresolved: list[str] = []
+    live_sys_root = sys_root == Path("/")
+    if args.require_completion_ready and not live_sys_root:
+        unresolved.append("completion-ready collection requires the live / sysfs root")
+
     source_commit = git_output(repo_root, "rev-parse", "HEAD")
     dirty = bool(git_output(repo_root, "status", "--porcelain"))
     if not source_commit:
@@ -375,7 +383,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     observations: list[dict[str, Any]] = []
     for index in range(args.samples):
-        observations.append(collect_observation(args.sys_root, index + 1))
+        observations.append(collect_observation(sys_root, index + 1))
         if index + 1 < args.samples and args.interval_seconds:
             time.sleep(args.interval_seconds)
     observations_path = output / "thermal-observations.jsonl"
@@ -455,6 +463,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "checkout_dirty": dirty,
         "kernel_release": platform.release(),
         "sample_count": len(observations),
+        "live_sys_root": live_sys_root,
         "usable_temperature_observations": usable_temperatures,
         "production_status_captured": bool(thermal_status),
         "threshold_decision": threshold,
