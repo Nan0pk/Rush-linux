@@ -379,7 +379,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. The bounded verifier procedure is docs/plans/t1-thermal-cold-verification.md; adding that procedure and a monotonicity acceptance test does not constitute physical evidence or threshold approval. No package self-certifies completed."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
@@ -409,6 +409,7 @@ sensor_discovery_acpi_thermal_zone = "discover_acpi_thermal_zone"
 fan_discovery = "discover_fan_rpm"
 thermal_budget_unavailable_without_sensors = "thermal_budget_unavailable_without_sensors"
 thermal_budget_linear_derating = "thermal_budget_linear_derating"
+thermal_budget_monotonic = "thermal_budget_derating_never_decreases_as_temperature_rises"
 hysteresis_via_previous = "two_iterations_hysteresis_via_previous"
 collect_off_skips_observation = "collect_off_skips_observation"
 snapshot_off_skips_thermal_zone_discovery = "snapshot_off_skips_thermal_zone_discovery_and_thermal_c"
