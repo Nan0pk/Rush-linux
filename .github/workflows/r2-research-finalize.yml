@@ -21,6 +21,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Install workflow checker
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
       - name: Apply reviewed R2 research patch
         run: |
           set -euo pipefail
