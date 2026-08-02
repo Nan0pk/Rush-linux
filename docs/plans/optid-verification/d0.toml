@@ -1,5 +1,6 @@
 # Independent cold-verification receipt for D0:
 # Prototype capability sealing and supervisor-managed cold restart.
+# Verification PR #381 remains draft and requires human review and merge.
 #
 # The verifier changed only the proof workflow. No D0 implementation, service,
 # feature gate, or acceptance-test code was repaired during verification.
