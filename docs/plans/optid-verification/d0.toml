@@ -1,0 +1,46 @@
+# Independent cold-verification receipt for D0:
+# Prototype capability sealing and supervisor-managed cold restart.
+#
+# The verifier changed only the proof workflow. No D0 implementation, service,
+# feature gate, or acceptance-test code was repaired during verification.
+
+schema_version = 1
+package = "D0"
+implementation_pr = 366
+verification_pr = 381
+verified_commit = "db68bfebf978b02cd8926be2ac93f31264d93964"
+verifier = "Independent cold-verification agent session on GitHub-hosted Ubuntu 24.04; separate from the PR #366 implementation builder"
+result = "pass"
+
+workflow_run = 30753312800
+workflow_job = 91511083694
+artifact_id = 8835150417
+artifact_digest = "sha256:10232ad131f161973801db39ce3ecfa4cd6fe6afd03ec767d3ee061a50536132"
+kernel = "Linux 6.17.0-1020-azure x86_64"
+landlock_abi = 7
+supervisor_restarts_observed = 1
+
+commands = [
+  "cargo test -p optid --features experimental-capability-sealing --bin optid-capability-seal-test -> 8 passed, 0 failed",
+  "cargo test -p optid --features experimental-capability-sealing --test capability_sealing_cli -> 3 passed, 0 failed",
+  "cargo build -p optid --features experimental-capability-sealing --bin optid-capability-seal-test -> passed",
+  "systemd-analyze verify packaging/systemd/optid-capability-seal-test.service -> passed",
+  "/usr/local/libexec/optid-capability-seal-test --probe -> 8 kernel sealing checks passed",
+  "systemctl start optid-capability-seal-test.service with the repository test-only unit -> status 75 triggered exactly one automatic restart; second sealed process exited successfully",
+  "systemctl start optid-capability-seal-test.service with an ephemeral ExecStart=/bin/sh -c 'exit 1' override -> final status 1, NRestarts=0, and no scheduled restart event",
+]
+
+runtime_proofs = [
+  "Exact-head binding: actions/checkout selected db68bfebf978b02cd8926be2ac93f31264d93964 and the uploaded proof log records both verified_commit and workflow_head_sha as that full SHA.",
+  "Kernel sealing: active LSMs included landlock; ABI 7 produced handled write rights 0x7ff2; no-new-privileges was set; all four pre-opened descriptors remained writable; new write opens were denied; new reads remained available; child thread and fork/exec child inherited the restriction; an unlinked object's pre-opened descriptor remained usable.",
+  "Supervisor-managed cold restart: the first sealed cycle exited 75/TEMPFAIL; systemd logged exactly one scheduled restart; ExecStartPre recovery ran again; the fresh second process re-verified the recovery marker before capability discovery; all eight kernel checks passed again; the service then deactivated successfully with ExecMainStatus=0.",
+  "Non-75 suppression: an ephemeral status-1 override ended with Result=exit-code, ExecMainStatus=1, NRestarts=0, and no journal entry scheduling a restart.",
+  "Evidence artifact: workflow run 30753312800 uploaded artifact 8835150417 with digest sha256:10232ad131f161973801db39ce3ecfa4cd6fe6afd03ec767d3ee061a50536132; the verifier downloaded and inspected the full log before issuing this receipt.",
+]
+
+source_inspection_only = [
+  "packaging/systemd/optid-capability-seal-test.service remains test-only, opt-in, and restricted to RestartForceExitStatus=75 with RestartPreventExitStatus=1 2 70 71 72 73 74 76 77 78 125.",
+  "The D0 feature remains experimental-capability-sealing and is not connected to shipped optid actuation.",
+]
+
+unresolved = []

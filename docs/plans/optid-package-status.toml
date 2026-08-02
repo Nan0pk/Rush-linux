@@ -20,9 +20,10 @@ safety_architecture = "D2-fail-passive"
 # C1), but C1 remains `planned` because this verification PR may advance only
 # one package (F4) per the one-package-per-PR rule; a builder picking up C1
 # will set it to `next` in a separate implementation PR. The safety lane
-# (D0) is unchanged. No package self-certifies completion.
+# (D0) has now passed independent cold verification; S1D becomes the active
+# safety package. No package self-certifies completion.
 active_general = "T1"
-active_safety = "D0"
+active_safety = "S1D"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -195,9 +196,10 @@ malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
 id = "D0"
 lane = "safety"
 title = "Prototype capability sealing and supervisor-managed cold restart"
-status = "candidate"
+status = "completed"
 depends = []
 pr = "366"
+verification_receipt = "docs/plans/optid-verification/d0.toml"
 runtime_entrypoints = [
   "crates/optid/src/bin/optid-capability-seal-test.rs",
   "crates/optid/src/capability_seal_test/landlock_syscall.rs",
@@ -231,7 +233,7 @@ invalid_recovery_marker_is_rejected = "invalid_recovery_marker_is_rejected"
 id = "S1D"
 lane = "safety"
 title = "Freeze per-lever rollback, stabilization, and semantic envelopes"
-status = "planned"
+status = "next"
 depends = ["D0"]
 pr = ""
 completion_evidence = []
