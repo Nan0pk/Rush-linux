@@ -163,7 +163,6 @@ jobs:
           restart_count=$(systemctl show optid-capability-seal-test.service \
             -p NRestarts --value)
 
-          test "$start_status" -ne 0
           test "$result" = "exit-code"
           test "$exec_status" = "1"
           test "$restart_count" = "0"
@@ -172,6 +171,8 @@ jobs:
           {
             echo
             echo "non_75_restart_suppression=pass"
+            echo "systemctl_start_status=$start_status"
+            echo "note=Type=exec may report start success before the process later exits; final unit state and journal determine restart behavior"
             cat /tmp/d0-non75.status
             cat /tmp/d0-non75.log
           } >> capability-sealing-kernel-proof.log
