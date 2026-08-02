@@ -11,6 +11,9 @@
 // Include the kernel_io module which defines all the public types.
 mod kernel_io;
 
+/// S1D frozen per-lever rollback, stabilization, and semantic envelopes.
+pub mod lever_contract;
+
 // Re-export the kernel I/O traits and types for integration tests.
 pub use kernel_io::{
     Clock, EventSource, FaultKernel, KernelIo, KernelRead, KernelWrite, RealKernel,
