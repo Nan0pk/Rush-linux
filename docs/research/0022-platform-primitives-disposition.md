@@ -29,7 +29,7 @@ evidence that fits the package model.
 | S0ix / low-power-idle residency | **Implement read-only observation** | O1 | ACPI LPIT exposes stable residency counters. The metric is useful for diagnosis and validation without changing platform policy. |
 | PCIe Latency Tolerance Reporting overrides | **Reject generic writes** | Existing PCIe/device packages may observe | LTR is topology- and firmware-sensitive. No generic Rush contract currently proves safe ownership, rollback, or platform-wide effects. |
 | PSI threshold triggers | **Implement through the event reactor** | E1 | `/proc/pressure/*` and cgroup pressure files support descriptor-scoped poll/epoll triggers with bounded windows. This is a stable event source, not another polling loop. |
-| Arm AMU and generic MPMM control | **Use kernel-derived signals; reject direct userspace AMU access; defer MPMM** | O1 observation; R3 only if a supported control ABI appears | The kernel intentionally keeps AMU registers out of userspace. Generic MPMM control lacks a stable cross-platform Linux ABI and firmware proof. |
+| Arm AMU and generic MPMM control | **Use kernel-derived signals; reject direct userspace AMU access; defer MPMM** | O1 observation; future accepted device-specific package only | The kernel intentionally keeps AMU registers out of userspace. Generic MPMM control lacks a stable cross-platform Linux ABI and firmware proof. |
 | Memory-controller and uncore frequency | **Observe where stable; reject generic writes** | O1; a future device-specific package may own a proven writer | Some platforms expose devfreq or Intel uncore sysfs, but scope and semantics differ by driver, package, die, and fabric cluster. |
 | Intel LPMD coexistence | **Detect and yield; do not compete** | C1 contracts and F1 domain ownership | LPMD can hotplug CPUs and change EPP based on HFI/WLT. Running a second autonomous policy owner would violate single-owner safety. |
 | Broad idle injection | **Reject as a generic optid lever** | Possible future hardware-specific thermal package only | Intel powerclamp is an active cooling mechanism with visible performance impact. It needs hardware-specific thermal proof, bounds, and rollback, not a generic platform primitive. |
@@ -215,7 +215,8 @@ would violate the stable-ABI requirement.
 performance counters where supported. Do not expose raw AMU or MPMM writes.
 
 **Feature state.** AMU-derived observation through existing kernel signals;
-MPMM deferred unless R3 finds a maintained, bounded, documented ABI.
+MPMM remains deferred unless a separate accepted package establishes a
+maintained, bounded, documented ABI and ownership contract.
 
 **Tests and evidence.** Unsupported-platform tests, zero/broken-firmware signal
 handling, and no-direct-register-access checks. Any future MPMM prototype must
@@ -345,7 +346,7 @@ implemented.
 | Durable transaction and recovery mechanics | S2D, S3D, and S5D |
 | External-daemon ownership and LPMD coexistence | C1 and F1 |
 | Device runtime-PM, PCIe, storage, display, and dGPU actions | D2-D5 |
-| Vendor control experiments with a supported ABI | R3, feature-gated only |
+| Vendor control experiments with a supported ABI | No existing package; require a new accepted device-specific package |
 
 No new generic platform-control package is justified by this review.
 
