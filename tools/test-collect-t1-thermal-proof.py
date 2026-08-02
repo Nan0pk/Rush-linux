@@ -53,7 +53,29 @@ def test_collect_observation_is_sorted_and_privacy_safe(tmp_path: Path) -> None:
     serialized = json.dumps(observation)
     assert "/sys/" not in serialized
     assert "hwmon7" not in serialized
-    assert "hwmon:coretemp:coretemp:Package_id_0" in serialized
+    assert "hwmon:coretemp:coretemp:temp1:Package_id_0" in serialized
+    assert "thermal_zone:x86_pkg_temp:thermal_zone3" in serialized
+
+
+def test_duplicate_labels_and_zone_types_keep_unique_identities(tmp_path: Path) -> None:
+    hwmon = tmp_path / "sys/class/hwmon/hwmon0"
+    _write(hwmon / "name", "coretemp\n")
+    _write(hwmon / "temp1_input", "65000\n")
+    _write(hwmon / "temp1_label", "Package\n")
+    _write(hwmon / "temp2_input", "66000\n")
+    _write(hwmon / "temp2_label", "Package\n")
+
+    for index, value in ((1, 67000), (2, 68000)):
+        zone = tmp_path / f"sys/class/thermal/thermal_zone{index}"
+        _write(zone / "type", "x86_pkg_temp\n")
+        _write(zone / "temp", f"{value}\n")
+
+    temperatures, _ = collector.collect_hwmon(tmp_path)
+    zones = collector.collect_thermal_zones(tmp_path)
+
+    assert len({item["stable_id"] for item in temperatures}) == 2
+    assert len({item["stable_id"] for item in zones}) == 2
+    assert [item["instance"] for item in zones] == ["thermal_zone1", "thermal_zone2"]
 
 
 def test_implausible_temperature_is_recorded_but_not_usable(tmp_path: Path) -> None:
@@ -113,3 +135,35 @@ def test_command_output_is_sanitized(tmp_path: Path) -> None:
 def test_privacy_validator_rejects_home_paths(tmp_path: Path) -> None:
     _write(tmp_path / "manifest.json", '{"path":"/home/alice/private"}\n')
     assert collector.validate_privacy(tmp_path) == ["privacy rule matched in manifest.json"]
+
+
+def test_completion_ready_rejects_fixture_sys_root(tmp_path: Path) -> None:
+    fixture_root = tmp_path / "fixture"
+    hwmon = fixture_root / "sys/class/hwmon/hwmon0"
+    _write(hwmon / "name", "coretemp\n")
+    _write(hwmon / "temp1_input", "65000\n")
+
+    output = tmp_path / "bundle"
+    returncode = collector.main(
+        [
+            "--output",
+            str(output),
+            "--samples",
+            "1",
+            "--interval-seconds",
+            "0",
+            "--sys-root",
+            str(fixture_root),
+            "--repo-root",
+            str(tmp_path),
+            "--skip-command-checks",
+            "--require-completion-ready",
+        ]
+    )
+
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert returncode == 1
+    assert manifest["live_sys_root"] is False
+    assert "completion-ready collection requires the live / sysfs root" in manifest[
+        "unresolved"
+    ]
