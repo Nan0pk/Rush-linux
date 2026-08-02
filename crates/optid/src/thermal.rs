@@ -868,6 +868,34 @@ mod tests {
     }
 
     #[test]
+    fn thermal_budget_derating_never_decreases_as_temperature_rises() {
+        let config = ThermalConfig {
+            mode: ThermalMode::Observe,
+            thermal_lo_c: 60.0,
+            thermal_hi_c: 90.0,
+            hysteresis_c: 2.0,
+            skin_temp_limit_c: 43.0,
+        };
+        let mut previous_ratio = 0.0_f32;
+
+        // Sweep the complete plausible operating range around the configured
+        // curve. This is the T1 monotonicity acceptance property: as the die
+        // temperature rises, the derating ratio may stay flat because output
+        // is rounded for deterministic status, but it must never decrease.
+        for temp_tenths in 400..=1200 {
+            let temp_c = temp_tenths as f32 / 10.0;
+            let sensors = vec![sensor("die", temp_c, true, false, None)];
+            let budget = compute_thermal_budget(&config, &sensors, &[], None);
+            assert!(
+                budget.derating_ratio >= previous_ratio,
+                "derating fell from {previous_ratio:.2} to {:.2} at {temp_c:.1}°C",
+                budget.derating_ratio
+            );
+            previous_ratio = budget.derating_ratio;
+        }
+    }
+
+    #[test]
     fn thermal_budget_unavailable_without_sensors() {
         let config = ThermalConfig::default();
         let budget = compute_thermal_budget(&config, &[], &[], None);
