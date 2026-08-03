@@ -53,6 +53,7 @@ jobs:
           python3 .github/s2d-contract-repair.py
           sed -i 's/return if io\.exists(path)/if io.exists(path)/g' \
             crates/optid/src/reconciler/transaction.rs
+          python3 -c 'from pathlib import Path; p=Path("crates/optid/src/reconciler/transaction.rs"); s=p.read_text(); old="            };\n        }\n        #[cfg(not(test))]"; assert s.count(old) == 2, s.count(old); p.write_text(s.replace(old, "            }\n        }\n        #[cfg(not(test))]"))'
           python3 tools/render-frontpage.py --write
           cargo fmt --all
 
