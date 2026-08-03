@@ -114,6 +114,148 @@ jobs:
               "    reconciler.record_restore_outcome(&plan, &outcome, &io);",
               "    reconciler\n        .record_restore_outcome(&plan, &outcome, &io)\n        .expect(\"record restore outcome\");",
           )
+          replace_once(
+              "crates/optid/src/kernel_io_impl.rs",
+              '''    pub fn add_dir_entry(&self, directory: &Path, entry: &Path) {
+        self.dirs
+            .lock()
+            .expect("MemoryKernel dirs mutex poisoned")
+            .entry(directory.to_path_buf())
+            .or_default()
+            .push(entry.to_path_buf());
+    }
+}''',
+              '''    pub fn add_dir_entry(&self, directory: &Path, entry: &Path) {
+        let mut dirs = self
+            .dirs
+            .lock()
+            .expect("MemoryKernel dirs mutex poisoned");
+        let entries = dirs.entry(directory.to_path_buf()).or_default();
+        if !entries.iter().any(|candidate| candidate == entry) {
+            entries.push(entry.to_path_buf());
+        }
+    }
+
+    fn remove_dir_entry(&self, directory: &Path, entry: &Path) {
+        if let Some(entries) = self
+            .dirs
+            .lock()
+            .expect("MemoryKernel dirs mutex poisoned")
+            .get_mut(directory)
+        {
+            entries.retain(|candidate| candidate != entry);
+        }
+    }
+}''',
+          )
+          replace_once(
+              "crates/optid/src/kernel_io_impl.rs",
+              '''    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
+        self.write_raw(path, value);
+        Ok(())
+    }''',
+              '''    fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
+        self.write_raw(path, value);
+        if let Some(parent) = path.parent() {
+            self.add_dir_entry(parent, path);
+        }
+        Ok(())
+    }''',
+          )
+          replace_once(
+              "crates/optid/src/kernel_io_impl.rs",
+              '''    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        let mut files = self
+            .files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned");
+        let content = files.remove(from).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "MemoryKernel: rename source not found",
+            )
+        })?;
+        files.insert(to.to_path_buf(), content);
+        Ok(())
+    }''',
+              '''    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        let mut files = self
+            .files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned");
+        let content = files.remove(from).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "MemoryKernel: rename source not found",
+            )
+        })?;
+        files.insert(to.to_path_buf(), content);
+        drop(files);
+        if let Some(parent) = from.parent() {
+            self.remove_dir_entry(parent, from);
+        }
+        if let Some(parent) = to.parent() {
+            self.add_dir_entry(parent, to);
+        }
+        Ok(())
+    }''',
+          )
+          replace_once(
+              "crates/optid/src/kernel_io_impl.rs",
+              '''    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned")
+            .remove(path)
+            .map(|_| ())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "MemoryKernel: remove_file not found",
+                )
+            })
+    }''',
+              '''    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned")
+            .remove(path)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "MemoryKernel: remove_file not found",
+                )
+            })?;
+        if let Some(parent) = path.parent() {
+            self.remove_dir_entry(parent, path);
+        }
+        Ok(())
+    }''',
+          )
+          replace_once(
+              "crates/optid/src/kernel_io_impl.rs",
+              '''    fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        self.files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned")
+            .entry(path.to_path_buf())
+            .or_default()
+            .push_str(text);
+        Ok(())
+    }''',
+              '''    fn append(&self, path: &Path, text: &str) -> io::Result<()> {
+        self.files
+            .lock()
+            .expect("MemoryKernel files mutex poisoned")
+            .entry(path.to_path_buf())
+            .or_default()
+            .push_str(text);
+        if let Some(parent) = path.parent() {
+            self.add_dir_entry(parent, path);
+        }
+        Ok(())
+    }''',
+          )
           PY
           python3 tools/render-frontpage.py --write
           cargo fmt --all
