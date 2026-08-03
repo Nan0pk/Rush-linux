@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_COMMIT = os.environ["SOURCE_COMMIT"]
-VERIFICATION_PR = int(os.environ["VERIFICATION_PR"])
+VERIFICATION_PR = int(os.environ.get("VERIFICATION_PR", os.environ["PR_NUMBER"]))
 RUN_ID = int(os.environ["RUN_ID"])
 RUN_ATTEMPT = int(os.environ["RUN_ATTEMPT"])
 RUNNER = os.environ["RUNNER_DESCRIPTION"]
