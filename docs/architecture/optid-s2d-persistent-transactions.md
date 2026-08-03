@@ -122,6 +122,29 @@ The package tests cover:
 - the real `run()` daemon path with persistent prepare/commit/restore/compact
   behavior.
 
+## Builder proof
+
+The clean candidate was produced by GitHub Actions run `30835980552`, job
+`91761378250`, from staging head
+`ae5b92cbad6e6226ea416eb9519bce7ce204d8f5`. The bounded builder passed:
+
+- `cargo fmt --all -- --check`;
+- `cargo check -p optid --all-targets --all-features`;
+- `cargo clippy -p optid --all-targets --all-features -- -D warnings`;
+- all thirteen mapped S2D acceptance tests individually with `--exact`;
+- the complete `cargo test -p optid` suite;
+- current-work, package-ledger, generated README, and whitespace validators;
+  and
+- `tools/finish-work.sh --dry-run`.
+
+Only after those checks succeeded did the workflow remove every temporary
+builder payload, workflow, and normalizer file and publish clean candidate
+commit `a0f3179b7feb7e2a9d38bf43927e23998c7baf26`.
+
+This is builder evidence, not an independent completion receipt. S2D remains a
+`candidate` and must be merged and then cold-verified by a separate verifier
+before it may become `completed` or unlock S3D.
+
 ## Boundaries for later packages
 
 S3D must add the minimal independent `optid-recover` executable, boot ordering,
