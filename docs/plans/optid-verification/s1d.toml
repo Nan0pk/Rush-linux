@@ -18,6 +18,12 @@ verifier = "Independent ChatGPT GitHub verifier session, separate from the PR #3
 result = "pass"
 workflow_run = 30826673935
 workflow_attempt = 1
+workflow_job = 91729964224
+artifact_id = 8861164355
+artifact_name = "s1d-cold-verification-30826673935"
+artifact_digest = "sha256:010d3e6480e418f311bf916d453c05602c57f40203cd9406a976bdfab47ddf24"
+artifact_size_bytes = 11974
+artifact_expires = "2026-09-02"
 
 commands = [
   "git diff --exit-code 6a173f0051ef3fda31dc685ebc524fc6b10442bf..265c33720f65b43fbf621e3b5ef20456ce67157e -- all six declared S1D proof files -> no changes",
@@ -26,7 +32,7 @@ commands = [
   "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
   "each of the eight mapped lever_contract::tests::s1d_* unit tests executed individually with --exact -> passed",
   "cargo test -p optid --test lever_contract_cli s1d_contract_cli_checks_registry_through_production_surface -- --exact -> passed",
-  "cargo test -p optid -> passed",
+  "cargo test -p optid -> 437 passed; 0 failed",
   "optid-lever-contracts --check, --list, and --json -> valid registry with exactly eleven unique levers",
   "python3 tools/validate-current-work.py -> passed before state transition",
   "python3 tools/validate-optid-packages.py -> passed before state transition",
