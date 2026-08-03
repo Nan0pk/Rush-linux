@@ -120,6 +120,7 @@ jobs:
           SOURCE_COMMIT="$(git rev-parse HEAD)"
           echo "staging=$STAGING_HEAD" >> "$GITHUB_OUTPUT"
           echo "sha=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          git restore --source="$STAGING_HEAD" -- .github/s3d_builder.py
           git bundle create "$RUNNER_TEMP/s3d-source.bundle" HEAD
           git diff --exit-code
           git status --short
