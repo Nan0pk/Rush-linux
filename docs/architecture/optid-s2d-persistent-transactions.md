@@ -146,9 +146,41 @@ Only after those checks succeeded did the workflow remove every temporary
 builder payload, workflow, and normalizer file and publish clean candidate
 commit `a0f3179b7feb7e2a9d38bf43927e23998c7baf26`.
 
-This is builder evidence, not an independent completion receipt. S2D remains a
-`candidate` and must be merged and then cold-verified by a separate verifier
-before it may become `completed` or unlock S3D.
+## Audited contract-repair proof
+
+A subsequent audit found and corrected four package-boundary defects before
+maintainer review:
+
+- completed F2 proof files are byte-identical to `main` and are absent from the
+  final S2D diff;
+- stable record names use an explicit persisted hash instead of Rust's
+  non-contractual `DefaultHasher`;
+- stale-generation handback is rejected before mutation and preserves recovery
+  evidence for S3D; and
+- multi-target compensation attempts every target before returning the first
+  error.
+
+GitHub Actions run `30839184349`, job `91771771259`, tested the corrected source,
+created a clean local candidate commit, and then validated that exact committed
+snapshot before pushing it. The run passed:
+
+- format, all-target compile, and warning-free clippy;
+- all seventeen mapped S2D/F4-boundary acceptance tests individually with
+  `--exact`;
+- the complete `cargo test -p optid` suite;
+- current-work, package-ledger, generated README, integrity, documentation,
+  optid contract, evidence, and repository-policy checks; and
+- `tools/finish-work.sh --dry-run`.
+
+The validated clean candidate commit was
+`8226724b565e304a167336966f8167c52e38d34a`. S2D remains `candidate`. Because
+S2D changes declared F4 reconciliation proof paths, F4 is truthfully recorded
+as `merged_incomplete` pending fresh independent cold verification of the
+integrated F4/S2D surface. F1–F3 remain completed.
+
+This is builder evidence, not an independent completion receipt. S2D must be
+merged and then cold-verified by a separate verifier before it may become
+`completed` or unlock S3D.
 
 ## Boundaries for later packages
 
