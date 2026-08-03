@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_COMMIT = os.environ["SOURCE_COMMIT"]
-VERIFICATION_PR = int(os.environ.get("VERIFICATION_PR", os.environ["PR_NUMBER"]))
+VERIFICATION_PR = int(os.environ.get("VERIFICATION_PR") or os.environ["PR_NUMBER"])
 RUN_ID = int(os.environ["RUN_ID"])
 RUN_ATTEMPT = int(os.environ["RUN_ATTEMPT"])
 RUNNER = os.environ["RUNNER_DESCRIPTION"]
@@ -145,12 +145,5 @@ if 'active_safety = "S3D"' not in current:
     raise SystemExit("unexpected current-work safety selector")
 current_path.write_text(current, encoding="utf-8")
 
-# Remove all temporary builder/verifier machinery from the final diff.
-for relative in [
-    ".github/s3d_builder.py",
-    ".github/s3d_finalize.py",
-    ".github/workflows/s3d-builder.yml",
-]:
-    path = ROOT / relative
-    if path.exists():
-        path.unlink()
+# The workflow owns deletion of temporary builder/finalizer files after this
+# script has finished writing receipts and package state.
