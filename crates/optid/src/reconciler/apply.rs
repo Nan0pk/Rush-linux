@@ -142,6 +142,8 @@ impl Reconciler {
             outcomes.push(outcome);
         }
         self.persist(actuator.kernel.as_ref())?;
+        notify_cycle_complete(&self.transactions, actuator.kernel.as_ref())
+            .map_err(io::Error::from)?;
         Ok(outcomes)
     }
 
