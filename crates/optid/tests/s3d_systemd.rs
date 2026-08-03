@@ -20,10 +20,12 @@ fn s3d_apply_unit_orders_recovery_before_daemon() {
     assert!(apply.contains("Type=notify"));
     assert!(apply.contains("NotifyAccess=main"));
     assert!(apply.contains("WatchdogSec="));
-    assert!(apply.contains("ExecStartPre=/usr/libexec/optid-recover"));
-    assert!(apply.contains("RestartPreventExitStatus=78"));
+    assert!(apply.contains("Requires=optid-recover.service"));
+    assert!(apply.contains("After=multi-user.target systemd-udevd.service optid-recover.service"));
+    assert!(!apply.contains("ExecStartPre=/usr/libexec/optid-recover"));
     assert!(recover.contains("Type=oneshot"));
     assert!(recover.contains("Before=optid-apply.service"));
+    assert!(recover.contains("PartOf=optid-apply.service"));
     assert!(recover.contains("ExecStart=/usr/libexec/optid-recover"));
 }
 
@@ -32,7 +34,14 @@ fn s3d_failed_recovery_prevents_automatic_actuation_restart_loop() {
     let root = repository_root();
     let apply = fs::read_to_string(root.join("packaging/systemd/optid-apply.service"))
         .expect("read optid-apply.service");
+    let recover = fs::read_to_string(root.join("packaging/systemd/optid-recover.service"))
+        .expect("read optid-recover.service");
+
     assert!(apply.contains("StartLimitIntervalSec="));
     assert!(apply.contains("StartLimitBurst="));
-    assert!(apply.contains("RestartPreventExitStatus=78"));
+    assert!(apply.contains("Requires=optid-recover.service"));
+    assert!(!apply.contains("RestartPreventExitStatus=78"));
+    assert!(!apply.contains("ExecStartPre=/usr/libexec/optid-recover"));
+    assert!(recover.contains("Restart=no"));
+    assert!(recover.contains("PartOf=optid-apply.service"));
 }
