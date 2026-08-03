@@ -24,8 +24,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Start bounded S2D work
-        run: bash tools/start-work.sh "S2D persistent verified write-ahead transactions"
+      - name: Validate bounded S2D staging branch
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git branch --show-current)" = "work/20260803-s2d-persistent-transactions"
+          test "$(git merge-base HEAD origin/main)" = "3b29b6fbd1c79e4f61cff100551db4e0874cc5cd"
+          python3 tools/check-workflow-safety.py
+          python3 tools/validate-optid-packages.py
 
       - name: Install Rust system dependencies
         run: |
