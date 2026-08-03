@@ -62,6 +62,20 @@ jobs:
           path.write_text(text)
           PY
           python3 .github/s3d_builder.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("crates/optid/src/reconciler/supervision.rs")
+          text = path.read_text()
+          text = text.replace("//! S3D systemd notification and transaction-journal health gate.", "// S3D systemd notification and transaction-journal health gate.", 1)
+          text = text.replace("use std::io;\n", "", 1)
+          text = text.replace("use std::path::Path;\n", "", 1)
+          path.write_text(text)
+          tests = Path("crates/optid/src/reconciler/tests/s3d.rs")
+          test_text = tests.read_text()
+          if test_text.startswith("use super::*;\n\n"):
+              test_text = test_text[len("use super::*;\n\n"):]
+          tests.write_text(test_text)
+          PY
 
       - name: Verify builder candidate
         run: |
