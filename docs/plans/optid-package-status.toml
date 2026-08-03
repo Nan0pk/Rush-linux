@@ -268,10 +268,41 @@ production_contract_checker = "s1d_contract_cli_checks_registry_through_producti
 id = "S2D"
 lane = "safety"
 title = "Implement persistent verified write-ahead transactions"
-status = "next"
+status = "candidate"
 depends = ["F2", "F3", "S1D"]
-pr = ""
-completion_evidence = []
+pr = "386"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/transaction.rs",
+]
+integration_tests = [
+  "crates/optid/src/reconciler/tests/s2d.rs",
+  "crates/optid/src/reconciler/tests/production.rs",
+]
+completion_evidence = [
+  "crates/optid/src/reconciler/transaction.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/tests/s2d.rs",
+  "docs/architecture/optid-s2d-persistent-transactions.md",
+]
+[package.acceptance_tests]
+durable_record_precedes_write = "s2d_durable_record_is_synced_before_production_write"
+full_disk_refuses_mutation = "s2d_full_disk_before_publish_refuses_mutation"
+file_sync_failure_refuses_mutation = "s2d_fsync_failure_refuses_mutation"
+partial_publish_refuses_mutation = "s2d_partial_publish_failure_refuses_mutation"
+crash_window_has_durable_undo = "s2d_prepared_record_covers_crash_before_write"
+write_failure_compensates = "s2d_write_failure_compensates_and_cleans"
+readback_mismatch_compensates = "s2d_readback_mismatch_compensates_and_cleans"
+stale_generation_rejected = "s2d_stale_generation_is_rejected"
+path_reuse_rejected = "s2d_path_reuse_identity_mismatch_is_rejected"
+repeated_compensation_idempotent = "s2d_repeated_compensation_is_idempotent"
+external_drift_relinquishes = "s2d_external_drift_relinquishes_without_overwrite"
+verified_restore_compacts = "s2d_production_commit_then_verified_restore_compacts"
+production_daemon_surface = "s2d_production_daemon_run_uses_persistent_transaction_protocol"
 
 [[package]]
 id = "S3D"

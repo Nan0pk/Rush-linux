@@ -264,9 +264,11 @@ pub(crate) struct Reconciler {
     last_workload: WorkloadClass,
     last_mode: Mode,
     last_domain_modes: HashMap<Domain, DomainMode>,
+    transactions: TransactionEngine,
     systemd: Box<dyn SystemdIo>,
 }
 
+include!("transaction.rs");
 include!("state.rs");
 include!("apply.rs");
 include!("targets.rs");

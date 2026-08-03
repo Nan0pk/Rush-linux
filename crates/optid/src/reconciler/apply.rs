@@ -54,15 +54,63 @@ impl Reconciler {
             return Ok(outcome);
         }
 
-        let outcome = match action {
+        if !matches!(action, Action::SystemdSetProperty { .. }) {
+            if let Some(outcome) =
+                self.active_non_systemd_outcome(action, actuator, &expanded)?
+            {
+                self.record_action_outcome(action, &outcome, actuator)?;
+                return Ok(outcome);
+            }
+        }
+
+        let handles = match self.prepare_transactions(actuator, action, &expanded) {
+            Ok(handles) => handles,
+            Err(error) => {
+                let mut outcome = active_action_outcome(action);
+                outcome.gates.push(GateEvaluation::denied(
+                    GateStage::RecoveryJournal,
+                    GateReasonCode::JournalFailed,
+                    error.to_string(),
+                ));
+                for desired in &expanded {
+                    outcome.targets.push(TargetOutcome::denied(
+                        desired.target_id.clone(),
+                        PipelineStage::Journal,
+                        error.to_string(),
+                    ));
+                }
+                return Ok(outcome);
+            }
+        };
+
+        let apply_result = match action {
             Action::SystemdSetProperty {
                 unit, properties, ..
-            } => self.apply_systemd_action(actuator, action, unit, properties)?,
-            _ => match self.active_non_systemd_outcome(action, actuator, &expanded)? {
-                Some(outcome) => outcome,
-                None => actuator.apply(action)?,
-            },
+            } => self.apply_systemd_action(actuator, action, unit, properties),
+            _ => actuator.apply(action),
         };
+        let mut outcome = match apply_result {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                if let Err(compensation) = self.compensate_all(actuator, &handles) {
+                    return Err(io::Error::other(format!(
+                        "apply failed: {error}; S2D compensation failed: {compensation}"
+                    )));
+                }
+                return Err(error);
+            }
+        };
+
+        if let Err(finalization) =
+            self.finalize_transactions(actuator, &expanded, &handles, &mut outcome)
+        {
+            if let Err(compensation) = self.compensate_all(actuator, &handles) {
+                return Err(io::Error::other(format!(
+                    "S2D finalization failed: {finalization}; compensation failed: {compensation}"
+                )));
+            }
+            return Err(finalization.into());
+        }
         self.record_action_outcome(action, &outcome, actuator)?;
         Ok(outcome)
     }
@@ -87,7 +135,7 @@ impl Reconciler {
             } else {
                 actuator.execute_restore(&plan, self.systemd.as_ref())?
             };
-            self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref());
+            self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref())?;
             outcomes.push(outcome);
         }
         self.persist(actuator.kernel.as_ref())?;
@@ -261,6 +309,7 @@ impl Reconciler {
         actuator: &mut Actuator,
     ) -> io::Result<()> {
         let desired_targets = self.expand_action(action, actuator)?;
+        let mut relinquished_transactions = BTreeSet::new();
         let by_id: HashMap<&str, &TargetOutcome> = outcome
             .targets
             .iter()
@@ -277,6 +326,9 @@ impl Reconciler {
             let Some(target_outcome) = target_outcome else {
                 continue;
             };
+            if target_outcome.ownership == OwnershipState::Relinquished {
+                relinquished_transactions.insert(desired.target_id.clone());
+            }
             if target_outcome.write_attempted {
                 state.last_attempted = Some(desired.desired.clone());
             }
@@ -309,6 +361,11 @@ impl Reconciler {
                 _ => {}
             }
         }
+        for target_id in relinquished_transactions {
+            self.transactions
+                .finish_handback(actuator.kernel.as_ref(), &target_id, true)
+                .map_err(io::Error::from)?;
+        }
         self.persist(actuator.kernel.as_ref())
     }
 
@@ -317,41 +374,52 @@ impl Reconciler {
         plan: &RestorePlan,
         outcome: &RestoreOutcome,
         io: &dyn KernelIo,
-    ) {
-        let Some(state) = self.targets.get_mut(&plan.target_id) else {
-            return;
-        };
-        match &outcome.write_outcome {
-            WriteOutcome::Restored => {
-                state.ownership = OwnershipState::Unowned;
-                state.ownership_reason = None;
-                state.last_attempted = Some(plan.baseline.clone());
-                state.last_confirmed = None;
-                state.restore_pending = false;
-                state.retries = 0;
-                if let Some(key) = &plan.legacy_journal_key {
-                    clear_journal_with(io, &self.state_dir, key);
-                }
-            }
-            WriteOutcome::OwnershipRelinquished => {
-                state.ownership = OwnershipState::Relinquished;
-                state.ownership_reason = outcome.detail.clone();
-                state.restore_pending = false;
-            }
-            WriteOutcome::RestorationFailed { .. } => {
-                state.retries = state.retries.saturating_add(1);
-                if state.retries >= MAX_RESTORE_RETRIES {
-                    state.ownership = OwnershipState::Relinquished;
-                    state.ownership_reason = Some(format!(
-                        "restore retry limit reached ({MAX_RESTORE_RETRIES})"
-                    ));
+    ) -> io::Result<()> {
+        let mut finish_transaction = None;
+        {
+            let Some(state) = self.targets.get_mut(&plan.target_id) else {
+                return Ok(());
+            };
+            match &outcome.write_outcome {
+                WriteOutcome::Restored => {
+                    state.ownership = OwnershipState::Unowned;
+                    state.ownership_reason = None;
+                    state.last_attempted = Some(plan.baseline.clone());
+                    state.last_confirmed = None;
                     state.restore_pending = false;
-                } else {
-                    state.restore_pending = true;
+                    state.retries = 0;
+                    if let Some(key) = &plan.legacy_journal_key {
+                        clear_journal_with(io, &self.state_dir, key);
+                    }
+                    finish_transaction = Some(false);
                 }
+                WriteOutcome::OwnershipRelinquished => {
+                    state.ownership = OwnershipState::Relinquished;
+                    state.ownership_reason = outcome.detail.clone();
+                    state.restore_pending = false;
+                    finish_transaction = Some(true);
+                }
+                WriteOutcome::RestorationFailed { .. } => {
+                    state.retries = state.retries.saturating_add(1);
+                    if state.retries >= MAX_RESTORE_RETRIES {
+                        state.ownership = OwnershipState::Relinquished;
+                        state.ownership_reason = Some(format!(
+                            "restore retry limit reached ({MAX_RESTORE_RETRIES})"
+                        ));
+                        state.restore_pending = false;
+                    } else {
+                        state.restore_pending = true;
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
+        if let Some(relinquished) = finish_transaction {
+            self.transactions
+                .finish_handback(io, &plan.target_id, relinquished)
+                .map_err(io::Error::from)?;
+        }
+        Ok(())
     }
 
     fn plan_restores(&self) -> Vec<RestorePlan> {
