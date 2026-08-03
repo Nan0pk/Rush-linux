@@ -1,0 +1,58 @@
+# Independent cold-verification receipt for S1D:
+# Freeze per-lever rollback, stabilization, and semantic envelopes.
+#
+# The verifier was separate from the PR #382 implementation builder. The
+# read-only phase ran before any ledger or generated-document update. No
+# S1D implementation, test, fixture, CLI, runtime default, or actuation path
+# was repaired during verification.
+
+schema_version = 1
+package = "S1D"
+implementation_pr = 382
+verification_pr = 385
+verified_commit = "8ecb58fe40c6daf51d371c367b42002e2b215fdf"
+implementation_head = "e6904f6d94c31c7bd56cacce50cb64064a5650ea"
+integrated_commit = "6a173f0051ef3fda31dc685ebc524fc6b10442bf"
+source_base_commit = "265c33720f65b43fbf621e3b5ef20456ce67157e"
+verifier = "Independent ChatGPT GitHub verifier session, separate from the PR #382 implementation builder; Linux X64 ubuntu-24.04"
+result = "pass"
+workflow_run = 30826673935
+workflow_attempt = 1
+workflow_job = 91729964224
+artifact_id = 8861164355
+artifact_name = "s1d-cold-verification-30826673935"
+artifact_digest = "sha256:010d3e6480e418f311bf916d453c05602c57f40203cd9406a976bdfab47ddf24"
+artifact_size_bytes = 11974
+artifact_expires = "2026-09-02"
+
+commands = [
+  "git diff --exit-code 6a173f0051ef3fda31dc685ebc524fc6b10442bf..265c33720f65b43fbf621e3b5ef20456ce67157e -- all six declared S1D proof files -> no changes",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check -p optid --all-targets --all-features -> passed",
+  "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
+  "each of the eight mapped lever_contract::tests::s1d_* unit tests executed individually with --exact -> passed",
+  "cargo test -p optid --test lever_contract_cli s1d_contract_cli_checks_registry_through_production_surface -- --exact -> passed",
+  "cargo test -p optid -> 437 passed; 0 failed",
+  "optid-lever-contracts --check, --list, and --json -> valid registry with exactly eleven unique levers",
+  "python3 tools/validate-current-work.py -> passed before state transition",
+  "python3 tools/validate-optid-packages.py -> passed before state transition",
+  "python3 tools/render-frontpage.py --check -> passed before state transition",
+  "git diff --check -> passed",
+]
+
+runtime_proofs = [
+  "Exact source binding: the PR #382 implementation head is an ancestor of merge commit 6a173f0051ef3fda31dc685ebc524fc6b10442bf; every declared S1D runtime, test, fixture, and evidence path is byte-unchanged from that merge through source base 265c33720f65b43fbf621e3b5ef20456ce67157e.",
+  "Production surface: the optid-lever-contracts executable validated the typed registry and emitted exactly eleven rows through both list and JSON modes.",
+  "Fail-closed authorization: missing identity, original capture, envelope value, or verification denied actuation; unknown values and both planned levers remained denied.",
+  "Handback semantics: every lever produced a verified exact rollback plan distinct from emergency stabilization, and evidence-gated stabilizers denied use when supporting evidence was absent.",
+  "Envelope monotonicity: the mapped tightening test proved a narrower backlight envelope did not authorize any value denied by the broader envelope.",
+  "Scope boundary: source inspection and commit comparison confirmed S1D remains a read-only registry/checker and does not alter daemon actuation, feature defaults, or the accepted D2 execution order.",
+]
+
+source_inspection_only = [
+  "All eleven contracts match the accepted D2 per-lever handback table for stable identity, ABI, credible worst case, exact rollback, separately named stabilization, verification, and fail-closed unsupported behavior.",
+  "Fan actuation remains absent.",
+  "Powercap PL1 and dGPU runtime PM remain planned and cannot authorize writes.",
+]
+
+unresolved = []

@@ -1,5 +1,5 @@
 schema_version = 2
-updated = "2026-08-02"
+updated = "2026-08-03"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
@@ -23,7 +23,7 @@ safety_architecture = "D2-fail-passive"
 # (D0) has now passed independent cold verification; S1D becomes the active
 # safety package. No package self-certifies completion.
 active_general = "T1"
-active_safety = "S1D"
+active_safety = "S2D"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -233,9 +233,10 @@ invalid_recovery_marker_is_rejected = "invalid_recovery_marker_is_rejected"
 id = "S1D"
 lane = "safety"
 title = "Freeze per-lever rollback, stabilization, and semantic envelopes"
-status = "candidate"
+status = "completed"
 depends = ["D0"]
 pr = "382"
+verification_receipt = "docs/plans/optid-verification/s1d.toml"
 runtime_entrypoints = [
   "crates/optid/src/bin/optid-lever-contracts.rs",
   "crates/optid/src/lib.rs",
@@ -267,7 +268,7 @@ production_contract_checker = "s1d_contract_cli_checks_registry_through_producti
 id = "S2D"
 lane = "safety"
 title = "Implement persistent verified write-ahead transactions"
-status = "planned"
+status = "next"
 depends = ["F2", "F3", "S1D"]
 pr = ""
 completion_evidence = []
