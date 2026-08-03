@@ -7,6 +7,7 @@ on:
       - ".github/workflows/s2d-builder-proof.yml"
       - ".github/s2d-builder-chunk-*"
       - ".github/s2d-builder-normalize.py"
+      - ".github/s2d-builder-normalize-f4.py"
 
 permissions:
   contents: write
@@ -53,6 +54,7 @@ jobs:
           sed -i 's|ROOT = Path(__file__).resolve().parents\[1\]|ROOT = Path.cwd()|' "$RUNNER_TEMP/s2d-builder.py"
           python3 "$RUNNER_TEMP/s2d-builder.py"
           python3 .github/s2d-builder-normalize.py
+          python3 .github/s2d-builder-normalize-f4.py
           python3 tools/render-frontpage.py --write
           cargo fmt --all
 
@@ -94,7 +96,8 @@ jobs:
           set -euo pipefail
           rm .github/workflows/s2d-builder-proof.yml \
             .github/s2d-builder-chunk-* \
-            .github/s2d-builder-normalize.py
+            .github/s2d-builder-normalize.py \
+            .github/s2d-builder-normalize-f4.py
           git add -A
           git config user.name "rush-s2d-builder"
           git config user.email "rush-s2d-builder@users.noreply.github.com"
