@@ -1,0 +1,171 @@
+name: S3D systemd lifecycle proof v3
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s3d-systemd-lifecycle-v3-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    if: >-
+      github.event.pull_request.head.ref == 'work/20260804-s3d-recovery-watchdog' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Rust dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Verify repository units match the proven model
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo test -p optid --test s3d_systemd
+
+      - name: Prove restart recovery and fail-closed dependency
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/s3d-systemd-lifecycle.log"
+          exec > >(tee -a "$LOG") 2>&1
+
+          sudo install -d -m 0755 /usr/local/libexec
+          cat > "$RUNNER_TEMP/s3d-proof-recover" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          install -d -m 0755 /var/tmp/s3d-proof
+          count=0
+          [[ -f /var/tmp/s3d-proof/recover-count ]] && count=$(cat /var/tmp/s3d-proof/recover-count)
+          count=$((count + 1))
+          printf '%s\n' "$count" > /var/tmp/s3d-proof/recover-count
+          if [[ -e /var/tmp/s3d-proof/force-recovery-failure ]]; then
+            exit 78
+          fi
+          SH
+          sudo install -m 0755 "$RUNNER_TEMP/s3d-proof-recover" \
+            /usr/local/libexec/s3d-proof-recover
+
+          cat > "$RUNNER_TEMP/s3d-proof-apply" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          install -d -m 0755 /var/tmp/s3d-proof
+          count=0
+          [[ -f /var/tmp/s3d-proof/apply-count ]] && count=$(cat /var/tmp/s3d-proof/apply-count)
+          count=$((count + 1))
+          printf '%s\n' "$count" > /var/tmp/s3d-proof/apply-count
+          if [[ "$count" -eq 1 ]]; then
+            exit 1
+          fi
+          exec sleep 30
+          SH
+          sudo install -m 0755 "$RUNNER_TEMP/s3d-proof-apply" \
+            /usr/local/libexec/s3d-proof-apply
+
+          sudo tee /etc/systemd/system/s3d-proof-recover.service >/dev/null <<'EOF'
+          [Unit]
+          Description=S3D proof recovery
+          Before=s3d-proof-apply.service
+          PartOf=s3d-proof-apply.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/libexec/s3d-proof-recover
+          Restart=no
+          EOF
+
+          sudo tee /etc/systemd/system/s3d-proof-apply.service >/dev/null <<'EOF'
+          [Unit]
+          Description=S3D proof apply
+          Requires=s3d-proof-recover.service
+          After=s3d-proof-recover.service
+          StartLimitIntervalSec=60s
+          StartLimitBurst=3
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/libexec/s3d-proof-apply
+          Restart=on-failure
+          RestartSec=1s
+          EOF
+
+          sudo systemctl daemon-reload
+          sudo systemctl stop s3d-proof-apply.service s3d-proof-recover.service || true
+          sudo rm -rf /var/tmp/s3d-proof
+          sudo systemctl reset-failed s3d-proof-apply.service s3d-proof-recover.service || true
+
+          # A failed first daemon process must be followed by a fresh recovery
+          # job before the supervisor starts the replacement daemon process.
+          sudo systemctl start s3d-proof-apply.service || true
+          for _ in $(seq 1 30); do
+            apply_count=$(cat /var/tmp/s3d-proof/apply-count 2>/dev/null || echo 0)
+            recovery_count=$(cat /var/tmp/s3d-proof/recover-count 2>/dev/null || echo 0)
+            active=$(systemctl show s3d-proof-apply.service -p ActiveState --value)
+            if [[ "$apply_count" -eq 2 && "$recovery_count" -eq 2 && "$active" == active ]]; then
+              break
+            fi
+            sleep 1
+          done
+          test "$(cat /var/tmp/s3d-proof/apply-count)" -eq 2
+          test "$(cat /var/tmp/s3d-proof/recover-count)" -eq 2
+          test "$(systemctl show s3d-proof-apply.service -p ActiveState --value)" = active
+          echo "restart_recovery_order=pass"
+          sudo systemctl stop s3d-proof-apply.service
+
+          # A failed recovery dependency must prevent daemon execution and must
+          # not activate the daemon service's restart policy.
+          sudo rm -rf /var/tmp/s3d-proof
+          sudo install -d -m 0755 /var/tmp/s3d-proof
+          sudo touch /var/tmp/s3d-proof/force-recovery-failure
+          sudo systemctl reset-failed s3d-proof-apply.service s3d-proof-recover.service || true
+          if sudo systemctl start s3d-proof-apply.service; then
+            echo "apply unexpectedly started after failed recovery" >&2
+            exit 1
+          fi
+          sleep 4
+          test "$(cat /var/tmp/s3d-proof/recover-count)" -eq 1
+          test ! -e /var/tmp/s3d-proof/apply-count
+          test "$(systemctl show s3d-proof-apply.service -p NRestarts --value)" -eq 0
+          echo "failed_recovery_no_restart_loop=pass"
+
+          systemctl show s3d-proof-apply.service \
+            -p ActiveState -p SubState -p Result -p NRestarts
+          systemctl show s3d-proof-recover.service \
+            -p ActiveState -p SubState -p Result -p ExecMainStatus
+          sudo journalctl -u s3d-proof-recover.service -u s3d-proof-apply.service \
+            --no-pager -o short-monotonic
+
+          echo "PROOF_LOG=$LOG" >> "$GITHUB_ENV"
+
+      - name: Remove temporary proof workflow
+        run: |
+          set -euo pipefail
+          git config user.name rush-s3d-systemd-verifier
+          git config user.email rush-s3d-systemd-verifier@users.noreply.github.com
+          git rm .github/workflows/s3d-systemd-lifecycle-proof-v3.yml
+          git commit -m "test(systemd): prove S3D recovery dependency lifecycle"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Upload supervised proof log
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3d-systemd-lifecycle-${{ github.run_id }}
+          path: ${{ env.PROOF_LOG }}
+          if-no-files-found: error
+          retention-days: 30
