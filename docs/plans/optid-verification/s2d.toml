@@ -1,55 +1,39 @@
-# Post-merge cold-verification receipt for S2D:
-# Implement persistent verified write-ahead transactions
-#
-# The read-only verification phase ran in a fresh GitHub-hosted checkout
-# after PR #386 merged. No runtime source, test, assertion, architecture,
-# policy, configuration, or packaging file was repaired during verification.
-# Receipt and work-state files were written only after every proof passed.
+# Integrated verification receipt refreshed by the S3D builder verifier.
+# Runtime source was authored in a separate builder job. This fresh verifier
+# checked the exact bundled source commit before writing receipts or ledger state.
 
 schema_version = 1
 package = "S2D"
 implementation_pr = 386
-verification_pr = 387
-verified_commit = "2247d460a67a8b1674bf7f8734008411d2471920"
-implementation_head = "c7741c9017bba939571a82de4ea49b1fe1608108"
-integrated_commit = "2247d460a67a8b1674bf7f8734008411d2471920"
-verifier = "Post-merge cold-verification workflow in a fresh GitHub-hosted runner, separate execution environment from the PR #386 builder; initiated by the continuation session; Linux X64 ubuntu-24.04"
+verification_pr = 388
+verified_commit = "3339e63df6721cd3a15989f4ab1364644ddae81e"
+verifier = "Fresh S3D GitHub verifier job, separate from the builder job; Linux X64 ubuntu-24.04"
 result = "pass"
-workflow_run = 30846140358
+workflow_run = 30853374668
 workflow_attempt = 1
 
 commands = [
-  "git merge-base --is-ancestor c7741c9017bba939571a82de4ea49b1fe1608108 2247d460a67a8b1674bf7f8734008411d2471920 -> passed",
-  "git diff --exit-code 2247d460a67a8b1674bf7f8734008411d2471920..origin/main -- all declared F4 and S2D proof paths -> no changes",
-  "git diff --exit-code 2247d460a67a8b1674bf7f8734008411d2471920..HEAD -- all declared F4 and S2D proof paths -> no verifier-side source changes",
-  "cargo clean -> passed in fresh GitHub-hosted checkout",
+  "git bundle verify and checkout exact source commit 3339e63df6721cd3a15989f4ab1364644ddae81e -> passed",
   "cargo fmt --all -- --check -> passed",
   "cargo check --workspace --all-targets --all-features -> passed",
   "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "all mapped S2D acceptance tests executed individually with --exact -> passed",
-  "all mapped F4 acceptance tests and additional f4_* regressions executed individually with --exact -> passed",
+  "all mapped F4, S2D, and S3D acceptance/regression tests executed individually with --exact -> passed",
   "cargo test --workspace -> passed",
   "python3 tools/validate-current-work.py -> passed before transition",
   "python3 tools/validate-optid-packages.py -> passed before transition",
   "python3 tools/render-frontpage.py --check -> passed before transition",
-  "git diff --check -> passed",
+  "bash tools/finish-work.sh --dry-run -> passed against the committed final snapshot",
 ]
 
 runtime_proofs = [
-  "Write-ahead ordering: a complete record, file sync, atomic rename, and recovery-directory sync precede every reconciler-owned production mutation.",
-  "Verified commit and compensation: intended writes commit only after exact typed readback; write/readback failures attempt exact-original compensation and retain non-terminal evidence when compensation cannot be verified.",
-  "Identity safety: stable FNV-1a record naming, canonical target identity, stale-generation rejection, and path-reuse rejection were exercised through exact acceptance tests.",
-  "Multi-target safety: compensation attempts every target even after an earlier failure and returns failure without falsely claiming complete recovery.",
-  "Lifecycle safety: committed records remain until verified handback; compaction occurs only after exact restoration or explicit drift relinquishment.",
-  "Production surface: the real daemon run path prepared, committed, restored, and compacted persistent transactions under the injected I/O boundary.",
-  "Scope boundary: no S3D recovery helper, watchdog, boot ordering, S4D sealing, or S5D circuit breaker behavior was added or claimed.",
+  "Every S2D transaction acceptance test passed individually against the exact S3D source commit.",
+  "Journal health validation rejects unpublished, malformed, stale-generation, identity-mismatched, and non-committed residual records before heartbeat.",
+  "The independent recovery path consumes the same closed S2D record schema and preserves unresolved evidence on failure.",
 ]
 
 source_inspection_only = [
-  "The verifier confirmed the transaction engine uses schema-versioned typed records rooted at /var/lib/optid/recovery and an explicit stable FNV-1a filename hash.",
-  "The verifier confirmed completed F2 proof files are not modified by the integrated S2D/F4 change.",
+  "The verifier confirmed S3D adds no permanent broker or steady-state hardware-write IPC.",
+  "The verifier confirmed optid-recover contains no policy parser, classifier, D-Bus server, session bridge, or async runtime.",
 ]
 
 unresolved = []
-
-# Connector-authored publication commit: no declared F4 or S2D proof path changed.

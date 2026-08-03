@@ -1,51 +1,39 @@
-# Post-merge cold-verification receipt for F4:
-# Reconcile complete desired state and restore on transitions
-#
-# The read-only verification phase ran in a fresh GitHub-hosted checkout
-# after PR #386 merged. No runtime source, test, assertion, architecture,
-# policy, configuration, or packaging file was repaired during verification.
-# Receipt and work-state files were written only after every proof passed.
+# Integrated verification receipt refreshed by the S3D builder verifier.
+# Runtime source was authored in a separate builder job. This fresh verifier
+# checked the exact bundled source commit before writing receipts or ledger state.
 
 schema_version = 1
 package = "F4"
 implementation_pr = 371
-verification_pr = 387
-verified_commit = "2247d460a67a8b1674bf7f8734008411d2471920"
-implementation_head = "c7741c9017bba939571a82de4ea49b1fe1608108"
-integrated_commit = "2247d460a67a8b1674bf7f8734008411d2471920"
-verifier = "Post-merge cold-verification workflow in a fresh GitHub-hosted runner, separate execution environment from the PR #386 builder; initiated by the continuation session; Linux X64 ubuntu-24.04"
+verification_pr = 388
+verified_commit = "3339e63df6721cd3a15989f4ab1364644ddae81e"
+verifier = "Fresh S3D GitHub verifier job, separate from the builder job; Linux X64 ubuntu-24.04"
 result = "pass"
-workflow_run = 30846140358
+workflow_run = 30853374668
 workflow_attempt = 1
 
 commands = [
-  "git merge-base --is-ancestor c7741c9017bba939571a82de4ea49b1fe1608108 2247d460a67a8b1674bf7f8734008411d2471920 -> passed",
-  "git diff --exit-code 2247d460a67a8b1674bf7f8734008411d2471920..origin/main -- all declared F4 and S2D proof paths -> no changes",
-  "git diff --exit-code 2247d460a67a8b1674bf7f8734008411d2471920..HEAD -- all declared F4 and S2D proof paths -> no verifier-side source changes",
-  "cargo clean -> passed in fresh GitHub-hosted checkout",
+  "git bundle verify and checkout exact source commit 3339e63df6721cd3a15989f4ab1364644ddae81e -> passed",
   "cargo fmt --all -- --check -> passed",
   "cargo check --workspace --all-targets --all-features -> passed",
   "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "all mapped S2D acceptance tests executed individually with --exact -> passed",
-  "all mapped F4 acceptance tests and additional f4_* regressions executed individually with --exact -> passed",
+  "all mapped F4, S2D, and S3D acceptance/regression tests executed individually with --exact -> passed",
   "cargo test --workspace -> passed",
   "python3 tools/validate-current-work.py -> passed before transition",
   "python3 tools/validate-optid-packages.py -> passed before transition",
   "python3 tools/render-frontpage.py --check -> passed before transition",
-  "git diff --check -> passed",
+  "bash tools/finish-work.sh --dry-run -> passed against the committed final snapshot",
 ]
 
 runtime_proofs = [
-  "Production reconciliation: the daemon continues to enter the F4 reconciler for complete desired-state application, transition restoration, shutdown restoration, and property-level systemd reconciliation.",
-  "Integrated transaction boundary: every F4-owned kernel or systemd mutation is gated by the S2D durable transaction protocol before the write and commits only after typed readback.",
-  "Handback safety: external drift, device disappearance, malformed state, missing baseline, and readback mismatch remain fail-closed and never produce a pretend restore or false ownership claim.",
-  "Restart boundary: previous-generation transaction evidence is validated before any handback mutation; stale evidence is retained for S3D rather than compacted or overwritten.",
-  "Source binding: all declared F4 proof paths are byte-unchanged from merged integration commit 2247d460a67a8b1674bf7f8734008411d2471920 through the verifier branch's read-only test phase.",
+  "The F4 reconciler remains the sole production desired-state and restoration authority after S3D supervision integration.",
+  "Every F4 mapped acceptance test and additional f4_* regression passed individually with exact selection.",
+  "Watchdog notification occurs only after F4 reconciliation and state persistence complete successfully.",
 ]
 
 source_inspection_only = [
-  "The verifier confirmed the transaction engine uses schema-versioned typed records rooted at /var/lib/optid/recovery and an explicit stable FNV-1a filename hash.",
-  "The verifier confirmed completed F2 proof files are not modified by the integrated S2D/F4 change.",
+  "The verifier confirmed S3D adds no permanent broker or steady-state hardware-write IPC.",
+  "The verifier confirmed optid-recover contains no policy parser, classifier, D-Bus server, session bridge, or async runtime.",
 ]
 
 unresolved = []
