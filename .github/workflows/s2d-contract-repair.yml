@@ -101,7 +101,20 @@ jobs:
           done
           cargo test -p optid
 
-      - name: Verify repository truth and policy
+      - name: Create clean candidate commit
+        run: |
+          set -euo pipefail
+          rm .github/workflows/s2d-contract-repair.yml \
+            .github/s2d-contract-repair.py \
+            .github/s2d-path-reuse-test.py \
+            .github/s2d-restart-boundary.py
+          git add -A
+          git config user.name "rush-s2d-contract-repair"
+          git config user.email "rush-s2d-contract-repair@users.noreply.github.com"
+          git commit -m "fix(optid): preserve S2D package contracts"
+          test -z "$(git status --porcelain)"
+
+      - name: Verify committed repository truth and policy
         run: |
           set -euo pipefail
           git diff --exit-code origin/main -- \
@@ -114,18 +127,8 @@ jobs:
           do
             bash tools/checks.sh --ci --section "$section" --changed-base origin/main
           done
-          git diff --check
+          git diff --check origin/main...HEAD
           bash tools/finish-work.sh --dry-run
 
-      - name: Publish repaired candidate
-        run: |
-          set -euo pipefail
-          rm .github/workflows/s2d-contract-repair.yml \
-            .github/s2d-contract-repair.py \
-            .github/s2d-path-reuse-test.py \
-            .github/s2d-restart-boundary.py
-          git add -A
-          git config user.name "rush-s2d-contract-repair"
-          git config user.email "rush-s2d-contract-repair@users.noreply.github.com"
-          git commit -m "fix(optid): preserve S2D package contracts"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+      - name: Publish validated candidate
+        run: git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
