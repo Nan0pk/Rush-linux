@@ -1,27 +1,17 @@
 schema_version = 2
-updated = "2026-08-03"
+updated = "2026-08-04"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Independent cold-verification completed F1, F2, F3, and F4 at the F4
-# cutover. S2D PR #386 changes declared F4 reconciliation proof paths, so F4 is
-# truthfully demoted to `merged_incomplete` until a fresh independent verifier
-# evaluates the integrated S2D/F4 surface. F1-F3 remain completed and S2D does
-# not modify F2 proof paths.
+# Independent post-merge cold verification now covers F1-F4 and S1D-S2D.
+# PR #386 integrated S2D into the F4 reconciliation surface; one fresh
+# read-only verifier re-certified F4 and completed S2D against the merged
+# commit. S3D is now the active safety package. No package self-certified.
 #
-# active_general is T1 because T1 is already `merged_incomplete` (actionable)
-# and its F2/F3 dependencies are now satisfied, so its remaining blockers
-# (cold hardware verification and reviewed threshold acceptance) are the next
-# truth-preserving repair target in the general construction lane. C1 (contracts)
-# is the next NEW package to start per the completion plan's track ordering
-# ("Truth and state" F1-F4 is complete; the next track "Safe mutation" includes
-# C1), but C1 remains `planned` because this verification PR may advance only
-# one package (F4) per the one-package-per-PR rule; a builder picking up C1
-# will set it to `next` in a separate implementation PR. The safety lane
-# (D0) has now passed independent cold verification; S1D becomes the active
-# safety package. No package self-certifies completion.
+# active_general remains T1 because its physical hardware proof and reviewed
+# threshold acceptance are still outstanding. R1-R3 remain independent.
 active_general = "T1"
-active_safety = "S2D"
+active_safety = "S3D"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -150,10 +140,10 @@ production_cycle = "f3_production_daemon_run_writes_one_correlated_versioned_cyc
 id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
-status = "merged_incomplete"
+status = "completed"
 depends = ["F2", "F3"]
 pr = "371"
-blocking_reason = "S2D PR #386 changes declared F4 reconciliation proof paths; fresh independent cold verification of the integrated F4/S2D production surface is required."
+verification_receipt = "docs/plans/optid-verification/f4.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/reconciler/mod.rs",
@@ -266,9 +256,10 @@ production_contract_checker = "s1d_contract_cli_checks_registry_through_producti
 id = "S2D"
 lane = "safety"
 title = "Implement persistent verified write-ahead transactions"
-status = "candidate"
+status = "completed"
 depends = ["F2", "F3", "S1D"]
 pr = "386"
+verification_receipt = "docs/plans/optid-verification/s2d.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/reconciler/mod.rs",
@@ -314,7 +305,7 @@ restart_handoff_to_s3d = "f4_restart_hydrates_typed_vm_state_and_restores"
 id = "S3D"
 lane = "safety"
 title = "Add independent recovery, watchdog, and boot ordering"
-status = "planned"
+status = "next"
 depends = ["S2D"]
 pr = ""
 completion_evidence = []
