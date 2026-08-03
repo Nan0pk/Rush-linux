@@ -1,0 +1,221 @@
+name: S3D builder and integration verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s3d-builder-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_BRANCH: work/20260804-s3d-recovery-watchdog
+  BASE_COMMIT: 1e6da79454ecb95cb8d8bfcd41d10ea1b140dd66
+
+jobs:
+  build:
+    if: >-
+      github.event.pull_request.head.ref == 'work/20260804-s3d-recovery-watchdog' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    outputs:
+      source_commit: ${{ steps.source.outputs.sha }}
+      staging_head: ${{ steps.source.outputs.staging }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Validate exact branch and base
+        run: |
+          set -euo pipefail
+          test "${GITHUB_HEAD_REF}" = "${EXPECTED_BRANCH}"
+          test "$(git rev-parse origin/main)" = "${BASE_COMMIT}"
+          test "$(git merge-base HEAD origin/main)" = "${BASE_COMMIT}"
+          git diff --check
+
+      - name: Install Rust system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Build S3D source candidate
+        run: python3 .github/s3d_builder.py
+
+      - name: Verify builder candidate
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_recovery_restores_intended_value_and_compacts -- --exact
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_recovery_prepared_record_is_idempotent -- --exact
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_recovery_drift_relinquishes_without_overwrite -- --exact
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_recovery_refuses_identity_reuse -- --exact
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_recovery_failure_retains_record -- --exact
+          cargo test -p optid --bin optid-recover recovery::tests::s3d_repeated_recovery_is_idempotent -- --exact
+          cargo test -p optid --bin optid reconciler::tests::s3d::s3d_complete_cycle_emits_ready_and_watchdog -- --exact
+          cargo test -p optid --bin optid reconciler::tests::s3d::s3d_journal_failure_withholds_watchdog -- --exact
+          cargo test -p optid --test recovery_cli s3d_recovery_cli_recovers_before_success_exit -- --exact
+          cargo test -p optid --test recovery_cli s3d_recovery_binary_has_no_policy_or_async_surface -- --exact
+          cargo test -p optid --test s3d_systemd s3d_apply_unit_orders_recovery_before_daemon -- --exact
+          cargo test -p optid --test s3d_systemd s3d_failed_recovery_prevents_automatic_actuation_restart_loop -- --exact
+          cargo test --workspace
+          git diff --check
+
+      - name: Create exact source commit and bundle
+        id: source
+        run: |
+          set -euo pipefail
+          STAGING_HEAD="$(git rev-parse HEAD)"
+          git config user.name "rush-s3d-builder"
+          git config user.email "rush-s3d-builder@users.noreply.github.com"
+          git add crates/optid packaging/systemd recipes/core/optid.toml docs/architecture/optid-s3d-recovery-watchdog.md
+          git commit -m "feat(optid): add independent recovery and watchdog supervision"
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          echo "staging=$STAGING_HEAD" >> "$GITHUB_OUTPUT"
+          echo "sha=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          git bundle create "$RUNNER_TEMP/s3d-source.bundle" HEAD
+          git diff --exit-code
+          git status --short
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3d-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/s3d-source.bundle
+          if-no-files-found: error
+          retention-days: 30
+
+  verify-integrated:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: s3d-source-${{ github.run_id }}
+          path: ${{ runner.temp }}
+
+      - name: Check out exact builder source commit
+        env:
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+          STAGING_HEAD: ${{ needs.build.outputs.staging_head }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$STAGING_HEAD"
+          git fetch "$RUNNER_TEMP/s3d-source.bundle" "$SOURCE_COMMIT"
+          git checkout --detach "$SOURCE_COMMIT"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git diff --check "$STAGING_HEAD..$SOURCE_COMMIT"
+
+      - name: Install verifier dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up verifier Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Independently verify impacted F4, S2D, and S3D surfaces
+        env:
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/s3d-integration-verification.log"
+          exec > >(tee -a "$LOG") 2>&1
+          echo "source_commit=$SOURCE_COMMIT"
+          git status --short
+          cargo clean
+          cargo fmt --all -- --check
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+          mapfile -t OPTID_EXACT < <(
+            cargo test -p optid --bin optid -- --list |
+              sed -n 's/: test$//p' |
+              grep -E 'reconciler::tests::(f4_|s2d::s2d_|s3d::s3d_)'
+          )
+          test "${#OPTID_EXACT[@]}" -ge 30
+          for test_name in "${OPTID_EXACT[@]}"; do
+            cargo test -p optid --bin optid "$test_name" -- --exact
+          done
+
+          mapfile -t RECOVERY_EXACT < <(
+            cargo test -p optid --bin optid-recover -- --list |
+              sed -n 's/: test$//p' |
+              grep 'recovery::tests::s3d_'
+          )
+          test "${#RECOVERY_EXACT[@]}" -eq 6
+          for test_name in "${RECOVERY_EXACT[@]}"; do
+            cargo test -p optid --bin optid-recover "$test_name" -- --exact
+          done
+
+          for test_name in \
+            s3d_recovery_cli_recovers_before_success_exit \
+            s3d_recovery_binary_has_no_policy_or_async_surface
+          do
+            cargo test -p optid --test recovery_cli "$test_name" -- --exact
+          done
+          for test_name in \
+            s3d_apply_unit_orders_recovery_before_daemon \
+            s3d_failed_recovery_prevents_automatic_actuation_restart_loop
+          do
+            cargo test -p optid --test s3d_systemd "$test_name" -- --exact
+          done
+
+          cargo test --workspace
+          git diff --exit-code
+          echo "VERIFICATION_LOG=$LOG" >> "$GITHUB_ENV"
+
+      - name: Publish refreshed dependency receipts and S3D candidate truth
+        env:
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUNNER_DESCRIPTION: ${{ runner.os }} ${{ runner.arch }} ubuntu-24.04
+        run: |
+          set -euo pipefail
+          python3 .github/s3d_finalize.py
+          python3 tools/render-frontpage.py --write
+          rm .github/workflows/s3d-builder.yml .github/s3d_builder.py .github/s3d_finalize.py
+
+          git config user.name "rush-s3d-integration-verifier"
+          git config user.email "rush-s3d-integration-verifier@users.noreply.github.com"
+          git add -A
+          git commit -m "verify(optid): recertify F4 and S2D for S3D integration"
+
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+          bash tools/finish-work.sh --dry-run
+
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Upload integrated verification log
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3d-integration-verification-${{ github.run_id }}
+          path: ${{ env.VERIFICATION_LOG }}
+          if-no-files-found: error
+          retention-days: 30
