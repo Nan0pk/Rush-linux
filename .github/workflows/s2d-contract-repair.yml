@@ -51,6 +51,8 @@ jobs:
           sed -i 's/production_daemon_path/production_daemon_surface/' \
             .github/s2d-contract-repair.py
           python3 .github/s2d-contract-repair.py
+          sed -i 's/return if io\.exists(path)/if io.exists(path)/g' \
+            crates/optid/src/reconciler/transaction.rs
           python3 tools/render-frontpage.py --write
           cargo fmt --all
 
