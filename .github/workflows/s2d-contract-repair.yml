@@ -7,6 +7,7 @@ on:
       - ".github/workflows/s2d-contract-repair.yml"
       - ".github/s2d-contract-repair.py"
       - ".github/s2d-path-reuse-test.py"
+      - ".github/s2d-restart-boundary.py"
 
 permissions:
   contents: write
@@ -57,6 +58,7 @@ jobs:
           python3 -c 'from pathlib import Path; p=Path("crates/optid/src/reconciler/transaction.rs"); s=p.read_text(); old="            };\n        }\n        #[cfg(not(test))]"; assert s.count(old) == 2, s.count(old); p.write_text(s.replace(old, "            }\n        }\n        #[cfg(not(test))]"))'
           python3 -c 'from pathlib import Path; p=Path("crates/optid/src/reconciler/tests/s2d.rs"); s=p.read_text(); old="    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {\n        self.0.canonicalize(path)\n    }\n"; new="    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {\n        match self.0.read_link(path) {\n            Ok(target) => Ok(target),\n            Err(error) if error.kind() == io::ErrorKind::NotFound => self.0.canonicalize(path),\n            Err(error) => Err(error),\n        }\n    }\n"; assert s.count(old) == 1, s.count(old); p.write_text(s.replace(old, new, 1))'
           python3 .github/s2d-path-reuse-test.py
+          python3 .github/s2d-restart-boundary.py
           python3 tools/render-frontpage.py --write
           cargo fmt --all
 
@@ -82,7 +84,8 @@ jobs:
             s2d_production_daemon_run_uses_persistent_transaction_protocol \
             s2d_record_path_is_stable_across_generations \
             s2d_stale_generation_handback_does_not_compact \
-            s2d_compensation_attempts_every_target_after_one_failure
+            s2d_compensation_attempts_every_target_after_one_failure \
+            f4_restart_hydrates_typed_vm_state_and_restores
           do
             cargo test -p optid --bin optid \
               "reconciler::tests::$test_name" -- --exact
@@ -107,7 +110,8 @@ jobs:
           set -euo pipefail
           rm .github/workflows/s2d-contract-repair.yml \
             .github/s2d-contract-repair.py \
-            .github/s2d-path-reuse-test.py
+            .github/s2d-path-reuse-test.py \
+            .github/s2d-restart-boundary.py
           git add -A
           git config user.name "rush-s2d-contract-repair"
           git config user.email "rush-s2d-contract-repair@users.noreply.github.com"
