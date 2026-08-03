@@ -133,6 +133,9 @@ impl Reconciler {
                     detail: Some("shadow restore plan; no write executed".to_string()),
                 }
             } else {
+                self.transactions
+                    .validate_handback(actuator.kernel.as_ref(), &plan.target_id)
+                    .map_err(io::Error::from)?;
                 actuator.execute_restore(&plan, self.systemd.as_ref())?
             };
             self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref())?;

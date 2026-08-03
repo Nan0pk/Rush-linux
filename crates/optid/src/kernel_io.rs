@@ -135,14 +135,6 @@ impl KernelWrite for RealKernel {
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
         self.dispatch(|kernel| kernel.append(path, text))
     }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        self.dispatch(|kernel| kernel.sync_file(path))
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        self.dispatch(|kernel| kernel.sync_dir(path))
-    }
 }
 
 impl Clock for RealKernel {

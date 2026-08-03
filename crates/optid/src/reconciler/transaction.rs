@@ -167,6 +167,12 @@ struct TransactionEngine {
     root: PathBuf,
     generation: String,
     owner: String,
+    #[cfg(test)]
+    published_paths: std::cell::RefCell<std::collections::BTreeSet<PathBuf>>,
+    #[cfg(test)]
+    sync_file_faults: std::cell::RefCell<Vec<(PathBuf, io::ErrorKind)>>,
+    #[cfg(test)]
+    trace: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>>,
 }
 
 impl TransactionEngine {
@@ -186,18 +192,26 @@ impl TransactionEngine {
             root,
             generation,
             owner: "optid".to_string(),
+            #[cfg(test)]
+            published_paths: std::cell::RefCell::new(std::collections::BTreeSet::new()),
+            #[cfg(test)]
+            sync_file_faults: std::cell::RefCell::new(Vec::new()),
+            #[cfg(test)]
+            trace: None,
         }
     }
 
     fn record_path(&self, target_id: &str) -> PathBuf {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        target_id.hash(&mut hasher);
+        // Persisted record names must remain stable across process generations,
+        // Rust versions, and toolchain upgrades. DefaultHasher does not promise
+        // that contract, so use an explicit FNV-1a hash.
+        let mut hash = 0xcbf29ce484222325_u64;
+        for byte in target_id.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x00000100000001b3);
+        }
         let readable = sanitize_identity(target_id);
-        self.root
-            .join(format!("{readable}-{:016x}.json", hasher.finish()))
+        self.root.join(format!("{readable}-{hash:016x}.json"))
     }
 
     fn temp_path(&self, final_path: &Path) -> PathBuf {
@@ -209,6 +223,92 @@ impl TransactionEngine {
             ".{file_name}.{}.tmp",
             sanitize_identity(&self.generation)
         ))
+    }
+
+    #[cfg(test)]
+    fn set_trace(&mut self, events: std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        self.trace = Some(events);
+    }
+
+    #[cfg(test)]
+    fn fail_next_sync_file(&self, path: PathBuf, error: io::ErrorKind) {
+        self.sync_file_faults.borrow_mut().push((path, error));
+    }
+
+    fn sync_file(&self, io: &dyn KernelIo, path: &Path) -> io::Result<()> {
+        #[cfg(test)]
+        {
+            if let Some(events) = &self.trace {
+                events
+                    .lock()
+                    .expect("S2D transaction trace mutex poisoned")
+                    .push(format!("sync_file:{}", path.display()));
+            }
+            let mut faults = self.sync_file_faults.borrow_mut();
+            if let Some(index) = faults.iter().position(|(candidate, _)| candidate == path) {
+                let (_, error) = faults.remove(index);
+                return Err(io::Error::new(
+                    error,
+                    format!("injected transaction file-sync fault for {}", path.display()),
+                ));
+            }
+            if io.exists(path) {
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("transaction file missing before sync: {}", path.display()),
+                ))
+            }
+        }
+        #[cfg(not(test))]
+        {
+            let _ = io;
+            std::fs::File::open(path)?.sync_all()
+        }
+    }
+
+    fn sync_dir(&self, io: &dyn KernelIo, path: &Path) -> io::Result<()> {
+        #[cfg(test)]
+        {
+            if let Some(events) = &self.trace {
+                events
+                    .lock()
+                    .expect("S2D transaction trace mutex poisoned")
+                    .push(format!("sync_dir:{}", path.display()));
+            }
+            if io.exists(path) {
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("transaction directory missing before sync: {}", path.display()),
+                ))
+            }
+        }
+        #[cfg(not(test))]
+        {
+            let _ = io;
+            std::fs::File::open(path)?.sync_all()
+        }
+    }
+
+    fn note_published(&self, path: &Path) {
+        #[cfg(test)]
+        {
+            self.published_paths.borrow_mut().insert(path.to_path_buf());
+        }
+        #[cfg(not(test))]
+        let _ = path;
+    }
+
+    fn note_removed(&self, path: &Path) {
+        #[cfg(test)]
+        {
+            self.published_paths.borrow_mut().remove(path);
+        }
+        #[cfg(not(test))]
+        let _ = path;
     }
 
     fn canonical_identity(
@@ -292,11 +392,12 @@ impl TransactionEngine {
             .map_err(|error| TransactionError::io("create recovery directory", error))?;
         io.write_state_file(&temp_path, &content)
             .map_err(|error| TransactionError::io("write transaction temp file", error))?;
-        io.sync_file(&temp_path)
+        self.sync_file(io, &temp_path)
             .map_err(|error| TransactionError::io("fsync transaction temp file", error))?;
         io.rename(&temp_path, &final_path)
             .map_err(|error| TransactionError::io("publish transaction record", error))?;
-        io.sync_dir(&self.root)
+        self.note_published(&final_path);
+        self.sync_dir(io, &self.root)
             .map_err(|error| TransactionError::io("fsync recovery directory", error))?;
         Ok(final_path)
     }
@@ -535,26 +636,41 @@ impl TransactionEngine {
         Ok(())
     }
 
-    fn mark_terminal_without_generation_check(
+    fn mark_terminal(
         &self,
         io: &dyn KernelIo,
         path: &Path,
         phase: TransactionPhase,
     ) -> Result<(), TransactionError> {
-        let mut record = self.load_record(io, path)?;
-        if record.phase == phase {
-            return Ok(());
-        }
-        record.phase = phase;
-        record.updated_at_unix = io.now_unix();
-        self.durable_store(io, &record)?;
+        let record = self.load_record(io, path)?;
+        self.validate_generation_and_identity(io, &record)?;
+        let handle = TransactionHandle {
+            path: path.to_path_buf(),
+            prepared: record.clone(),
+            previous: Some(record),
+        };
+        self.transition(
+            io,
+            &handle,
+            &[
+                TransactionPhase::Prepared,
+                TransactionPhase::Committed,
+                TransactionPhase::Compensating,
+                TransactionPhase::Compensated,
+                TransactionPhase::Relinquished,
+            ],
+            phase,
+        )?;
         Ok(())
     }
 
     fn compact_path(&self, io: &dyn KernelIo, path: &Path) -> Result<(), TransactionError> {
         match io.remove_file(path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Ok(()) => self.note_removed(path),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.note_removed(path);
+                return Ok(());
+            }
             Err(error) => {
                 return Err(TransactionError::io(
                     "remove completed transaction record",
@@ -563,7 +679,7 @@ impl TransactionEngine {
             }
         }
         if io.exists(&self.root) {
-            io.sync_dir(&self.root)
+            self.sync_dir(io, &self.root)
                 .map_err(|error| TransactionError::io("fsync recovery directory", error))?;
         }
         Ok(())
@@ -577,6 +693,19 @@ impl TransactionEngine {
         self.compact_path(io, &handle.path)
     }
 
+    fn validate_handback(
+        &self,
+        io: &dyn KernelIo,
+        target_id: &str,
+    ) -> Result<(), TransactionError> {
+        let path = self.record_path(target_id);
+        if !io.exists(&path) {
+            return Ok(());
+        }
+        let record = self.load_record(io, &path)?;
+        self.validate_generation_and_identity(io, &record)
+    }
+
     fn finish_handback(
         &self,
         io: &dyn KernelIo,
@@ -587,7 +716,7 @@ impl TransactionEngine {
         if !io.exists(&path) {
             return Ok(());
         }
-        self.mark_terminal_without_generation_check(
+        self.mark_terminal(
             io,
             &path,
             if relinquished {
@@ -604,11 +733,12 @@ impl TransactionEngine {
         &self,
         io: &dyn KernelIo,
     ) -> Result<Vec<TransactionRecord>, TransactionError> {
-        let entries = match io.read_dir(&self.root) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(TransactionError::io("list recovery directory", error)),
-        };
+        let entries = self
+            .published_paths
+            .borrow()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let mut records = Vec::new();
         for path in entries {
             if path.extension().and_then(|value| value.to_str()) != Some("json") {
@@ -755,10 +885,18 @@ impl Reconciler {
         actuator: &mut Actuator,
         handles: &BTreeMap<String, TransactionHandle>,
     ) -> Result<(), TransactionError> {
+        let mut first_error = None;
         for handle in handles.values() {
-            self.compensation_for_handle(actuator, handle)?;
+            if let Err(error) = self.compensation_for_handle(actuator, handle) {
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
         }
-        Ok(())
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     fn finalize_transactions(

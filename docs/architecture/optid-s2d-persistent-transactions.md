@@ -1,7 +1,7 @@
 # S2D Persistent Verified Transaction Protocol
 
-**Status:** Builder candidate for package S2D  
-**Architecture:** D2 fail-passive capability sealing  
+**Status:** Builder candidate for package S2D
+**Architecture:** D2 fail-passive capability sealing
 **Storage root:** `/var/lib/optid/recovery/`
 
 ## Purpose
@@ -118,7 +118,12 @@ The package tests cover:
 - canonical path reuse;
 - repeated compensation;
 - external drift without overwrite;
-- committed-record cleanup after verified restore; and
+- committed-record cleanup after verified restore;
+- stable record naming across process generations and toolchain upgrades;
+- stale-generation handback preserving recovery evidence;
+- process restart refusing handback before mutation until S3D recovers the
+  previous generation;
+- compensation continuing across every target after an earlier failure; and
 - the real `run()` daemon path with persistent prepare/commit/restore/compact
   behavior.
 

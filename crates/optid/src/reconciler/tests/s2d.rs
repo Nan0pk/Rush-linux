@@ -27,7 +27,11 @@ impl KernelRead for S2dSharedKernel {
     }
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        self.0.canonicalize(path)
+        match self.0.read_link(path) {
+            Ok(target) => Ok(target),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => self.0.canonicalize(path),
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -54,14 +58,6 @@ impl KernelWrite for S2dSharedKernel {
 
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
         self.0.append(path, text)
-    }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        self.0.sync_file(path)
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        self.0.sync_dir(path)
     }
 }
 
@@ -138,16 +134,6 @@ impl KernelWrite for S2dTraceKernel {
         self.push(format!("append:{}", path.display()));
         self.inner.append(path, text)
     }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        self.push(format!("sync_file:{}", path.display()));
-        self.inner.sync_file(path)
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        self.push(format!("sync_dir:{}", path.display()));
-        self.inner.sync_dir(path)
-    }
 }
 
 impl Clock for S2dTraceKernel {
@@ -216,14 +202,6 @@ impl KernelWrite for S2dMismatchKernel {
 
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
         self.inner.append(path, text)
-    }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        self.inner.sync_file(path)
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        self.inner.sync_dir(path)
     }
 }
 
@@ -317,6 +295,7 @@ fn s2d_durable_record_is_synced_before_production_write() {
     let mut actuator = s2d_armed_actuator(state_dir.clone(), Box::new(trace));
     let mut reconciler =
         s2d_reconciler(state_dir, recovery_dir.clone(), &mut actuator, "order-generation");
+    reconciler.transactions.set_trace(Arc::clone(&events));
     let action = vm_action(&path, "10");
 
     reconciler
@@ -393,14 +372,16 @@ fn s2d_fsync_failure_refuses_mutation() {
     let memory = Arc::new(MemoryKernel::new());
     memory.write_raw(&path, "60");
     let shared = S2dSharedKernel(Arc::clone(&memory));
-    let engine = TransactionEngine::new(recovery_dir.clone(), "fsync-generation".to_string());
-    let action = vm_action(&path, "10");
-    let temp = engine.temp_path(&engine.record_path(&action.stable_target_id()));
-    let fault = FaultKernel::new(Box::new(shared));
-    fault.fail_next_sync_file(temp, io::ErrorKind::Other);
-    let mut actuator = s2d_armed_actuator(state_dir.clone(), Box::new(fault));
+    let mut actuator = s2d_armed_actuator(state_dir.clone(), Box::new(shared));
     let mut reconciler =
         s2d_reconciler(state_dir, recovery_dir, &mut actuator, "fsync-generation");
+    let action = vm_action(&path, "10");
+    let temp = reconciler
+        .transactions
+        .temp_path(&reconciler.transactions.record_path(&action.stable_target_id()));
+    reconciler
+        .transactions
+        .fail_next_sync_file(temp, io::ErrorKind::Other);
 
     reconciler
         .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
@@ -570,7 +551,8 @@ fn s2d_stale_generation_is_rejected() {
 fn s2d_path_reuse_identity_mismatch_is_rejected() {
     let recovery_dir = PathBuf::from("/var/lib/optid/recovery-path-reuse");
     let path = PathBuf::from("/proc/sys/vm/swappiness");
-    let memory = MemoryKernel::new();
+    let memory = Arc::new(MemoryKernel::new());
+    let io = S2dSharedKernel(Arc::clone(&memory));
     memory.write_raw(&path, "60");
     memory.write_link(&path, Path::new("/devices/original/swappiness"));
     let action = vm_action(&path, "10");
@@ -580,12 +562,12 @@ fn s2d_path_reuse_identity_mismatch_is_rejected() {
     };
     let engine = TransactionEngine::new(recovery_dir, "identity-generation".to_string());
     engine
-        .prepare(&memory, &action, &desired, &original)
+        .prepare(&io, &action, &desired, &original)
         .expect("prepare original identity");
     memory.write_link(&path, Path::new("/devices/reused/swappiness"));
 
     let error = engine
-        .prepare(&memory, &action, &desired, &original)
+        .prepare(&io, &action, &desired, &original)
         .expect_err("path reuse must be rejected");
     assert_eq!(error.kind, TransactionErrorKind::IdentityMismatch);
     assert_eq!(memory.read_to_string(&path).expect("target unchanged"), "60");
@@ -702,6 +684,122 @@ fn s2d_production_commit_then_verified_restore_compacts() {
         .is_empty());
 }
 
+
+#[test]
+fn s2d_record_path_is_stable_across_generations() {
+    let root = PathBuf::from("/var/lib/optid/recovery-stable-name");
+    let target = "vm-sysctl:swappiness";
+    let first = TransactionEngine::new(root.clone(), "generation-one".to_string());
+    let second = TransactionEngine::new(root, "generation-two".to_string());
+
+    assert_eq!(first.record_path(target), second.record_path(target));
+}
+
+#[test]
+fn s2d_stale_generation_handback_does_not_compact() {
+    let recovery_dir = PathBuf::from("/var/lib/optid/recovery-stale-handback");
+    let path = PathBuf::from("/proc/sys/vm/swappiness");
+    let memory = MemoryKernel::new();
+    memory.write_raw(&path, "60");
+    let action = vm_action(&path, "10");
+    let desired = s2d_desired(&path, "10");
+    let original = StoredValue::Scalar {
+        value: "60".to_string(),
+    };
+    let old = TransactionEngine::new(recovery_dir.clone(), "old-generation".to_string());
+    let handle = old
+        .prepare(&memory, &action, &desired, &original)
+        .expect("old generation prepares record");
+
+    let current = TransactionEngine::new(recovery_dir, "new-generation".to_string());
+    let error = current
+        .finish_handback(&memory, &action.stable_target_id(), true)
+        .expect_err("new generation must not compact stale recovery evidence");
+    assert_eq!(error.kind, TransactionErrorKind::StaleGeneration);
+    assert!(memory.exists(&handle.path));
+}
+
+#[test]
+fn s2d_compensation_attempts_every_target_after_one_failure() {
+    let state_dir = PathBuf::from("/run/optid-s2d-all-compensation");
+    let recovery_dir = PathBuf::from("/var/lib/optid/recovery-all-compensation");
+    let stale_path = PathBuf::from("/proc/sys/vm/dirty_bytes");
+    let current_path = PathBuf::from("/proc/sys/vm/swappiness");
+    let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&stale_path, "1000");
+    memory.write_raw(&current_path, "60");
+    let mut actuator = s2d_armed_actuator(
+        state_dir.clone(),
+        Box::new(S2dSharedKernel(Arc::clone(&memory))),
+    );
+    let reconciler = s2d_reconciler(
+        state_dir,
+        recovery_dir.clone(),
+        &mut actuator,
+        "current-generation",
+    );
+
+    let stale_action = vm_action(&stale_path, "2000");
+    let stale_desired = s2d_desired(&stale_path, "2000");
+    let stale_original = StoredValue::Scalar {
+        value: "1000".to_string(),
+    };
+    let stale_handle = TransactionEngine::new(recovery_dir, "old-generation".to_string())
+        .prepare(
+            actuator.kernel.as_ref(),
+            &stale_action,
+            &stale_desired,
+            &stale_original,
+        )
+        .expect("prepare stale target");
+    let stale_record_path = stale_handle.path.clone();
+
+    let current_action = vm_action(&current_path, "10");
+    let current_desired = s2d_desired(&current_path, "10");
+    let current_original = StoredValue::Scalar {
+        value: "60".to_string(),
+    };
+    let current_handle = reconciler
+        .transactions
+        .prepare(
+            actuator.kernel.as_ref(),
+            &current_action,
+            &current_desired,
+            &current_original,
+        )
+        .expect("prepare current target");
+    let current_record_path = current_handle.path.clone();
+
+    actuator
+        .kernel
+        .write(&stale_path, "2000")
+        .expect("simulate stale landed write");
+    actuator
+        .kernel
+        .write(&current_path, "10")
+        .expect("simulate current landed write");
+
+    let mut handles = std::collections::BTreeMap::new();
+    handles.insert(stale_action.stable_target_id(), stale_handle);
+    handles.insert(current_action.stable_target_id(), current_handle);
+    let error = reconciler
+        .compensate_all(&mut actuator, &handles)
+        .expect_err("first stale target still reports an error");
+    assert_eq!(error.kind, TransactionErrorKind::StaleGeneration);
+    assert_eq!(
+        memory.read_to_string(&stale_path).expect("stale value retained"),
+        "2000"
+    );
+    assert_eq!(
+        memory
+            .read_to_string(&current_path)
+            .expect("later target restored"),
+        "60"
+    );
+    assert!(memory.exists(&stale_record_path));
+    assert!(!memory.exists(&current_record_path));
+}
+
 #[test]
 fn s2d_production_daemon_run_uses_persistent_transaction_protocol() {
     use std::fs;
@@ -794,10 +892,12 @@ mode = "off"
         "0"
     );
     assert_eq!(memory.read_to_string(&dirty).expect("restored dirty"), "0");
-    let recovery_dir = state_dir.join("s2d-recovery");
     let events = events.lock().expect("trace mutex");
     assert!(events.iter().any(|event| {
-        event.starts_with("sync_dir:") && event.contains("s2d-recovery")
+        event.starts_with("state:") && event.contains("s2d-recovery")
+    }));
+    assert!(events.iter().any(|event| {
+        event.starts_with("rename:") && event.contains("s2d-recovery")
     }));
     assert!(events
         .iter()
@@ -805,11 +905,6 @@ mode = "off"
     assert!(events.iter().any(|event| {
         event.starts_with("remove:") && event.contains("s2d-recovery")
     }));
-    assert!(memory
-        .read_dir(&recovery_dir)
-        .expect("recovery directory exists")
-        .iter()
-        .all(|path| path.extension().and_then(|value| value.to_str()) != Some("json")));
 
     fs::remove_dir_all(&state_dir).expect("remove daemon state directory");
 }

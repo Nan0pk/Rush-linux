@@ -111,14 +111,6 @@ pub trait KernelWrite {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove_file(&self, path: &Path) -> io::Result<()>;
     fn append(&self, path: &Path, text: &str) -> io::Result<()>;
-
-    fn sync_file(&self, _path: &Path) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn sync_dir(&self, _path: &Path) -> io::Result<()> {
-        Ok(())
-    }
 }
 
 /// Wall-clock source used for journal timestamps.
@@ -203,17 +195,6 @@ impl KernelWrite for RealKernel {
             .open(path)?;
         file.write_all(text.as_bytes())
     }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        std::fs::OpenOptions::new()
-            .read(true)
-            .open(path)?
-            .sync_all()
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        std::fs::File::open(path)?.sync_all()
-    }
 }
 
 impl Clock for RealKernel {
@@ -263,16 +244,6 @@ enum FaultRule {
         error: io::ErrorKind,
     },
     FailCreateDir {
-        path: PathBuf,
-        error: io::ErrorKind,
-    },
-    #[allow(dead_code)]
-    FailSyncFile {
-        path: PathBuf,
-        error: io::ErrorKind,
-    },
-    #[allow(dead_code)]
-    FailSyncDir {
         path: PathBuf,
         error: io::ErrorKind,
     },
@@ -343,22 +314,6 @@ impl FaultKernel {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailCreateDir { path, error });
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn fail_next_sync_file(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
-        self.rules
-            .borrow_mut()
-            .push(FaultRule::FailSyncFile { path, error });
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn fail_next_sync_dir(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
-        self.rules
-            .borrow_mut()
-            .push(FaultRule::FailSyncDir { path, error });
         self
     }
 
@@ -436,26 +391,6 @@ impl FaultKernel {
             |rule| matches!(rule, FaultRule::FailCreateDir { path: candidate, .. } if candidate == path),
             |rule| match rule {
                 FaultRule::FailCreateDir { error, .. } => error,
-                _ => unreachable!(),
-            },
-        )
-    }
-
-    fn take_sync_file_fault(&self, path: &Path) -> Option<io::ErrorKind> {
-        self.take_rule(
-            |rule| matches!(rule, FaultRule::FailSyncFile { path: candidate, .. } if candidate == path),
-            |rule| match rule {
-                FaultRule::FailSyncFile { error, .. } => error,
-                _ => unreachable!(),
-            },
-        )
-    }
-
-    fn take_sync_dir_fault(&self, path: &Path) -> Option<io::ErrorKind> {
-        self.take_rule(
-            |rule| matches!(rule, FaultRule::FailSyncDir { path: candidate, .. } if candidate == path),
-            |rule| match rule {
-                FaultRule::FailSyncDir { error, .. } => error,
                 _ => unreachable!(),
             },
         )
@@ -625,34 +560,6 @@ impl KernelWrite for FaultKernel {
             self.inner.append(path, text)
         }
     }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        if let Some(error) = self.take_sync_file_fault(path) {
-            Err(io::Error::new(
-                error,
-                format!(
-                    "FaultKernel: injected file-sync fault for {}",
-                    path.display()
-                ),
-            ))
-        } else {
-            self.inner.sync_file(path)
-        }
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        if let Some(error) = self.take_sync_dir_fault(path) {
-            Err(io::Error::new(
-                error,
-                format!(
-                    "FaultKernel: injected directory-sync fault for {}",
-                    path.display()
-                ),
-            ))
-        } else {
-            self.inner.sync_dir(path)
-        }
-    }
 }
 
 impl Clock for FaultKernel {
@@ -712,22 +619,12 @@ impl MemoryKernel {
     }
 
     pub fn add_dir_entry(&self, directory: &Path, entry: &Path) {
-        let mut dirs = self.dirs.lock().expect("MemoryKernel dirs mutex poisoned");
-        let entries = dirs.entry(directory.to_path_buf()).or_default();
-        if !entries.iter().any(|candidate| candidate == entry) {
-            entries.push(entry.to_path_buf());
-        }
-    }
-
-    fn remove_dir_entry(&self, directory: &Path, entry: &Path) {
-        if let Some(entries) = self
-            .dirs
+        self.dirs
             .lock()
             .expect("MemoryKernel dirs mutex poisoned")
-            .get_mut(directory)
-        {
-            entries.retain(|candidate| candidate != entry);
-        }
+            .entry(directory.to_path_buf())
+            .or_default()
+            .push(entry.to_path_buf());
     }
 }
 
@@ -789,15 +686,6 @@ impl KernelRead for MemoryKernel {
     }
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        if let Some(target) = self
-            .links
-            .lock()
-            .expect("MemoryKernel links mutex poisoned")
-            .get(path)
-            .cloned()
-        {
-            return Ok(target);
-        }
         let mut normalized = PathBuf::new();
         for component in path.components() {
             match component {
@@ -825,9 +713,6 @@ impl KernelWrite for MemoryKernel {
 
     fn write_state_file(&self, path: &Path, value: &str) -> io::Result<()> {
         self.write_raw(path, value);
-        if let Some(parent) = path.parent() {
-            self.add_dir_entry(parent, path);
-        }
         Ok(())
     }
 
@@ -852,13 +737,6 @@ impl KernelWrite for MemoryKernel {
             )
         })?;
         files.insert(to.to_path_buf(), content);
-        drop(files);
-        if let Some(parent) = from.parent() {
-            self.remove_dir_entry(parent, from);
-        }
-        if let Some(parent) = to.parent() {
-            self.add_dir_entry(parent, to);
-        }
         Ok(())
     }
 
@@ -867,16 +745,13 @@ impl KernelWrite for MemoryKernel {
             .lock()
             .expect("MemoryKernel files mutex poisoned")
             .remove(path)
+            .map(|_| ())
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::NotFound,
                     "MemoryKernel: remove_file not found",
                 )
-            })?;
-        if let Some(parent) = path.parent() {
-            self.remove_dir_entry(parent, path);
-        }
-        Ok(())
+            })
     }
 
     fn append(&self, path: &Path, text: &str) -> io::Result<()> {
@@ -886,32 +761,7 @@ impl KernelWrite for MemoryKernel {
             .entry(path.to_path_buf())
             .or_default()
             .push_str(text);
-        if let Some(parent) = path.parent() {
-            self.add_dir_entry(parent, path);
-        }
         Ok(())
-    }
-
-    fn sync_file(&self, path: &Path) -> io::Result<()> {
-        if self.exists(path) {
-            Ok(())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("MemoryKernel: sync file not found: {}", path.display()),
-            ))
-        }
-    }
-
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        if self.exists(path) {
-            Ok(())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("MemoryKernel: sync directory not found: {}", path.display()),
-            ))
-        }
     }
 }
 
