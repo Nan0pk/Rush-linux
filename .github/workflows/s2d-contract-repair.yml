@@ -48,6 +48,8 @@ jobs:
       - name: Apply contract repair
         run: |
           set -euo pipefail
+          sed -i 's/production_daemon_path/production_daemon_surface/' \
+            .github/s2d-contract-repair.py
           python3 .github/s2d-contract-repair.py
           python3 tools/render-frontpage.py --write
           cargo fmt --all
