@@ -95,13 +95,12 @@ fn f4_systemd_readback_mismatch_never_claims_ownership() {
     reconciler
         .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
         .expect("prepare");
-    let outcome = reconciler
+    let error = reconciler
         .apply_action(&mut actuator, &action)
-        .expect("apply");
-    assert!(matches!(
-        outcome.targets[0].readback,
-        ReadbackOutcome::Mismatch { .. }
-    ));
+        .expect_err("unverified compensation must fail closed");
+    let detail = error.to_string();
+    assert!(detail.contains("S2D finalization failed"), "{detail}");
+    assert!(detail.contains("compensation failed"), "{detail}");
     reconciler.prepare_cycle(&[], &mut actuator).expect("stale");
     assert!(reconciler.plan_restores().is_empty());
 }

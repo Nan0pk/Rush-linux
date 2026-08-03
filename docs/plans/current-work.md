@@ -20,7 +20,7 @@ Read these before implementation:
 active_general = "T1"
 active_safety = "S2D"
 ready_parallel = ["R1", "R2", "R3"]
-other_merged_incomplete = []
+other_merged_incomplete = ["F4"]
 unlocks_after_active_general = ["T2"]
 unlocks_after_active_safety = ["S3D"]
 ```

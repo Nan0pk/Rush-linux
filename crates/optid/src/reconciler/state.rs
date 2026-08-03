@@ -1,10 +1,32 @@
 impl Reconciler {
     pub(crate) fn load(state_dir: PathBuf, actuator: &mut Actuator) -> io::Result<Self> {
-        Self::load_with_systemd(state_dir, actuator, Box::<RealSystemd>::default())
+        let recovery_dir = default_recovery_dir(&state_dir);
+        Self::load_with_systemd_and_recovery(
+            state_dir,
+            recovery_dir,
+            actuator,
+            Box::<RealSystemd>::default(),
+        )
     }
 
+    #[cfg(test)]
     fn load_with_systemd(
         state_dir: PathBuf,
+        actuator: &mut Actuator,
+        systemd: Box<dyn SystemdIo>,
+    ) -> io::Result<Self> {
+        let recovery_dir = default_recovery_dir(&state_dir);
+        Self::load_with_systemd_and_recovery(
+            state_dir,
+            recovery_dir,
+            actuator,
+            systemd,
+        )
+    }
+
+    fn load_with_systemd_and_recovery(
+        state_dir: PathBuf,
+        recovery_dir: PathBuf,
         actuator: &mut Actuator,
         systemd: Box<dyn SystemdIo>,
     ) -> io::Result<Self> {
@@ -25,6 +47,7 @@ impl Reconciler {
             last_workload: WorkloadClass::Idle,
             last_mode: Mode::Auto,
             last_domain_modes: HashMap::new(),
+            transactions: TransactionEngine::for_process(recovery_dir),
             systemd,
         };
         reconciler.hydrate_legacy(actuator)?;

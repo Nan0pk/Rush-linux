@@ -285,12 +285,17 @@ fn f4_restart_hydrates_typed_vm_state_and_restores() {
     restarted
         .prepare_cycle(&[], &mut actuator)
         .expect("new desired state omits target");
-    let outcomes = restarted.reconcile(&mut actuator).expect("restore");
-    assert_eq!(outcomes.len(), 1);
-    assert_eq!(outcomes[0].reason, OutcomeReasonCode::RestoreApplied);
+    let error = restarted
+        .reconcile(&mut actuator)
+        .expect_err("S3D must recover the previous generation before handback");
+    let detail = error.to_string();
+    assert!(detail.contains("StaleGeneration"), "{detail}");
     assert_eq!(
-        actuator.kernel.read_to_string(&path).expect("restored"),
-        "60"
+        actuator
+            .kernel
+            .read_to_string(&path)
+            .expect("previous generation value remains untouched"),
+        "10"
     );
 }
 

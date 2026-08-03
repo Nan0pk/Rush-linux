@@ -3,13 +3,11 @@ updated = "2026-08-03"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Independent cold-verification of F1, F2, F3, and F4 at implementation commit
-# 52919c2ac1582e56737d568a576899e10ae43d15 (HEAD of fix/f4-complete-reconciliation,
-# PR #371) completed on 2026-08-02. The F4 cutover made the F4 Reconciler the
-# sole production reconciliation authority in crates/optid/src/main.rs; F1, F2,
-# and F3 were re-verified against the F4-cutover commit and re-certified.
-# Receipts: docs/plans/optid-verification/{f1,f2,f3,f4}.toml. All four packages
-# are now `completed` and their dependencies unlock naturally.
+# Independent cold-verification completed F1, F2, F3, and F4 at the F4
+# cutover. S2D PR #386 changes declared F4 reconciliation proof paths, so F4 is
+# truthfully demoted to `merged_incomplete` until a fresh independent verifier
+# evaluates the integrated S2D/F4 surface. F1-F3 remain completed and S2D does
+# not modify F2 proof paths.
 #
 # active_general is T1 because T1 is already `merged_incomplete` (actionable)
 # and its F2/F3 dependencies are now satisfied, so its remaining blockers
@@ -152,10 +150,10 @@ production_cycle = "f3_production_daemon_run_writes_one_correlated_versioned_cyc
 id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
-status = "completed"
+status = "merged_incomplete"
 depends = ["F2", "F3"]
 pr = "371"
-verification_receipt = "docs/plans/optid-verification/f4.toml"
+blocking_reason = "S2D PR #386 changes declared F4 reconciliation proof paths; fresh independent cold verification of the integrated F4/S2D production surface is required."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/reconciler/mod.rs",
@@ -268,10 +266,49 @@ production_contract_checker = "s1d_contract_cli_checks_registry_through_producti
 id = "S2D"
 lane = "safety"
 title = "Implement persistent verified write-ahead transactions"
-status = "next"
+status = "candidate"
 depends = ["F2", "F3", "S1D"]
-pr = ""
-completion_evidence = []
+pr = "386"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/reconciler/mod.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/transaction.rs",
+]
+integration_tests = [
+  "crates/optid/src/reconciler/tests/s2d.rs",
+  "crates/optid/src/reconciler/tests/production.rs",
+]
+completion_evidence = [
+  "crates/optid/src/reconciler/transaction.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/src/reconciler/tests.rs",
+  "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/src/reconciler/tests/s2d.rs",
+  "crates/optid/src/reconciler/tests/systemd.rs",
+  "crates/optid/src/reconciler/tests/unit.rs",
+  "docs/architecture/optid-s2d-persistent-transactions.md",
+]
+[package.acceptance_tests]
+durable_record_precedes_write = "s2d_durable_record_is_synced_before_production_write"
+full_disk_refuses_mutation = "s2d_full_disk_before_publish_refuses_mutation"
+file_sync_failure_refuses_mutation = "s2d_fsync_failure_refuses_mutation"
+partial_publish_refuses_mutation = "s2d_partial_publish_failure_refuses_mutation"
+crash_window_has_durable_undo = "s2d_prepared_record_covers_crash_before_write"
+write_failure_compensates = "s2d_write_failure_compensates_and_cleans"
+readback_mismatch_compensates = "s2d_readback_mismatch_compensates_and_cleans"
+stale_generation_rejected = "s2d_stale_generation_is_rejected"
+path_reuse_rejected = "s2d_path_reuse_identity_mismatch_is_rejected"
+repeated_compensation_idempotent = "s2d_repeated_compensation_is_idempotent"
+external_drift_relinquishes = "s2d_external_drift_relinquishes_without_overwrite"
+verified_restore_compacts = "s2d_production_commit_then_verified_restore_compacts"
+production_daemon_surface = "s2d_production_daemon_run_uses_persistent_transaction_protocol"
+stable_record_filename = "s2d_record_path_is_stable_across_generations"
+stale_handback_preserves_evidence = "s2d_stale_generation_handback_does_not_compact"
+all_targets_compensated = "s2d_compensation_attempts_every_target_after_one_failure"
+restart_handoff_to_s3d = "f4_restart_hydrates_typed_vm_state_and_restores"
 
 [[package]]
 id = "S3D"

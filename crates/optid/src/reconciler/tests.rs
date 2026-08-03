@@ -149,6 +149,10 @@ fn reconciler_with(targets: BTreeMap<String, TargetState>, mode: ReconcileMode) 
         last_workload: WorkloadClass::Idle,
         last_mode: Mode::Auto,
         last_domain_modes: HashMap::new(),
+        transactions: TransactionEngine::new(
+            PathBuf::from("/var/lib/optid/recovery-unit"),
+            "unit-generation".to_string(),
+        ),
         systemd: Box::<FakeSystemd>::default(),
     }
 }
@@ -156,3 +160,4 @@ fn reconciler_with(targets: BTreeMap<String, TargetState>, mode: ReconcileMode) 
 include!("tests/production.rs");
 include!("tests/systemd.rs");
 include!("tests/unit.rs");
+include!("tests/s2d.rs");

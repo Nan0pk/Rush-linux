@@ -119,7 +119,9 @@ fn f4_retry_policy_is_bounded() {
         &io::Error::new(io::ErrorKind::PermissionDenied, "blocked"),
     );
     let io = MemoryKernel::new();
-    reconciler.record_restore_outcome(&plan, &outcome, &io);
+    reconciler
+        .record_restore_outcome(&plan, &outcome, &io)
+        .expect("record restore outcome");
     let state = reconciler.targets.get("a").expect("state");
     assert_eq!(state.ownership, OwnershipState::Relinquished);
     assert!(!state.restore_pending);
