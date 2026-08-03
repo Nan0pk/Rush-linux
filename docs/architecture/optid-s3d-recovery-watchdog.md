@@ -79,13 +79,37 @@ The verifier refreshed the F4 and S2D receipts because S3D touches their shared
 reconciliation proof paths. S3D remains a builder `candidate`; this evidence is
 not a post-merge completion receipt.
 
+### Supervised systemd lifecycle proof
+
 A subsequent audit found that the initial unit used
 `RestartPreventExitStatus=78` with `ExecStartPre=optid-recover`. The former
 covers only the main service process, so that combination did not prove that a
-failed recovery could not enter the apply service's restart policy. The unit
-model was corrected to an explicit required/ordered/`PartOf` recovery service.
-The corrected systemd lifecycle receives a separate supervised proof before the
-candidate is considered review-ready.
+failed recovery could not enter the apply service's restart policy. The units
+were corrected to the explicit `Requires`/`After`/`PartOf` model documented
+above, with `Restart=no` on the recovery unit and no recovery `ExecStartPre` in
+the apply unit. Both packaged and mkosi-mirrored units carry the same model.
+
+Run `30854862566` then passed format, compile, warning-free clippy, the corrected
+static unit tests, and the complete workspace suite. Its hosted-runner attempt
+to start the fully sandboxed hardware units stopped before either proof process
+because runner-specific hardware paths were absent; it made no claim about the
+dependency semantics.
+
+Run `30855133309`, job `91824257421`, separately bound minimal executable units
+to the exact dependency directives asserted by the repository tests and proved
+the lifecycle on a live Ubuntu 24.04 systemd manager:
+
+- the first daemon process failed;
+- systemd scheduled one automatic restart;
+- the one-shot recovery unit ran a second time before the replacement daemon
+  process started;
+- forced recovery exit status 78 failed the required dependency job;
+- the daemon process did not execute; and
+- the apply unit remained inactive with `NRestarts=0`.
+
+The retained supervised log is artifact `8872165760`, digest
+`sha256:23492f24e5c7e22b60f424bf5d25c0fdffaec5d42d1644d2dbe6bb95441bc5ae`.
+Its temporary proof workflow removed itself after passing.
 
 ## Boundaries
 
