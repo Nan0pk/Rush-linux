@@ -18,11 +18,20 @@ session bridge, or async runtime.
 
 ## Recovery ordering
 
-`optid-apply.service` runs `optid-recover` as `ExecStartPre` on every initial
-start and every supervisor-managed restart. A failed recovery exits with status
-78, prevents automatic actuation, and is excluded from the normal restart loop.
-The separate `optid-recover.service` provides an explicit boot/manual one-shot
-unit and is ordered before the apply service.
+`optid-apply.service` requires and orders itself after the separate
+`optid-recover.service`. The recovery unit is `PartOf=optid-apply.service`, so
+every supervisor-managed apply restart starts a fresh one-shot recovery process
+before a new daemon process may run. If recovery fails, the required unit start
+fails, automatic actuation does not begin, and the recovery unit itself has no
+restart loop.
+
+This dependency model is deliberate. `RestartPreventExitStatus=` applies only
+to a service's main process and therefore cannot safely suppress retries caused
+by a failing `ExecStartPre=` control process. Recovery is consequently not an
+`ExecStartPre=` command of the apply service.
+
+The recovery unit remains directly startable at boot or by an operator, and is
+ordered before the apply service.
 
 Recovery is idempotent:
 
@@ -69,6 +78,14 @@ The retained integrated-verification log is artifact `8871568706`, digest
 The verifier refreshed the F4 and S2D receipts because S3D touches their shared
 reconciliation proof paths. S3D remains a builder `candidate`; this evidence is
 not a post-merge completion receipt.
+
+A subsequent audit found that the initial unit used
+`RestartPreventExitStatus=78` with `ExecStartPre=optid-recover`. The former
+covers only the main service process, so that combination did not prove that a
+failed recovery could not enter the apply service's restart policy. The unit
+model was corrected to an explicit required/ordered/`PartOf` recovery service.
+The corrected systemd lifecycle receives a separate supervised proof before the
+candidate is considered review-ready.
 
 ## Boundaries
 
