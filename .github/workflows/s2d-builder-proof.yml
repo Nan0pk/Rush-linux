@@ -49,6 +49,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           cat .github/s2d-builder-chunk-* | base64 -d | gzip -d > "$RUNNER_TEMP/s2d-builder.py"
+          sed -i 's|ROOT = Path(__file__).resolve().parents\[1\]|ROOT = Path.cwd()|' "$RUNNER_TEMP/s2d-builder.py"
           python3 "$RUNNER_TEMP/s2d-builder.py"
           python3 tools/render-frontpage.py --write
           cargo fmt --all
