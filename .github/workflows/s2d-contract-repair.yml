@@ -61,11 +61,20 @@ jobs:
           python3 .github/s2d-restart-boundary.py
           python3 tools/render-frontpage.py --write
           cargo fmt --all
+          git checkout origin/main -- \
+            crates/optid/src/kernel_io.rs \
+            crates/optid/src/kernel_io_impl.rs
+          git diff --exit-code origin/main -- \
+            crates/optid/src/kernel_io.rs \
+            crates/optid/src/kernel_io_impl.rs
 
       - name: Verify Rust and S2D acceptance
         run: |
           set -euo pipefail
           cargo fmt --all -- --check
+          git diff --exit-code origin/main -- \
+            crates/optid/src/kernel_io.rs \
+            crates/optid/src/kernel_io_impl.rs
           cargo check -p optid --all-targets --all-features
           cargo clippy -p optid --all-targets --all-features -- -D warnings
           for test_name in \
@@ -95,6 +104,9 @@ jobs:
       - name: Verify repository truth and policy
         run: |
           set -euo pipefail
+          git diff --exit-code origin/main -- \
+            crates/optid/src/kernel_io.rs \
+            crates/optid/src/kernel_io_impl.rs
           python3 tools/validate-current-work.py
           python3 tools/validate-optid-packages.py
           python3 tools/render-frontpage.py --check
