@@ -50,7 +50,18 @@ jobs:
           components: clippy, rustfmt
 
       - name: Build S3D source candidate
-        run: python3 .github/s3d_builder.py
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(".github/s3d_builder.py")
+          text = path.read_text()
+          text = text.replace(
+              "'mod systemd;\\nmod unit;\\n',\n    'mod systemd;\\nmod unit;\\nmod s3d;\\n',",
+              "'include!(\"tests/s2d.rs\");\\n',\n    'include!(\"tests/s2d.rs\");\\ninclude!(\"tests/s3d.rs\");\\n',",
+          )
+          path.write_text(text)
+          PY
+          python3 .github/s3d_builder.py
 
       - name: Verify builder candidate
         run: |
