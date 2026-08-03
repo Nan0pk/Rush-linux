@@ -47,6 +47,29 @@ mismatch, non-committed residual phase, or notification failure prevents the
 heartbeat and returns an error to the daemon. There is no independent heartbeat
 thread that could falsely report health while the control path is stuck.
 
+## Candidate proof
+
+GitHub Actions run `30853374668` used separate builder and verifier jobs. The
+builder created exact source commit
+`3339e63df6721cd3a15989f4ab1364644ddae81e` and exported it as immutable
+artifact `8871514800` with digest
+`sha256:04a3a584b5c576fbc2464bed9734903d28d88f7d73d355a019d2e8d1786f20c8`.
+
+A fresh Ubuntu 24.04 verifier checked out that exact commit and passed:
+
+- workspace format, compile, and warning-free clippy;
+- every impacted F4, S2D, and S3D acceptance/regression test individually;
+- the complete workspace suite, including 440 passing optid daemon tests;
+- recovery CLI and systemd ordering tests;
+- current-work, package-ledger, generated README, repository-policy, and
+  finish-work gates.
+
+The retained integrated-verification log is artifact `8871568706`, digest
+`sha256:6a7f22e90d5549cd5e8870635416b13543b2141c04408c6baeba977a8eee361c`.
+The verifier refreshed the F4 and S2D receipts because S3D touches their shared
+reconciliation proof paths. S3D remains a builder `candidate`; this evidence is
+not a post-merge completion receipt.
+
 ## Boundaries
 
 S3D does not pre-open hardware descriptors or install Landlock; that is S4D.
