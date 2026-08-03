@@ -4,11 +4,13 @@ Documentation=man:optid(8)
 DefaultDependencies=no
 After=local-fs.target systemd-udevd.service
 Before=optid-apply.service
+PartOf=optid-apply.service
 ConditionPathExists=/proc/pressure/cpu
 
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/optid-recover --recovery-dir /var/lib/optid/recovery --status-file /run/optid/recovery-status.json
+Restart=no
 StateDirectory=optid
 RuntimeDirectory=optid
 NoNewPrivileges=yes
