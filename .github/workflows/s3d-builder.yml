@@ -75,6 +75,14 @@ jobs:
           if test_text.startswith("use super::*;\n\n"):
               test_text = test_text[len("use super::*;\n\n"):]
           tests.write_text(test_text)
+          recovery = Path("crates/optid/src/recovery.rs")
+          recovery_text = recovery.read_text()
+          recovery_text = recovery_text.replace(
+              "        let mut permissions = fs::metadata(&target).unwrap().permissions();\n        permissions.set_readonly(false);\n        fs::set_permissions(&target, permissions).unwrap();\n",
+              "",
+              1,
+          )
+          recovery.write_text(recovery_text)
           PY
 
       - name: Verify builder candidate
