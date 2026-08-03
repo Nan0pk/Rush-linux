@@ -86,6 +86,11 @@ jobs:
               )
           replace_once(
               "crates/optid/src/reconciler/transaction.rs",
+              "const TRANSACTION_SCHEMA_VERSION: u32 = 1;\nconst DEFAULT_RECOVERY_DIR: &str = \"/var/lib/optid/recovery\";",
+              "const TRANSACTION_SCHEMA_VERSION: u32 = 1;\n#[cfg(not(test))]\nconst DEFAULT_RECOVERY_DIR: &str = \"/var/lib/optid/recovery\";",
+          )
+          replace_once(
+              "crates/optid/src/reconciler/transaction.rs",
               "impl TransactionPhase {\n    fn is_terminal(self) -> bool {",
               "impl TransactionPhase {\n    #[cfg(test)]\n    fn is_terminal(self) -> bool {",
           )
@@ -95,9 +100,19 @@ jobs:
               "    #[cfg(test)]\n    fn active_records(\n",
           )
           replace_once(
+              "crates/optid/src/reconciler/transaction.rs",
+              "    #[cfg(test)]\n    {\n        return state_dir.join(\"s2d-recovery\");\n    }",
+              "    #[cfg(test)]\n    {\n        state_dir.join(\"s2d-recovery\")\n    }",
+          )
+          replace_once(
               "crates/optid/src/reconciler/state.rs",
               "    fn load_with_systemd(\n",
               "    #[cfg(test)]\n    fn load_with_systemd(\n",
+          )
+          replace_once(
+              "crates/optid/src/reconciler/tests/unit.rs",
+              "    reconciler.record_restore_outcome(&plan, &outcome, &io);",
+              "    reconciler\n        .record_restore_outcome(&plan, &outcome, &io)\n        .expect(\"record restore outcome\");",
           )
           PY
           python3 tools/render-frontpage.py --write
