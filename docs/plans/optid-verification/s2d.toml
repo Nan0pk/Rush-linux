@@ -1,5 +1,5 @@
-# Post-merge cold-verification receipt for F4:
-# Reconcile complete desired state and restore on transitions
+# Post-merge cold-verification receipt for S2D:
+# Implement persistent verified write-ahead transactions
 #
 # The read-only verification phase ran in a fresh GitHub-hosted checkout
 # after PR #386 merged. No runtime source, test, assertion, architecture,
@@ -7,8 +7,8 @@
 # Receipt and work-state files were written only after every proof passed.
 
 schema_version = 1
-package = "F4"
-implementation_pr = 371
+package = "S2D"
+implementation_pr = 386
 verification_pr = 387
 verified_commit = "2247d460a67a8b1674bf7f8734008411d2471920"
 implementation_head = "c7741c9017bba939571a82de4ea49b1fe1608108"
@@ -36,11 +36,13 @@ commands = [
 ]
 
 runtime_proofs = [
-  "Production reconciliation: the daemon continues to enter the F4 reconciler for complete desired-state application, transition restoration, shutdown restoration, and property-level systemd reconciliation.",
-  "Integrated transaction boundary: every F4-owned kernel or systemd mutation is gated by the S2D durable transaction protocol before the write and commits only after typed readback.",
-  "Handback safety: external drift, device disappearance, malformed state, missing baseline, and readback mismatch remain fail-closed and never produce a pretend restore or false ownership claim.",
-  "Restart boundary: previous-generation transaction evidence is validated before any handback mutation; stale evidence is retained for S3D rather than compacted or overwritten.",
-  "Source binding: all declared F4 proof paths are byte-unchanged from merged integration commit 2247d460a67a8b1674bf7f8734008411d2471920 through the verifier branch's read-only test phase.",
+  "Write-ahead ordering: a complete record, file sync, atomic rename, and recovery-directory sync precede every reconciler-owned production mutation.",
+  "Verified commit and compensation: intended writes commit only after exact typed readback; write/readback failures attempt exact-original compensation and retain non-terminal evidence when compensation cannot be verified.",
+  "Identity safety: stable FNV-1a record naming, canonical target identity, stale-generation rejection, and path-reuse rejection were exercised through exact acceptance tests.",
+  "Multi-target safety: compensation attempts every target even after an earlier failure and returns failure without falsely claiming complete recovery.",
+  "Lifecycle safety: committed records remain until verified handback; compaction occurs only after exact restoration or explicit drift relinquishment.",
+  "Production surface: the real daemon run path prepared, committed, restored, and compacted persistent transactions under the injected I/O boundary.",
+  "Scope boundary: no S3D recovery helper, watchdog, boot ordering, S4D sealing, or S5D circuit breaker behavior was added or claimed.",
 ]
 
 source_inspection_only = [
