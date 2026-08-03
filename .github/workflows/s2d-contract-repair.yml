@@ -1,0 +1,106 @@
+name: S2D contract repair
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/s2d-contract-repair.yml"
+      - ".github/s2d-contract-repair.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s2d-contract-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'work/20260803-s2d-persistent-transactions'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Validate exact bounded branch
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git branch --show-current)" = "work/20260803-s2d-persistent-transactions"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "3b29b6fbd1c79e4f61cff100551db4e0874cc5cd"
+          test "$(git merge-base HEAD origin/main)" = "3b29b6fbd1c79e4f61cff100551db4e0874cc5cd"
+          python3 tools/check-workflow-safety.py
+
+      - name: Install Rust system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Apply contract repair
+        run: |
+          set -euo pipefail
+          python3 .github/s2d-contract-repair.py
+          python3 tools/render-frontpage.py --write
+          cargo fmt --all
+
+      - name: Verify Rust and S2D acceptance
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo check -p optid --all-targets --all-features
+          cargo clippy -p optid --all-targets --all-features -- -D warnings
+          for test_name in \
+            s2d_durable_record_is_synced_before_production_write \
+            s2d_full_disk_before_publish_refuses_mutation \
+            s2d_fsync_failure_refuses_mutation \
+            s2d_partial_publish_failure_refuses_mutation \
+            s2d_prepared_record_covers_crash_before_write \
+            s2d_write_failure_compensates_and_cleans \
+            s2d_readback_mismatch_compensates_and_cleans \
+            s2d_stale_generation_is_rejected \
+            s2d_path_reuse_identity_mismatch_is_rejected \
+            s2d_repeated_compensation_is_idempotent \
+            s2d_external_drift_relinquishes_without_overwrite \
+            s2d_production_commit_then_verified_restore_compacts \
+            s2d_production_daemon_run_uses_persistent_transaction_protocol \
+            s2d_record_path_is_stable_across_generations \
+            s2d_stale_generation_handback_does_not_compact \
+            s2d_compensation_attempts_every_target_after_one_failure
+          do
+            cargo test -p optid --bin optid \
+              "reconciler::tests::$test_name" -- --exact
+          done
+          cargo test -p optid
+
+      - name: Verify repository truth and policy
+        run: |
+          set -euo pipefail
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          for section in integrity docs optid evidence policy
+          do
+            bash tools/checks.sh --ci --section "$section" --changed-base origin/main
+          done
+          git diff --check
+          bash tools/finish-work.sh --dry-run
+
+      - name: Publish repaired candidate
+        run: |
+          set -euo pipefail
+          rm .github/workflows/s2d-contract-repair.yml \
+            .github/s2d-contract-repair.py
+          git add -A
+          git config user.name "rush-s2d-contract-repair"
+          git config user.email "rush-s2d-contract-repair@users.noreply.github.com"
+          git commit -m "fix(optid): preserve S2D package contracts"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
