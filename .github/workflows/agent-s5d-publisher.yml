@@ -1,0 +1,209 @@
+name: S5D lease-guarded source publication
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s5d-source-publisher-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Prove and publish immutable S5D source
+    if: >-
+      github.event.pull_request.head.ref == 'work/20260804-s5d-circuit-breakers' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BASE_COMMIT: ba7c56ba606bc65d33f90de76361964971df9064
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Detect exact staging state
+        id: staging
+        run: |
+          set -euo pipefail
+          if [[ ! -d tools/s5d-staging ]]; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          staging_head=$(git rev-parse HEAD)
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+          echo "staging_head=$staging_head" >> "$GITHUB_OUTPUT"
+          echo "STAGING_HEAD=$staging_head" >> "$GITHUB_ENV"
+
+      - name: Install system dependencies
+        if: steps.staging.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        if: steps.staging.outputs.ready == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        if: steps.staging.outputs.ready == 'true'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Bind immutable base and exact staging set
+        if: steps.staging.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          git fetch origin main "$HEAD_REF" --force
+          test "$(git rev-parse origin/main)" = "$BASE_COMMIT"
+          test "$(git rev-parse "origin/$HEAD_REF")" = "$STAGING_HEAD"
+          git merge-base --is-ancestor "$BASE_COMMIT" "$STAGING_HEAD"
+
+          expected=$(mktemp)
+          actual=$(mktemp)
+          printf '%s\n' \
+            '.github/workflows/agent-s5d-publisher.yml' \
+            '.github/workflows/agent-s5d-verifier.yml' \
+            'tools/agent-s5d-verify.py' \
+            'tools/s5d-staging/architecture.part' \
+            'tools/s5d-staging/corrections.py' \
+            'tools/s5d-staging/workflow-00.part' \
+            'tools/s5d-staging/workflow-01.part' \
+            'tools/s5d-staging/workflow-02.part' \
+            'tools/s5d-staging/workflow-03.part' \
+            'tools/s5d-staging/patch-00.part' \
+            'tools/s5d-staging/patch-01.part' \
+            'tools/s5d-staging/patch-02.part' \
+            'tools/s5d-staging/circuit-00.part' \
+            'tools/s5d-staging/circuit-01.part' \
+            'tools/s5d-staging/circuit-02.part' \
+            'tools/s5d-staging/circuit-03.part' | sort > "$expected"
+          git diff --name-only "$BASE_COMMIT"..HEAD | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          cat tools/s5d-staging/patch-00.part \
+              tools/s5d-staging/patch-01.part \
+              tools/s5d-staging/patch-02.part > /tmp/agent-s5d-patch.py
+          python3 -m py_compile \
+            /tmp/agent-s5d-patch.py \
+            tools/s5d-staging/corrections.py \
+            tools/agent-s5d-verify.py
+          RUSH_DOCS_NOT_NEEDED=true bash tools/start-work.sh \
+            "S5D persistent domain circuit breakers"
+
+      - name: Assemble bounded implementation
+        if: steps.staging.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          python3 /tmp/agent-s5d-patch.py
+          python3 tools/s5d-staging/corrections.py
+
+      - name: Execute complete S5D builder matrix
+        if: steps.staging.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+          python3 - <<'PY' > /tmp/s5d-tests.txt
+          import re
+          from pathlib import Path
+          names = re.findall(
+              r'(?m)^\s*fn (s5d_[a-z0-9_]+)\(\)',
+              Path('crates/optid/src/circuit_breaker.rs').read_text(),
+          )
+          assert len(names) == 13 and len(set(names)) == 13, names
+          print('\n'.join(sorted(names)))
+          PY
+
+          count=0
+          while IFS= read -r short_name; do
+            count=$((count + 1))
+            listed=$(mktemp)
+            cargo test -p optid --all-features --color never "$short_name" -- --list \
+              2>&1 | tee "$listed"
+            full_name=$(python3 - "$short_name" "$listed" <<'PY'
+          import sys
+          from pathlib import Path
+          short = sys.argv[1]
+          matches = []
+          for line in Path(sys.argv[2]).read_text(errors='replace').splitlines():
+              if line.endswith(': test'):
+                  name = line[:-6]
+                  if name == short or name.endswith('::' + short):
+                      matches.append(name)
+          if len(matches) != 1:
+              raise SystemExit(f'{short}: expected one exact test, found {matches}')
+          print(matches[0])
+          PY
+            )
+            cargo test -p optid --all-features --color never "$full_name" -- \
+              --exact --nocapture
+          done < /tmp/s5d-tests.txt
+          test "$count" -eq 13
+
+          cargo test -p optid --all-features
+          cargo test --workspace --all-features
+          python3 tools/validate-current-work.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+
+      - name: Publish source with exact lease
+        if: steps.staging.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          rm -rf tools/s5d-staging
+          rm .github/workflows/agent-s5d-publisher.yml
+          test ! -e tools/s5d-staging
+          test ! -e .github/workflows/agent-s5d-publisher.yml
+
+          python3 - <<'PY'
+          import os
+          import subprocess
+          expected = {
+              '.github/workflows/agent-s5d-verifier.yml',
+              'tools/agent-s5d-verify.py',
+              'config/optid/policy.toml',
+              'crates/optid/src/args.rs',
+              'crates/optid/src/circuit_breaker.rs',
+              'crates/optid/src/main.rs',
+              'crates/optid/src/policy.rs',
+              'crates/optid/src/reconciler/apply.rs',
+              'docs/architecture/optid-s5d-circuit-breakers.md',
+          }
+          files = set(subprocess.check_output(
+              [
+                  'git', 'diff', '--name-only', '--diff-filter=ACMRTUXB',
+                  os.environ['BASE_COMMIT'],
+              ],
+              text=True,
+          ).splitlines())
+          assert files == expected, files
+          PY
+          git diff --check
+
+          git config user.name rush-s5d-builder
+          git config user.email rush-s5d-builder@users.noreply.github.com
+          git add -A
+          git commit -m 'feat(optid): add persistent domain circuit breakers'
+          source_head=$(git rev-parse HEAD)
+          echo "source_head=$source_head"
+
+          git fetch origin "$HEAD_REF" --force
+          remote_head=$(git rev-parse "origin/$HEAD_REF")
+          test "$remote_head" = "$STAGING_HEAD"
+          git push \
+            --force-with-lease="refs/heads/$HEAD_REF:$STAGING_HEAD" \
+            origin "HEAD:refs/heads/$HEAD_REF"
