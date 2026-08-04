@@ -46,6 +46,35 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
+      - name: Require each mapped test to exist before execution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/agent-s4d-verifier-run.sh')
+          text = path.read_text(encoding='utf-8')
+          old = '''while IFS=$'\\t' read -r package_id test_name; do
+            echo "acceptance_package=$package_id test=$test_name"
+            output=$(mktemp)
+            cargo test -p optid --color never "$test_name" -- --nocapture 2>&1 | tee "$output"
+            grep -F "$test_name ... ok" "$output"
+          done < /tmp/s4d-affected-acceptance.tsv
+          '''
+          new = '''while IFS=$'\\t' read -r package_id test_name; do
+            echo "acceptance_package=$package_id test=$test_name"
+            listed=$(mktemp)
+            cargo test -p optid --all-features --color never "$test_name" -- --list \\
+              2>&1 | tee "$listed"
+            grep -F "$test_name: test" "$listed"
+            cargo test -p optid --all-features --color never "$test_name" -- --nocapture
+          done < /tmp/s4d-affected-acceptance.tsv
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('expected one mapped-test loop in verifier runner')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Independently recertify all affected surfaces
         run: bash tools/agent-s4d-verifier-run.sh
 
