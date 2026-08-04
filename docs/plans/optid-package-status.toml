@@ -3,16 +3,16 @@ updated = "2026-08-04"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Independent post-merge cold verification now covers F1-F4 and S1D-S3D.
-# PR #389 verified merged S3D recovery, watchdog, and service ordering
-# through exact acceptance tests, production recovery fault injection,
-# and a live cold systemd lifecycle. S4D is now the active safety package.
+# Independent post-merge cold verification now covers F1-F4 and S1D-S4D.
+# PR #391 verified merged S4D sealed capabilities through all
+# mapped acceptance tests, full regression, live Landlock enforcement, and
+# supervisor-managed cold rebuild. S5D is now the active safety package.
 # No package self-certified.
 #
 # active_general remains T1 because its physical hardware proof and reviewed
 # threshold acceptance are still outstanding. R1-R3 remain independent.
 active_general = "T1"
-active_safety = "S4D"
+active_safety = "S5D"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -355,9 +355,10 @@ failed_recovery_breaks_restart_loop = "s3d_failed_recovery_prevents_automatic_ac
 id = "S4D"
 lane = "safety"
 title = "Move writes to a sealed typed capability table"
-status = "candidate"
+status = "completed"
 depends = ["D0", "F4", "S3D"]
 pr = "390"
+verification_receipt = "docs/plans/optid-verification/s4d.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/capability_table.rs",
@@ -401,7 +402,7 @@ handback_precedes_status_75 = "s4d_topology_rebuild_hands_back_before_status_75"
 id = "S5D"
 lane = "safety"
 title = "Add domain circuit breakers and controlled canary re-entry"
-status = "planned"
+status = "next"
 depends = ["F3", "F4", "S4D"]
 pr = ""
 completion_evidence = []

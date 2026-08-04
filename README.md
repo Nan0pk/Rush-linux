@@ -52,7 +52,7 @@ This table is generated from the repository's canonical version, build, and work
 | Project stage | Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready. |
 | Version | `0.7.0-beta.4` |
 | Active general repair | `T1` — Build thermal sensing and a pure budget model (`merged_incomplete`) |
-| Active safety repair | `S4D` — Move writes to a sealed typed capability table (`candidate`) |
+| Active safety repair | `S5D` — Add domain circuit breakers and controlled canary re-entry (`next`) |
 | Build profiles | `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos` |
 | Safety architecture | [D2 fail-passive](docs/architecture/optid-d2-amendment.md) |
 | Canonical work state | [optid package ledger](docs/plans/optid-package-status.toml) |
