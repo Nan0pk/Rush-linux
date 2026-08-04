@@ -34,22 +34,11 @@ replace_once(
 
 replace_once(
     "crates/optid/src/args.rs",
-    """        if !args.allowlist && !args.once {
-            return Err(
-                \"disabling the hardware allowlist is limited to a single experimental run; \\\
-                 combine --no-allowlist with --once\"
-                    .to_string(),
-            );
-        }
-
-        Ok(args)""",
-    """        if !args.allowlist && !args.once {
-            return Err(
-                \"disabling the hardware allowlist is limited to a single experimental run; \\\
-                 combine --no-allowlist with --once\"
-                    .to_string(),
-            );
-        }
+    """
+        Ok(args)
+    }
+}""",
+    """
         if args.clear_all_circuits && args.clear_circuit_domain.is_some() {
             return Err(
                 \"--clear-all-circuits and --clear-circuit-domain are mutually exclusive\"
@@ -60,7 +49,9 @@ replace_once(
             return Err(\"circuit clearing cannot be combined with --apply\".to_string());
         }
 
-        Ok(args)""",
+        Ok(args)
+    }
+}""",
 )
 
 replace_once(
