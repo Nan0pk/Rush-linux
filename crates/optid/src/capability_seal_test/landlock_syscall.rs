@@ -191,10 +191,14 @@ fn add_write_root(ruleset: &OwnedFd, root: &Path, rights: u64) -> io::Result<()>
 
 /// Install an empty ruleset. This is retained for the D0 negative proof: all
 /// new write opens and path mutations are denied after the call.
-#[allow(dead_code)] // Used by the separate D0 proof binary.
 pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {
     install_landlock_restrictions_with_write_roots(abi, &[])
 }
+
+// The same source is compiled both by the D0 proof binary and as S4D's nested
+// runtime Landlock module. Keep the proof-only wrapper visible in the latter
+// build through a typed compile-time reference rather than a lint suppression.
+const _: fn(u32) -> io::Result<u64> = install_landlock_restrictions;
 
 /// Install a write-deny ruleset with explicit writable daemon-state roots.
 ///
@@ -234,12 +238,15 @@ pub(crate) fn install_landlock_restrictions_with_write_roots(
 }
 
 /// Exact running kernel release for a cold-verification receipt.
-#[allow(dead_code)] // Used by the separate D0 proof binary.
 pub(crate) fn kernel_release() -> String {
     std::fs::read_to_string("/proc/sys/kernel/osrelease")
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string())
 }
+
+// See the proof-wrapper reference above: the runtime module does not print the
+// kernel release, but compiling the shared implementation must remain clean.
+const _: fn() -> String = kernel_release;
 
 #[cfg(test)]
 mod tests {
