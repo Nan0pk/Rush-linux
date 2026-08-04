@@ -81,7 +81,7 @@ jobs:
               tools/s5d-staging/patch-01.part \
               tools/s5d-staging/patch-02.part > /tmp/agent-s5d-patch.py
           python3 -m py_compile /tmp/agent-s5d-patch.py tools/agent-s5d-verify.py tools/s5d-staging/corrections.py
-          bash tools/start-work.sh "S5D persistent domain circuit breakers"
+          RUSH_DOCS_NOT_NEEDED=true bash tools/start-work.sh "S5D persistent domain circuit breakers"
 
       - name: Apply bounded implementation
         run: |
