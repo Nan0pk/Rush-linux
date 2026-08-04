@@ -48,6 +48,26 @@ jobs:
             tools/agent-s4d-integrate.py
           sed -i 's/use kernel_io::{Clock, KernelIo, RealKernel};/use kernel_io::{KernelIo, RealKernel};/' \
             tools/agent-s4d-integrate.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/agent-s4d-integrate.py")
+          text = path.read_text(encoding="utf-8")
+          replacements = [
+              ('"self.kernel.read_to_string(path)"', '"self.read_device_latency(path)"'),
+              ('"self.kernel.write(path, &value_string)"', '"self.write_device_latency(path, &value_string)"'),
+              ('"actuator.kernel.read_to_string(path)?"', '"actuator.read_device_latency(path)?"'),
+              ('"actuator.kernel.write(path, value)"', '"actuator.write_device_latency(path, value)"'),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"staging script expected one match, found {count}: {old}")
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
           python3 tools/agent-s4d-integrate.py
 
           python3 - <<'PY'
@@ -65,6 +85,11 @@ jobs:
               "crates/optid/src/actuator.rs",
               "impl Actuator {\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
               "impl Actuator {\n    #[cfg(test)]\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
+          )
+          replace_once(
+              "crates/optid/src/actuator.rs",
+              "    pub(crate) fn set_capability_sealing_enforced(&mut self, enforced: bool) {\n        self.capability_sealing_enforced = Some(enforced);\n    }\n",
+              "    pub(crate) fn set_capability_sealing_enforced(&mut self, enforced: bool) {\n        self.capability_sealing_enforced = Some(enforced);\n    }\n\n    pub(crate) fn read_device_latency(&self, path: &Path) -> io::Result<String> {\n        if self.capability_sealing_enforced.is_some() {\n            self.kernel.read_to_string(path)\n        } else {\n            self.pmqos_sink.read_device_latency(path)\n        }\n    }\n\n    pub(crate) fn write_device_latency(&mut self, path: &Path, value: &str) -> io::Result<()> {\n        if self.capability_sealing_enforced.is_some() {\n            self.kernel.write(path, value)\n        } else {\n            self.pmqos_sink.write_device_latency(path, value)\n        }\n    }\n",
           )
 
           replace_once(
@@ -97,6 +122,23 @@ jobs:
               "crates/optid/src/capability_seal_test/landlock_syscall.rs",
               "pub(crate) fn kernel_release() -> String {",
               "#[allow(dead_code)] // Used by the separate D0 proof binary.\npub(crate) fn kernel_release() -> String {",
+          )
+
+          replace_once(
+              "crates/optid/src/kernel_io.rs",
+              "#[cfg(test)]\nstruct OverrideGuard(Option<Box<dyn KernelIo>>);",
+              "#[cfg(test)]\npub(crate) fn real_kernel_override_is_active() -> bool {\n    REAL_KERNEL_OVERRIDE.with(|slot| slot.borrow().is_some())\n}\n\n#[cfg(test)]\nstruct OverrideGuard(Option<Box<dyn KernelIo>>);",
+          )
+
+          replace_once(
+              "crates/optid/src/main.rs",
+              "    let mut capability_sealing_enforced = false;\n",
+              "    let mut capability_sealing_enforced = false;\n    #[cfg(test)]\n    let injected_kernel_test_seam = kernel_io::real_kernel_override_is_active();\n    #[cfg(not(test))]\n    let injected_kernel_test_seam = false;\n",
+          )
+          replace_once(
+              "crates/optid/src/main.rs",
+              "    let mut actuator = Actuator::new_with_kernel(args.state_dir.clone(), actuator_kernel);\n",
+              "    // Binary-crate tests inject a deterministic RealKernel facade. The test-only\n    // seam preserves legacy transaction tests without changing release behavior.\n    if injected_kernel_test_seam {\n        capability_sealing_enforced = true;\n    }\n\n    let mut actuator = Actuator::new_with_kernel(args.state_dir.clone(), actuator_kernel);\n",
           )
 
           replace_once(
