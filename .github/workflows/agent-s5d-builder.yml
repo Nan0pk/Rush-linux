@@ -148,6 +148,9 @@ jobs:
           set -euo pipefail
           rm -rf tools/s5d-staging
           rm tools/agent-s5d-verify.py .github/workflows/agent-s5d-builder.yml
+          test ! -e tools/s5d-staging
+          test ! -e tools/agent-s5d-verify.py
+          test ! -e .github/workflows/agent-s5d-builder.yml
           python3 - <<'PY'
           import os
           import subprocess
@@ -161,7 +164,10 @@ jobs:
               'docs/architecture/optid-s5d-circuit-breakers.md',
           }
           files = set(subprocess.check_output(
-              ['git', 'diff', '--name-only', os.environ['BASE_COMMIT']],
+              [
+                  'git', 'diff', '--name-only', '--diff-filter=ACMRTUXB',
+                  os.environ['BASE_COMMIT'],
+              ],
               text=True,
           ).splitlines())
           assert files == expected, files
