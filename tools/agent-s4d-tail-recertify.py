@@ -105,6 +105,6 @@ s4d_cleanup_runtime_proofs = [
   "No runtime behavior, package state, policy default, action envelope, service ordering, or S4D candidate claim changed during this recertification.",
 ]
 '''
-    path.write_text(text + "\n", encoding="utf-8")
+    path.write_text(text.rstrip() + "\n", encoding="utf-8")
 
 print("refreshed F2 and D0 receipts only")
