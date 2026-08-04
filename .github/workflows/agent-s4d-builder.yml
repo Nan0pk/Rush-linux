@@ -49,6 +49,63 @@ jobs:
           sed -i 's/use kernel_io::{Clock, KernelIo, RealKernel};/use kernel_io::{KernelIo, RealKernel};/' \
             tools/agent-s4d-integrate.py
           python3 tools/agent-s4d-integrate.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:80]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "crates/optid/src/actuator.rs",
+              "impl Actuator {\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
+              "impl Actuator {\n    #[cfg(test)]\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
+          )
+
+          replace_once(
+              "crates/optid/src/capability_table.rs",
+              "    fn cloexec(&self) -> io::Result<bool> {",
+              "    #[cfg(test)]\n    fn cloexec(&self) -> io::Result<bool> {",
+          )
+          replace_once(
+              "crates/optid/src/capability_table.rs",
+              "    pub(crate) fn inventory(&self) -> &BTreeSet<String> {\n        &self.inventory\n    }\n\n",
+              "",
+          )
+          replace_once(
+              "crates/optid/src/capability_table.rs",
+              "    pub(crate) fn all_descriptors_cloexec(&self) -> io::Result<bool> {",
+              "    #[cfg(test)]\n    pub(crate) fn all_descriptors_cloexec(&self) -> io::Result<bool> {",
+          )
+          replace_once(
+              "crates/optid/src/capability_table.rs",
+              "\n    pub(crate) fn table(&self) -> &Arc<CapabilityTable> {\n        &self.table\n    }\n",
+              "",
+          )
+
+          replace_once(
+              "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+              "pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {",
+              "#[allow(dead_code)] // Used by the separate D0 proof binary.\npub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {",
+          )
+          replace_once(
+              "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+              "pub(crate) fn kernel_release() -> String {",
+              "#[allow(dead_code)] // Used by the separate D0 proof binary.\npub(crate) fn kernel_release() -> String {",
+          )
+
+          replace_once(
+              "crates/optid/src/policy.rs",
+              "#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]\n#[serde(rename_all = \"lowercase\")]\npub(crate) enum CapabilitySealingMode {\n    Observe,\n    Enforce,\n}\n\nimpl Default for CapabilitySealingMode {\n    fn default() -> Self {\n        Self::Observe\n    }\n}\n",
+              "#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]\n#[serde(rename_all = \"lowercase\")]\npub(crate) enum CapabilitySealingMode {\n    #[default]\n    Observe,\n    Enforce,\n}\n",
+          )
+          PY
+
           cargo fmt --all
 
       - name: Compile and lint all S4D surfaces
