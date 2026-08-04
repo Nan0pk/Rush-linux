@@ -1,0 +1,89 @@
+name: S4D sealed capability integration
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s4d-builder-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  integrate:
+    if: >-
+      github.event.pull_request.head.ref == 'work/20260804-s4d-sealed-capability-table' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out S4D branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Apply bounded production integration
+        run: |
+          set -euo pipefail
+          test "$(git merge-base origin/main HEAD)" = d20d94c0b78b41010c67e07855767840a732ae39
+          python3 tools/agent-s4d-integrate.py
+          cargo fmt --all
+
+      - name: Compile and lint all S4D surfaces
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo check -p optid --all-targets --all-features
+          cargo clippy -p optid --all-targets --all-features -- -D warnings
+
+      - name: Run exact S4D and regression tests
+        run: |
+          set -euo pipefail
+          cargo test -p optid capability_table::tests::s4d_ -- --nocapture
+          cargo test -p optid --test s4d_systemd
+          cargo test -p optid
+          cargo test --workspace --all-features
+
+      - name: Re-run D0 kernel mechanism proof
+        run: |
+          set -euo pipefail
+          cargo build -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          target/debug/optid-capability-seal-test --probe
+          systemd-analyze verify packaging/systemd/optid-apply.service
+          systemd-analyze verify packaging/systemd/optid-recover.service
+
+      - name: Validate repository truth
+        run: |
+          set -euo pipefail
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+
+      - name: Publish passing implementation and remove builder
+        run: |
+          set -euo pipefail
+          rm tools/agent-s4d-integrate.py .github/workflows/agent-s4d-builder.yml
+          git config user.name rush-s4d-builder
+          git config user.email rush-s4d-builder@users.noreply.github.com
+          git add -A
+          git commit -m 'feat(optid): integrate sealed capability table'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
