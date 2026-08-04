@@ -1,0 +1,378 @@
+name: S4D post-merge cold verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: s4d-postmerge-verifier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Cold-verify merged S4D sealed capabilities
+    if: >-
+      github.event.pull_request.head.ref == 'verify/20260804-s4d-sealed-capabilities' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MERGED_COMMIT: a0d5b12a815496a32f39aa2ae8b67a57a9b57338
+      IMPLEMENTATION_HEAD: 57582752084bab2d1c0f1555f5b13e08fbfa074a
+      ARTIFACT_NAME: s4d-post-merge-cold-verification-${{ github.run_id }}
+      PROOF_LOG: ${{ runner.temp }}/s4d-post-merge-cold-verification.log
+
+    steps:
+      - name: Check out verifier branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Bind exact merged source and pre-transition truth
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          VERIFIER_HEAD=$(git rev-parse HEAD)
+          echo "VERIFIER_HEAD=$VERIFIER_HEAD" >> "$GITHUB_ENV"
+          echo "verifier_head=$VERIFIER_HEAD"
+          echo "merged_commit=$MERGED_COMMIT"
+          echo "implementation_head=$IMPLEMENTATION_HEAD"
+
+          git fetch origin main --force
+          test "$(git rev-parse origin/main)" = "$MERGED_COMMIT"
+          git merge-base --is-ancestor "$IMPLEMENTATION_HEAD" "$MERGED_COMMIT"
+          git merge-base --is-ancestor "$MERGED_COMMIT" "$VERIFIER_HEAD"
+
+          expected=$(mktemp)
+          actual=$(mktemp)
+          printf '%s\n' \
+            '.github/workflows/agent-s4d-postmerge-verifier.yml' \
+            'tools/agent-s4d-postmerge-receipt.py' | sort > "$expected"
+          git diff --name-only "$MERGED_COMMIT".."$VERIFIER_HEAD" | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          python3 - <<'PY'
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          merged = 'a0d5b12a815496a32f39aa2ae8b67a57a9b57338'
+          implementation = '57582752084bab2d1c0f1555f5b13e08fbfa074a'
+          ledger = tomllib.loads(Path('docs/plans/optid-package-status.toml').read_text())
+          packages = {item['id']: item for item in ledger['package']}
+          s4d = packages['S4D']
+          s5d = packages['S5D']
+          assert ledger['active_safety'] == 'S4D', ledger['active_safety']
+          assert s4d['status'] == 'candidate', s4d
+          assert s4d['pr'] == '390', s4d
+          assert 'verification_receipt' not in s4d, s4d
+          assert s5d['status'] == 'planned', s5d
+          assert s4d['depends'] == ['D0', 'F4', 'S3D'], s4d['depends']
+          for dependency in s4d['depends']:
+              assert packages[dependency]['status'] == 'completed', packages[dependency]
+
+          paths = sorted(set(
+              s4d.get('runtime_entrypoints', [])
+              + s4d.get('integration_tests', [])
+              + s4d.get('completion_evidence', [])
+          ))
+          assert paths
+          for path in paths:
+              subprocess.run(
+                  ['git', 'diff', '--quiet', implementation, merged, '--', path],
+                  check=True,
+              )
+              subprocess.run(
+                  ['git', 'diff', '--quiet', merged, 'HEAD', '--', path],
+                  check=True,
+              )
+          print(f's4d_source_bound_paths={len(paths)}')
+          PY
+
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+          test ! -e docs/plans/optid-verification/s4d.toml
+          echo "source_binding_and_prestate=pass"
+
+      - name: Compile and execute every mapped S4D acceptance test
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          cargo fmt --all -- --check
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+          python3 - <<'PY' > /tmp/s4d-acceptance-tests.txt
+          import tomllib
+          from pathlib import Path
+          ledger = tomllib.loads(Path('docs/plans/optid-package-status.toml').read_text())
+          package = next(item for item in ledger['package'] if item['id'] == 'S4D')
+          tests = list(package.get('acceptance_tests', {}).values())
+          assert len(tests) == 11, tests
+          assert len(set(tests)) == 11, tests
+          print('\n'.join(tests))
+          PY
+
+          count=0
+          while IFS= read -r short_name; do
+            count=$((count + 1))
+            echo "mapped_acceptance=$short_name"
+            listed=$(mktemp)
+            cargo test -p optid --all-features --color never "$short_name" -- --list \
+              2>&1 | tee "$listed"
+            full_name=$(python3 - "$short_name" "$listed" <<'PY'
+          import sys
+          from pathlib import Path
+          short = sys.argv[1]
+          lines = Path(sys.argv[2]).read_text(encoding='utf-8', errors='replace').splitlines()
+          matches = []
+          for line in lines:
+              if not line.endswith(': test'):
+                  continue
+              name = line[:-6]
+              if name == short or name.endswith('::' + short):
+                  matches.append(name)
+          if len(matches) != 1:
+              raise SystemExit(f'{short}: expected one exact mapped test, found {matches}')
+          print(matches[0])
+          PY
+            )
+            echo "exact_acceptance=$full_name"
+            cargo test -p optid --all-features --color never "$full_name" -- \
+              --exact --nocapture
+          done < /tmp/s4d-acceptance-tests.txt
+          test "$count" -eq 11
+
+          cargo test -p optid --all-features
+          cargo test --workspace --all-features
+          echo "s4d_acceptance_and_workspace_regression=pass"
+
+      - name: Verify shipped systemd graph and production binaries
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          cmp -s packaging/systemd/optid-apply.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service
+          cmp -s packaging/systemd/optid-recover.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-recover.service
+
+          cargo build -p optid --all-features --bins
+          sudo install -D -m 0755 target/debug/optid /usr/libexec/optid
+          sudo install -D -m 0755 target/debug/optid-recover /usr/libexec/optid-recover
+          printf '.TH OPTID 8\n.SH NAME\noptid - Rush Linux optimization daemon\n' \
+            | gzip -c | sudo tee /usr/share/man/man8/optid.8.gz >/dev/null
+          sudo install -D -m 0644 packaging/systemd/optid-apply.service \
+            /etc/systemd/system/optid-apply.service
+          sudo install -D -m 0644 packaging/systemd/optid-recover.service \
+            /etc/systemd/system/optid-recover.service
+          systemd-analyze verify \
+            /etc/systemd/system/optid-recover.service \
+            /etc/systemd/system/optid-apply.service
+          echo "packaged_systemd_graph=pass"
+
+      - name: Run live Landlock and supervisor cold-rebuild proof
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          cargo test -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          cargo test -p optid --features experimental-capability-sealing \
+            --test capability_sealing_cli
+          cargo build -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          sudo install -D -m 0755 target/debug/optid-capability-seal-test \
+            /usr/local/libexec/optid-capability-seal-test
+          systemd-analyze verify packaging/systemd/optid-capability-seal-test.service
+
+          KERNEL_RELEASE=$(uname -r)
+          echo "KERNEL_RELEASE=$KERNEL_RELEASE" >> "$GITHUB_ENV"
+          echo "kernel_release=$KERNEL_RELEASE"
+          /usr/local/libexec/optid-capability-seal-test --probe
+
+          python3 - <<'PY'
+          import os
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+          text = Path(os.environ['PROOF_LOG']).read_text(encoding='utf-8', errors='replace')
+          matches = re.findall(r'(?i)(?:landlock[_ ]abi)[\s"=:]+([0-9]+)', text)
+          if not matches:
+              raise SystemExit('could not parse Landlock ABI from proof output')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write(f'LANDLOCK_ABI={matches[-1]}\n')
+              handle.write('VERIFIED_AT=' + datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ') + '\n')
+          print(f'landlock_abi={matches[-1]}')
+          PY
+
+          sudo install -D -m 0644 \
+            packaging/systemd/optid-capability-seal-test.service \
+            /etc/systemd/system/optid-capability-seal-test.service
+          sudo touch /run/optid-capability-seal-test-enabled
+          sudo rm -rf /run/optid-capability-seal-test
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
+          proof_started=$(date --iso-8601=seconds)
+          sudo systemctl start optid-capability-seal-test.service
+
+          for _ in $(seq 1 30); do
+            active_state=$(systemctl show optid-capability-seal-test.service -p ActiveState --value)
+            result=$(systemctl show optid-capability-seal-test.service -p Result --value)
+            if [[ "$active_state" == inactive && "$result" == success ]]; then
+              break
+            fi
+            if [[ "$active_state" == failed ]]; then
+              break
+            fi
+            sleep 1
+          done
+
+          sudo journalctl --sync
+          sudo journalctl -u optid-capability-seal-test.service \
+            --since "$proof_started" --no-pager -o cat | tee /tmp/s4d-status75.log
+          systemctl show optid-capability-seal-test.service \
+            -p ActiveState -p SubState -p Result -p ExecMainCode \
+            -p ExecMainStatus -p NRestarts | tee /tmp/s4d-status75.status
+
+          test "$(systemctl show optid-capability-seal-test.service -p ActiveState --value)" = inactive
+          test "$(systemctl show optid-capability-seal-test.service -p Result --value)" = success
+          test "$(systemctl show optid-capability-seal-test.service -p ExecMainStatus --value)" = 0
+          test "$(grep -cF 'Scheduled restart job, restart counter is at 1.' /tmp/s4d-status75.log)" -eq 1
+          test "$(grep -cF 'recovery step completed:' /tmp/s4d-status75.log)" -eq 2
+          test "$(grep -cF 'recovery marker verified before capability discovery:' /tmp/s4d-status75.log)" -eq 2
+          test "$(grep -cF 'capability-sealing proof passed (8 checks)' /tmp/s4d-status75.log)" -eq 2
+          test "$(grep -cF 'first sealed cycle complete; requesting topology rebuild with status 75' /tmp/s4d-status75.log)" -eq 1
+          test "$(grep -cF 'fresh sealed process started after recovery; supervisor cycle complete' /tmp/s4d-status75.log)" -eq 1
+
+          sudo mkdir -p /run/systemd/system/optid-capability-seal-test.service.d
+          sudo tee /run/systemd/system/optid-capability-seal-test.service.d/non75.conf >/dev/null <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/bin/sh -c 'exit 1'
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
+          failure_started=$(date --iso-8601=seconds)
+          set +e
+          sudo systemctl start optid-capability-seal-test.service
+          start_status=$?
+          set -e
+          sleep 3
+          sudo journalctl --sync
+          sudo journalctl -u optid-capability-seal-test.service \
+            --since "$failure_started" --no-pager -o cat | tee /tmp/s4d-non75.log
+          systemctl show optid-capability-seal-test.service \
+            -p ActiveState -p SubState -p Result -p ExecMainCode \
+            -p ExecMainStatus -p NRestarts | tee /tmp/s4d-non75.status
+          test "$(systemctl show optid-capability-seal-test.service -p Result --value)" = exit-code
+          test "$(systemctl show optid-capability-seal-test.service -p ExecMainStatus --value)" = 1
+          test "$(systemctl show optid-capability-seal-test.service -p NRestarts --value)" = 0
+          ! grep -qF 'Scheduled restart job' /tmp/s4d-non75.log
+
+          {
+            echo "status75_supervised_rebuild=pass"
+            cat /tmp/s4d-status75.status
+            cat /tmp/s4d-status75.log
+            echo "non75_restart_suppression=pass"
+            echo "systemctl_start_status=$start_status"
+            cat /tmp/s4d-non75.status
+            cat /tmp/s4d-non75.log
+          } >> "$PROOF_LOG"
+          echo "live_landlock_and_supervisor_proof=pass"
+
+      - name: Upload immutable cold-verification evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.PROOF_LOG }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Resolve workflow and artifact provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          job_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
+            --jq '.jobs[] | select(.name == "Cold-verify merged S4D sealed capabilities") | .id')
+          test -n "$job_id"
+
+          artifact=""
+          for _ in $(seq 1 20); do
+            artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+              --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\")")
+            [[ -n "$artifact" ]] && break
+            sleep 2
+          done
+          test -n "$artifact"
+          test "$(jq -r '.expired' <<<"$artifact")" = false
+          test "$(jq -r '.digest' <<<"$artifact")" != null
+
+          echo "WORKFLOW_JOB=$job_id" >> "$GITHUB_ENV"
+          echo "ARTIFACT_ID=$(jq -r '.id' <<<"$artifact")" >> "$GITHUB_ENV"
+          echo "ARTIFACT_DIGEST=$(jq -r '.digest' <<<"$artifact")" >> "$GITHUB_ENV"
+          echo "ARTIFACT_SIZE=$(jq -r '.size_in_bytes' <<<"$artifact")" >> "$GITHUB_ENV"
+          echo "ARTIFACT_EXPIRES=$(jq -r '.expires_at' <<<"$artifact")" >> "$GITHUB_ENV"
+
+      - name: Publish receipt-only package transition
+        env:
+          VERIFICATION_PR: ${{ github.event.pull_request.number }}
+          WORKFLOW_RUN: ${{ github.run_id }}
+          WORKFLOW_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python3 tools/agent-s4d-postmerge-receipt.py
+          python3 tools/render-frontpage.py --write
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+
+          rm tools/agent-s4d-postmerge-receipt.py \
+            .github/workflows/agent-s4d-postmerge-verifier.yml
+
+          git add -A
+          python3 - <<'PY'
+          import os
+          import subprocess
+          files = set(subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only', os.environ['MERGED_COMMIT']],
+              text=True,
+          ).splitlines())
+          expected = {
+              'README.md',
+              'docs/plans/current-work.md',
+              'docs/plans/optid-package-status.toml',
+              'docs/plans/optid-verification/s4d.toml',
+          }
+          assert files == expected, files
+          PY
+
+          git config user.name rush-s4d-independent-verifier
+          git config user.email rush-s4d-independent-verifier@users.noreply.github.com
+          git commit -m 'verify(optid): complete merged S4D capability sealing'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
