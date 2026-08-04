@@ -47,7 +47,10 @@ fn s4d_startup_seals_before_any_worker_or_dbus_input() {
         .expect("foreground worker startup call");
 
     assert!(seal < dbus, "Landlock must be installed before D-Bus");
-    assert!(seal < foreground, "Landlock must be installed before workers");
+    assert!(
+        seal < foreground,
+        "Landlock must be installed before workers"
+    );
 }
 
 #[test]
@@ -65,5 +68,8 @@ fn s4d_topology_rebuild_hands_back_before_status_75() {
     let exit = branch
         .find("RunExit::TopologyRebuild")
         .expect("dedicated rebuild exit");
-    assert!(handback < exit, "owned levers must be handed back before exit 75");
+    assert!(
+        handback < exit,
+        "owned levers must be handed back before exit 75"
+    );
 }

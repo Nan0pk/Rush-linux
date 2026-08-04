@@ -15,6 +15,7 @@ WatchdogSec=10s
 TimeoutStartSec=30s
 ExecStart=/usr/libexec/optid --apply --interval-sec 2 --state-dir /run/optid
 Restart=on-failure
+RestartForceExitStatus=75
 RestartSec=2
 StateDirectory=optid
 RuntimeDirectory=optid

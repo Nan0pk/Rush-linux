@@ -22,6 +22,7 @@ mod actuators;
 mod allowlist;
 mod args;
 mod capability;
+mod capability_table;
 mod contracts;
 mod dbus;
 mod decision;
@@ -39,18 +40,22 @@ mod tests;
 mod thermal;
 mod workload;
 
-use actuator::Actuator;
+use actuator::{Actuator, PmqosSink, RealPmqosSink};
 use args::{
     parse_from_env, print_usage, print_version, Args, DEFAULT_DWELL_WINDOW_SEC,
     DEFAULT_MODE_DWELL_WINDOW_SEC,
+};
+use capability_table::{
+    topology_fingerprint, CapabilityKernel, CapabilityTable, TopologyDebouncer, TopologyDecision,
+    EXIT_TOPOLOGY_REBUILD,
 };
 use contracts::Contracts;
 use dbus::OptidServer;
 use envelope::{ActionOutcome, ControlCycleEnvelope, CycleIdGenerator};
 use io_util::{append_log, append_log_with, atomic_write_state_file_with};
-use kernel_io::Clock;
+use kernel_io::{KernelIo, RealKernel};
 use load_state::{BootState, LoadState};
-use policy::Policy;
+use policy::{CapabilitySealingMode, Policy};
 use sensors::Snapshot;
 use shim::{GameModeServer, PpdServer};
 use workload::{
@@ -76,10 +81,20 @@ fn main() {
         print_version();
         return;
     }
-    if let Err(err) = run(args) {
-        eprintln!("optid: {err}");
-        std::process::exit(1);
+    match run(args) {
+        Ok(RunExit::Clean) => {}
+        Ok(RunExit::TopologyRebuild) => std::process::exit(EXIT_TOPOLOGY_REBUILD),
+        Err(err) => {
+            eprintln!("optid: {err}");
+            std::process::exit(1);
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunExit {
+    Clean,
+    TopologyRebuild,
 }
 
 /// Keep the pre-F4 restoration entry points link-checked while their historical
@@ -100,7 +115,7 @@ fn link_retired_restore_compatibility_surface() {
     ];
 }
 
-fn run(args: Args) -> io::Result<()> {
+fn run(args: Args) -> io::Result<RunExit> {
     link_retired_restore_compatibility_surface();
     fs::create_dir_all(&args.state_dir)?;
     let lock_file = fs::File::create(args.state_dir.join("optid.lock"))?;
@@ -167,12 +182,6 @@ fn run(args: Args) -> io::Result<()> {
         append_log(&args.state_dir.join("decisions.log"), message)?;
     }
 
-    spawn_dbus_servers(
-        args.state_dir.clone(),
-        &policy_for_conflicts,
-        conflict_report.is_blocking(),
-    );
-
     let initial_class = fs::read_to_string(args.state_dir.join("workload_class"))
         .ok()
         .and_then(|value| WorkloadClass::parse(&value))
@@ -180,7 +189,98 @@ fn run(args: Args) -> io::Result<()> {
     let mut hysteresis = HysteresisState::new(initial_class);
     let mut mode_hysteresis = ModeHysteresisState::new(Mode::Balanced);
 
-    let mut actuator = Actuator::new(args.state_dir.clone());
+    let discovery_kernel = RealKernel::new();
+    let startup_snapshot = Snapshot::collect_with_thermal(
+        &discovery_kernel,
+        &discovery_kernel,
+        &policy_for_conflicts.thermal,
+        None,
+    );
+    let startup_topology = topology_fingerprint(&discovery_kernel, &startup_snapshot);
+    let mut topology_debouncer = TopologyDebouncer::new(startup_topology);
+
+    let mut actuator_kernel: Box<dyn KernelIo> = Box::new(RealKernel::new());
+    let mut cycle_kernel: Box<dyn KernelIo> = Box::new(RealKernel::new());
+    let mut pmqos_sink: Box<dyn PmqosSink> = Box::new(RealPmqosSink::new());
+    let mut capability_sealing_enforced = false;
+    #[cfg(test)]
+    let injected_kernel_test_seam = kernel_io::real_kernel_override_is_active();
+    #[cfg(not(test))]
+    let injected_kernel_test_seam = false;
+
+    if apply_armed
+        && policy_for_conflicts.safety.capability_sealing == CapabilitySealingMode::Enforce
+    {
+        match (
+            CapabilityTable::from_snapshot(&discovery_kernel, &startup_snapshot),
+            RealPmqosSink::preopen_for_sealing(),
+        ) {
+            (Ok(table), Ok(sealed_pmqos)) => {
+                let table = Arc::new(table);
+                let state_roots = vec![args.state_dir.clone(), PathBuf::from("/var/lib/optid")];
+                match table.seal(&state_roots) {
+                    Ok(report) => {
+                        let sealed_kernel = CapabilityKernel::new(Arc::clone(&table));
+                        actuator_kernel = Box::new(sealed_kernel.clone());
+                        cycle_kernel = Box::new(sealed_kernel);
+                        pmqos_sink = Box::new(sealed_pmqos);
+                        capability_sealing_enforced = true;
+                        let message = format!(
+                            "optid: S4D seal enforced — capabilities={} Landlock ABI={} rights=0x{:x} new_write_open_denied={} state_write_allowed={}\n",
+                            report.capability_count,
+                            report.landlock_abi,
+                            report.handled_rights,
+                            report.new_hardware_write_open_denied,
+                            report.state_write_allowed,
+                        );
+                        eprint!("{message}");
+                        append_log(&args.state_dir.join("decisions.log"), &message)?;
+                    }
+                    Err(error) => {
+                        let message = format!(
+                            "optid: S4D enforce requested but sealing failed; kernel writes remain observe-only: {error}\n"
+                        );
+                        eprint!("{message}");
+                        let _ = append_log(&args.state_dir.join("decisions.log"), &message);
+                    }
+                }
+            }
+            (Err(error), _) => {
+                let message = format!(
+                    "optid: S4D capability-table construction failed; kernel writes remain observe-only: {error}\n"
+                );
+                eprint!("{message}");
+                append_log(&args.state_dir.join("decisions.log"), &message)?;
+            }
+            (_, Err(error)) => {
+                let message = format!(
+                    "optid: S4D CPU PM QoS pre-open failed; kernel writes remain observe-only: {error}\n"
+                );
+                eprint!("{message}");
+                append_log(&args.state_dir.join("decisions.log"), &message)?;
+            }
+        }
+    } else {
+        let reason = if !apply_armed {
+            "apply is not armed"
+        } else {
+            "[safety].capability_sealing=observe"
+        };
+        let message = format!(
+            "optid: S4D capability sealing observe-only ({reason}); non-systemd kernel writes suppressed\n"
+        );
+        eprint!("{message}");
+        append_log(&args.state_dir.join("decisions.log"), &message)?;
+    }
+
+    // Binary-crate tests inject a deterministic RealKernel facade. The test-only
+    // seam preserves legacy transaction tests without changing release behavior.
+    if injected_kernel_test_seam {
+        capability_sealing_enforced = true;
+    }
+
+    let mut actuator = Actuator::new_with_kernel(args.state_dir.clone(), actuator_kernel);
+    actuator.pmqos_sink = pmqos_sink;
     if allowlist_gate_enabled {
         let mut summary = format!(
             "optid: WP-N4 hardware allowlist gate ENABLED (default-deny); version={} effective_entries={} load_state={}\n",
@@ -197,14 +297,20 @@ fn run(args: Args) -> io::Result<()> {
         actuator.enable_allowlist(allowlist);
     }
     actuator.set_boot_state(boot_state.clone());
+    actuator.set_capability_sealing_enforced(capability_sealing_enforced);
 
-    let cycle_kernel = kernel_io::RealKernel::new();
     let mut cycle_ids = CycleIdGenerator::new(cycle_kernel.now_unix());
     let mut reconciler = reconciler::Reconciler::load(args.state_dir.clone(), &mut actuator)?;
     append_log(
         &args.state_dir.join("decisions.log"),
         &format!("optid: F4 reconciler mode={:?}\n", reconciler.mode()),
     )?;
+
+    spawn_dbus_servers(
+        args.state_dir.clone(),
+        &policy_for_conflicts,
+        conflict_report.is_blocking(),
+    );
 
     if args.foreground == args::ForegroundMode::Auto {
         let foreground_config = policy_for_conflicts.foreground.clone();
@@ -229,14 +335,50 @@ fn run(args: Args) -> io::Result<()> {
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
         let policy = Policy::load(&args.config_path);
-        let kernel = cycle_kernel.clone();
         let mut snapshot = Snapshot::collect_with_thermal(
-            &kernel,
-            &kernel,
+            cycle_kernel.as_ref(),
+            cycle_kernel.as_ref(),
             &policy.thermal,
             previous_thermal_budget.as_ref(),
         );
         previous_thermal_budget = Some(snapshot.thermal_budget.clone());
+
+        match topology_debouncer.observe(topology_fingerprint(cycle_kernel.as_ref(), &snapshot)) {
+            TopologyDecision::Stable => {}
+            TopologyDecision::Pending { observations } => {
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    &format!(
+                        "optid: S4D topology change pending observations={observations}; new targets remain observe-only
+"
+                    ),
+                )?;
+            }
+            TopologyDecision::Rebuild => {
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    "optid: S4D stable topology change; handing back owned targets before cold rebuild
+",
+                )?;
+                let handbacks = reconciler.restore_all_owned(&mut actuator)?;
+                for outcome in handbacks {
+                    append_log(
+                        &args.state_dir.join("decisions.log"),
+                        &format!(
+                            "optid: S4D topology handback target={} outcome={:?}
+",
+                            outcome.target_id, outcome.reason
+                        ),
+                    )?;
+                }
+                append_log(
+                    &args.state_dir.join("decisions.log"),
+                    "optid: S4D handback complete; requesting supervisor capability-table rebuild status=75
+",
+                )?;
+                return Ok(RunExit::TopologyRebuild);
+            }
+        }
         snapshot.global_pinned_class = read_global_pinned_class(&args.state_dir);
         if let Some(ref app) = snapshot.foreground_app {
             snapshot.pinned_class = read_pinned_class(&args.state_dir, app);
@@ -400,19 +542,23 @@ fn run(args: Args) -> io::Result<()> {
             decision.render(&snapshot)
         );
 
-        atomic_write_state_file_with(&cycle_kernel, &args.state_dir.join("status"), &report)?;
         atomic_write_state_file_with(
-            &cycle_kernel,
+            cycle_kernel.as_ref(),
+            &args.state_dir.join("status"),
+            &report,
+        )?;
+        atomic_write_state_file_with(
+            cycle_kernel.as_ref(),
             &args.state_dir.join("status.json"),
             &status_json,
         )?;
         append_log_with(
-            &cycle_kernel,
+            cycle_kernel.as_ref(),
             &args.state_dir.join("control-cycles.jsonl"),
             &cycle_line,
         )?;
         append_log_with(
-            &cycle_kernel,
+            cycle_kernel.as_ref(),
             &args.state_dir.join("decisions.log"),
             &report,
         )?;
@@ -444,7 +590,7 @@ fn run(args: Args) -> io::Result<()> {
         )?;
     }
     let _ = lock_file;
-    Ok(())
+    Ok(RunExit::Clean)
 }
 
 fn spawn_dbus_servers(state_dir: PathBuf, policy: &Policy, disabled: bool) {

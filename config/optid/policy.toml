@@ -10,6 +10,12 @@ competing_policy_daemons = [
   "tuned.service",
 ]
 
+# S4D capability sealing. `observe` inventories exact targets but suppresses
+# kernel writes. Set `enforce` only on kernels covered by the D0 mechanism
+# proof; startup must still pass the live table/seal self-tests.
+[safety]
+capability_sealing = "observe"
+
 # v0.6 Phase B1: PPD compatibility shim configuration.
 # The shim implements net.hadess.PowerProfiles on optid's D-Bus connection
 # so GNOME Settings and KDE powerdevil drive optid without code changes.

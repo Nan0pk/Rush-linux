@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -45,35 +46,89 @@ pub(crate) trait PmqosSink {
     fn write_device_latency(&mut self, device_path: &Path, value: &str) -> io::Result<()>;
 }
 
+pub(crate) const SEALED_CPU_PM_QOS_SLOTS: usize = 8;
+
 pub(crate) struct RealPmqosSink {
     cpu_fd: Option<fs::File>,
+    cpu_spares: Vec<fs::File>,
+    cpu_value: Option<i32>,
+    sealed: bool,
 }
 
 impl RealPmqosSink {
     pub(crate) fn new() -> Self {
-        Self { cpu_fd: None }
+        Self {
+            cpu_fd: None,
+            cpu_spares: Vec::new(),
+            cpu_value: None,
+            sealed: false,
+        }
+    }
+
+    fn open_cpu_descriptor() -> io::Result<fs::File> {
+        fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_CLOEXEC)
+            .open("/dev/cpu_dma_latency")
+    }
+
+    /// Open a bounded pool before Landlock. Closing the active request is the
+    /// exact handback contract; a later request consumes another pre-opened
+    /// descriptor instead of reopening the device after sealing.
+    pub(crate) fn preopen_for_sealing() -> io::Result<Self> {
+        let mut cpu_spares = Vec::new();
+        for _ in 0..SEALED_CPU_PM_QOS_SLOTS {
+            match Self::open_cpu_descriptor() {
+                Ok(file) => cpu_spares.push(file),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => break,
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(Self {
+            cpu_fd: None,
+            cpu_spares,
+            cpu_value: None,
+            sealed: true,
+        })
     }
 }
 
 impl PmqosSink for RealPmqosSink {
     fn read_cpu_latency(&self) -> io::Result<String> {
-        let text = fs::read_to_string("/dev/cpu_dma_latency")?;
-        Ok(text)
+        if self.sealed {
+            Ok(self
+                .cpu_value
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unconstrained".to_string()))
+        } else {
+            fs::read_to_string("/dev/cpu_dma_latency")
+        }
     }
 
     fn write_cpu_latency(&mut self, value: Option<i32>) -> io::Result<()> {
         use std::io::Write;
         match value {
-            Some(val) => {
-                let mut file = fs::OpenOptions::new()
-                    .write(true)
-                    .open("/dev/cpu_dma_latency")?;
-                file.write_all(&val.to_ne_bytes())?;
+            Some(value) => {
+                if self.cpu_fd.is_none() {
+                    self.cpu_fd = if self.sealed {
+                        self.cpu_spares.pop()
+                    } else {
+                        Some(Self::open_cpu_descriptor()?)
+                    };
+                }
+                let file = self.cpu_fd.as_mut().ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "sealed CPU PM QoS descriptor pool is exhausted or unavailable",
+                    )
+                })?;
+                file.write_all(&value.to_ne_bytes())?;
                 file.flush()?;
-                self.cpu_fd = Some(file);
+                self.cpu_value = Some(value);
             }
             None => {
                 self.cpu_fd = None;
+                self.cpu_value = None;
             }
         }
         Ok(())
@@ -130,6 +185,9 @@ pub(crate) struct Actuator {
     pub(crate) kernel: Box<dyn KernelIo>,
     /// Correlation ID for the current control-loop iteration.
     pub(crate) correlation_id: String,
+    /// S4D production gate. `None` preserves legacy/unit-test construction;
+    /// main always sets `Some(false|true)` before entering the control loop.
+    pub(crate) capability_sealing_enforced: Option<bool>,
     /// Test-only hook: when `Some(n)`, the `n`-th `guarded_write` call within
     /// a single `Action::RuntimePm` apply (1 = delay write, 2 = control write,
     /// 3 = rollback delay write) returns a synthetic `Err`. This field is
@@ -165,6 +223,7 @@ enum RevertKeyResult {
 }
 
 impl Actuator {
+    #[cfg(test)]
     pub(crate) fn new(state_dir: PathBuf) -> Self {
         Self::new_with_kernel(state_dir, Box::new(RealKernel::new()))
     }
@@ -191,6 +250,7 @@ impl Actuator {
             active_floors: None,
             kernel,
             correlation_id: String::new(),
+            capability_sealing_enforced: None,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
             #[cfg(test)]
@@ -218,6 +278,7 @@ impl Actuator {
             active_floors: None,
             kernel: Box::new(RealKernel::new()),
             correlation_id: String::new(),
+            capability_sealing_enforced: None,
             #[cfg(test)]
             fail_nth_runtime_pm_write: None,
             #[cfg(test)]
@@ -374,6 +435,26 @@ impl Actuator {
     /// applying the curated baseline.
     pub(crate) fn set_boot_state(&mut self, boot_state: BootState) {
         self.boot_state = Some(boot_state);
+    }
+
+    pub(crate) fn set_capability_sealing_enforced(&mut self, enforced: bool) {
+        self.capability_sealing_enforced = Some(enforced);
+    }
+
+    pub(crate) fn read_device_latency(&self, path: &Path) -> io::Result<String> {
+        if self.capability_sealing_enforced.is_some() {
+            self.kernel.read_to_string(path)
+        } else {
+            self.pmqos_sink.read_device_latency(path)
+        }
+    }
+
+    pub(crate) fn write_device_latency(&mut self, path: &Path, value: &str) -> io::Result<()> {
+        if self.capability_sealing_enforced.is_some() {
+            self.kernel.write(path, value)
+        } else {
+            self.pmqos_sink.write_device_latency(path, value)
+        }
     }
 
     /// optid-safety: apply the curated baseline. This is a small, fixed set of
@@ -592,6 +673,22 @@ impl Actuator {
                 action.stable_target_id(),
                 PipelineStage::ApplyGate,
                 "dynamic writes are disarmed".to_string(),
+            ));
+            return Ok(outcome);
+        }
+
+        if !matches!(action, Action::SystemdSetProperty { .. })
+            && self.capability_sealing_enforced == Some(false)
+        {
+            outcome.gates.push(GateEvaluation::denied(
+                GateStage::CapabilityValidation,
+                GateReasonCode::CapabilityDenied,
+                "S4D capability sealing is observe-only or startup sealing failed",
+            ));
+            outcome.targets.push(TargetOutcome::denied(
+                action.stable_target_id(),
+                PipelineStage::CapabilityGate,
+                "kernel write requires an enforced pre-opened capability table".to_string(),
             ));
             return Ok(outcome);
         }
@@ -1000,15 +1097,13 @@ impl Actuator {
                 let key = format!("dev_{hash}");
                 let orig_file = self.state_dir.join(format!("original_{key}"));
                 let journal_result = if !self.kernel.exists(&orig_file) {
-                    self.pmqos_sink
-                        .read_device_latency(path)
-                        .and_then(|current| {
-                            atomic_write_state_file_with(
-                                &*self.kernel,
-                                &orig_file,
-                                &format!("{}\n{}", path.display(), current.trim()),
-                            )
-                        })
+                    self.read_device_latency(path).and_then(|current| {
+                        atomic_write_state_file_with(
+                            &*self.kernel,
+                            &orig_file,
+                            &format!("{}\n{}", path.display(), current.trim()),
+                        )
+                    })
                 } else {
                     Ok(())
                 };
@@ -1035,7 +1130,7 @@ impl Actuator {
                     .unwrap_or_default()
                     .trim()
                     .to_string();
-                match self.pmqos_sink.write_device_latency(path, &value_string) {
+                match self.write_device_latency(path, &value_string) {
                     Ok(()) => {
                         self.last_device_latencies.insert(path.clone(), *value);
                         mark_applied_with(&*self.kernel, &self.state_dir, &key, &value_string);
@@ -1043,10 +1138,8 @@ impl Actuator {
                             "write {} = {value_string} (was {old_value}) reason: {reason}",
                             path.display()
                         ))?;
-                        let readback = readback_from_result(
-                            &value_string,
-                            self.pmqos_sink.read_device_latency(path),
-                        );
+                        let readback =
+                            readback_from_result(&value_string, self.read_device_latency(path));
                         outcome.targets.push(TargetOutcome::applied(
                             action.stable_target_id(),
                             &value_string,

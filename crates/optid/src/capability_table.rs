@@ -139,7 +139,10 @@ impl CapabilityEntry {
         if flags & libc::FD_CLOEXEC == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                format!("capability descriptor lacks CLOEXEC: {}", spec.path.display()),
+                format!(
+                    "capability descriptor lacks CLOEXEC: {}",
+                    spec.path.display()
+                ),
             ));
         }
         Ok(Self {
@@ -199,6 +202,7 @@ impl CapabilityEntry {
         file.flush()
     }
 
+    #[cfg(test)]
     fn cloexec(&self) -> io::Result<bool> {
         let file = self
             .file
@@ -252,10 +256,6 @@ impl CapabilityTable {
         self.inventory.is_empty()
     }
 
-    pub(crate) fn inventory(&self) -> &BTreeSet<String> {
-        &self.inventory
-    }
-
     fn entry(&self, path: &Path) -> io::Result<&Arc<CapabilityEntry>> {
         self.aliases.get(path).ok_or_else(|| {
             io::Error::new(
@@ -273,6 +273,7 @@ impl CapabilityTable {
         self.entry(path)?.write(path, value)
     }
 
+    #[cfg(test)]
     pub(crate) fn all_descriptors_cloexec(&self) -> io::Result<bool> {
         let mut seen = BTreeSet::new();
         for entry in self.aliases.values() {
@@ -284,10 +285,7 @@ impl CapabilityTable {
         Ok(true)
     }
 
-    pub(crate) fn seal(
-        &self,
-        allowed_state_roots: &[PathBuf],
-    ) -> io::Result<CapabilitySealReport> {
+    pub(crate) fn seal(&self, allowed_state_roots: &[PathBuf]) -> io::Result<CapabilitySealReport> {
         if self.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -329,10 +327,8 @@ impl CapabilityTable {
             ));
         }
 
-        let state_probe = allowed_state_roots[0].join(format!(
-            ".s4d-seal-self-test-{}",
-            std::process::id()
-        ));
+        let state_probe =
+            allowed_state_roots[0].join(format!(".s4d-seal-self-test-{}", std::process::id()));
         fs::write(&state_probe, b"sealed-state-write\n")?;
         fs::remove_file(&state_probe)?;
 
@@ -355,7 +351,7 @@ pub(crate) struct CapabilitySealReport {
     pub(crate) state_write_allowed: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct CapabilityKernel {
     table: Arc<CapabilityTable>,
     fallback: RealKernel,
@@ -367,10 +363,6 @@ impl CapabilityKernel {
             table,
             fallback: RealKernel::new(),
         }
-    }
-
-    pub(crate) fn table(&self) -> &Arc<CapabilityTable> {
-        &self.table
     }
 }
 
@@ -507,10 +499,7 @@ pub(crate) fn specs_from_snapshot(
     specs
 }
 
-pub(crate) fn topology_fingerprint(
-    read: &dyn KernelRead,
-    snapshot: &Snapshot,
-) -> BTreeSet<String> {
+pub(crate) fn topology_fingerprint(read: &dyn KernelRead, snapshot: &Snapshot) -> BTreeSet<String> {
     specs_from_snapshot(read, snapshot)
         .into_iter()
         .map(|spec| {
@@ -536,16 +525,10 @@ pub(crate) struct TopologyDebouncer {
 
 impl TopologyDebouncer {
     pub(crate) fn new(baseline: BTreeSet<String>) -> Self {
-        Self::with_required_observations(
-            baseline,
-            DEFAULT_TOPOLOGY_DEBOUNCE_OBSERVATIONS,
-        )
+        Self::with_required_observations(baseline, DEFAULT_TOPOLOGY_DEBOUNCE_OBSERVATIONS)
     }
 
-    fn with_required_observations(
-        baseline: BTreeSet<String>,
-        required_observations: u8,
-    ) -> Self {
+    fn with_required_observations(baseline: BTreeSet<String>, required_observations: u8) -> Self {
         Self {
             baseline,
             pending: None,
@@ -582,10 +565,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "optid-s4d-{name}-{}-{nonce}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("optid-s4d-{name}-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&root).expect("create temp root");
         root
     }
@@ -639,7 +620,9 @@ mod tests {
         fs::create_dir_all(&replacement).expect("replacement dir");
         fs::write(replacement.join("control"), "on\n").expect("replacement value");
         symlink(root.join("replacement"), root.join("device")).expect("replacement symlink");
-        let error = table.write(&path, "auto\n").expect_err("replacement denied");
+        let error = table
+            .write(&path, "auto\n")
+            .expect_err("replacement denied");
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     }
 
@@ -654,7 +637,9 @@ mod tests {
         .expect("build table");
         fs::remove_file(&path).expect("remove old file");
         fs::write(&path, "on\n").expect("replace inode");
-        let error = table.write(&path, "auto\n").expect_err("stale identity denied");
+        let error = table
+            .write(&path, "auto\n")
+            .expect_err("stale identity denied");
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     }
 
@@ -668,7 +653,9 @@ mod tests {
         )])
         .expect("build table");
         fs::remove_file(&path).expect("remove target");
-        let error = table.write(&path, "auto\n").expect_err("removed target denied");
+        let error = table
+            .write(&path, "auto\n")
+            .expect_err("removed target denied");
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
     }
 
@@ -676,11 +663,9 @@ mod tests {
     fn s4d_capability_descriptors_are_cloexec() {
         let root = temp_root("cloexec");
         let path = runtime_control(&root);
-        let table = CapabilityTable::build([CapabilitySpec::new(
-            CapabilityKind::RuntimePmControl,
-            path,
-        )])
-        .expect("build table");
+        let table =
+            CapabilityTable::build([CapabilitySpec::new(CapabilityKind::RuntimePmControl, path)])
+                .expect("build table");
         assert!(table.all_descriptors_cloexec().expect("query flags"));
     }
 

@@ -384,6 +384,21 @@ impl EffectiveConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum CapabilitySealingMode {
+    #[default]
+    Observe,
+    Enforce,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SafetyConfig {
+    #[serde(default)]
+    pub(crate) capability_sealing: CapabilitySealingMode,
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 pub(crate) struct Policy {
     /// v0.6 Phase B3: top-level `[policy]` section carrying the
@@ -421,6 +436,9 @@ pub(crate) struct Policy {
     /// research-aligned thresholds when the section is absent.
     #[serde(default)]
     pub(crate) thermal: crate::thermal::ThermalConfig,
+    /// S4D — capability sealing is observe-only unless explicitly enforced.
+    #[serde(default)]
+    pub(crate) safety: SafetyConfig,
 }
 
 /// v0.6 Phase B1: the `[shim]` top-level section of
@@ -629,6 +647,8 @@ impl Default for Policy {
             // Validated via from_toml_str so the strict parser stays linked.
             thermal: crate::thermal::ThermalConfig::from_toml_str("mode = \"observe\"\n")
                 .unwrap_or_default(),
+            // S4D migration-safe default: inventory only, no kernel actuation.
+            safety: SafetyConfig::default(),
         }
     }
 }

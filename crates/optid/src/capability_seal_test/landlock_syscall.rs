@@ -84,12 +84,7 @@ impl OwnedFd {
         let mut nul = Vec::with_capacity(bytes.len() + 1);
         nul.extend_from_slice(bytes);
         nul.push(0);
-        let fd = unsafe {
-            libc::open(
-                nul.as_ptr().cast(),
-                libc::O_PATH | libc::O_CLOEXEC,
-            )
-        };
+        let fd = unsafe { libc::open(nul.as_ptr().cast(), libc::O_PATH | libc::O_CLOEXEC) };
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -196,6 +191,7 @@ fn add_write_root(ruleset: &OwnedFd, root: &Path, rights: u64) -> io::Result<()>
 
 /// Install an empty ruleset. This is retained for the D0 negative proof: all
 /// new write opens and path mutations are denied after the call.
+#[allow(dead_code)] // Used by the separate D0 proof binary.
 pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {
     install_landlock_restrictions_with_write_roots(abi, &[])
 }
@@ -238,6 +234,7 @@ pub(crate) fn install_landlock_restrictions_with_write_roots(
 }
 
 /// Exact running kernel release for a cold-verification receipt.
+#[allow(dead_code)] // Used by the separate D0 proof binary.
 pub(crate) fn kernel_release() -> String {
     std::fs::read_to_string("/proc/sys/kernel/osrelease")
         .map(|value| value.trim().to_string())

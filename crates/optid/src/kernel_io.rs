@@ -156,6 +156,12 @@ thread_local! {
 }
 
 #[cfg(test)]
+#[allow(dead_code)] // Consumed by binary-crate tests, not lib tests.
+pub(crate) fn real_kernel_override_is_active() -> bool {
+    REAL_KERNEL_OVERRIDE.with(|slot| slot.borrow().is_some())
+}
+
+#[cfg(test)]
 struct OverrideGuard(Option<Box<dyn KernelIo>>);
 
 #[cfg(test)]
