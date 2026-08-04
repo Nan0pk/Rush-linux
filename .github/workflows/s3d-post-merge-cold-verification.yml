@@ -1,4 +1,4 @@
-name: S3D post-merge cold verification
+name: Publish S3D cold-verification receipt
 
 on:
   pull_request:
@@ -6,217 +6,224 @@ on:
     types: [opened, reopened, synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: s3d-post-merge-cold-${{ github.event.pull_request.number }}
+  group: s3d-receipt-publication-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  verify-systemd:
-    name: Cold-prove merged S3D service lifecycle
+  publish:
     if: >-
       github.event.pull_request.head.ref == 'verify/20260804-s3d-recovery-watchdog' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      INTEGRATED_COMMIT: ce6ef8bc0df13c1fcf70529b23471cbb38a28789
-      PROOF_LOG: s3d-post-merge-systemd-verification.log
-
     steps:
-      - name: Check out exact merged source
+      - name: Check out verification branch
         uses: actions/checkout@v7
         with:
-          ref: ce6ef8bc0df13c1fcf70529b23471cbb38a28789
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Bind static contract to merged units
+      - name: Publish immutable receipt and advance safety selector
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          test "$(git rev-parse HEAD)" = "$INTEGRATED_COMMIT"
-          cargo test -p optid --test s3d_systemd
-          cmp packaging/systemd/optid-apply.service \
-            mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service
-          cmp packaging/systemd/optid-recover.service \
-            mkosi/mkosi.extra/usr/lib/systemd/system/optid-recover.service
-          echo "merged_unit_binding=pass"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = ce6ef8bc0df13c1fcf70529b23471cbb38a28789
 
-      - name: Cold-prove actual unit dependency and restart semantics
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
+          expected_before=$(mktemp)
+          actual_before=$(mktemp)
+          printf '%s\n' '.github/workflows/s3d-post-merge-cold-verification.yml' > "$expected_before"
+          git diff --name-only origin/main...HEAD | sort > "$actual_before"
+          diff -u "$expected_before" "$actual_before"
 
-          sudo install -D -m 0644 packaging/systemd/optid-apply.service \
-            /etc/systemd/system/optid-apply.service
-          sudo install -D -m 0644 packaging/systemd/optid-recover.service \
-            /etc/systemd/system/optid-recover.service
-          sudo install -d -m 0755 /usr/local/libexec
+          python3 - <<'PY'
+          from __future__ import annotations
 
-          cat > "$RUNNER_TEMP/s3d-cold-recover" <<'SH'
-          #!/usr/bin/env bash
-          set -euo pipefail
-          root=/var/lib/optid/s3d-cold-proof
-          count=0
-          if [[ -f "$root/recover-count" ]]; then
-            IFS= read -r count < "$root/recover-count"
-          fi
-          count=$((count + 1))
-          printf '%s\n' "$count" > "$root/recover-count"
-          printf 'recover-%s\n' "$count" >> "$root/order.log"
-          [[ ! -e "$root/force-recovery-failure" ]] || exit 78
-          SH
-          sudo install -m 0755 "$RUNNER_TEMP/s3d-cold-recover" \
-            /usr/local/libexec/s3d-cold-recover
+          import re
+          from pathlib import Path
 
-          cat > "$RUNNER_TEMP/s3d-cold-apply" <<'SH'
-          #!/usr/bin/env bash
-          set -euo pipefail
-          root=/var/lib/optid/s3d-cold-proof
-          count=0
-          if [[ -f "$root/apply-count" ]]; then
-            IFS= read -r count < "$root/apply-count"
-          fi
-          count=$((count + 1))
-          printf '%s\n' "$count" > "$root/apply-count"
-          printf 'apply-%s\n' "$count" >> "$root/order.log"
-          [[ "$count" -ne 1 ]] || exit 1
-          exec /usr/bin/sleep 30
-          SH
-          sudo install -m 0755 "$RUNNER_TEMP/s3d-cold-apply" \
-            /usr/local/libexec/s3d-cold-apply
+          root = Path('.')
+          receipt_path = root / 'docs/plans/optid-verification/s3d.toml'
+          if receipt_path.exists():
+              raise SystemExit('S3D receipt already exists')
 
-          sudo install -d -m 0755 \
-            /etc/systemd/system/optid-apply.service.d \
-            /etc/systemd/system/optid-recover.service.d
+          receipt = '''# Independent post-merge cold-verification receipt for S3D:
+          # Add independent recovery, watchdog, and boot ordering.
+          #
+          # The verifier branch was created from the exact PR #388 merge commit.
+          # Read-only verification completed before any package, selector, generated
+          # document, or receipt update. No S3D implementation, test, service,
+          # dependency, feature default, or runtime actuation path was repaired.
 
-          # Preserve the shipped [Unit] graph and restart policy. Replace only
-          # the executable, notify/watchdog mode, and hardware mount sandbox
-          # that cannot exist on a hosted VM.
-          sudo tee /etc/systemd/system/optid-apply.service.d/verification.conf >/dev/null <<'EOF'
-          [Service]
-          Type=simple
-          ExecStart=
-          ExecStart=/usr/local/libexec/s3d-cold-apply
-          WatchdogSec=0
-          TimeoutStartSec=10s
-          RestartSec=1s
-          ReadWritePaths=
-          ReadWritePaths=/var/lib/optid /run/optid
-          ProtectKernelTunables=no
-          ProcSubset=all
-          ProtectProc=default
-          SystemCallFilter=
-          EOF
+          schema_version = 1
+          package = "S3D"
+          implementation_pr = 388
+          verification_pr = 389
+          verified_commit = "59b5cb3d01a9093e2296e458be8f0e681f8eac17"
+          systemd_verified_commit = "88c9b38a5c24477495f61d3226998e9d8834def8"
+          implementation_head = "32bdd7143862ad326ddc56d07076136cd5d5857a"
+          integrated_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
+          source_base_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
+          verifier = "Independent ChatGPT GitHub verifier session, separate from the PR #388 implementation builder; Linux X64 ubuntu-24.04"
+          result = "pass"
+          verified_at = "2026-08-04T14:45:03Z"
 
-          sudo tee /etc/systemd/system/optid-recover.service.d/verification.conf >/dev/null <<'EOF'
-          [Service]
-          ExecStart=
-          ExecStart=/usr/local/libexec/s3d-cold-recover
-          ReadWritePaths=
-          ReadWritePaths=/var/lib/optid /run/optid
-          ProtectKernelTunables=no
-          ProcSubset=all
-          ProtectProc=default
-          SystemCallFilter=
-          EOF
+          acceptance_workflow_run = 30919973311
+          acceptance_workflow_attempt = 1
+          acceptance_workflow_job = 92027711233
+          acceptance_artifact_id = 8896710596
+          acceptance_artifact_name = "s3d-post-merge-cold-verification-30919973311"
+          acceptance_artifact_digest = "sha256:d74e9a8c3b1f6c71ef2b18210f7ba4f105a03ff86a17bbcdcc7e88cb5ac0e7f0"
+          acceptance_artifact_size_bytes = 19934
+          acceptance_artifact_expires = "2026-09-03"
 
-          sudo systemctl daemon-reload
-          sudo systemctl cat optid-apply.service optid-recover.service
-          systemctl show optid-apply.service \
-            -p Requires -p After -p Restart -p RestartUSec -p Type \
-            -p ReadWritePaths -p ExecStart
-          systemctl show optid-recover.service \
-            -p Before -p PartOf -p Restart -p Type \
-            -p ReadWritePaths -p ExecStart
+          systemd_workflow_run = 30920471765
+          systemd_workflow_attempt = 1
+          systemd_workflow_job = 92029435963
+          systemd_artifact_id = 8896870258
+          systemd_artifact_name = "s3d-post-merge-systemd-verification-30920471765"
+          systemd_artifact_digest = "sha256:d530f046fd1ba94645524728d415c91c5f7038d1460b9f94519e08321c331ad8"
+          systemd_artifact_size_bytes = 4708
+          systemd_artifact_expires = "2026-09-03"
 
-          test "$(systemctl show optid-apply.service -p Restart --value)" = on-failure
-          test "$(systemctl show optid-recover.service -p Restart --value)" = no
-          systemctl show optid-apply.service -p Requires --value \
-            | tr ' ' '\n' | grep -Fx optid-recover.service
-          systemctl show optid-recover.service -p PartOf --value \
-            | tr ' ' '\n' | grep -Fx optid-apply.service
+          commands = [
+            "exact PR #388 implementation head ancestry and byte binding to merge commit ce6ef8bc0df13c1fcf70529b23471cbb38a28789 -> passed",
+            "python3 tools/validate-current-work.py -> passed before state transition",
+            "python3 tools/validate-optid-packages.py -> passed before state transition",
+            "python3 tools/render-frontpage.py --check -> passed before state transition",
+            "cargo fmt --all -- --check -> passed",
+            "cargo check -p optid --all-targets --all-features -> passed",
+            "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
+            "all twelve mapped S3D acceptance tests executed individually with --exact -> passed",
+            "cargo test -p optid -> 440 daemon tests and all package integration tests passed",
+            "cargo test --workspace --all-features -> passed",
+            "real optid-recover success fault injection restored the captured original, verified it, durably recorded the outcome, and compacted the record",
+            "real optid-recover malformed-record fault injection exited 78 and retained unresolved evidence",
+            "cargo test -p optid --test s3d_systemd -> 2 passed",
+            "packaged and mkosi-mirrored apply/recovery units compared byte-for-byte -> identical",
+            "live systemd cold restart through the merged Requires/After/Before/PartOf graph -> passed",
+            "forced recovery exit 78 prevented daemon execution and left apply NRestarts=0 -> passed",
+          ]
 
-          sudo systemctl stop optid-apply.service optid-recover.service || true
-          sudo rm -rf /var/lib/optid/s3d-cold-proof
-          sudo install -d -m 0755 /var/lib/optid/s3d-cold-proof
-          sudo systemctl reset-failed optid-apply.service optid-recover.service || true
+          runtime_proofs = [
+            "Recovery success path: the production optid-recover executable consumed a committed S2D record, restored the exact captured original, verified readback, appended a durable outcome, and removed the resolved record.",
+            "Recovery failure path: malformed transaction evidence caused production optid-recover to exit with status 78 while retaining the unresolved record and writing a failed status summary.",
+            "Watchdog semantics: exact mapped tests proved READY/WATCHDOG is emitted only after a complete healthy reconciliation and is withheld when transaction-journal health is unsafe.",
+            "Cold restart ordering: a live Ubuntu 24.04 systemd manager ran recovery-1 before apply-1, scheduled exactly one apply restart after the injected daemon failure, then ran recovery-2 before apply-2.",
+            "Fail-closed dependency: forced recovery exit 78 failed the required dependency job, no apply process executed, the apply unit remained inactive, and NRestarts remained zero.",
+            "Unit provenance: the proof installed the merged packaged units, confirmed their mkosi mirrors were byte-identical, preserved the shipped Unit dependency graph and restart policies, and used test-only executable and hosted-runner sandbox drop-ins.",
+            "Scope boundary: no permanent broker, steady-state hardware-write IPC, policy parser, classifier, D-Bus server, session bridge, S4D sealing, or S5D circuit breaker was added or modified by verification.",
+          ]
 
-          restart_started=$(date --iso-8601=seconds)
-          set +e
-          sudo systemctl start optid-apply.service
-          initial_status=$?
-          set -e
-          echo "initial_start_status=$initial_status"
+          evidence_notes = [
+            "Run 30919973311 passed source binding, every exact acceptance test, full regression, and both real recovery-binary fault injections. Its first hosted-manager attempt was inconclusive because the production hardware mount sandbox referenced paths absent on the hosted VM; that failed step is not used as systemd pass evidence.",
+            "Run 30920471765 separately bound the static tests and effective manager properties to the same merged unit files, isolated only hosted-VM-incompatible executable/notify/hardware-sandbox details, and supplied the successful cold lifecycle evidence.",
+          ]
 
-          for _ in $(seq 1 20); do
-            apply_count=$(cat /var/lib/optid/s3d-cold-proof/apply-count 2>/dev/null || echo 0)
-            recover_count=$(cat /var/lib/optid/s3d-cold-proof/recover-count 2>/dev/null || echo 0)
-            active=$(systemctl show optid-apply.service -p ActiveState --value)
-            if [[ "$apply_count" -eq 2 && "$recover_count" -eq 2 && "$active" == active ]]; then
-              break
-            fi
-            sleep 1
-          done
+          unresolved = []
+          '''
+          receipt = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in receipt.splitlines()
+          ) + '\n'
+          receipt_path.write_text(receipt, encoding='utf-8')
 
-          if [[ ! -f /var/lib/optid/s3d-cold-proof/apply-count ]] ||
-             [[ ! -f /var/lib/optid/s3d-cold-proof/recover-count ]]; then
-            sudo systemctl status optid-apply.service optid-recover.service --no-pager || true
-            sudo journalctl -u optid-recover.service -u optid-apply.service \
-              --since "$restart_started" --no-pager -o short-monotonic || true
-            exit 1
-          fi
+          ledger_path = root / 'docs/plans/optid-package-status.toml'
+          ledger = ledger_path.read_text(encoding='utf-8')
+          old_comment = '''# Independent post-merge cold verification now covers F1-F4 and S1D-S2D.
+          # PR #386 integrated S2D into the F4 reconciliation surface; one fresh
+          # read-only verifier re-certified F4 and completed S2D against the merged
+          # commit. S3D is now the active safety package. No package self-certified.
+          '''
+          old_comment = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in old_comment.splitlines()
+          ) + '\n'
+          new_comment = '''# Independent post-merge cold verification now covers F1-F4 and S1D-S3D.
+          # PR #389 verified merged S3D recovery, watchdog, and service ordering
+          # through exact acceptance tests, production recovery fault injection,
+          # and a live cold systemd lifecycle. S4D is now the active safety package.
+          # No package self-certified.
+          '''
+          new_comment = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in new_comment.splitlines()
+          ) + '\n'
+          if old_comment not in ledger:
+              raise SystemExit('unexpected ledger verification summary')
+          ledger = ledger.replace(old_comment, new_comment, 1)
+          ledger = ledger.replace('active_safety = "S3D"', 'active_safety = "S4D"', 1)
 
-          test "$(cat /var/lib/optid/s3d-cold-proof/apply-count)" -eq 2
-          test "$(cat /var/lib/optid/s3d-cold-proof/recover-count)" -eq 2
-          test "$(systemctl show optid-apply.service -p ActiveState --value)" = active
-          diff -u <(printf 'recover-1\napply-1\nrecover-2\napply-2\n') \
-            /var/lib/optid/s3d-cold-proof/order.log
-          sudo journalctl --sync
-          sudo journalctl -u optid-recover.service -u optid-apply.service \
-            --since "$restart_started" --no-pager -o short-monotonic \
-            | tee /tmp/s3d-cold-restart.log
-          test "$(grep -cF 'Scheduled restart job, restart counter is at 1.' \
-            /tmp/s3d-cold-restart.log)" -eq 1
-          echo "cold_restart_recovery_order=pass"
+          def package_block(text: str, package_id: str) -> tuple[re.Match[str], str]:
+              match = re.search(
+                  rf'(?ms)^\[\[package\]\]\nid = "{re.escape(package_id)}"\n.*?(?=^\[\[package\]\]|\Z)',
+                  text,
+              )
+              if not match:
+                  raise SystemExit(f'missing package block {package_id}')
+              return match, match.group(0)
 
-          sudo systemctl stop optid-apply.service
-          sudo rm -rf /var/lib/optid/s3d-cold-proof
-          sudo install -d -m 0755 /var/lib/optid/s3d-cold-proof
-          sudo touch /var/lib/optid/s3d-cold-proof/force-recovery-failure
-          sudo systemctl reset-failed optid-apply.service optid-recover.service || true
-          failure_started=$(date --iso-8601=seconds)
+          match, s3d = package_block(ledger, 'S3D')
+          if 'status = "candidate"' not in s3d or 'pr = "388"' not in s3d:
+              raise SystemExit('unexpected S3D ledger state')
+          if 'verification_receipt' in s3d:
+              raise SystemExit('S3D already has a receipt')
+          s3d = s3d.replace('status = "candidate"', 'status = "completed"', 1)
+          s3d = s3d.replace(
+              'pr = "388"\n',
+              'pr = "388"\nverification_receipt = "docs/plans/optid-verification/s3d.toml"\n',
+              1,
+          )
+          ledger = ledger[:match.start()] + s3d + ledger[match.end():]
 
-          set +e
-          sudo systemctl start optid-apply.service
-          failure_status=$?
-          set -e
-          sleep 4
-          sudo journalctl --sync
+          match, s4d = package_block(ledger, 'S4D')
+          if 'status = "planned"' not in s4d:
+              raise SystemExit('unexpected S4D ledger state')
+          s4d = s4d.replace('status = "planned"', 'status = "next"', 1)
+          ledger = ledger[:match.start()] + s4d + ledger[match.end():]
+          ledger_path.write_text(ledger, encoding='utf-8')
 
-          test "$failure_status" -ne 0
-          test "$(cat /var/lib/optid/s3d-cold-proof/recover-count)" -eq 1
-          test ! -e /var/lib/optid/s3d-cold-proof/apply-count
-          test "$(systemctl show optid-apply.service -p NRestarts --value)" -eq 0
-          test "$(systemctl show optid-apply.service -p ActiveState --value)" = inactive
-          sudo journalctl -u optid-recover.service -u optid-apply.service \
-            --since "$failure_started" --no-pager -o short-monotonic \
-            | tee /tmp/s3d-cold-failure.log
-          ! grep -qF 'Scheduled restart job' /tmp/s3d-cold-failure.log
+          current_path = root / 'docs/plans/current-work.md'
+          current = current_path.read_text(encoding='utf-8')
+          if 'active_safety = "S3D"' not in current:
+              raise SystemExit('unexpected current safety selector')
+          current = current.replace('active_safety = "S3D"', 'active_safety = "S4D"', 1)
+          current = current.replace(
+              'unlocks_after_active_safety = ["S4D"]',
+              'unlocks_after_active_safety = ["S5D"]',
+              1,
+          )
+          current_path.write_text(current, encoding='utf-8')
+          PY
 
-          systemctl show optid-apply.service \
-            -p ActiveState -p SubState -p Result -p NRestarts
-          systemctl show optid-recover.service \
-            -p ActiveState -p SubState -p Result -p ExecMainStatus
-          echo "failed_recovery_blocks_daemon=pass"
-          echo "failed_recovery_restart_loop=absent"
+          python3 tools/render-frontpage.py --write
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
 
-      - name: Upload focused cold-verification log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: s3d-post-merge-systemd-verification-${{ github.run_id }}
-          path: s3d-post-merge-systemd-verification.log
-          if-no-files-found: error
-          retention-days: 30
+          rm .github/workflows/s3d-post-merge-cold-verification.yml
+
+          expected_after=$(mktemp)
+          actual_after=$(mktemp)
+          printf '%s\n' \
+            'README.md' \
+            'docs/plans/current-work.md' \
+            'docs/plans/optid-package-status.toml' \
+            'docs/plans/optid-verification/s3d.toml' \
+            | sort > "$expected_after"
+          git diff --name-only origin/main | sort > "$actual_after"
+          diff -u "$expected_after" "$actual_after"
+
+          git config user.name rush-s3d-verifier
+          git config user.email rush-s3d-verifier@users.noreply.github.com
+          git add README.md docs/plans/current-work.md \
+            docs/plans/optid-package-status.toml \
+            docs/plans/optid-verification/s3d.toml \
+            .github/workflows/s3d-post-merge-cold-verification.yml
+          git commit -m 'verify(optid): cold-verify S3D recovery supervision'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
