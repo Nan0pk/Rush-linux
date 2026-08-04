@@ -1,0 +1,114 @@
+# Optid S5D — Persistent Circuit Breakers and Controlled Canary Re-entry
+
+**Status:** Candidate implementation design for PR #392  
+**Authority:** accepted D2 fail-passive amendment and `OPTID-COMPLETION-PLAN.md` S5D  
+**Safety boundary:** no hardware promotion, no new write ABI, no permanent helper, and no steady-state IPC
+
+## Purpose
+
+S5D prevents a recovered or restarted daemon from repeatedly applying the same
+kernel-valid but operationally harmful setting. Circuit state is evaluated
+before desired-state reconciliation and before an action reaches the actuator.
+
+## Scope identity
+
+A scoped circuit key contains:
+
+- actuation domain;
+- typed operation;
+- stable logical target identity;
+- canonical kernel MODALIAS when the target exposes one, otherwise a privacy-safe system-HWID fingerprint;
+- a privacy-safe system-firmware fingerprint; and
+- failure class.
+
+Device actions resolve the same MODALIAS class used by the hardware allowlist.
+Platform-wide actions use a stable FNV-1a token derived from DMI platform
+identity. Firmware identity is separately derived from DMI firmware fields.
+Explicit `hwid:unreported` and `firmware:unreported` scopes are used when
+identity cannot be observed; neither value is hardware-promotion evidence.
+
+## State and persistence
+
+Production state is root-private JSON at:
+
+```text
+/var/lib/optid/recovery/circuits-v1.json
+```
+
+Custom/test state directories use a colocated persistent fixture file. Writes
+use a mode-0600 temporary file, file sync, atomic rename, final permission
+check, and parent-directory sync. Malformed, unsupported-schema, unreadable, or
+non-private state is preserved and fails closed to a global observe-only
+circuit rather than being overwritten.
+
+## Scoped lifecycle
+
+1. A verified successful outcome clears pre-threshold failures.
+2. Repeated failures of the same scoped failure class open the circuit.
+3. The failed domain is removed from the reconciler desired set so existing
+   ownership is handed back through F4/S2D/S3D.
+4. Other domains continue.
+5. Restart preserves the open circuit.
+6. Cooldown alone is insufficient. The daemon must first complete an
+   observe-only reconciliation/recovery cycle with healthy journal state.
+7. Exactly one canary action is admitted and persisted as in-flight.
+8. Confirmed readback closes the scoped circuit.
+9. Any canary failure reopens immediately and starts a fresh cooldown.
+
+Backward wall-clock movement never shortens cooldown. Forward movement cannot
+skip the required recovery-success condition.
+
+## Global failure boundary
+
+An error that cannot be attributed safely to one domain—such as corrupted
+shared reconciliation state—opens a process-wide circuit. All actuation becomes
+observe-only, existing ownership is marked for handback, and automatic re-entry
+is forbidden. Global state requires explicit root-authorized clearing. The production
+`optid --clear-circuit-domain DOMAIN` and `optid --clear-all-circuits` one-shot
+surfaces require effective UID 0, refuse malformed/non-private state, and never
+start the daemon control loop.
+
+## Counted failures
+
+S5D counts operational failures, not ordinary policy denials:
+
+- durable journal failure;
+- kernel write failure;
+- readback mismatch;
+- handback/restoration failure, including retryable restore outcomes; and
+- scoped runtime failure returned by the reconciliation/actuation path.
+
+Off/observe mode, absent `--apply`, contract denial, unverified hardware,
+unsupported targets, and ordinary ownership drift remain truthful outcomes but
+do not increment a circuit.
+
+## Configuration
+
+```toml
+[safety]
+circuit_failure_threshold = 2
+circuit_cooldown_sec = 300
+```
+
+Bounds are compiled and validated:
+
+- threshold: 2–10;
+- cooldown: 30–86,400 seconds.
+
+Invalid values fail closed globally. There is no environment-variable bypass.
+
+## Diagnostics
+
+Each cycle writes a sanitized `circuits.json` beside the normal runtime status
+and includes a one-line circuit summary in text status. Circuit-suppressed
+actions remain in the F3 action outcome surface with domain, target, apply-gate
+stage, typed gate denial, correlation ID, and an explicit S5D reason.
+
+## Verification boundary
+
+The builder may record S5D only as `candidate`. Independent verification must
+re-run every affected completed package’s mapped acceptance tests, the complete
+workspace, persistence/fault sequences, and the existing D0/S3D/S4D live
+supervision proofs before publishing the candidate ledger and refreshed
+receipts. Post-merge completion requires another independent cold-verification
+receipt.
