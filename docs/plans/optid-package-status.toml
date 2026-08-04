@@ -305,10 +305,49 @@ restart_handoff_to_s3d = "f4_restart_hydrates_typed_vm_state_and_restores"
 id = "S3D"
 lane = "safety"
 title = "Add independent recovery, watchdog, and boot ordering"
-status = "next"
+status = "candidate"
 depends = ["S2D"]
-pr = ""
-completion_evidence = []
+pr = "388"
+runtime_entrypoints = [
+  "crates/optid/src/bin/optid-recover.rs",
+  "crates/optid/src/recovery.rs",
+  "crates/optid/src/reconciler/supervision.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "packaging/systemd/optid-recover.service",
+  "packaging/systemd/optid-apply.service",
+]
+integration_tests = [
+  "crates/optid/src/recovery.rs",
+  "crates/optid/src/reconciler/tests/s3d.rs",
+  "crates/optid/tests/recovery_cli.rs",
+  "crates/optid/tests/s3d_systemd.rs",
+]
+completion_evidence = [
+  "crates/optid/src/bin/optid-recover.rs",
+  "crates/optid/src/recovery.rs",
+  "crates/optid/src/reconciler/supervision.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/reconciler/tests/s3d.rs",
+  "crates/optid/tests/recovery_cli.rs",
+  "crates/optid/tests/s3d_systemd.rs",
+  "packaging/systemd/optid-recover.service",
+  "packaging/systemd/optid-apply.service",
+  "recipes/core/optid.toml",
+  "docs/architecture/optid-s3d-recovery-watchdog.md",
+]
+[package.acceptance_tests]
+recovery_restores_and_compacts = "s3d_recovery_restores_intended_value_and_compacts"
+prepared_recovery_is_idempotent = "s3d_recovery_prepared_record_is_idempotent"
+external_drift_relinquishes = "s3d_recovery_drift_relinquishes_without_overwrite"
+identity_reuse_is_rejected = "s3d_recovery_refuses_identity_reuse"
+failed_recovery_retains_record = "s3d_recovery_failure_retains_record"
+repeated_recovery_is_idempotent = "s3d_repeated_recovery_is_idempotent"
+recovery_cli_surface = "s3d_recovery_cli_recovers_before_success_exit"
+minimal_recovery_binary = "s3d_recovery_binary_has_no_policy_or_async_surface"
+healthy_cycle_notifies_watchdog = "s3d_complete_cycle_emits_ready_and_watchdog"
+unsafe_journal_withholds_watchdog = "s3d_journal_failure_withholds_watchdog"
+recovery_precedes_daemon = "s3d_apply_unit_orders_recovery_before_daemon"
+failed_recovery_breaks_restart_loop = "s3d_failed_recovery_prevents_automatic_actuation_restart_loop"
 
 [[package]]
 id = "S4D"

@@ -269,6 +269,7 @@ pub(crate) struct Reconciler {
 }
 
 include!("transaction.rs");
+include!("supervision.rs");
 include!("state.rs");
 include!("apply.rs");
 include!("targets.rs");

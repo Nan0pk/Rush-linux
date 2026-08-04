@@ -14,11 +14,13 @@ reproducible = true
 [install]
 bins = [
   ["target/release/optid", "/usr/libexec/optid"],
+  ["target/release/optid-recover", "/usr/libexec/optid-recover"],
   ["target/release/optctl", "/usr/bin/optctl"],
 ]
 systemd_units = [
   "packaging/systemd/optid.service",
   "packaging/systemd/optid-apply.service",
+  "packaging/systemd/optid-recover.service",
 ]
 config = [
   ["config/optid/policy.toml", "/usr/lib/optid/policy.toml"],

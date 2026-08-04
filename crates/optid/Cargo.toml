@@ -19,6 +19,11 @@ path = "src/main.rs"
 name = "optid-lever-contracts"
 path = "src/bin/optid-lever-contracts.rs"
 
+# S3D — Independent one-shot recovery; no policy, D-Bus, or async runtime.
+[[bin]]
+name = "optid-recover"
+path = "src/bin/optid-recover.rs"
+
 # D0 — Experimental capability-sealing prototype binary.
 # Only compiles with --features experimental-capability-sealing.
 # Never enabled in shipped optid (per AGENTS.md §8 and the D0 plan).

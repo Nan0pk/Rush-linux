@@ -161,3 +161,4 @@ include!("tests/production.rs");
 include!("tests/systemd.rs");
 include!("tests/unit.rs");
 include!("tests/s2d.rs");
+include!("tests/s3d.rs");
