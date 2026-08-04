@@ -1,0 +1,59 @@
+# Independent post-merge cold-verification receipt for S4D:
+# Move writes to a sealed typed capability table.
+#
+# Verification was read-only before this state transition. No S4D runtime
+# implementation, test, service, policy, action envelope, or safety default was
+# repaired by the verifier.
+
+schema_version = 1
+package = "S4D"
+implementation_pr = 390
+verification_pr = 391
+verified_commit = "7a83eaac34808ee71eb04e34b2b1e89e9b360804"
+implementation_head = "57582752084bab2d1c0f1555f5b13e08fbfa074a"
+integrated_commit = "a0d5b12a815496a32f39aa2ae8b67a57a9b57338"
+source_base_commit = "a0d5b12a815496a32f39aa2ae8b67a57a9b57338"
+verifier = "Independent ChatGPT GitHub verifier job, separate from the PR #390 builder; Linux X64 ubuntu-24.04"
+result = "pass"
+verified_at = "2026-08-04T17:17:07Z"
+
+acceptance_workflow_run = 30933044397
+acceptance_workflow_attempt = 1
+acceptance_workflow_job = 92072204769
+acceptance_artifact_id = 8901985180
+acceptance_artifact_name = "s4d-post-merge-cold-verification-30933044397"
+acceptance_artifact_digest = "sha256:67d2a2dbdc1a7b9656b27c47b423e6c0f75fcebab2c050784e41f7763b6945e3"
+acceptance_artifact_size_bytes = 22188
+acceptance_artifact_expires = "2026-09-03T17:17:14Z"
+kernel_release = "6.17.0-1020-azure"
+landlock_abi = 7
+
+commands = [
+  "source-bound verifier tree to merged commit a0d5b12a815496a32f39aa2ae8b67a57a9b57338; only the temporary verifier workflow and receipt writer differed before proof",
+  "pre-transition current-work, package ledger, generated README, and whitespace validation -> passed",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check --workspace --all-targets --all-features -> passed",
+  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
+  "all eleven mapped S4D acceptance tests were discovered uniquely and executed individually with --exact -> passed",
+  "cargo test -p optid --all-features -> passed",
+  "cargo test --workspace --all-features -> passed",
+  "packaged and mkosi optid-apply units were byte-identical; packaged apply/recovery units passed systemd-analyze verify",
+  "live D0 capability-sealing probe on kernel 6.17.0-1020-azure, Landlock ABI 7 -> eight checks passed",
+  "supervised status-75 two-cycle cold rebuild and non-75 restart suppression -> passed",
+]
+
+runtime_proofs = [
+  "The production startup acceptance path completed discovery and capability construction, installed sealing, and proved sealing precedes worker and D-Bus input startup.",
+  "Typed operation/path mismatches, symlink replacement, stale device/inode identity, removed targets, and descriptor inheritance hazards all failed closed.",
+  "Every pre-opened hardware descriptor remained CLOEXEC and the live Landlock proof denied new write opens while preserving pre-opened descriptor writes and explicitly allowed state-root writes.",
+  "The topology lifecycle debounced a changed fingerprint, handed owned targets back through the existing reconciliation/transaction path before status 75, and a fresh process opened the replacement identity.",
+  "The shipped apply unit retained required recovery ordering and the supervisor restarted exactly once for status 75 while refusing to restart a non-75 failure.",
+  "S2D durable transactions, S3D independent recovery/watchdog ordering, F4 handback authority, the observe-safe default, and every existing action envelope remained unchanged.",
+]
+
+evidence_notes = [
+  "The hosted live proof uses synthetic filesystem targets and the repository's D0 Landlock probe; it does not promote any physical HWID or expand hardware support.",
+  "S4D completion unlocks S5D construction only. It does not implement circuit breakers or canary re-entry.",
+]
+
+unresolved = []
