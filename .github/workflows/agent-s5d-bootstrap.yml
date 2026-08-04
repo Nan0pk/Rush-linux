@@ -1,0 +1,73 @@
+name: S5D workflow bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: s5d-workflow-bootstrap-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish bounded S5D builder workflow
+    if: >-
+      github.event.pull_request.head.ref == 'work/20260804-s5d-circuit-breakers' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_COMMIT: ba7c56ba606bc65d33f90de76361964971df9064
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Bind staging set and publish workflow
+        run: |
+          set -euo pipefail
+          git fetch origin main --force
+          test "$(git rev-parse origin/main)" = "$BASE_COMMIT"
+          expected=$(mktemp)
+          actual=$(mktemp)
+          printf '%s\n' \
+            '.github/workflows/agent-s5d-bootstrap.yml' \
+            'tools/agent-s5d-verify.py' \
+            'tools/s5d-staging/architecture.part' \
+            'tools/s5d-staging/corrections.py' \
+            'tools/s5d-staging/workflow-00.part' \
+            'tools/s5d-staging/workflow-01.part' \
+            'tools/s5d-staging/workflow-02.part' \
+            'tools/s5d-staging/workflow-03.part' \
+            'tools/s5d-staging/patch-00.part' \
+            'tools/s5d-staging/patch-01.part' \
+            'tools/s5d-staging/patch-02.part' \
+            'tools/s5d-staging/circuit-00.part' \
+            'tools/s5d-staging/circuit-01.part' \
+            'tools/s5d-staging/circuit-02.part' \
+            'tools/s5d-staging/circuit-03.part' | sort > "$expected"
+          git diff --name-only "$BASE_COMMIT"..HEAD | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          cat tools/s5d-staging/workflow-00.part \
+              tools/s5d-staging/workflow-01.part \
+              tools/s5d-staging/workflow-02.part \
+              tools/s5d-staging/workflow-03.part \
+              > .github/workflows/agent-s5d-builder.yml
+          test -s .github/workflows/agent-s5d-builder.yml
+          rm .github/workflows/agent-s5d-bootstrap.yml
+          git diff --check
+
+          git config user.name rush-s5d-workflow-bootstrap
+          git config user.email rush-s5d-workflow-bootstrap@users.noreply.github.com
+          git add -A
+          git commit -m 'ci(optid): publish bounded S5D builder workflow'
+          git push origin "HEAD:$HEAD_REF"
