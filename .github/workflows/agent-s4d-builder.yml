@@ -43,6 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git merge-base origin/main HEAD)" = d20d94c0b78b41010c67e07855767840a732ae39
+          sed -i 's/read_count < 3/read_count < 2/' tools/agent-s4d-integrate.py
           python3 tools/agent-s4d-integrate.py
           cargo fmt --all
 
