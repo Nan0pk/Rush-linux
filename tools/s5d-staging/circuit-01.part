@@ -1,0 +1,350 @@
+            config,
+            state,
+            persistence_blocked,
+            startup_warning,
+        }
+    }
+
+    pub(crate) fn state_path_for(runtime_state_dir: &Path) -> PathBuf {
+        if runtime_state_dir == Path::new(PRODUCTION_STATE_DIR) {
+            PathBuf::from(PERSISTENT_CIRCUIT_FILE)
+        } else {
+            runtime_state_dir.join("persistent-circuits-v1.json")
+        }
+    }
+
+    pub(crate) fn startup_warning(&self) -> Option<&str> {
+        self.startup_warning.as_deref()
+    }
+
+    pub(crate) fn is_global_open(&self) -> bool {
+        self.state.global.is_some()
+    }
+
+    pub(crate) fn decide(&mut self, scope: &CircuitScope, now: u64) -> io::Result<CircuitDecision> {
+        if let Some(global) = &self.state.global {
+            return Ok(CircuitDecision::suppressed(format!(
+                "S5D global observe-only circuit open: {}",
+                global.reason
+            )));
+        }
+
+        let rollback = now < self.state.last_seen_at;
+        self.state.last_seen_at = self.state.last_seen_at.max(now);
+
+        let matching = self.matching_record_keys(scope);
+        if matching.is_empty() {
+            return Ok(CircuitDecision::normal());
+        }
+
+        if rollback {
+            return Ok(CircuitDecision::suppressed(
+                "S5D clock moved backwards; cooldown cannot be shortened",
+            ));
+        }
+
+        let records: Vec<&CircuitRecord> = matching
+            .iter()
+            .filter_map(|key| self.state.records.get(key))
+            .filter(|record| record.open)
+            .collect();
+        if records.is_empty() {
+            return Ok(CircuitDecision::normal());
+        }
+        if records.iter().any(|record| record.canary_in_flight) {
+            return Ok(CircuitDecision::suppressed(
+                "S5D monitored canary already consumed; awaiting verified outcome",
+            ));
+        }
+        if records.iter().any(|record| !record.recovery_verified) {
+            return Ok(CircuitDecision::suppressed(
+                "S5D circuit open; successful observe-only recovery cycle required",
+            ));
+        }
+        let cooldown_until = records
+            .iter()
+            .map(|record| record.cooldown_until)
+            .max()
+            .unwrap_or(now);
+        if now < cooldown_until {
+            return Ok(CircuitDecision::suppressed(format!(
+                "S5D circuit open until {cooldown_until}; domain remains observe-only"
+            )));
+        }
+
+        for key in matching {
+            if let Some(record) = self.state.records.get_mut(&key) {
+                if record.open {
+                    record.canary_in_flight = true;
+                }
+            }
+        }
+        self.persist()?;
+        Ok(CircuitDecision::canary())
+    }
+
+    pub(crate) fn observe_outcome(
+        &mut self,
+        scope: &CircuitScope,
+        permit: CircuitPermit,
+        outcome: &ActionOutcome,
+        now: u64,
+    ) -> io::Result<CircuitTransition> {
+        if let Some((class, reason)) = classify_failure(outcome) {
+            return self.record_failure(scope, class, reason, permit, now);
+        }
+        if outcome_is_verified_success(outcome) {
+            return self.record_success(scope, permit);
+        }
+        Ok(CircuitTransition::unchanged(
+            "S5D outcome was neither a verified success nor a counted failure",
+        ))
+    }
+
+    pub(crate) fn observe_restore_outcome(
+        &mut self,
+        scope: &CircuitScope,
+        outcome: &RestoreOutcome,
+        now: u64,
+    ) -> io::Result<CircuitTransition> {
+        if matches!(outcome.write_outcome, WriteOutcome::RestorationFailed { .. })
+            || outcome.reason == OutcomeReasonCode::RestoreFailed
+        {
+            return self.record_failure(
+                scope,
+                FailureClass::Restore,
+                outcome
+                    .detail
+                    .clone()
+                    .unwrap_or_else(|| "owned-target restoration failed".to_string()),
+                CircuitPermit::Normal,
+                now,
+            );
+        }
+        Ok(CircuitTransition::unchanged(
+            "S5D restore outcome did not count as a failure",
+        ))
+    }
+
+    pub(crate) fn record_runtime_error(
+        &mut self,
+        scope: &CircuitScope,
+        permit: CircuitPermit,
+        error: &io::Error,
+        now: u64,
+    ) -> io::Result<CircuitTransition> {
+        self.record_failure(
+            scope,
+            FailureClass::Runtime,
+            format!("runtime error: {:?}", error.kind()),
+            permit,
+            now,
+        )
+    }
+
+    pub(crate) fn mark_recovery_success(&mut self, now: u64) -> io::Result<()> {
+        self.state.last_seen_at = self.state.last_seen_at.max(now);
+        let mut changed = false;
+        for record in self.state.records.values_mut() {
+            if record.open && !record.recovery_verified {
+                record.recovery_verified = true;
+                changed = true;
+            }
+        }
+        if changed {
+            self.persist()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn trip_global(&mut self, reason: impl Into<String>, now: u64) -> io::Result<()> {
+        self.state.last_seen_at = self.state.last_seen_at.max(now);
+        self.state.global = Some(GlobalCircuit {
+            opened_at: now,
+            reason: reason.into(),
+        });
+        self.persist()
+    }
+
+    pub(crate) fn clear_domain(&mut self, domain: &str, effective_uid: u32) -> io::Result<usize> {
+        self.require_clear_authorization(effective_uid)?;
+        let keys: Vec<String> = self
+            .state
+            .records
+            .iter()
+            .filter(|(_, record)| record.scope.domain == domain)
+            .map(|(key, _)| key.clone())
+            .collect();
+        let removed = keys.len();
+        for key in keys {
+            self.state.records.remove(&key);
+        }
+        self.persist()?;
+        Ok(removed)
+    }
+
+    pub(crate) fn clear_all(&mut self, effective_uid: u32) -> io::Result<usize> {
+        self.require_clear_authorization(effective_uid)?;
+        let removed = self.state.records.len() + usize::from(self.state.global.is_some());
+        self.state.records.clear();
+        self.state.global = None;
+        self.persist()?;
+        Ok(removed)
+    }
+
+    fn require_clear_authorization(&self, effective_uid: u32) -> io::Result<()> {
+        if effective_uid != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "S5D circuit clear requires effective UID 0",
+            ));
+        }
+        if self.persistence_blocked || self.startup_warning.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "S5D circuit state or configuration is invalid; preserve state evidence and repair the file/config explicitly before clearing",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn public_json(&self) -> io::Result<String> {
+        #[derive(Serialize)]
+        struct PublicRecord<'a> {
+            domain: &'a str,
+            operation: &'a str,
+            target_id: &'a str,
+            hardware_id: &'a str,
+            firmware_id: &'a str,
+            failure_class: FailureClass,
+            consecutive_failures: u32,
+            state: &'static str,
+            cooldown_until: u64,
+            recovery_verified: bool,
+            last_reason: &'a str,
+        }
+        #[derive(Serialize)]
+        struct PublicState<'a> {
+            schema_version: u32,
+            global_observe_only: bool,
+            global_reason: Option<&'a str>,
+            records: Vec<PublicRecord<'a>>,
+        }
+
+        let records = self
+            .state
+            .records
+            .values()
+            .map(|record| PublicRecord {
+                domain: &record.scope.domain,
+                operation: &record.scope.operation,
+                target_id: &record.scope.target_id,
+                hardware_id: &record.scope.hardware_id,
+                firmware_id: &record.scope.firmware_id,
+                failure_class: record.failure_class,
+                consecutive_failures: record.consecutive_failures,
+                state: if record.canary_in_flight {
+                    "canary"
+                } else if record.open {
+                    "open"
+                } else {
+                    "closed"
+                },
+                cooldown_until: record.cooldown_until,
+                recovery_verified: record.recovery_verified,
+                last_reason: &record.last_reason,
+            })
+            .collect();
+        serde_json::to_string_pretty(&PublicState {
+            schema_version: CIRCUIT_SCHEMA_VERSION,
+            global_observe_only: self.state.global.is_some(),
+            global_reason: self.state.global.as_ref().map(|global| global.reason.as_str()),
+            records,
+        })
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
+
+    pub(crate) fn summary(&self) -> String {
+        let open_scopes = self
+            .state
+            .records
+            .values()
+            .filter(|record| record.open)
+            .map(|record| record.scope.domain.as_str())
+            .collect::<BTreeSet<_>>();
+        format!(
+            "global_open={} open_domains={} records={}",
+            self.state.global.is_some(),
+            if open_scopes.is_empty() {
+                "none".to_string()
+            } else {
+                open_scopes.into_iter().collect::<Vec<_>>().join(",")
+            },
+            self.state.records.len()
+        )
+    }
+
+    fn record_failure(
+        &mut self,
+        scope: &CircuitScope,
+        class: FailureClass,
+        reason: String,
+        permit: CircuitPermit,
+        now: u64,
+    ) -> io::Result<CircuitTransition> {
+        self.state.last_seen_at = self.state.last_seen_at.max(now);
+        let key = record_key(scope, class);
+        let record = self
+            .state
+            .records
+            .entry(key)
+            .or_insert_with(|| CircuitRecord {
+                scope: scope.clone(),
+                failure_class: class,
+                consecutive_failures: 0,
+                open: false,
+                opened_at: 0,
+                cooldown_until: 0,
+                recovery_verified: false,
+                canary_in_flight: false,
+                last_failure_at: 0,
+                last_reason: String::new(),
+            });
+
+        record.last_failure_at = now;
+        record.last_reason = reason.clone();
+        record.consecutive_failures = record.consecutive_failures.saturating_add(1);
+        let must_open = permit == CircuitPermit::Canary
+            || record.open
+            || record.consecutive_failures >= self.config.failure_threshold;
+        if must_open {
+            record.open = true;
+            record.opened_at = now;
+            record.cooldown_until = now.saturating_add(self.config.cooldown_secs);
+            record.recovery_verified = false;
+            record.canary_in_flight = false;
+            if permit == CircuitPermit::Canary {
+                record.consecutive_failures =
+                    record.consecutive_failures.max(self.config.failure_threshold);
+            }
+        }
+        self.persist()?;
+
+        if must_open {
+            Ok(CircuitTransition::opened(format!(
+                "S5D opened {} circuit for domain={} operation={} target={} hwid={} firmware={} after {} failure(s): {}",
+                class.as_str(),
+                scope.domain,
+                scope.operation,
+                scope.target_id,
+                scope.hardware_id,
+                scope.firmware_id,
+                record.consecutive_failures,
+                reason,
+            )))
+        } else {
+            Ok(CircuitTransition::unchanged(format!(
+                "S5D recorded {} failure {}/{} for domain={} operation={}: {}",
+                class.as_str(),
+                record.consecutive_failures,
+                self.config.failure_threshold,
