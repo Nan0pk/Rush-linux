@@ -56,8 +56,8 @@ implementation_pr = 365
 # returns 0 (the prior verified commit is an ancestor), confirming the F2
 # production surface added in PR #369 is still present and now exercised
 # through the F4-cutover main.rs.
-verified_commit = "4e01cf4e182b27d0ef966cc290b33e4b5f5db7bf"
-verifier = "Independent ChatGPT GitHub verifier job, separate from the S4D builder; Linux X64 ubuntu-24.04"
+verified_commit = "f5544af0363f8f2f48715e9595dc426b8ae59799"
+verifier = "Independent ChatGPT GitHub verifier job for the S4D policy cleanup; Linux X64 ubuntu-24.04"
 result = "pass"
 
 # Exact commands this verifier executed, with their observed outcomes.
@@ -172,4 +172,38 @@ s4d_recertification_runtime_proofs = [
   "S4D's shared actuator, main-loop, policy, kernel-I/O, restore, Landlock, and apply-unit changes preserved every mapped acceptance contract of this completed package.",
   "No runtime source, test, service, policy, feature default, action envelope, or package claim was repaired during verification.",
   "The immutable implementation head fd1658026b0399a801ba7355c34e7df3e46bdf32 was tested before any receipt or ledger mutation.",
+]
+
+# PR #390 final lint-policy cleanup recertification.
+s4d_cleanup_recertification_pr = 390
+s4d_cleanup_source_head = "05d8f741a811fd36393cdfa1628565ab64e4136c"
+s4d_cleanup_prior_verified_commit = "4e01cf4e182b27d0ef966cc290b33e4b5f5db7bf"
+s4d_cleanup_verified_at = "2026-08-04T16:40:24Z"
+s4d_cleanup_workflow_run = 30930146945
+s4d_cleanup_workflow_attempt = 1
+s4d_cleanup_workflow_job = 92062455154
+s4d_cleanup_artifact_id = 8900816667
+s4d_cleanup_artifact_name = "s4d-final-f2-d0-recertification-30930146945"
+s4d_cleanup_artifact_digest = "sha256:31b96c59514c351151ee73733a4732711c14be051aff70de7213d17848edc911"
+s4d_cleanup_artifact_size_bytes = 20403
+s4d_cleanup_artifact_expires = "2026-09-03T16:40:31Z"
+s4d_cleanup_kernel_release = "6.17.0-1020-azure"
+s4d_cleanup_landlock_abi = 7
+
+s4d_cleanup_commands = [
+  "validator pre-state reported exactly F2 and D0 stale",
+  "every mapped F2 and D0 acceptance test was discovered and passed under all features",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check -p optid --all-targets --all-features -> passed",
+  "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
+  "cargo test -p optid -> passed",
+  "cargo test --workspace --all-features -> passed",
+  "live D0 capability-sealing probe on kernel 6.17.0-1020-azure, Landlock ABI 7 -> passed",
+  "supervised status-75 cold rebuild and non-75 restart suppression -> passed",
+]
+
+s4d_cleanup_runtime_proofs = [
+  "F2's binary-test override remained reachable through a typed compile-time reference without a dead-code suppression.",
+  "D0's proof-only empty-ruleset and kernel-release helpers remained reachable through typed compile-time references without dead-code suppressions.",
+  "No runtime behavior, package state, policy default, action envelope, service ordering, or S4D candidate claim changed during this recertification.",
 ]
