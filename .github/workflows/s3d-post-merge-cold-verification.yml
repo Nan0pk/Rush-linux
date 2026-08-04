@@ -1,0 +1,314 @@
+name: S3D post-merge cold verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s3d-post-merge-cold-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Independently cold-verify merged S3D
+    if: >-
+      github.event.pull_request.head.ref == 'verify/20260804-s3d-recovery-watchdog' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      IMPLEMENTATION_HEAD: 32bdd7143862ad326ddc56d07076136cd5d5857a
+      INTEGRATED_COMMIT: ce6ef8bc0df13c1fcf70529b23471cbb38a28789
+      PROOF_LOG: s3d-post-merge-cold-verification.log
+
+    steps:
+      - name: Check out the exact merged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ce6ef8bc0df13c1fcf70529b23471cbb38a28789
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Verify immutable source binding and repository truth
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          echo "verified_commit=$(git rev-parse HEAD)"
+          echo "implementation_head=$IMPLEMENTATION_HEAD"
+          echo "integrated_commit=$INTEGRATED_COMMIT"
+          echo "kernel=$(uname -a)"
+          systemd --version | head -n 1
+
+          test "$(git rev-parse HEAD)" = "$INTEGRATED_COMMIT"
+          git merge-base --is-ancestor "$IMPLEMENTATION_HEAD" "$INTEGRATED_COMMIT"
+          git diff --exit-code "$IMPLEMENTATION_HEAD..$INTEGRATED_COMMIT" -- \
+            crates/optid/Cargo.toml \
+            crates/optid/src/bin/optid-recover.rs \
+            crates/optid/src/reconciler/apply.rs \
+            crates/optid/src/reconciler/mod.rs \
+            crates/optid/src/reconciler/supervision.rs \
+            crates/optid/src/reconciler/tests.rs \
+            crates/optid/src/reconciler/tests/s3d.rs \
+            crates/optid/src/recovery.rs \
+            crates/optid/tests/recovery_cli.rs \
+            crates/optid/tests/s3d_systemd.rs \
+            packaging/systemd/optid-apply.service \
+            packaging/systemd/optid-recover.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-recover.service \
+            recipes/core/optid.toml \
+            docs/architecture/optid-s3d-recovery-watchdog.md
+
+          python3 tools/validate-current-work.py
+          python3 tools/validate-optid-packages.py
+          python3 tools/render-frontpage.py --check
+          git diff --check
+          echo "source_binding_and_pre_state=pass"
+
+      - name: Run exact S3D acceptance and regression matrix
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          cargo fmt --all -- --check
+          cargo check -p optid --all-targets --all-features
+          cargo clippy -p optid --all-targets --all-features -- -D warnings
+
+          unit_tests=(
+            recovery::tests::s3d_recovery_restores_intended_value_and_compacts
+            recovery::tests::s3d_recovery_prepared_record_is_idempotent
+            recovery::tests::s3d_recovery_drift_relinquishes_without_overwrite
+            recovery::tests::s3d_recovery_refuses_identity_reuse
+            recovery::tests::s3d_recovery_failure_retains_record
+            recovery::tests::s3d_repeated_recovery_is_idempotent
+            reconciler::tests::s3d_complete_cycle_emits_ready_and_watchdog
+            reconciler::tests::s3d_journal_failure_withholds_watchdog
+          )
+          for test_name in "${unit_tests[@]}"; do
+            echo "exact_test=$test_name"
+            cargo test -p optid "$test_name" -- --exact
+          done
+
+          cargo test -p optid --test recovery_cli \
+            s3d_recovery_cli_recovers_before_success_exit -- --exact
+          cargo test -p optid --test recovery_cli \
+            s3d_recovery_binary_has_no_policy_or_async_surface -- --exact
+          cargo test -p optid --test s3d_systemd \
+            s3d_apply_unit_orders_recovery_before_daemon -- --exact
+          cargo test -p optid --test s3d_systemd \
+            s3d_failed_recovery_prevents_automatic_actuation_restart_loop -- --exact
+
+          cargo test -p optid
+          cargo test --workspace --all-features
+          cargo build -p optid --bin optid-recover
+          echo "exact_acceptance_and_workspace=pass"
+
+      - name: Fault-inject the real recovery executable
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          root="$RUNNER_TEMP/s3d-real-recovery"
+          rm -rf "$root"
+          mkdir -p "$root/success" "$root/failure"
+
+          printf 'intended\n' > "$root/success/target"
+          python3 - "$root/success" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          target = (root / "target").resolve()
+          record = {
+              "schema_version": 1,
+              "generation": "post-merge-cold",
+              "owner": "optid",
+              "domain": "vm",
+              "operation": "vm_sysctl",
+              "target_id": "vm-sysctl:post-merge-cold",
+              "canonical_identity": f"kernel:{target}",
+              "target": {"kind": "kernel_value", "path": str(target)},
+              "original": {"kind": "scalar", "value": "original"},
+              "intended": {"kind": "scalar", "value": "intended"},
+              "rollback_method": "restore captured original",
+              "stabilization_method": "none",
+              "phase": "committed",
+              "created_at_unix": 1,
+              "updated_at_unix": 1,
+          }
+          (root / "record.json").write_text(json.dumps(record, indent=2))
+          PY
+
+          target/debug/optid-recover \
+            --recovery-dir "$root/success" \
+            --status-file "$root/success-status.json"
+          test "$(tr -d '\n' < "$root/success/target")" = original
+          test ! -e "$root/success/record.json"
+          test -s "$root/success/recovery-outcomes.jsonl"
+          jq -e '.failed == 0 and .restored == 1' "$root/success-status.json"
+
+          printf '{ malformed transaction' > "$root/failure/bad.json"
+          set +e
+          target/debug/optid-recover \
+            --recovery-dir "$root/failure" \
+            --status-file "$root/failure-status.json"
+          failure_status=$?
+          set -e
+          test "$failure_status" -eq 78
+          test -e "$root/failure/bad.json"
+          jq -e '.failed == 1 and .scanned == 1' "$root/failure-status.json"
+
+          echo "real_recovery_success_restore=pass"
+          echo "real_recovery_failure_retains_evidence=pass"
+
+      - name: Cold-prove the actual packaged systemd units
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          sudo install -D -m 0644 packaging/systemd/optid-apply.service \
+            /etc/systemd/system/optid-apply.service
+          sudo install -D -m 0644 packaging/systemd/optid-recover.service \
+            /etc/systemd/system/optid-recover.service
+
+          sudo install -d -m 0755 /usr/local/libexec
+          cat > "$RUNNER_TEMP/s3d-cold-recover" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          root=/var/lib/optid/s3d-cold-proof
+          count=0
+          [[ -f "$root/recover-count" ]] && count=$(cat "$root/recover-count")
+          count=$((count + 1))
+          printf '%s\n' "$count" > "$root/recover-count"
+          printf 'recover-%s\n' "$count" >> "$root/order.log"
+          if [[ -e "$root/force-recovery-failure" ]]; then
+            exit 78
+          fi
+          SH
+          sudo install -m 0755 "$RUNNER_TEMP/s3d-cold-recover" \
+            /usr/local/libexec/s3d-cold-recover
+
+          cat > "$RUNNER_TEMP/s3d-cold-apply" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          root=/var/lib/optid/s3d-cold-proof
+          count=0
+          [[ -f "$root/apply-count" ]] && count=$(cat "$root/apply-count")
+          count=$((count + 1))
+          printf '%s\n' "$count" > "$root/apply-count"
+          printf 'apply-%s\n' "$count" >> "$root/order.log"
+          systemd-notify --pid="$$" --ready --status="S3D cold verifier apply cycle $count"
+          if [[ "$count" -eq 1 ]]; then
+            exit 1
+          fi
+          exec sleep 30
+          SH
+          sudo install -m 0755 "$RUNNER_TEMP/s3d-cold-apply" \
+            /usr/local/libexec/s3d-cold-apply
+
+          sudo install -d -m 0755 \
+            /etc/systemd/system/optid-apply.service.d \
+            /etc/systemd/system/optid-recover.service.d
+          sudo tee /etc/systemd/system/optid-apply.service.d/verification.conf >/dev/null <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/usr/local/libexec/s3d-cold-apply
+          WatchdogSec=0
+          RestartSec=1s
+          ReadWritePaths=
+          ReadWritePaths=/var/lib/optid /run/optid
+          EOF
+          sudo tee /etc/systemd/system/optid-recover.service.d/verification.conf >/dev/null <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/usr/local/libexec/s3d-cold-recover
+          ReadWritePaths=
+          ReadWritePaths=/var/lib/optid /run/optid
+          EOF
+
+          sudo systemctl daemon-reload
+          sudo systemctl stop optid-apply.service optid-recover.service || true
+          sudo rm -rf /var/lib/optid/s3d-cold-proof
+          sudo install -d -m 0755 /var/lib/optid/s3d-cold-proof
+          sudo systemctl reset-failed optid-apply.service optid-recover.service || true
+
+          restart_started=$(date --iso-8601=seconds)
+          sudo systemctl start optid-apply.service || true
+          for _ in $(seq 1 30); do
+            apply_count=$(cat /var/lib/optid/s3d-cold-proof/apply-count 2>/dev/null || echo 0)
+            recover_count=$(cat /var/lib/optid/s3d-cold-proof/recover-count 2>/dev/null || echo 0)
+            active=$(systemctl show optid-apply.service -p ActiveState --value)
+            if [[ "$apply_count" -eq 2 && "$recover_count" -eq 2 && "$active" == active ]]; then
+              break
+            fi
+            sleep 1
+          done
+
+          test "$(cat /var/lib/optid/s3d-cold-proof/apply-count)" -eq 2
+          test "$(cat /var/lib/optid/s3d-cold-proof/recover-count)" -eq 2
+          test "$(systemctl show optid-apply.service -p ActiveState --value)" = active
+          diff -u <(printf 'recover-1\napply-1\nrecover-2\napply-2\n') \
+            /var/lib/optid/s3d-cold-proof/order.log
+          sudo journalctl --sync
+          sudo journalctl -u optid-recover.service -u optid-apply.service \
+            --since "$restart_started" --no-pager -o short-monotonic \
+            | tee /tmp/s3d-cold-restart.log
+          test "$(grep -cF 'Scheduled restart job, restart counter is at 1.' /tmp/s3d-cold-restart.log)" -eq 1
+          echo "cold_restart_recovery_order=pass"
+
+          sudo systemctl stop optid-apply.service
+          sudo rm -rf /var/lib/optid/s3d-cold-proof
+          sudo install -d -m 0755 /var/lib/optid/s3d-cold-proof
+          sudo touch /var/lib/optid/s3d-cold-proof/force-recovery-failure
+          sudo systemctl reset-failed optid-apply.service optid-recover.service || true
+          failure_started=$(date --iso-8601=seconds)
+
+          set +e
+          sudo systemctl start optid-apply.service
+          start_status=$?
+          set -e
+          sleep 4
+          sudo journalctl --sync
+
+          test "$start_status" -ne 0
+          test "$(cat /var/lib/optid/s3d-cold-proof/recover-count)" -eq 1
+          test ! -e /var/lib/optid/s3d-cold-proof/apply-count
+          test "$(systemctl show optid-apply.service -p NRestarts --value)" -eq 0
+          test "$(systemctl show optid-apply.service -p ActiveState --value)" = inactive
+          sudo journalctl -u optid-recover.service -u optid-apply.service \
+            --since "$failure_started" --no-pager -o short-monotonic \
+            | tee /tmp/s3d-cold-failure.log
+          ! grep -qF 'Scheduled restart job' /tmp/s3d-cold-failure.log
+
+          systemctl show optid-apply.service \
+            -p ActiveState -p SubState -p Result -p NRestarts
+          systemctl show optid-recover.service \
+            -p ActiveState -p SubState -p Result -p ExecMainStatus
+          echo "failed_recovery_blocks_daemon=pass"
+          echo "failed_recovery_restart_loop=absent"
+
+          cat /var/lib/optid/s3d-cold-proof/order.log || true
+          cat /tmp/s3d-cold-restart.log
+          cat /tmp/s3d-cold-failure.log
+
+      - name: Upload immutable verification log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: s3d-post-merge-cold-verification-${{ github.run_id }}
+          path: s3d-post-merge-cold-verification.log
+          if-no-files-found: error
+          retention-days: 30
