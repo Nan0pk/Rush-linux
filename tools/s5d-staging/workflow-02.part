@@ -1,0 +1,102 @@
+          packages = {item['id']: item for item in ledger['package']}
+          affected = Path('/tmp/s5d-affected-packages.txt').read_text().split()
+          for package_id in affected:
+              for test_name in packages[package_id].get('acceptance_tests', {}).values():
+                  print(f'{package_id}\t{test_name}')
+          names = []
+          for path in [Path('crates/optid/src/circuit_breaker.rs'), Path('crates/optid/src/args.rs')]:
+              names.extend(re.findall(r'(?m)^\s*fn (s5d_[a-z0-9_]+)\(\)', path.read_text()))
+          assert len(names) == 13 and len(set(names)) == 13, names
+          for name in sorted(names):
+              print(f'S5D\t{name}')
+          PY
+
+          while IFS=$'\t' read -r package_id short_name; do
+            echo "acceptance_package=$package_id test=$short_name"
+            listed=$(mktemp)
+            cargo test -p optid --all-features --color never "$short_name" -- --list \
+              2>&1 | tee "$listed"
+            full_name=$(python3 - "$short_name" "$listed" <<'PY'
+          import sys
+          from pathlib import Path
+          short = sys.argv[1]
+          matches = []
+          for line in Path(sys.argv[2]).read_text(errors='replace').splitlines():
+              if line.endswith(': test'):
+                  name = line[:-6]
+                  if name == short or name.endswith('::' + short):
+                      matches.append(name)
+          if len(matches) != 1:
+              raise SystemExit(f'{short}: expected one exact mapped test, found {matches}')
+          print(matches[0])
+          PY
+            )
+            cargo test -p optid --all-features --color never "$full_name" -- \
+              --exact --nocapture
+          done < /tmp/s5d-verifier-tests.tsv
+
+          cargo test -p optid --all-features
+          cargo test --workspace --all-features
+          echo "shared_surface_and_s5d_matrix=pass"
+
+      - name: Run packaged recovery and live capability-supervisor proof
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$PROOF_LOG") 2>&1
+
+          cmp -s packaging/systemd/optid-apply.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service
+          cmp -s packaging/systemd/optid-recover.service \
+            mkosi/mkosi.extra/usr/lib/systemd/system/optid-recover.service
+          cargo build -p optid --all-features --bins
+          sudo install -D -m 0755 target/debug/optid /usr/libexec/optid
+          sudo install -D -m 0755 target/debug/optid-recover /usr/libexec/optid-recover
+          printf '.TH OPTID 8\n.SH NAME\noptid - Rush Linux optimization daemon\n' \
+            | gzip -c | sudo tee /usr/share/man/man8/optid.8.gz >/dev/null
+          sudo install -D -m 0644 packaging/systemd/optid-apply.service \
+            /etc/systemd/system/optid-apply.service
+          sudo install -D -m 0644 packaging/systemd/optid-recover.service \
+            /etc/systemd/system/optid-recover.service
+          systemd-analyze verify \
+            /etc/systemd/system/optid-recover.service \
+            /etc/systemd/system/optid-apply.service
+
+          cargo test -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          cargo test -p optid --features experimental-capability-sealing \
+            --test capability_sealing_cli
+          cargo build -p optid --features experimental-capability-sealing \
+            --bin optid-capability-seal-test
+          sudo install -D -m 0755 target/debug/optid-capability-seal-test \
+            /usr/local/libexec/optid-capability-seal-test
+          systemd-analyze verify packaging/systemd/optid-capability-seal-test.service
+
+          KERNEL_RELEASE=$(uname -r)
+          echo "KERNEL_RELEASE=$KERNEL_RELEASE" >> "$GITHUB_ENV"
+          echo "kernel_release=$KERNEL_RELEASE"
+          /usr/local/libexec/optid-capability-seal-test --probe
+          python3 - <<'PY'
+          import os
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+          text = Path(os.environ['PROOF_LOG']).read_text(errors='replace')
+          matches = re.findall(r'(?i)(?:landlock[_ ]abi)[\s"=:]+([0-9]+)', text)
+          if not matches:
+              raise SystemExit('could not parse Landlock ABI')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write(f'LANDLOCK_ABI={matches[-1]}\n')
+              handle.write('VERIFIED_AT=' + datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ') + '\n')
+          print(f'landlock_abi={matches[-1]}')
+          PY
+
+          sudo install -D -m 0644 packaging/systemd/optid-capability-seal-test.service \
+            /etc/systemd/system/optid-capability-seal-test.service
+          sudo touch /run/optid-capability-seal-test-enabled
+          sudo rm -rf /run/optid-capability-seal-test
+          sudo systemctl daemon-reload
+          sudo systemctl reset-failed optid-capability-seal-test.service || true
+          proof_started=$(date --iso-8601=seconds)
+          sudo systemctl start optid-capability-seal-test.service
+          for _ in $(seq 1 30); do
+            active=$(systemctl show optid-capability-seal-test.service -p ActiveState --value)
