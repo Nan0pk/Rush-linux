@@ -169,8 +169,15 @@ jobs:
         run: |
           set -euo pipefail
           cargo build -p optid --features experimental-capability-sealing \
-            --bin optid-capability-seal-test
+            --bin optid-capability-seal-test --bin optid --bin optid-recover
           target/debug/optid-capability-seal-test --probe
+
+          sudo install -d -m 0755 /usr/libexec /usr/share/man/man8
+          sudo install -m 0755 target/debug/optid /usr/libexec/optid
+          sudo install -m 0755 target/debug/optid-recover /usr/libexec/optid-recover
+          printf '.TH OPTID 8\n.SH NAME\noptid \\- Rush Linux optimization daemon\n' \
+            | gzip -9 | sudo tee /usr/share/man/man8/optid.8.gz >/dev/null
+
           systemd-analyze verify packaging/systemd/optid-apply.service
           systemd-analyze verify packaging/systemd/optid-recover.service
 
