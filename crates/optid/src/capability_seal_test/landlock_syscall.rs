@@ -1,19 +1,23 @@
-//! Raw Landlock syscall wrappers for the experimental capability-sealing proof.
+//! Raw Landlock syscall wrappers shared by the D0 proof and S4D runtime seal.
 //!
-//! The prototype intentionally uses the platform ABI directly. It detects the
-//! running Landlock version, handles only rights supported by that version, sets
-//! `no_new_privs`, and then installs an empty ruleset for write-related rights.
-//! Existing descriptors remain usable; new write opens and path mutations are
-//! denied.
+//! The implementation detects the running ABI, handles only rights supported
+//! by that ABI, sets `no_new_privs`, and installs an irreversible filesystem
+//! restriction. D0 uses an empty allowlist to prove complete write denial.
+//! S4D additionally grants write access only beneath explicit daemon-state
+//! roots while hardware writes continue through descriptors opened pre-seal.
 
 use std::io;
 use std::os::raw::{c_int, c_long, c_void};
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 
 // These syscall numbers are shared by the Linux architectures Rush currently
-// targets for this prototype (x86_64 and aarch64).
+// targets (x86_64 and aarch64).
 const SYS_LANDLOCK_CREATE_RULESET: c_long = 444;
+const SYS_LANDLOCK_ADD_RULE: c_long = 445;
 const SYS_LANDLOCK_RESTRICT_SELF: c_long = 446;
 const LANDLOCK_CREATE_RULESET_VERSION: u32 = 1;
+const LANDLOCK_RULE_PATH_BENEATH: u32 = 1;
 
 // Filesystem access bits from include/uapi/linux/landlock.h.
 const LANDLOCK_ACCESS_FS_WRITE_FILE: u64 = 1 << 1;
@@ -44,10 +48,49 @@ const ABI1_WRITE_RIGHTS: u64 = LANDLOCK_ACCESS_FS_WRITE_FILE
     | LANDLOCK_ACCESS_FS_MAKE_SYM;
 
 /// Prefix of `struct landlock_ruleset_attr` used by every Landlock ABI.
-/// Passing the eight-byte prefix avoids depending on fields added by later ABIs.
+/// Passing the eight-byte prefix avoids depending on fields added later.
 #[repr(C)]
 struct LandlockRulesetAttr {
     handled_access_fs: u64,
+}
+
+/// `struct landlock_path_beneath_attr` from linux/landlock.h.
+#[repr(C)]
+struct LandlockPathBeneathAttr {
+    allowed_access: u64,
+    parent_fd: c_int,
+    reserved: u32,
+}
+
+struct OwnedFd(c_int);
+
+impl Drop for OwnedFd {
+    fn drop(&mut self) {
+        unsafe {
+            libc::close(self.0);
+        }
+    }
+}
+
+impl OwnedFd {
+    fn open_path(path: &Path) -> io::Result<Self> {
+        let bytes = path.as_os_str().as_bytes();
+        if bytes.contains(&0) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Landlock path contains NUL: {}", path.display()),
+            ));
+        }
+        let mut nul = Vec::with_capacity(bytes.len() + 1);
+        nul.extend_from_slice(bytes);
+        nul.push(0);
+        let fd = unsafe { libc::open(nul.as_ptr().cast(), libc::O_PATH | libc::O_CLOEXEC) };
+        if fd < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(Self(fd))
+        }
+    }
 }
 
 /// Detect the maximum Landlock ABI supported by the running kernel.
@@ -68,10 +111,6 @@ pub(crate) fn detect_landlock_abi() -> io::Result<u32> {
 }
 
 /// Return exactly the write-related rights supported by `abi`.
-///
-/// `REFER` was added in ABI 2 and `TRUNCATE` in ABI 3. Supplying a newer right
-/// to an older kernel makes ruleset creation fail with `EINVAL`, so this mapping
-/// is part of the security contract rather than a compatibility convenience.
 pub(crate) fn handled_write_rights(abi: u32) -> io::Result<u64> {
     if abi == 0 {
         return Err(io::Error::new(
@@ -110,13 +149,77 @@ pub(crate) fn no_new_privs_is_set() -> io::Result<bool> {
     }
 }
 
-/// Install an empty Landlock ruleset for all write-related rights supported by
-/// the detected ABI.
-///
-/// With no allow rules, new write opens and path mutations are denied. File
-/// descriptors opened before this call keep the rights captured at open time.
+fn create_ruleset(handled_access_fs: u64) -> io::Result<OwnedFd> {
+    let attr = LandlockRulesetAttr { handled_access_fs };
+    let fd = unsafe {
+        libc::syscall(
+            SYS_LANDLOCK_CREATE_RULESET,
+            &attr as *const LandlockRulesetAttr,
+            std::mem::size_of::<LandlockRulesetAttr>(),
+            0u32,
+        )
+    };
+    if fd < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(OwnedFd(fd as c_int))
+    }
+}
+
+fn add_write_root(ruleset: &OwnedFd, root: &Path, rights: u64) -> io::Result<()> {
+    let parent = OwnedFd::open_path(root)?;
+    let attr = LandlockPathBeneathAttr {
+        allowed_access: rights,
+        parent_fd: parent.0,
+        reserved: 0,
+    };
+    let ret = unsafe {
+        libc::syscall(
+            SYS_LANDLOCK_ADD_RULE,
+            ruleset.0,
+            LANDLOCK_RULE_PATH_BENEATH,
+            &attr as *const LandlockPathBeneathAttr,
+            0u32,
+        )
+    };
+    if ret < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+/// Install an empty ruleset. This is retained for the D0 negative proof: all
+/// new write opens and path mutations are denied after the call.
 pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {
+    install_landlock_restrictions_with_write_roots(abi, &[])
+}
+
+// The same source is compiled both by the D0 proof binary and as S4D's nested
+// runtime Landlock module. Keep the proof-only wrapper visible in the latter
+// build through a typed compile-time reference rather than a lint suppression.
+const _: fn(u32) -> io::Result<u64> = install_landlock_restrictions;
+
+/// Install a write-deny ruleset with explicit writable daemon-state roots.
+///
+/// Existing descriptors keep the rights acquired when opened. New hardware
+/// write opens are denied because no hardware path is granted. Each state root
+/// is canonicalized and de-duplicated before a `PATH_BENEATH` rule is added.
+pub(crate) fn install_landlock_restrictions_with_write_roots(
+    abi: u32,
+    write_roots: &[PathBuf],
+) -> io::Result<u64> {
     let handled_access_fs = handled_write_rights(abi)?;
+    let ruleset = create_ruleset(handled_access_fs)?;
+
+    let mut canonical_roots = Vec::new();
+    for root in write_roots {
+        let canonical = std::fs::canonicalize(root)?;
+        if !canonical_roots.contains(&canonical) {
+            add_write_root(&ruleset, &canonical, handled_access_fs)?;
+            canonical_roots.push(canonical);
+        }
+    }
 
     set_no_new_privs()?;
     if !no_new_privs_is_set()? {
@@ -126,31 +229,12 @@ pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {
         ));
     }
 
-    let attr = LandlockRulesetAttr { handled_access_fs };
-    let ruleset_fd = unsafe {
-        libc::syscall(
-            SYS_LANDLOCK_CREATE_RULESET,
-            &attr as *const LandlockRulesetAttr,
-            std::mem::size_of::<LandlockRulesetAttr>(),
-            0u32,
-        )
-    };
-    if ruleset_fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    let ruleset_fd = ruleset_fd as c_int;
-
-    let ret = unsafe { libc::syscall(SYS_LANDLOCK_RESTRICT_SELF, ruleset_fd, 0u32) };
-    let result = if ret < 0 {
+    let ret = unsafe { libc::syscall(SYS_LANDLOCK_RESTRICT_SELF, ruleset.0, 0u32) };
+    if ret < 0 {
         Err(io::Error::last_os_error())
     } else {
         Ok(handled_access_fs)
-    };
-
-    unsafe {
-        libc::close(ruleset_fd);
     }
-    result
 }
 
 /// Exact running kernel release for a cold-verification receipt.
@@ -159,6 +243,10 @@ pub(crate) fn kernel_release() -> String {
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string())
 }
+
+// See the proof-wrapper reference above: the runtime module does not print the
+// kernel release, but compiling the shared implementation must remain clean.
+const _: fn() -> String = kernel_release;
 
 #[cfg(test)]
 mod tests {

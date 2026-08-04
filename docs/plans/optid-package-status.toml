@@ -355,10 +355,47 @@ failed_recovery_breaks_restart_loop = "s3d_failed_recovery_prevents_automatic_ac
 id = "S4D"
 lane = "safety"
 title = "Move writes to a sealed typed capability table"
-status = "next"
+status = "candidate"
 depends = ["D0", "F4", "S3D"]
-pr = ""
-completion_evidence = []
+pr = "390"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/capability_table.rs",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "packaging/systemd/optid-apply.service",
+]
+integration_tests = [
+  "crates/optid/src/capability_table.rs",
+  "crates/optid/tests/s4d_systemd.rs",
+]
+completion_evidence = [
+  "config/optid/policy.toml",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/capability_seal_test/landlock_syscall.rs",
+  "crates/optid/src/capability_table.rs",
+  "crates/optid/src/kernel_io.rs",
+  "crates/optid/src/main.rs",
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/reconciler/restore.rs",
+  "crates/optid/tests/s4d_systemd.rs",
+  "docs/architecture/optid-s4d-sealed-capabilities.md",
+  "mkosi/mkosi.extra/usr/lib/systemd/system/optid-apply.service",
+  "packaging/systemd/optid-apply.service",
+  ".github/workflows/capability-sealing-kernel-proof.yml",
+]
+[package.acceptance_tests]
+operation_type_mismatch_denied = "s4d_operation_type_mismatch_is_rejected"
+preopened_descriptor_survives_restriction = "s4d_preopened_descriptor_survives_permission_tightening"
+symlink_replacement_denied = "s4d_symlink_path_replacement_is_rejected"
+stale_identity_denied = "s4d_stale_identity_is_rejected"
+removed_device_fails_closed = "s4d_removed_device_fails_closed"
+descriptors_are_cloexec = "s4d_capability_descriptors_are_cloexec"
+topology_change_is_debounced = "s4d_topology_change_is_debounced"
+cold_rebuild_opens_fresh_identity = "s4d_cold_rebuild_opens_fresh_identity"
+supervised_recovery_restart_graph = "s4d_apply_unit_restarts_only_through_supervised_recovery_graph"
+seal_precedes_workers_and_dbus = "s4d_startup_seals_before_any_worker_or_dbus_input"
+handback_precedes_status_75 = "s4d_topology_rebuild_hands_back_before_status_75"
 
 [[package]]
 id = "S5D"

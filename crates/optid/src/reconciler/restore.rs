@@ -97,9 +97,7 @@ fn read_target_for_restore(
             value: actuator.pmqos_sink.read_cpu_latency()?.trim().to_string(),
         }),
         TargetKind::PmqosDevice { path } => Ok(StoredValue::Scalar {
-            value: actuator
-                .pmqos_sink
-                .read_device_latency(path)?
+            value: actuator.read_device_latency(path)?
                 .trim()
                 .to_string(),
         }),
@@ -155,7 +153,7 @@ fn write_target_for_restore(
             actuator.pmqos_sink.write_cpu_latency(parsed)
         }
         (TargetKind::PmqosDevice { path }, StoredValue::Scalar { value }) => {
-            actuator.pmqos_sink.write_device_latency(path, value)
+            actuator.write_device_latency(path, value)
         }
         (
             TargetKind::RuntimePm {
