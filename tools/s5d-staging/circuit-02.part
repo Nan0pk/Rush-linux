@@ -1,0 +1,350 @@
+                scope.domain,
+                scope.operation,
+                reason,
+            )))
+        }
+    }
+
+    fn record_success(
+        &mut self,
+        scope: &CircuitScope,
+        permit: CircuitPermit,
+    ) -> io::Result<CircuitTransition> {
+        let keys = self.matching_record_keys(scope);
+        if permit == CircuitPermit::Canary {
+            for key in keys {
+                self.state.records.remove(&key);
+            }
+            self.persist()?;
+            return Ok(CircuitTransition::closed(format!(
+                "S5D verified canary closed circuit for domain={} operation={} target={} hwid={} firmware={}",
+                scope.domain,
+                scope.operation,
+                scope.target_id,
+                scope.hardware_id,
+                scope.firmware_id
+            )));
+        }
+
+        let mut changed = false;
+        for key in keys {
+            if self
+                .state
+                .records
+                .get(&key)
+                .is_some_and(|record| !record.open)
+            {
+                self.state.records.remove(&key);
+                changed = true;
+            }
+        }
+        if changed {
+            self.persist()?;
+        }
+        Ok(CircuitTransition::unchanged(
+            "S5D verified success reset scoped pre-threshold failures",
+        ))
+    }
+
+    fn matching_record_keys(&self, scope: &CircuitScope) -> Vec<String> {
+        self.state
+            .records
+            .iter()
+            .filter(|(_, record)| record.scope == *scope)
+            .map(|(key, _)| key.clone())
+            .collect()
+    }
+
+    fn persist(&mut self) -> io::Result<()> {
+        if self.persistence_blocked {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "S5D circuit persistence is blocked to preserve invalid state evidence",
+            ));
+        }
+        let Some(parent) = self.path.parent() else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "S5D circuit state path has no parent",
+            ));
+        };
+        fs::create_dir_all(parent)?;
+        let bytes = serde_json::to_vec_pretty(&self.state)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let temporary = parent.join(format!(
+            ".circuits-v1-{}-{}.tmp",
+            std::process::id(),
+            self.state.last_seen_at
+        ));
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .mode(0o600)
+            .open(&temporary)?;
+        file.write_all(&bytes)?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
+        fs::rename(&temporary, &self.path)?;
+        fs::set_permissions(&self.path, fs::Permissions::from_mode(0o600))?;
+        File::open(parent)?.sync_all()
+    }
+}
+
+pub(crate) fn circuit_suppressed_outcome(action: &Action, detail: &str) -> ActionOutcome {
+    let mut outcome = ActionOutcome::new(action);
+    outcome.gates.push(GateEvaluation::allowed(
+        GateStage::DomainMode,
+        GateReasonCode::DomainActuate,
+    ));
+    outcome.gates.push(GateEvaluation::denied(
+        GateStage::ApplyArmed,
+        GateReasonCode::ApplyDisarmedByBootState,
+        detail,
+    ));
+    outcome.targets.push(TargetOutcome::denied(
+        action.stable_target_id(),
+        PipelineStage::ApplyGate,
+        detail.to_string(),
+    ));
+    outcome
+}
+
+pub(crate) fn circuit_runtime_failure_outcome(action: &Action, error: &io::Error) -> ActionOutcome {
+    let mut outcome = ActionOutcome::new(action);
+    outcome.gates.push(GateEvaluation::allowed(
+        GateStage::DomainMode,
+        GateReasonCode::DomainActuate,
+    ));
+    outcome.gates.push(GateEvaluation::allowed(
+        GateStage::ApplyArmed,
+        GateReasonCode::ApplyArmed,
+    ));
+    outcome
+        .targets
+        .push(TargetOutcome::failed(action.stable_target_id(), error));
+    outcome
+}
+
+fn classify_failure(outcome: &ActionOutcome) -> Option<(FailureClass, String)> {
+    if outcome.gates.iter().any(|gate| {
+        gate.stage == GateStage::RecoveryJournal
+            && gate.disposition == GateDisposition::Denied
+    }) {
+        return Some((
+            FailureClass::Journal,
+            "persistent transaction or recovery journal gate failed".to_string(),
+        ));
+    }
+
+    for target in &outcome.targets {
+        if target.reason == OutcomeReasonCode::ReadbackMismatch
+            || matches!(target.readback, ReadbackOutcome::Mismatch { .. })
+        {
+            return Some((
+                FailureClass::Readback,
+                target
+                    .detail
+                    .clone()
+                    .unwrap_or_else(|| "readback mismatch".to_string()),
+            ));
+        }
+        match target.write_outcome {
+            WriteOutcome::Failed { .. } => {
+                return Some((
+                    FailureClass::Write,
+                    target
+                        .detail
+                        .clone()
+                        .unwrap_or_else(|| "kernel write failed".to_string()),
+                ));
+            }
+            WriteOutcome::RestorationFailed { .. } => {
+                return Some((
+                    FailureClass::Restore,
+                    target
+                        .detail
+                        .clone()
+                        .unwrap_or_else(|| "handback failed".to_string()),
+                ));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn outcome_is_verified_success(outcome: &ActionOutcome) -> bool {
+    !outcome.targets.is_empty()
+        && outcome.targets.iter().all(|target| {
+            target.ownership == OwnershipState::Optid
+                && matches!(
+                    target.readback,
+                    ReadbackOutcome::Confirmed { .. }
+                )
+                && matches!(
+                    target.write_outcome,
+                    WriteOutcome::Applied | WriteOutcome::Redundant
+                )
+        })
+}
+
+fn record_key(scope: &CircuitScope, class: FailureClass) -> String {
+    format!("{}|{}", scope.id(), class.as_str())
+}
+
+fn action_hardware_id(action: &Action, read: &dyn KernelRead) -> String {
+    let discovered = match action {
+        Action::DeviceResumeLatency { path, .. } => path
+            .parent()
+            .and_then(Path::parent)
+            .and_then(|device| read_modalias(read, device)),
+        Action::RuntimePm { device_dir, .. } | Action::PcieAspm { device_dir, .. } => {
+            read_modalias(read, device_dir)
+        }
+        Action::SataAlpm { host_dir, .. } | Action::Backlight { device_dir: host_dir, .. } => {
+            read_modalias_from_ancestors(read, host_dir)
+        }
+        Action::CpuEpp { .. }
+        | Action::PlatformProfile { .. }
+        | Action::SystemdSetProperty { .. }
+        | Action::VmSysctl { .. }
+        | Action::CpuDmaLatency { .. } => None,
+    };
+    discovered.unwrap_or_else(|| system_hardware_id(read))
+}
+
+fn read_modalias(read: &dyn KernelRead, device_dir: &Path) -> Option<String> {
+    let raw = read.read_to_string(&device_dir.join("modalias")).ok()?;
+    let trimmed = raw.trim();
+    (!trimmed.is_empty()).then(|| sanitize_identity_token(trimmed))
+}
+
+fn read_modalias_from_ancestors(read: &dyn KernelRead, start: &Path) -> Option<String> {
+    let canonical = read
+        .canonicalize(start)
+        .unwrap_or_else(|_| start.to_path_buf());
+    canonical
+        .ancestors()
+        .find_map(|ancestor| read_modalias(read, ancestor))
+}
+
+fn system_hardware_id(read: &dyn KernelRead) -> String {
+    let mut values = Vec::new();
+    for path in [
+        "/sys/class/dmi/id/sys_vendor",
+        "/sys/class/dmi/id/product_name",
+        "/sys/class/dmi/id/product_version",
+        "/sys/class/dmi/id/board_name",
+    ] {
+        if let Ok(value) = read.read_to_string(Path::new(path)) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                values.push(trimmed.to_string());
+            }
+        }
+    }
+    if values.is_empty() {
+        return "hwid:unreported".to_string();
+    }
+    format!("hwid:{:016x}", stable_fnv1a(values.join("|").as_bytes()))
+}
+
+fn sanitize_identity_token(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, ':' | '_' | '-' | '.') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn system_firmware_id(read: &dyn KernelRead) -> String {
+    let mut values = Vec::new();
+    for path in [
+        "/sys/class/dmi/id/bios_vendor",
+        "/sys/class/dmi/id/bios_version",
+        "/sys/class/dmi/id/bios_release",
+        "/sys/class/dmi/id/board_version",
+    ] {
+        if let Ok(value) = read.read_to_string(Path::new(path)) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                values.push(trimmed.to_string());
+            }
+        }
+    }
+    if values.is_empty() {
+        return "firmware:unreported".to_string();
+    }
+    format!("firmware:{:016x}", stable_fnv1a(values.join("|").as_bytes()))
+}
+
+fn stable_fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::envelope::{ReadbackOutcome, TargetOutcome};
+    use crate::kernel_io::MemoryKernel;
+
+    fn temp_path(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "optid-s5d-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("create S5D test directory");
+        path.join("circuits.json")
+    }
+
+    fn scope(domain: &str, firmware: &str) -> CircuitScope {
+        CircuitScope {
+            domain: domain.to_string(),
+            operation: "set_value".to_string(),
+            target_id: format!("{domain}:target"),
+            hardware_id: format!("hwid:{domain}"),
+            firmware_id: firmware.to_string(),
+        }
+    }
+
+    fn breaker(name: &str) -> CircuitBreaker {
+        CircuitBreaker::load(
+            temp_path(name),
+            DEFAULT_FAILURE_THRESHOLD,
+            DEFAULT_COOLDOWN_SECS,
+        )
+    }
+
+    fn verified_outcome() -> ActionOutcome {
+        let action = Action::vm_sysctl(
+            PathBuf::from("/proc/sys/vm/swappiness"),
+            "60".to_string(),
+            "test".to_string(),
+        );
+        let mut outcome = ActionOutcome::new(&action);
+        outcome.targets.push(TargetOutcome::applied(
+            action.stable_target_id(),
+            "60",
+            ReadbackOutcome::Confirmed {
+                value: "60".to_string(),
+            },
+        ));
+        outcome
+    }
+
+    #[test]
+    fn s5d_repeated_failure_opens_persistent_scope() {
+        let mut breaker = breaker("threshold");
