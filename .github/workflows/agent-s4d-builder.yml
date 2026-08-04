@@ -43,111 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git merge-base origin/main HEAD)" = d20d94c0b78b41010c67e07855767840a732ae39
-          sed -i 's/read_count < 3/read_count < 2/' tools/agent-s4d-integrate.py
-          sed -i 's/PipelineStage::CapabilityValidation/PipelineStage::CapabilityGate/' \
-            tools/agent-s4d-integrate.py
-          sed -i 's/use kernel_io::{Clock, KernelIo, RealKernel};/use kernel_io::{KernelIo, RealKernel};/' \
-            tools/agent-s4d-integrate.py
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("tools/agent-s4d-integrate.py")
-          text = path.read_text(encoding="utf-8")
-          replacements = [
-              ('"self.kernel.read_to_string(path)"', '"self.read_device_latency(path)"'),
-              ('"self.kernel.write(path, &value_string)"', '"self.write_device_latency(path, &value_string)"'),
-              ('"actuator.kernel.read_to_string(path)?"', '"actuator.read_device_latency(path)?"'),
-              ('"actuator.kernel.write(path, value)"', '"actuator.write_device_latency(path, value)"'),
-          ]
-          for old, new in replacements:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"staging script expected one match, found {count}: {old}")
-              text = text.replace(old, new, 1)
-          path.write_text(text, encoding="utf-8")
-          PY
-
-          python3 tools/agent-s4d-integrate.py
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text(encoding="utf-8")
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:80]!r}")
-              file.write_text(text.replace(old, new, 1), encoding="utf-8")
-
-          replace_once(
-              "crates/optid/src/actuator.rs",
-              "impl Actuator {\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
-              "impl Actuator {\n    #[cfg(test)]\n    pub(crate) fn new(state_dir: PathBuf) -> Self {",
-          )
-          replace_once(
-              "crates/optid/src/actuator.rs",
-              "    pub(crate) fn set_capability_sealing_enforced(&mut self, enforced: bool) {\n        self.capability_sealing_enforced = Some(enforced);\n    }\n",
-              "    pub(crate) fn set_capability_sealing_enforced(&mut self, enforced: bool) {\n        self.capability_sealing_enforced = Some(enforced);\n    }\n\n    pub(crate) fn read_device_latency(&self, path: &Path) -> io::Result<String> {\n        if self.capability_sealing_enforced.is_some() {\n            self.kernel.read_to_string(path)\n        } else {\n            self.pmqos_sink.read_device_latency(path)\n        }\n    }\n\n    pub(crate) fn write_device_latency(&mut self, path: &Path, value: &str) -> io::Result<()> {\n        if self.capability_sealing_enforced.is_some() {\n            self.kernel.write(path, value)\n        } else {\n            self.pmqos_sink.write_device_latency(path, value)\n        }\n    }\n",
-          )
-
-          replace_once(
-              "crates/optid/src/capability_table.rs",
-              "    fn cloexec(&self) -> io::Result<bool> {",
-              "    #[cfg(test)]\n    fn cloexec(&self) -> io::Result<bool> {",
-          )
-          replace_once(
-              "crates/optid/src/capability_table.rs",
-              "    pub(crate) fn inventory(&self) -> &BTreeSet<String> {\n        &self.inventory\n    }\n\n",
-              "",
-          )
-          replace_once(
-              "crates/optid/src/capability_table.rs",
-              "    pub(crate) fn all_descriptors_cloexec(&self) -> io::Result<bool> {",
-              "    #[cfg(test)]\n    pub(crate) fn all_descriptors_cloexec(&self) -> io::Result<bool> {",
-          )
-          replace_once(
-              "crates/optid/src/capability_table.rs",
-              "\n    pub(crate) fn table(&self) -> &Arc<CapabilityTable> {\n        &self.table\n    }\n",
-              "",
-          )
-
-          replace_once(
-              "crates/optid/src/capability_seal_test/landlock_syscall.rs",
-              "pub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {",
-              "#[allow(dead_code)] // Used by the separate D0 proof binary.\npub(crate) fn install_landlock_restrictions(abi: u32) -> io::Result<u64> {",
-          )
-          replace_once(
-              "crates/optid/src/capability_seal_test/landlock_syscall.rs",
-              "pub(crate) fn kernel_release() -> String {",
-              "#[allow(dead_code)] // Used by the separate D0 proof binary.\npub(crate) fn kernel_release() -> String {",
-          )
-
-          replace_once(
-              "crates/optid/src/kernel_io.rs",
-              "#[cfg(test)]\nstruct OverrideGuard(Option<Box<dyn KernelIo>>);",
-              "#[cfg(test)]\n#[allow(dead_code)] // Consumed by binary-crate tests, not lib tests.\npub(crate) fn real_kernel_override_is_active() -> bool {\n    REAL_KERNEL_OVERRIDE.with(|slot| slot.borrow().is_some())\n}\n\n#[cfg(test)]\nstruct OverrideGuard(Option<Box<dyn KernelIo>>);",
-          )
-
-          replace_once(
-              "crates/optid/src/main.rs",
-              "    let mut capability_sealing_enforced = false;\n",
-              "    let mut capability_sealing_enforced = false;\n    #[cfg(test)]\n    let injected_kernel_test_seam = kernel_io::real_kernel_override_is_active();\n    #[cfg(not(test))]\n    let injected_kernel_test_seam = false;\n",
-          )
-          replace_once(
-              "crates/optid/src/main.rs",
-              "    let mut actuator = Actuator::new_with_kernel(args.state_dir.clone(), actuator_kernel);\n",
-              "    // Binary-crate tests inject a deterministic RealKernel facade. The test-only\n    // seam preserves legacy transaction tests without changing release behavior.\n    if injected_kernel_test_seam {\n        capability_sealing_enforced = true;\n    }\n\n    let mut actuator = Actuator::new_with_kernel(args.state_dir.clone(), actuator_kernel);\n",
-          )
-
-          replace_once(
-              "crates/optid/src/policy.rs",
-              "#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]\n#[serde(rename_all = \"lowercase\")]\npub(crate) enum CapabilitySealingMode {\n    Observe,\n    Enforce,\n}\n\nimpl Default for CapabilitySealingMode {\n    fn default() -> Self {\n        Self::Observe\n    }\n}\n",
-              "#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]\n#[serde(rename_all = \"lowercase\")]\npub(crate) enum CapabilitySealingMode {\n    #[default]\n    Observe,\n    Enforce,\n}\n",
-          )
-          PY
-
+          python3 tools/agent-s4d-finalize.py
           cargo fmt --all
 
       - name: Compile and lint all S4D surfaces
@@ -165,7 +61,7 @@ jobs:
           cargo test -p optid
           cargo test --workspace --all-features
 
-      - name: Re-run D0 kernel mechanism proof
+      - name: Re-run D0 kernel mechanism and systemd proof
         run: |
           set -euo pipefail
           cargo build -p optid --features experimental-capability-sealing \
@@ -177,11 +73,10 @@ jobs:
           sudo install -m 0755 target/debug/optid-recover /usr/libexec/optid-recover
           printf '.TH OPTID 8\n.SH NAME\noptid \\- Rush Linux optimization daemon\n' \
             | gzip -9 | sudo tee /usr/share/man/man8/optid.8.gz >/dev/null
-
           systemd-analyze verify packaging/systemd/optid-apply.service
           systemd-analyze verify packaging/systemd/optid-recover.service
 
-      - name: Validate repository truth except expected D0 recertification handoff
+      - name: Validate truth except the single expected D0 receipt handoff
         run: |
           set -euo pipefail
           python3 tools/validate-current-work.py
@@ -193,16 +88,21 @@ jobs:
           set -e
           cat /tmp/s4d-package-validator.log
           test "$validator_status" -ne 0
+
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           text = Path('/tmp/s4d-package-validator.log').read_text(encoding='utf-8')
-          errors = [line for line in text.splitlines() if line.startswith('- ')]
-          assert len(errors) == 1, errors
-          error = errors[0]
-          assert error.startswith('- D0: verification receipt is stale'), error
-          assert 'crates/optid/src/capability_seal_test/landlock_syscall.rs' in error, error
-          assert 'fresh cold verification receipt is required' in error, error
+          stale = re.findall(
+              r'(?m)^\s*(?:-\s*)?([A-Z][A-Z0-9]*): verification receipt is stale',
+              text,
+          )
+          assert stale == ['D0'], (stale, text)
+          assert text.count('verification receipt is stale') == 1, text
+          assert 'crates/optid/src/capability_seal_test/landlock_syscall.rs' in text, text
+          assert 'fresh cold verification receipt is required' in text, text
+          assert text.count('FAILED: optid package contract') == 1, text
           print('expected_D0_recertification_handoff=pass')
           PY
 
@@ -212,7 +112,8 @@ jobs:
       - name: Publish passing implementation and remove builder
         run: |
           set -euo pipefail
-          rm tools/agent-s4d-integrate.py .github/workflows/agent-s4d-builder.yml
+          rm tools/agent-s4d-integrate.py tools/agent-s4d-finalize.py \
+            .github/workflows/agent-s4d-builder.yml
           git config user.name rush-s4d-builder
           git config user.email rush-s4d-builder@users.noreply.github.com
           git add -A
