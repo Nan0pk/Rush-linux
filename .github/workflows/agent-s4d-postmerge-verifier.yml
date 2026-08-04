@@ -25,7 +25,8 @@ jobs:
       MERGED_COMMIT: a0d5b12a815496a32f39aa2ae8b67a57a9b57338
       IMPLEMENTATION_HEAD: 57582752084bab2d1c0f1555f5b13e08fbfa074a
       ARTIFACT_NAME: s4d-post-merge-cold-verification-${{ github.run_id }}
-      PROOF_LOG: ${{ runner.temp }}/s4d-post-merge-cold-verification.log
+      PROOF_LOG: /tmp/s4d-post-merge-cold-verification.log
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
     steps:
       - name: Check out verifier branch
@@ -375,4 +376,4 @@ jobs:
           git config user.name rush-s4d-independent-verifier
           git config user.email rush-s4d-independent-verifier@users.noreply.github.com
           git commit -m 'verify(optid): complete merged S4D capability sealing'
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:$HEAD_REF"
