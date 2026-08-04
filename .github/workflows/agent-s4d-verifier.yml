@@ -1,4 +1,4 @@
-name: S4D independent candidate verification
+name: S4D shared-surface candidate verification
 
 on:
   pull_request:
@@ -15,16 +15,16 @@ concurrency:
 
 jobs:
   verify:
-    name: Cold-verify D0 and S4D candidate boundary
+    name: Cold-verify shared surfaces and S4D candidate
     if: >-
       github.event.pull_request.head.ref == 'work/20260804-s4d-sealed-capability-table' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       IMPLEMENTATION_HEAD: fd1658026b0399a801ba7355c34e7df3e46bdf32
-      PROOF_LOG: s4d-independent-candidate-verification.log
-      ARTIFACT_NAME: s4d-independent-candidate-verification-${{ github.run_id }}
+      PROOF_LOG: s4d-shared-surface-verification.log
+      ARTIFACT_NAME: s4d-shared-surface-verification-${{ github.run_id }}
 
     steps:
       - name: Check out verifier branch
@@ -46,200 +46,8 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Bind verifier to immutable implementation
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          VERIFIER_HEAD=$(git rev-parse HEAD)
-          echo "VERIFIER_HEAD=$VERIFIER_HEAD" >> "$GITHUB_ENV"
-          echo "implementation_head=$IMPLEMENTATION_HEAD"
-          echo "verifier_head=$VERIFIER_HEAD"
-
-          git merge-base --is-ancestor "$IMPLEMENTATION_HEAD" "$VERIFIER_HEAD"
-          expected=$(mktemp)
-          actual=$(mktemp)
-          printf '%s\n' \
-            '.github/workflows/agent-s4d-verifier.yml' \
-            'tools/agent-s4d-verify.py' | sort > "$expected"
-          git diff --name-only "$IMPLEMENTATION_HEAD".."$VERIFIER_HEAD" | sort > "$actual"
-          diff -u "$expected" "$actual"
-
-          python3 tools/validate-current-work.py
-          set +e
-          python3 tools/validate-optid-packages.py > /tmp/pre-s4d-validator.log 2>&1
-          status=$?
-          set -e
-          cat /tmp/pre-s4d-validator.log
-          test "$status" -ne 0
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          text = Path('/tmp/pre-s4d-validator.log').read_text(encoding='utf-8')
-          stale = re.findall(
-              r'(?m)^\s*(?:-\s*)?([A-Z][A-Z0-9]*): verification receipt is stale',
-              text,
-          )
-          assert stale == ['D0'], (stale, text)
-          assert text.count('verification receipt is stale') == 1, text
-          assert 'landlock_syscall.rs' in text, text
-          PY
-          python3 tools/render-frontpage.py --check
-          git diff --check
-          echo "immutable_source_binding=pass"
-          echo "pre_transition_only_D0_stale=pass"
-
-      - name: Compile and lint independently
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          cargo fmt --all -- --check
-          cargo check -p optid --all-targets --all-features
-          cargo clippy -p optid --all-targets --all-features -- -D warnings
-          echo "compile_and_clippy=pass"
-
-      - name: Run exact S4D acceptance tests
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          unit_tests=(
-            s4d_operation_type_mismatch_is_rejected
-            s4d_preopened_descriptor_survives_permission_tightening
-            s4d_symlink_path_replacement_is_rejected
-            s4d_stale_identity_is_rejected
-            s4d_removed_device_fails_closed
-            s4d_capability_descriptors_are_cloexec
-            s4d_topology_change_is_debounced
-            s4d_cold_rebuild_opens_fresh_identity
-          )
-          for test_name in "${unit_tests[@]}"; do
-            cargo test -p optid "capability_table::tests::$test_name" -- --exact
-          done
-
-          integration_tests=(
-            s4d_apply_unit_restarts_only_through_supervised_recovery_graph
-            s4d_startup_seals_before_any_worker_or_dbus_input
-            s4d_topology_rebuild_hands_back_before_status_75
-          )
-          for test_name in "${integration_tests[@]}"; do
-            cargo test -p optid --test s4d_systemd "$test_name" -- --exact
-          done
-          echo "exact_s4d_acceptance=pass"
-
-      - name: Run full regression matrix
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          cargo test -p optid
-          cargo test --workspace --all-features
-          echo "full_regression=pass"
-
-      - name: Build and run live D0 mechanism proof
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          cargo test -p optid --features experimental-capability-sealing \
-            --bin optid-capability-seal-test
-          cargo test -p optid --features experimental-capability-sealing \
-            --test capability_sealing_cli
-          cargo build -p optid --features experimental-capability-sealing \
-            --bin optid-capability-seal-test --bin optid --bin optid-recover
-          sudo install -D -m 0755 target/debug/optid-capability-seal-test \
-            /usr/local/libexec/optid-capability-seal-test
-
-          echo "kernel_uname=$(uname -a)"
-          echo "kernel_release=$(uname -r)"
-          if [[ -r /sys/kernel/security/lsm ]]; then
-            echo "active_lsms=$(cat /sys/kernel/security/lsm)"
-          else
-            echo "active_lsms=unavailable"
-          fi
-          /usr/local/libexec/optid-capability-seal-test --probe
-
-          KERNEL_RELEASE=$(uname -r)
-          echo "KERNEL_RELEASE=$KERNEL_RELEASE" >> "$GITHUB_ENV"
-          python3 - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-          text = Path(os.environ['PROOF_LOG']).read_text(encoding='utf-8')
-          matches = re.findall(
-              r'(?i)(?:landlock[_ ]abi)[\s"=:]+([0-9]+)',
-              text,
-          )
-          if not matches:
-              raise SystemExit('could not parse Landlock ABI from proof log')
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
-              handle.write(f"LANDLOCK_ABI={matches[-1]}\n")
-          print(f"parsed_landlock_abi={matches[-1]}")
-          PY
-
-          sudo install -d -m 0755 /usr/libexec /usr/share/man/man8
-          sudo install -m 0755 target/debug/optid /usr/libexec/optid
-          sudo install -m 0755 target/debug/optid-recover /usr/libexec/optid-recover
-          printf '.TH OPTID 8\n.SH NAME\noptid \\- Rush Linux optimization daemon\n' \
-            | gzip -9 | sudo tee /usr/share/man/man8/optid.8.gz >/dev/null
-          systemd-analyze verify packaging/systemd/optid-apply.service
-          systemd-analyze verify packaging/systemd/optid-recover.service
-          systemd-analyze verify packaging/systemd/optid-capability-seal-test.service
-          echo "live_D0_mechanism=pass"
-
-      - name: Prove supervised cold rebuild and bounded failure
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$PROOF_LOG") 2>&1
-          sudo install -D -m 0644 \
-            packaging/systemd/optid-capability-seal-test.service \
-            /etc/systemd/system/optid-capability-seal-test.service
-          sudo touch /run/optid-capability-seal-test-enabled
-          sudo rm -rf /run/optid-capability-seal-test
-          sudo systemctl daemon-reload
-          sudo systemctl reset-failed optid-capability-seal-test.service || true
-          proof_started=$(date --iso-8601=seconds)
-          sudo systemctl start optid-capability-seal-test.service
-
-          for _ in $(seq 1 30); do
-            active=$(systemctl show optid-capability-seal-test.service -p ActiveState --value)
-            result=$(systemctl show optid-capability-seal-test.service -p Result --value)
-            [[ "$active" == inactive && "$result" == success ]] && break
-            [[ "$active" == failed ]] && break
-            sleep 1
-          done
-          sudo journalctl --sync
-          sudo journalctl -u optid-capability-seal-test.service \
-            --since "$proof_started" --no-pager -o cat \
-            | tee /tmp/s4d-supervisor-success.log
-          test "$(systemctl show optid-capability-seal-test.service -p ActiveState --value)" = inactive
-          test "$(systemctl show optid-capability-seal-test.service -p Result --value)" = success
-          test "$(systemctl show optid-capability-seal-test.service -p ExecMainStatus --value)" = 0
-          test "$(grep -cF 'Scheduled restart job, restart counter is at 1.' /tmp/s4d-supervisor-success.log)" -eq 1
-          test "$(grep -cF 'recovery step completed:' /tmp/s4d-supervisor-success.log)" -eq 2
-          test "$(grep -cF 'capability-sealing proof passed (8 checks)' /tmp/s4d-supervisor-success.log)" -eq 2
-          cat /tmp/s4d-supervisor-success.log >> "$PROOF_LOG"
-          echo "status_75_cold_rebuild=pass"
-
-          sudo mkdir -p /run/systemd/system/optid-capability-seal-test.service.d
-          sudo tee /run/systemd/system/optid-capability-seal-test.service.d/non75.conf >/dev/null <<'EOF'
-          [Service]
-          ExecStart=
-          ExecStart=/bin/sh -c 'exit 1'
-          EOF
-          sudo systemctl daemon-reload
-          sudo systemctl reset-failed optid-capability-seal-test.service || true
-          failure_started=$(date --iso-8601=seconds)
-          set +e
-          sudo systemctl start optid-capability-seal-test.service
-          set -e
-          sleep 3
-          sudo journalctl --sync
-          sudo journalctl -u optid-capability-seal-test.service \
-            --since "$failure_started" --no-pager -o cat \
-            | tee /tmp/s4d-non75.log
-          test "$(systemctl show optid-capability-seal-test.service -p Result --value)" = exit-code
-          test "$(systemctl show optid-capability-seal-test.service -p ExecMainStatus --value)" = 1
-          test "$(systemctl show optid-capability-seal-test.service -p NRestarts --value)" = 0
-          ! grep -qF 'Scheduled restart job' /tmp/s4d-non75.log
-          cat /tmp/s4d-non75.log >> "$PROOF_LOG"
-          echo "non_75_restart_suppression=pass"
+      - name: Independently recertify all affected surfaces
+        run: bash tools/agent-s4d-verifier-run.sh
 
       - name: Upload immutable verifier evidence
         uses: actions/upload-artifact@v7
@@ -255,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           job_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
-            --jq '.jobs[] | select(.name == "Cold-verify D0 and S4D candidate boundary") | .id')
+            --jq '.jobs[] | select(.name == "Cold-verify shared surfaces and S4D candidate") | .id')
           artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
             --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\")")
           test -n "$job_id"
@@ -267,7 +75,7 @@ jobs:
           echo "ARTIFACT_EXPIRES=$(jq -r '.expires_at' <<<"$artifact")" >> "$GITHUB_ENV"
           test "$(jq -r '.digest' <<<"$artifact")" != null
 
-      - name: Publish D0 recertification and S4D candidate state
+      - name: Publish fresh receipts and S4D candidate state
         env:
           WORKFLOW_RUN: ${{ github.run_id }}
           WORKFLOW_ATTEMPT: ${{ github.run_attempt }}
@@ -280,7 +88,8 @@ jobs:
           python3 tools/render-frontpage.py --check
           git diff --check
 
-          rm tools/agent-s4d-verify.py .github/workflows/agent-s4d-verifier.yml
+          rm tools/agent-s4d-verify.py tools/agent-s4d-verifier-run.sh \
+            .github/workflows/agent-s4d-verifier.yml
 
           python3 - <<'PY'
           import os
@@ -288,16 +97,19 @@ jobs:
           allowed = {
               'README.md',
               'docs/plans/optid-package-status.toml',
+              'docs/plans/optid-verification/f1.toml',
+              'docs/plans/optid-verification/f2.toml',
+              'docs/plans/optid-verification/f3.toml',
+              'docs/plans/optid-verification/f4.toml',
               'docs/plans/optid-verification/d0.toml',
+              'docs/plans/optid-verification/s2d.toml',
+              'docs/plans/optid-verification/s3d.toml',
           }
           files = set(subprocess.check_output(
               ['git', 'diff', '--name-only', os.environ['IMPLEMENTATION_HEAD']],
               text=True,
           ).splitlines())
-          required = {
-              'docs/plans/optid-package-status.toml',
-              'docs/plans/optid-verification/d0.toml',
-          }
+          required = allowed - {'README.md'}
           assert required <= files <= allowed, files
           print('publication_diff=' + ','.join(sorted(files)))
           PY
@@ -305,5 +117,5 @@ jobs:
           git config user.name rush-s4d-independent-verifier
           git config user.email rush-s4d-independent-verifier@users.noreply.github.com
           git add -A
-          git commit -m 'verify(optid): recertify D0 and record S4D candidate'
+          git commit -m 'verify(optid): recertify shared surfaces and record S4D candidate'
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
