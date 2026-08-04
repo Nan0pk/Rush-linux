@@ -6,8 +6,8 @@ schema_version = 1
 package = "S2D"
 implementation_pr = 386
 verification_pr = 388
-verified_commit = "3339e63df6721cd3a15989f4ab1364644ddae81e"
-verifier = "Fresh S3D GitHub verifier job, separate from the builder job; Linux X64 ubuntu-24.04"
+verified_commit = "4e01cf4e182b27d0ef966cc290b33e4b5f5db7bf"
+verifier = "Independent ChatGPT GitHub verifier job, separate from the S4D builder; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668
 workflow_attempt = 1
@@ -37,3 +37,39 @@ source_inspection_only = [
 ]
 
 unresolved = []
+
+# PR #390 S4D shared-surface recertification.
+s4d_recertification_pr = 390
+s4d_recertification_implementation_head = "fd1658026b0399a801ba7355c34e7df3e46bdf32"
+s4d_prior_verified_commit = "3339e63df6721cd3a15989f4ab1364644ddae81e"
+s4d_prior_verifier = "Fresh S3D GitHub verifier job, separate from the builder job; Linux X64 ubuntu-24.04"
+s4d_recertified_at = "2026-08-04T16:23:29Z"
+s4d_recertification_workflow_run = 30928719936
+s4d_recertification_workflow_attempt = 1
+s4d_recertification_workflow_job = 92057652856
+s4d_recertification_artifact_id = 8900272552
+s4d_recertification_artifact_name = "s4d-shared-surface-verification-30928719936"
+s4d_recertification_artifact_digest = "sha256:6200dc41af35165844c92e8aff129e953cdb5bf41cfa59c6162a169abd22689a"
+s4d_recertification_artifact_size_bytes = 28350
+s4d_recertification_artifact_expires = "2026-09-03T16:23:43Z"
+s4d_recertification_kernel_release = "6.17.0-1020-azure"
+s4d_recertification_landlock_abi = 7
+
+s4d_recertification_commands = [
+  "all mapped acceptance tests for F1, F2, F3, F4, D0, S2D, S3D, and S4D executed by name and observed passing",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check -p optid --all-targets --all-features -> passed",
+  "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
+  "cargo test -p optid -> passed",
+  "cargo test --workspace --all-features -> passed",
+  "live D0 Landlock proof on kernel 6.17.0-1020-azure, ABI 7 -> eight checks passed",
+  "D0 supervised status-75 two-cycle rebuild and non-75 suppression -> passed",
+  "S3D live required-recovery ordering, one replacement restart, and failed-recovery loop suppression -> passed",
+  "S4D static startup order, topology handback, descriptor identity, and cold-rebuild tests -> passed",
+]
+
+s4d_recertification_runtime_proofs = [
+  "S4D's shared actuator, main-loop, policy, kernel-I/O, restore, Landlock, and apply-unit changes preserved every mapped acceptance contract of this completed package.",
+  "No runtime source, test, service, policy, feature default, action envelope, or package claim was repaired during verification.",
+  "The immutable implementation head fd1658026b0399a801ba7355c34e7df3e46bdf32 was tested before any receipt or ledger mutation.",
+]
