@@ -1,7 +1,7 @@
 # Optid S5D — Persistent Circuit Breakers and Controlled Canary Re-entry
 
-**Status:** Candidate implementation design for PR #392  
-**Authority:** accepted D2 fail-passive amendment and `OPTID-COMPLETION-PLAN.md` S5D  
+**Status:** Candidate implementation design for PR #392
+**Authority:** accepted D2 fail-passive amendment and `OPTID-COMPLETION-PLAN.md` S5D
 **Safety boundary:** no hardware promotion, no new write ABI, no permanent helper, and no steady-state IPC
 
 ## Purpose
