@@ -1,0 +1,66 @@
+# Independent post-merge cold-verification receipt for S3D:
+# Add independent recovery, watchdog, and boot ordering.
+#
+# Verification was read-only before this state transition. No S3D
+# implementation, test, service, dependency, feature default, or runtime
+# actuation path was repaired by the verifier.
+
+schema_version = 1
+package = "S3D"
+implementation_pr = 388
+verification_pr = 389
+verified_commit = "59b5cb3d01a9093e2296e458be8f0e681f8eac17"
+systemd_verified_commit = "88c9b38a5c24477495f61d3226998e9d8834def8"
+implementation_head = "32bdd7143862ad326ddc56d07076136cd5d5857a"
+integrated_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
+source_base_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
+verifier = "Independent ChatGPT GitHub verifier session, separate from the PR #388 implementation builder; Linux X64 ubuntu-24.04"
+result = "pass"
+verified_at = "2026-08-04T14:45:03Z"
+
+acceptance_workflow_run = 30919973311
+acceptance_workflow_attempt = 1
+acceptance_workflow_job = 92027711233
+acceptance_artifact_id = 8896710596
+acceptance_artifact_name = "s3d-post-merge-cold-verification-30919973311"
+acceptance_artifact_digest = "sha256:d74e9a8c3b1f6c71ef2b18210f7ba4f105a03ff86a17bbcdcc7e88cb5ac0e7f0"
+acceptance_artifact_size_bytes = 19934
+acceptance_artifact_expires = "2026-09-03"
+
+systemd_workflow_run = 30920471765
+systemd_workflow_attempt = 1
+systemd_workflow_job = 92029435963
+systemd_artifact_id = 8896870258
+systemd_artifact_name = "s3d-post-merge-systemd-verification-30920471765"
+systemd_artifact_digest = "sha256:d530f046fd1ba94645524728d415c91c5f7038d1460b9f94519e08321c331ad8"
+systemd_artifact_size_bytes = 4708
+systemd_artifact_expires = "2026-09-03"
+
+commands = [
+  "implementation ancestry and byte binding to merge commit ce6ef8bc0df13c1fcf70529b23471cbb38a28789 -> passed",
+  "current-work, package-ledger, generated README, and whitespace checks -> passed before transition",
+  "cargo fmt, all-target/all-feature check, and warning-free clippy -> passed",
+  "all twelve mapped S3D tests executed individually with --exact -> passed",
+  "cargo test -p optid -> 440 daemon tests plus all integration tests passed",
+  "cargo test --workspace --all-features -> passed",
+  "production optid-recover success and malformed-record fault injections -> passed",
+  "cargo test -p optid --test s3d_systemd -> 2 passed",
+  "packaged and mkosi apply/recovery units -> byte-identical",
+  "live cold restart and forced recovery failure lifecycle -> passed",
+]
+
+runtime_proofs = [
+  "Production recovery restored the exact captured original, verified readback, durably recorded the outcome, and compacted the resolved record.",
+  "Malformed transaction evidence made production optid-recover exit 78 while retaining the unresolved record and writing a failed status summary.",
+  "Mapped watchdog tests emitted READY/WATCHDOG only after complete healthy reconciliation and withheld the heartbeat for an unsafe journal.",
+  "A live Ubuntu 24.04 manager ran recovery-1 before apply-1, scheduled exactly one restart, then ran recovery-2 before apply-2.",
+  "Forced recovery exit 78 failed the required dependency, executed no apply process, left apply inactive, and kept NRestarts at zero.",
+  "The lifecycle proof installed the merged packaged units, confirmed mkosi mirrors, preserved the shipped dependency graph and restart policies, and changed only hosted-runner executable/notify/hardware-sandbox details through drop-ins.",
+]
+
+evidence_notes = [
+  "Run 30919973311 supplied source binding, exact acceptance, full regression, watchdog, and production recovery-binary evidence. Its hosted hardware-sandbox start was inconclusive and is not used as lifecycle pass evidence.",
+  "Run 30920471765 separately bound the merged unit files to effective systemd properties and supplied the successful cold lifecycle evidence.",
+]
+
+unresolved = []
