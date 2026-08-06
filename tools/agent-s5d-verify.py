@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Authenticated synchronize trigger after lease-guarded source publication.
 """Refresh affected receipts and record S5D as candidate after independent verification."""
 
 from __future__ import annotations
