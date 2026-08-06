@@ -138,7 +138,9 @@ pub(crate) fn print_usage() {
     println!(
         "Usage: optid [--apply] [--once] [--interval-sec N] [--state-dir PATH] [--config PATH]\n\
          \x20            [--allowlist[=enabled|disabled]] [--no-allowlist]\n\
-         \x20            [--foreground=off|auto] [-V|--version] [-h|--help]\n\
+         \x20            [--foreground=off|auto]\n\
+         \x20            [--clear-circuit-domain DOMAIN|--clear-all-circuits]\n\
+         \x20            [-V|--version] [-h|--help]\n\
          \n\
          Default mode is dry-run. Use --apply only on Rush Linux or a test host.\n\
          The WP-N4 hardware allowlist gate is ENABLED by default (v0.6 Phase A3).\n\
@@ -146,6 +148,8 @@ pub(crate) fn print_usage() {
          --once, so the gate cannot remain disabled indefinitely.\n\
          --foreground=auto enables foreground-app detection (v0.6 stub — real\n\
          compositor integration lands in v0.7). Default is off.\n\
+         S5D circuit clear commands are one-shot, require effective UID 0, and\n\
+         never start the daemon control loop.\n\
          -V, --version prints version and exits."
     );
 }

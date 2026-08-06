@@ -23,6 +23,7 @@ mod allowlist;
 mod args;
 mod capability;
 mod capability_table;
+mod circuit_breaker;
 mod contracts;
 mod dbus;
 mod decision;
@@ -49,9 +50,13 @@ use capability_table::{
     topology_fingerprint, CapabilityKernel, CapabilityTable, TopologyDebouncer, TopologyDecision,
     EXIT_TOPOLOGY_REBUILD,
 };
+use circuit_breaker::{
+    circuit_runtime_failure_outcome, circuit_suppressed_outcome, extract_circuit_clear_request,
+    CircuitBreaker, CircuitClearRequest, CircuitPermit, CircuitScope,
+};
 use contracts::Contracts;
 use dbus::OptidServer;
-use envelope::{ActionOutcome, ControlCycleEnvelope, CycleIdGenerator};
+use envelope::{ActionOutcome, ControlCycleEnvelope, CycleIdGenerator, WriteOutcome};
 use io_util::{append_log, append_log_with, atomic_write_state_file_with};
 use kernel_io::{KernelIo, RealKernel};
 use load_state::{BootState, LoadState};
@@ -64,10 +69,24 @@ use workload::{
 };
 
 fn main() {
-    let args = match parse_from_env() {
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    let (clear_request, filtered_args) = match extract_circuit_clear_request(raw_args) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("optid: {error}");
+            print_usage();
+            std::process::exit(2);
+        }
+    };
+    let parsed = if clear_request.is_some() {
+        Args::parse(filtered_args)
+    } else {
+        parse_from_env()
+    };
+    let args = match parsed {
         Ok(args) => args,
-        Err(err) => {
-            eprintln!("optid: {err}");
+        Err(error) => {
+            eprintln!("optid: {error}");
             print_usage();
             std::process::exit(2);
         }
@@ -81,11 +100,18 @@ fn main() {
         print_version();
         return;
     }
+    if let Some(request) = clear_request {
+        if let Err(error) = clear_circuits(&args, request) {
+            eprintln!("optid: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     match run(args) {
         Ok(RunExit::Clean) => {}
         Ok(RunExit::TopologyRebuild) => std::process::exit(EXIT_TOPOLOGY_REBUILD),
-        Err(err) => {
-            eprintln!("optid: {err}");
+        Err(error) => {
+            eprintln!("optid: {error}");
             std::process::exit(1);
         }
     }
@@ -113,6 +139,40 @@ fn link_retired_restore_compatibility_surface() {
         io_util::revert_storage,
         io_util::revert_display,
     ];
+}
+
+fn clear_circuits(args: &Args, request: CircuitClearRequest) -> io::Result<()> {
+    if args.apply {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "circuit clearing cannot be combined with --apply",
+        ));
+    }
+    let policy = Policy::load(&args.config_path);
+    let path = CircuitBreaker::state_path_for(&args.state_dir);
+    let mut breaker = CircuitBreaker::load(
+        path,
+        policy.safety.circuit_failure_threshold,
+        policy.safety.circuit_cooldown_sec,
+    );
+    let effective_uid = unsafe { libc::geteuid() };
+    let removed = match request {
+        CircuitClearRequest::All => breaker.clear_all(effective_uid)?,
+        CircuitClearRequest::Domain(domain) => {
+            if !policy::Domain::all()
+                .iter()
+                .any(|known| known.as_str() == domain)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("unknown circuit domain: {domain}"),
+                ));
+            }
+            breaker.clear_domain(&domain, effective_uid)?
+        }
+    };
+    println!("optid: cleared {removed} S5D circuit record(s)");
+    Ok(())
 }
 
 fn run(args: Args) -> io::Result<RunExit> {
@@ -306,6 +366,24 @@ fn run(args: Args) -> io::Result<RunExit> {
         &format!("optid: F4 reconciler mode={:?}\n", reconciler.mode()),
     )?;
 
+    let circuit_state_path = CircuitBreaker::state_path_for(&args.state_dir);
+    let mut circuit_breaker = CircuitBreaker::load(
+        circuit_state_path,
+        policy_for_conflicts.safety.circuit_failure_threshold,
+        policy_for_conflicts.safety.circuit_cooldown_sec,
+    );
+    if let Some(warning) = circuit_breaker.startup_warning() {
+        let message = format!(
+            "optid: S5D fail-closed startup warning; all actuation observe-only: {warning}\n"
+        );
+        eprint!("{message}");
+        append_log(&args.state_dir.join("decisions.log"), &message)?;
+    }
+    append_log(
+        &args.state_dir.join("decisions.log"),
+        &format!("optid: S5D circuit state — {}\n", circuit_breaker.summary()),
+    )?;
+
     spawn_dbus_servers(
         args.state_dir.clone(),
         &policy_for_conflicts,
@@ -448,9 +526,51 @@ fn run(args: Args) -> io::Result<RunExit> {
             )?;
         }
 
-        let reconciled_actions: &[action::Action] =
-            if apply_armed { &decision.actions } else { &[] };
-        let stale_target_ids = reconciler.prepare_cycle(reconciled_actions, &mut actuator)?;
+        let mut circuit_plans = Vec::new();
+        let mut circuit_suppressed = Vec::new();
+        if apply_armed {
+            for action in &decision.actions {
+                let scope = CircuitScope::from_action(action, cycle_kernel.as_ref());
+                match circuit_breaker.decide(&scope, snapshot.timestamp) {
+                    Ok(circuit_decision)
+                        if matches!(
+                            circuit_decision.permit,
+                            CircuitPermit::Normal | CircuitPermit::Canary
+                        ) =>
+                    {
+                        circuit_plans.push((action.clone(), scope, circuit_decision.permit));
+                    }
+                    Ok(circuit_decision) => {
+                        circuit_suppressed
+                            .push(circuit_suppressed_outcome(action, &circuit_decision.detail));
+                    }
+                    Err(error) => {
+                        let detail = format!(
+                            "S5D circuit persistence failed; all actuation observe-only: {error}"
+                        );
+                        let _ = circuit_breaker.trip_global(detail.clone(), snapshot.timestamp);
+                        reconciler.mark_all_for_restore();
+                        circuit_suppressed.push(circuit_suppressed_outcome(action, &detail));
+                    }
+                }
+            }
+        }
+
+        let reconciled_actions: Vec<action::Action> = circuit_plans
+            .iter()
+            .map(|(action, _, _)| action.clone())
+            .collect();
+        let stale_target_ids = match reconciler.prepare_cycle(&reconciled_actions, &mut actuator) {
+            Ok(stale) => stale,
+            Err(error) => {
+                let detail = format!(
+                    "S5D unisolatable prepare-cycle failure; global circuit opened: {error}"
+                );
+                let _ = circuit_breaker.trip_global(detail, snapshot.timestamp);
+                reconciler.mark_all_for_restore();
+                return Err(error);
+            }
+        };
         if !stale_target_ids.is_empty() {
             append_log(
                 &args.state_dir.join("decisions.log"),
@@ -462,8 +582,7 @@ fn run(args: Args) -> io::Result<RunExit> {
             )?;
         }
 
-        let legacy_current_keys: BTreeSet<String> = decision
-            .actions
+        let legacy_current_keys: BTreeSet<String> = reconciled_actions
             .iter()
             .filter_map(|action| action.journal_key())
             .collect();
@@ -473,10 +592,70 @@ fn run(args: Args) -> io::Result<RunExit> {
             .collect();
 
         let mut action_outcomes: Vec<ActionOutcome> = Vec::new();
+        let mut opened_domains = BTreeSet::new();
         if apply_armed {
-            for action in &decision.actions {
-                action_outcomes.push(reconciler.apply_action(&mut actuator, action)?);
+            for (action, scope, permit) in circuit_plans {
+                if opened_domains.contains(&scope.domain) || circuit_breaker.is_global_open() {
+                    let detail = if circuit_breaker.is_global_open() {
+                        "S5D global circuit opened during this cycle"
+                    } else {
+                        "S5D domain circuit opened earlier in this cycle"
+                    };
+                    action_outcomes.push(circuit_suppressed_outcome(&action, detail));
+                    continue;
+                }
+
+                let (outcome, transition) = match reconciler.apply_action(&mut actuator, &action) {
+                    Ok(outcome) => {
+                        let transition = circuit_breaker.observe_outcome(
+                            &scope,
+                            permit,
+                            &outcome,
+                            snapshot.timestamp,
+                        );
+                        (outcome, transition)
+                    }
+                    Err(error) => {
+                        let outcome = circuit_runtime_failure_outcome(&action, &error);
+                        let transition = circuit_breaker.record_runtime_error(
+                            &scope,
+                            permit,
+                            &error,
+                            snapshot.timestamp,
+                        );
+                        (outcome, transition)
+                    }
+                };
+
+                match transition {
+                    Ok(transition) => {
+                        append_log(
+                            &args.state_dir.join("decisions.log"),
+                            &format!(
+                                "correlation_id={} circuit: {}\n",
+                                correlation_id, transition.detail
+                            ),
+                        )?;
+                        if transition.opened {
+                            opened_domains.insert(scope.domain.clone());
+                            reconciler.mark_domain_for_restore(&scope.domain);
+                        }
+                    }
+                    Err(error) => {
+                        let detail = format!(
+                            "S5D could not persist circuit transition; global circuit opened: {error}"
+                        );
+                        let _ = circuit_breaker.trip_global(detail.clone(), snapshot.timestamp);
+                        reconciler.mark_all_for_restore();
+                        append_log(
+                            &args.state_dir.join("decisions.log"),
+                            &format!("correlation_id={} circuit: {detail}\n", correlation_id),
+                        )?;
+                    }
+                }
+                action_outcomes.push(outcome);
             }
+            action_outcomes.extend(circuit_suppressed);
         } else {
             for action in &decision.actions {
                 action_outcomes.push(ActionOutcome::suppressed(
@@ -508,7 +687,72 @@ fn run(args: Args) -> io::Result<RunExit> {
         )?;
         legacy_active_keys = legacy_current_keys;
 
-        let restore_outcomes = reconciler.reconcile(&mut actuator)?;
+        let restore_outcomes = match reconciler.reconcile(&mut actuator) {
+            Ok(outcomes) => outcomes,
+            Err(error) => {
+                let detail = format!(
+                    "S5D unisolatable reconciliation failure; global circuit opened: {error}"
+                );
+                let _ = circuit_breaker.trip_global(detail, snapshot.timestamp);
+                return Err(error);
+            }
+        };
+        let mut restore_failure_observed = false;
+        for restore in &restore_outcomes {
+            if !matches!(
+                restore.write_outcome,
+                WriteOutcome::RestorationFailed { .. }
+            ) {
+                continue;
+            }
+            restore_failure_observed = true;
+            let Some(domain) = reconciler.domain_for_target(&restore.target_id) else {
+                let detail = format!(
+                    "S5D could not isolate restore failure for target {}; global circuit opened",
+                    restore.target_id
+                );
+                let _ = circuit_breaker.trip_global(detail, snapshot.timestamp);
+                reconciler.mark_all_for_restore();
+                continue;
+            };
+            let domain = domain.to_string();
+            let scope = CircuitScope::for_restore(
+                domain.clone(),
+                restore.target_id.clone(),
+                cycle_kernel.as_ref(),
+            );
+            match circuit_breaker.observe_restore_outcome(&scope, restore, snapshot.timestamp) {
+                Ok(transition) => {
+                    append_log(
+                        &args.state_dir.join("decisions.log"),
+                        &format!(
+                            "correlation_id={} circuit: {}
+",
+                            correlation_id, transition.detail
+                        ),
+                    )?;
+                    if transition.opened {
+                        reconciler.mark_domain_for_restore(&domain);
+                    }
+                }
+                Err(error) => {
+                    let detail = format!(
+                        "S5D could not persist restore failure; global circuit opened: {error}"
+                    );
+                    let _ = circuit_breaker.trip_global(detail, snapshot.timestamp);
+                    reconciler.mark_all_for_restore();
+                }
+            }
+        }
+        if !restore_failure_observed && !circuit_breaker.is_global_open() {
+            if let Err(error) = circuit_breaker.mark_recovery_success(snapshot.timestamp) {
+                let detail = format!(
+                    "S5D recovery-success persistence failed; global circuit opened: {error}"
+                );
+                let _ = circuit_breaker.trip_global(detail, snapshot.timestamp);
+                return Err(error);
+            }
+        }
         let cycle = ControlCycleEnvelope::build(
             correlation_id.clone(),
             &snapshot,
@@ -535,10 +779,12 @@ fn run(args: Args) -> io::Result<RunExit> {
                 .collect::<Vec<_>>()
                 .join(",")
         };
+        let circuit_status_json = circuit_breaker.public_json()?;
         let report = format!(
-            "correlation_id={}\nrestore_outcomes={}\n{}",
+            "correlation_id={}\nrestore_outcomes={}\ncircuit_state={}\n{}",
             correlation_id,
             restore_summary,
+            circuit_breaker.summary(),
             decision.render(&snapshot)
         );
 
@@ -551,6 +797,11 @@ fn run(args: Args) -> io::Result<RunExit> {
             cycle_kernel.as_ref(),
             &args.state_dir.join("status.json"),
             &status_json,
+        )?;
+        atomic_write_state_file_with(
+            cycle_kernel.as_ref(),
+            &args.state_dir.join("circuits.json"),
+            &circuit_status_json,
         )?;
         append_log_with(
             cycle_kernel.as_ref(),

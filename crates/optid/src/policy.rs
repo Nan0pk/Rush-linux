@@ -392,11 +392,33 @@ pub(crate) enum CapabilitySealingMode {
     Enforce,
 }
 
-#[derive(Debug, Clone, Default, serde::Deserialize)]
+fn default_circuit_failure_threshold() -> u32 {
+    crate::circuit_breaker::DEFAULT_FAILURE_THRESHOLD
+}
+
+fn default_circuit_cooldown_sec() -> u64 {
+    crate::circuit_breaker::DEFAULT_COOLDOWN_SECS
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SafetyConfig {
     #[serde(default)]
     pub(crate) capability_sealing: CapabilitySealingMode,
+    #[serde(default = "default_circuit_failure_threshold")]
+    pub(crate) circuit_failure_threshold: u32,
+    #[serde(default = "default_circuit_cooldown_sec")]
+    pub(crate) circuit_cooldown_sec: u64,
+}
+
+impl Default for SafetyConfig {
+    fn default() -> Self {
+        Self {
+            capability_sealing: CapabilitySealingMode::default(),
+            circuit_failure_threshold: default_circuit_failure_threshold(),
+            circuit_cooldown_sec: default_circuit_cooldown_sec(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
