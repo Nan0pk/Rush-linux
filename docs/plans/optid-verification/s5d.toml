@@ -1,0 +1,62 @@
+# Independent post-merge cold-verification receipt for S5D:
+# Add domain circuit breakers and controlled canary re-entry.
+#
+# Verification was read-only before this state transition. No S5D runtime
+# implementation, test, service, policy, action envelope, safety threshold,
+# or hardware authorization was repaired by the verifier.
+
+schema_version = 1
+package = "S5D"
+implementation_pr = 392
+verification_pr = 393
+verified_commit = "ec6f8a6d4003069889b54003ff1c25d4a9dd3a5d"
+implementation_head = "f1b38e3e4b1b1b8f2e48a65eeb84a31b600654c6"
+integrated_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
+source_base_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
+verifier = "Independent ChatGPT GitHub verifier job, separate from the PR #392 builder; Linux X64 ubuntu-24.04"
+result = "pass"
+verified_at = "2026-08-06T22:51:31Z"
+
+acceptance_workflow_run = 31129244214
+acceptance_workflow_attempt = 1
+acceptance_workflow_job = 92713937279
+acceptance_artifact_id = 8975454979
+acceptance_artifact_name = "s5d-post-merge-cold-verification-31129244214"
+acceptance_artifact_digest = "sha256:7789da57c07c5d813126a3104351887bb1cf727ac04d32f678162c0724cc8912"
+acceptance_artifact_size_bytes = 22890
+acceptance_artifact_expires = "2026-09-05T22:51:38Z"
+kernel_release = "6.17.0-1021-azure"
+landlock_abi = 7
+
+commands = [
+  "source-bound verifier tree to merged commit f3d785df064c9b2734509307bd1b33cf409ea9fb; only the temporary verifier workflow and receipt writer differed before proof",
+  "pre-transition current-work, package ledger, generated README, and whitespace validation -> passed",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check --workspace --all-targets --all-features -> passed",
+  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
+  "all thirteen mapped S5D acceptance tests were discovered uniquely and executed individually with --exact -> passed",
+  "cargo test -p optid --all-features -> passed",
+  "cargo test --workspace --all-features -> passed",
+  "packaged and mkosi apply/recovery units were byte-identical and passed systemd-analyze verify",
+  "root-authorized production clear-all CLI persisted private empty circuit state without starting the daemon loop; unprivileged clear was denied",
+  "live D0 capability-sealing probe on kernel 6.17.0-1021-azure, Landlock ABI 7 -> eight checks passed",
+  "supervised status-75 two-cycle cold rebuild and non-75 restart suppression -> passed",
+]
+
+runtime_proofs = [
+  "Repeated attributable failures open only the matching domain, operation, target, hardware, firmware, and failure-class scope while unrelated domains remain eligible to actuate.",
+  "Circuit state survives a fresh CircuitBreaker load; cooldown alone is insufficient, a successful observe-only recovery cycle is required, and only one persisted canary may enter the affected scope.",
+  "A successful canary closes the scope; a failed canary reopens immediately; backward clock movement cannot shorten cooldown; a firmware identity change creates an independent scope.",
+  "Restore failures are charged to the affected domain, while only unisolatable process-wide corruption opens the global observe-only circuit.",
+  "Machine-readable diagnostics include scoped domain, operation, stable target, hardware identity, firmware identity, failure class, state, cooldown, and recovery evidence.",
+  "The production one-shot clear path required effective UID 0, rejected unprivileged use, wrote private state, and created no daemon lock, status, decision, or control-cycle files.",
+  "The shipped recovery and supervisor graph remained valid, including exact status-75 cold rebuild and non-75 restart suppression.",
+]
+
+evidence_notes = [
+  "The hosted live proof uses synthetic filesystem state and the repository's D0 Landlock probe; it does not promote any physical HWID or expand hardware support.",
+  "Threshold and cooldown defaults remain the reviewed S5D implementation values; this verifier did not tune policy from hosted-runner observations.",
+  "S5D completion closes the accepted D2 safety sequence and advances C1, the next package in the plan's safe-mutation track. Dependencies still unlock only from completed state.",
+]
+
+unresolved = []
