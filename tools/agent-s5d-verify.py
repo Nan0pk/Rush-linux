@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -50,6 +51,7 @@ ledger_path = ROOT / "docs/plans/optid-package-status.toml"
 ledger_text = ledger_path.read_text(encoding="utf-8")
 ledger = tomllib.loads(ledger_text)
 packages = {item["id"]: item for item in ledger["package"]}
+receipt_paths: list[Path] = []
 
 for package_id in AFFECTED:
     package = packages[package_id]
@@ -59,6 +61,7 @@ for package_id in AFFECTED:
     if not receipt_rel:
         raise SystemExit(f"{package_id}: missing receipt path")
     receipt_path = ROOT / receipt_rel
+    receipt_paths.append(receipt_path)
     text = receipt_path.read_text(encoding="utf-8")
     prior = re.search(r'(?m)^verified_commit = "([0-9a-f]{40})"$', text)
     if not prior:
@@ -169,5 +172,33 @@ if ledger_text.count(old_block) != 1:
     raise SystemExit("expected one pristine S5D ledger block")
 ledger_text = ledger_text.replace(old_block, new_block, 1)
 ledger_path.write_text(ledger_text, encoding="utf-8")
+
+# The package validator compares the committed PR history to origin/main.
+# Commit only the generated ledger and receipts locally before running it;
+# the workflow retains the exact remote-head lease and removes verifier files
+# in the final publication commit.
+evidence_paths = [ledger_path, *receipt_paths]
+evidence_rel = [str(path.relative_to(ROOT)) for path in evidence_paths]
+subprocess.run(
+    ["git", "config", "user.name", "rush-s5d-independent-verifier"],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "git",
+        "config",
+        "user.email",
+        "rush-s5d-independent-verifier@users.noreply.github.com",
+    ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(["git", "add", "--", *evidence_rel], cwd=ROOT, check=True)
+subprocess.run(
+    ["git", "commit", "-m", "verify(optid): stage S5D candidate evidence"],
+    cwd=ROOT,
+    check=True,
+)
 
 print("refreshed affected receipts and recorded S5D candidate")
