@@ -164,11 +164,14 @@ def deploy_into_image(
     mount_parent = args.mount_parent.resolve() if args.mount_parent else image.parent
     mount_parent.mkdir(parents=True, exist_ok=True)
     mount_dir = Path(tempfile.mkdtemp(prefix=".rush-edition-mount-", dir=mount_parent))
+    mount_completed = False
     mounted = False
+    failure: Exception | None = None
     try:
         run_checked(
             [args.systemd_dissect, "--mount", str(image), str(mount_dir)]
         )
+        mount_completed = True
         mounted = True
         deploy = [
             sys.executable,
@@ -186,13 +189,33 @@ def deploy_into_image(
         if args.unsigned_development:
             deploy.append("--allow-unsigned-development")
         run_checked(deploy, cwd=REPO_ROOT)
-    finally:
-        if mounted:
-            try:
-                run_checked([args.systemd_dissect, "--umount", str(mount_dir)])
-            except ComposeError as exc:
-                raise ComposeError(f"failed to unmount composed image: {exc}") from exc
-        shutil.rmtree(mount_dir, ignore_errors=True)
+    except Exception as exc:
+        failure = exc
+
+    if mounted:
+        try:
+            run_checked([args.systemd_dissect, "--umount", str(mount_dir)])
+            mounted = False
+        except ComposeError as exc:
+            if failure is not None:
+                raise ComposeError(
+                    f"{failure}; additionally failed to unmount composed image: {exc}"
+                ) from failure
+            raise ComposeError(f"failed to unmount composed image: {exc}") from exc
+
+    try:
+        if mount_completed:
+            shutil.rmtree(mount_dir)
+        else:
+            mount_dir.rmdir()
+    except OSError as exc:
+        cleanup = ComposeError(f"failed to remove mount directory {mount_dir}: {exc}")
+        if failure is not None:
+            raise ComposeError(f"{failure}; additionally {cleanup}") from failure
+        raise cleanup from exc
+
+    if failure is not None:
+        raise failure
 
 
 def write_receipt(
