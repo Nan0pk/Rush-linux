@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Authenticated synchronize trigger for the source-bound verifier.
 """Publish the S5D post-merge verification receipt after read-only proof."""
 
 from __future__ import annotations
