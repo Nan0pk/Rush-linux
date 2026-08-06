@@ -169,6 +169,10 @@ jobs:
           test ! -e tools/s5d-staging
           test ! -e .github/workflows/agent-s5d-publisher.yml
 
+          git add -N \
+            crates/optid/src/circuit_breaker.rs \
+            docs/architecture/optid-s5d-circuit-breakers.md
+
           python3 - <<'PY'
           import os
           import subprocess
