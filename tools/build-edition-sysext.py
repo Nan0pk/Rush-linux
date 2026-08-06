@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-_IMPL_PATH = Path(__file__).with_name("edition_sysext_impl.py")
+_IMPL_PATH = Path(__file__).with_name("_edition_sysext_impl.py")
 _IMPL_NAME = f"{__name__.replace('-', '_')}_implementation"
 _SPEC = importlib.util.spec_from_file_location(_IMPL_NAME, _IMPL_PATH)
 if _SPEC is None or _SPEC.loader is None:
