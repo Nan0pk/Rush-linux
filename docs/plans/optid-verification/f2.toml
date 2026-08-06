@@ -56,8 +56,8 @@ implementation_pr = 365
 # returns 0 (the prior verified commit is an ancestor), confirming the F2
 # production surface added in PR #369 is still present and now exercised
 # through the F4-cutover main.rs.
-verified_commit = "f5544af0363f8f2f48715e9595dc426b8ae59799"
-verifier = "Independent ChatGPT GitHub verifier job for the S4D policy cleanup; Linux X64 ubuntu-24.04"
+verified_commit = "99204930d5677aa19cf64794852fd45034a4c9ee"
+verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 
 # Exact commands this verifier executed, with their observed outcomes.
@@ -206,4 +206,43 @@ s4d_cleanup_runtime_proofs = [
   "F2's binary-test override remained reachable through a typed compile-time reference without a dead-code suppression.",
   "D0's proof-only empty-ruleset and kernel-release helpers remained reachable through typed compile-time references without dead-code suppressions.",
   "No runtime behavior, package state, policy default, action envelope, service ordering, or S4D candidate claim changed during this recertification.",
+]
+
+# PR #392 S5D shared-surface candidate recertification.
+s5d_candidate_recertification_pr = 392
+s5d_candidate_source_head = "99204930d5677aa19cf64794852fd45034a4c9ee"
+s5d_candidate_prior_verified_commit = "f5544af0363f8f2f48715e9595dc426b8ae59799"
+s5d_candidate_verified_at = "2026-08-06T14:22:32Z"
+s5d_candidate_workflow_run = 31110326738
+s5d_candidate_workflow_attempt = 1
+s5d_candidate_workflow_job = 92646125177
+s5d_candidate_artifact_id = 8971444870
+s5d_candidate_artifact_name = "s5d-candidate-verification-31110326738"
+s5d_candidate_artifact_digest = "sha256:1223210d42f5c52bcec170f332901e2165412e91c6768192b121043d2a603732"
+s5d_candidate_artifact_size_bytes = 28127
+s5d_candidate_artifact_expires = "2026-09-05T14:22:39Z"
+s5d_candidate_kernel_release = "6.17.0-1020-azure"
+s5d_candidate_landlock_abi = 7
+
+s5d_candidate_commands = [
+  "source-bound fresh verifier to immutable S5D implementation commit 99204930d5677aa19cf64794852fd45034a4c9ee",
+  "validator-derived affected completed packages were exactly F1, F2, F3, F4, S2D, S3D, and S4D",
+  "every mapped acceptance test for all affected completed packages and S5D was uniquely discovered and executed with --exact -> passed",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check --workspace --all-targets --all-features -> passed",
+  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
+  "cargo test -p optid --all-features -> passed",
+  "cargo test --workspace --all-features -> passed",
+  "packaged and mkosi apply/recovery units were byte-identical and passed systemd-analyze verify",
+  "live capability-sealing eight-check probe, status-75 cold rebuild, recovery ordering, and non-75 restart suppression -> passed",
+]
+
+s5d_candidate_runtime_proofs = [
+  "S5D evaluates persisted circuit state before desired-state reconciliation and before actuator entry.",
+  "Repeated scoped failures persist quarantine across restart, remove only the failed domain from desired state, and preserve unrelated domain actuation.",
+  "Cooldown cannot authorize re-entry without a successful observe-only recovery cycle; one canary is persisted in-flight, confirmed readback closes it, and failure reopens immediately.",
+  "Restore failures are attributed to their reconciler domain and counted; unisolatable shared failures open the process-wide observe-only circuit.",
+  "Canonical MODALIAS or a privacy-safe platform HWID token and a separate firmware token scope the persistent record without promoting hardware.",
+  "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
+  "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
 ]

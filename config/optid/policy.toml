@@ -15,6 +15,11 @@ competing_policy_daemons = [
 # proof; startup must still pass the live table/seal self-tests.
 [safety]
 capability_sealing = "observe"
+# S5D mandatory circuit-breaker controls. Bounds are enforced in code:
+# failure threshold 2..10, cooldown 30..86400 seconds. Invalid values
+# fail closed to process-wide observe-only; there is no environment bypass.
+circuit_failure_threshold = 2
+circuit_cooldown_sec = 300
 
 # v0.6 Phase B1: PPD compatibility shim configuration.
 # The shim implements net.hadess.PowerProfiles on optid's D-Bus connection

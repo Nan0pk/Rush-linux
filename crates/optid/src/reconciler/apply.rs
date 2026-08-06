@@ -151,10 +151,26 @@ impl Reconciler {
         &mut self,
         actuator: &mut Actuator,
     ) -> io::Result<Vec<RestoreOutcome>> {
+        self.mark_all_for_restore();
+        self.reconcile(actuator)
+    }
+
+    pub(crate) fn mark_domain_for_restore(&mut self, domain: &str) {
+        for state in self.targets.values_mut() {
+            if state.domain == domain {
+                state.desired = None;
+            }
+        }
+    }
+
+    pub(crate) fn mark_all_for_restore(&mut self) {
         for state in self.targets.values_mut() {
             state.desired = None;
         }
-        self.reconcile(actuator)
+    }
+
+    pub(crate) fn domain_for_target(&self, target_id: &str) -> Option<&str> {
+        self.targets.get(target_id).map(|state| state.domain.as_str())
     }
 
     pub(crate) fn parity_report(&self, legacy_stale_keys: &BTreeSet<String>) -> ParityReport {

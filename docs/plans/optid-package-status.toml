@@ -402,10 +402,42 @@ handback_precedes_status_75 = "s4d_topology_rebuild_hands_back_before_status_75"
 id = "S5D"
 lane = "safety"
 title = "Add domain circuit breakers and controlled canary re-entry"
-status = "next"
+status = "candidate"
 depends = ["F3", "F4", "S4D"]
-pr = ""
-completion_evidence = []
+pr = "392"
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/circuit_breaker.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "crates/optid/src/args.rs",
+]
+integration_tests = [
+  "crates/optid/src/circuit_breaker.rs",
+  "crates/optid/src/args.rs",
+]
+completion_evidence = [
+  "config/optid/policy.toml",
+  "crates/optid/src/args.rs",
+  "crates/optid/src/circuit_breaker.rs",
+  "crates/optid/src/main.rs",
+  "crates/optid/src/policy.rs",
+  "crates/optid/src/reconciler/apply.rs",
+  "docs/architecture/optid-s5d-circuit-breakers.md",
+]
+[package.acceptance_tests]
+threshold_opens_persistent_scope = "s5d_repeated_failure_opens_persistent_scope"
+restart_preserves_open_scope = "s5d_restart_preserves_open_circuit"
+cooldown_requires_recovery = "s5d_cooldown_requires_recovery_before_one_canary"
+canary_success_closes = "s5d_canary_success_closes_circuit"
+canary_failure_reopens = "s5d_canary_failure_reopens_immediately"
+firmware_change_is_independent = "s5d_firmware_change_uses_independent_scope"
+manual_clear_is_root_only = "s5d_manual_clear_requires_root_authorization"
+backward_clock_is_safe = "s5d_backward_clock_jump_never_shortens_cooldown"
+multi_domain_isolation = "s5d_multi_domain_failure_isolation"
+restore_failure_is_scoped = "s5d_restore_failures_open_only_the_affected_domain"
+process_corruption_is_global = "s5d_unknown_process_corruption_forces_global_observe_only"
+production_diagnostic_identity = "s5d_production_gate_emits_scoped_diagnostic_and_firmware_identity"
+clear_cli_is_one_shot = "s5d_clear_commands_are_one_shot_and_mutually_exclusive"
 
 [[package]]
 id = "C1"
