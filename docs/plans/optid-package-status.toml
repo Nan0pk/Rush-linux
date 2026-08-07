@@ -3,16 +3,16 @@ updated = "2026-08-04"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Independent post-merge cold verification now covers F1-F4 and S1D-S4D.
-# PR #391 verified merged S4D sealed capabilities through all
-# mapped acceptance tests, full regression, live Landlock enforcement, and
-# supervisor-managed cold rebuild. S5D is now the active safety package.
+# Independent post-merge cold verification now covers F1-F4 and S1D-S5D.
+# PR #393 verified merged S5D scoped circuit breakers through all
+# mapped acceptance tests, full regression, persistent restart/canary proofs,
+# and live packaged recovery/supervisor checks. C1 is now the active safety-track follow-on.
 # No package self-certified.
 #
 # active_general remains T1 because its physical hardware proof and reviewed
 # threshold acceptance are still outstanding. R1-R3 remain independent.
 active_general = "T1"
-active_safety = "S5D"
+active_safety = "C1"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -402,9 +402,10 @@ handback_precedes_status_75 = "s4d_topology_rebuild_hands_back_before_status_75"
 id = "S5D"
 lane = "safety"
 title = "Add domain circuit breakers and controlled canary re-entry"
-status = "candidate"
+status = "completed"
 depends = ["F3", "F4", "S4D"]
 pr = "392"
+verification_receipt = "docs/plans/optid-verification/s5d.toml"
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/circuit_breaker.rs",
@@ -443,7 +444,7 @@ clear_cli_is_one_shot = "s5d_clear_commands_are_one_shot_and_mutually_exclusive"
 id = "C1"
 lane = "contracts"
 title = "Model contracts with measured latency and provenance"
-status = "planned"
+status = "next"
 depends = ["F1", "F3"]
 pr = ""
 completion_evidence = []
