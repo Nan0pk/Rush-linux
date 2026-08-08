@@ -168,8 +168,9 @@ def test_prepare_generates_real_sysext_workspace_and_protects_unmarked_dirs(tmp_
     plan, base = make_plan(tmp_path)
     workspace = tmp_path / "workspace"
     builder.prepare_workspace(plan=plan, workspace=workspace, base_tree=base, force=False)
+    image_dir = workspace / "mkosi.images/rush-linux-desktop"
     shared = (workspace / "mkosi.conf").read_text()
-    image = (workspace / "mkosi.images/rush-linux-desktop/mkosi.conf").read_text()
+    image = (image_dir / "mkosi.conf").read_text()
     release = (
         workspace
         / "tree/usr/lib/extension-release.d/extension-release.rush-linux-desktop"
@@ -179,7 +180,11 @@ def test_prepare_generates_real_sysext_workspace_and_protects_unmarked_dirs(tmp_
     assert "CacheDirectory=cache" not in shared.split("[Output]", 1)[1].split("[Build]", 1)[0]
     assert "[Distribution]" not in image
     assert "Distribution=arch" not in image
-    assert "Format=sysext" in image and "Overlay=yes" in image and "BaseTrees=base" in image
+    assert "Format=sysext" in image and "Overlay=yes" in image
+    assert "BaseTrees=../../base" in image
+    assert "ExtraTrees=../../tree" in image
+    assert (image_dir / "../../base").resolve() == base.resolve()
+    assert (image_dir / "../../tree").resolve() == (workspace / "tree").resolve()
     assert "ID=rush-linux" in release and "VERSION_ID=0.7.0" in release
     assert (workspace / "base").resolve() == base.resolve()
 
