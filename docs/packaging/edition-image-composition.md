@@ -34,12 +34,12 @@ The key and certificate are forwarded only to the sysext build. The final compos
 ```bash
 sudo tools/build-edition-image.sh \
   --edition realtime-audio \
-  --base-image build/rush-linux-server.raw \
+  --base-image build/rush-linux.raw \
   --key /secure/path/mkosi.key \
   --certificate /secure/path/mkosi.crt
 ```
 
-Without `--base-image`, the composer invokes `tools/build-mkosi-image.sh --edition server`. `--clean-base` requests a clean common-base rebuild. Supplying `--base-image` avoids rebuilding the base when composing several editions from the same version.
+Without `--base-image`, the composer invokes `tools/build-mkosi-image.sh --edition server`. That command builds the unprofiled common base from `mkosi/mkosi.conf`; product profiles are sysext payloads and are never applied as whole-image profiles. `--clean-base` requests a clean common-base rebuild. Supplying `--base-image` avoids rebuilding the base when composing several editions from the same version.
 
 ## Composition flow
 
