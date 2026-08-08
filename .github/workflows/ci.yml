@@ -96,7 +96,6 @@ jobs:
 
       - name: Set up Go for actionlint
         if: needs.classify.outputs.workflow == 'true'
-        # v7 uses the Node 24 action runtime supported by hosted runners.
         uses: actions/setup-go@v7
         with:
           go-version: stable
@@ -123,8 +122,6 @@ jobs:
         if: needs.classify.outputs.rust == 'true'
         uses: Swatinem/rust-cache@v2
 
-      # Each logical check is a distinct GitHub step. An agent can identify the
-      # root cause from the jobs API without opening or searching the full log.
       - name: "Repository integrity — checks.sh --section integrity"
         id: integrity
         if: always()
@@ -134,9 +131,6 @@ jobs:
         id: docs
         if: always()
         env:
-          # On pull_request events, honor the `docs-not-needed` PR label. On
-          # push-to-main, the PR has already passed this gate and label context
-          # is unavailable, so treat the push run as docs-not-needed.
           RUSH_DOCS_NOT_NEEDED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
         run: bash tools/checks.sh --ci --section docs --changed-base "${{ needs.classify.outputs.base }}"
 
@@ -296,31 +290,28 @@ jobs:
             echo "testos=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate and build in privileged Arch environment
-        env:
-          BASE: ${{ needs.classify.outputs.base }}
-          EDITION_CHANGED: ${{ steps.image_scope.outputs.edition }}
-          TESTOS_CHANGED: ${{ steps.image_scope.outputs.testos }}
+      - name: Build reusable Arch image environment
+        run: |
+          set -euo pipefail
+          cat > /tmp/rush-image-ci.Dockerfile <<'EOF'
+          FROM archlinux:latest
+          RUN pacman -Syu --noconfirm && pacman -S --noconfirm --needed \
+              archlinux-keyring base-devel rust mkosi git dbus pkgconf \
+              systemd systemd-ukify python python-pytest python-pefile \
+              dosfstools mtools zstd util-linux \
+              && pacman-key --init \
+              && pacman-key --populate archlinux
+          EOF
+          docker build -t rush-image-ci -f /tmp/rush-image-ci.Dockerfile /tmp
+
+      - name: Validate image contracts in Arch
         run: |
           set -euo pipefail
           docker run --rm --privileged \
-            -e BASE \
-            -e EDITION_CHANGED \
-            -e TESTOS_CHANGED \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            archlinux:latest \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
             bash -lc '
               set -euo pipefail
-              pacman -Syu --noconfirm
-              pacman -S --noconfirm --needed \
-                archlinux-keyring base-devel rust mkosi git dbus pkgconf \
-                systemd systemd-ukify python python-pytest python-pefile \
-                dosfstools mtools zstd util-linux
               git config --system --add safe.directory /workspace
-              pacman-key --init
-              pacman-key --populate archlinux
-
               bash -n tools/build-mkosi-image.sh
               bash -n tools/build-edition-image.sh
               bash -n tools/build-all-editions.sh
@@ -330,50 +321,70 @@ jobs:
                 tools/test-livedev-image.py \
                 tools/test-testos-boot-behavioral.py \
                 tools/test-testos-production-provenance.py
-
-              built=false
-              if [[ "$TESTOS_CHANGED" == true ]]; then
-                bash testos/build-testos.sh
-                built=true
-              fi
-
-              if [[ "$EDITION_CHANGED" == true ]]; then
-                # Build the bootable raw common base first. Then build the same
-                # common userspace as a directory BaseTrees lower layer, which
-                # is the upstream-supported sysext pattern and needs no loop
-                # device inside the mkosi sandbox.
-                bash tools/build-mkosi-image.sh --edition server
-                (
-                  cd mkosi
-                  mkosi build --force \
-                    --format=directory \
-                    --bootable=no \
-                    --output-directory=../build \
-                    --output=rush-linux-base-tree
-                )
-                test -d build/rush-linux-base-tree
-                python tools/build-edition-sysext.py build \
-                  --edition desktop \
-                  --workspace build/edition-desktop \
-                  --base-tree build/rush-linux-base-tree \
-                  --mkosi mkosi \
-                  --force \
-                  --unsigned-development
-                test -s build/rush-linux.raw
-                test -s build/edition-desktop/output/rush-linux-desktop.raw
-                test -s build/edition-desktop/output/rush-linux-desktop.build.json
-                built=true
-              fi
-
-              if [[ "$built" == false ]]; then
-                bash tools/build-mkosi-image.sh --edition livedev
-              fi
-
-              if ! find build -maxdepth 1 -type f -name "*.raw" -size +64M -print -quit | grep -q .; then
-                echo "No real product image was produced." >&2
-                exit 1
-              fi
             '
+
+      - name: Build testOS in Arch
+        if: steps.image_scope.outputs.testos == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash testos/build-testos.sh'
+
+      - name: Build bootable common base in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash tools/build-mkosi-image.sh --edition server'
+          test -s build/rush-linux.raw
+
+      - name: Build directory common base in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc '
+              set -euo pipefail
+              git config --system --add safe.directory /workspace
+              cd mkosi
+              mkosi build --force \
+                --format=directory \
+                --bootable=no \
+                --output-directory=../build \
+                --output=rush-linux-base-tree
+            '
+          test -d build/rush-linux-base-tree
+
+      - name: Build desktop sysext in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc '
+              set -euo pipefail
+              git config --system --add safe.directory /workspace
+              python tools/build-edition-sysext.py build \
+                --edition desktop \
+                --workspace build/edition-desktop \
+                --base-tree build/rush-linux-base-tree \
+                --mkosi mkosi \
+                --force \
+                --unsigned-development
+            '
+          test -s build/edition-desktop/output/rush-linux-desktop.raw
+          test -s build/edition-desktop/output/rush-linux-desktop.build.json
+
+      - name: Build fallback LiveDev image in Arch
+        if: steps.image_scope.outputs.edition != 'true' && steps.image_scope.outputs.testos != 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash tools/build-mkosi-image.sh --edition livedev'
 
       - name: Install host deployment and boot dependencies
         if: steps.image_scope.outputs.edition == 'true'
@@ -480,8 +491,6 @@ jobs:
           fi
           echo "All selected PR lanes passed."
 
-  # Temporary zero-work aliases for status names protected on main before this
-  # consolidated gate existed. They are compatibility aliases, not root causes.
   legacy-rust:
     name: Rust
     needs: gate
