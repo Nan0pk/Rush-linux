@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +26,10 @@ for _name in dir(_IMPL):
     if not _name.startswith("__"):
         globals()[_name] = getattr(_IMPL, _name)
 
-# Keep the dynamically exported exception visible to static analysis as well.
+# Keep dynamically exported types visible to static analysis as well.
 EditionError = _IMPL.EditionError
 
+_ORIGINAL_PREPARE_WORKSPACE = _IMPL.prepare_workspace
 _ORIGINAL_RUN_BUILD = _IMPL.run_build
 
 
@@ -65,6 +70,78 @@ CleanPackageMetadata=no
 Packages=
 {packages}
 """
+
+
+def _materialize_disk_base(image: Path, target: Path) -> None:
+    command = [
+        "systemd-dissect",
+        "--read-only",
+        "--copy-from",
+        str(image),
+        "/",
+        str(target),
+    ]
+    try:
+        result = subprocess.run(command, text=True, check=False)
+    except OSError as exc:
+        raise EditionError(f"cannot execute systemd-dissect: {exc}") from exc
+    if result.returncode != 0:
+        raise EditionError(
+            "cannot materialize common base image as a directory for mkosi BaseTrees; "
+            f"systemd-dissect exited with status {result.returncode}"
+        )
+
+
+def prepare_workspace(
+    *,
+    plan: dict[str, Any],
+    workspace: Path,
+    base_tree: Path,
+    force: bool,
+) -> None:
+    """Prepare a sysext workspace with a directory-form BaseTrees lower layer.
+
+    mkosi's supported sysext pattern uses a directory base with Overlay=yes.
+    A bootable raw Rush base is therefore copied out read-only before entering
+    mkosi's build sandbox. Directory callers remain zero-copy via the original
+    symlink path.
+    """
+    base_tree = base_tree.resolve()
+    if base_tree.is_dir():
+        _ORIGINAL_PREPARE_WORKSPACE(
+            plan=plan,
+            workspace=workspace,
+            base_tree=base_tree,
+            force=force,
+        )
+        return
+    if not base_tree.is_file():
+        raise EditionError(f"base tree/image does not exist: {base_tree}")
+
+    workspace = workspace.resolve()
+    workspace.parent.mkdir(parents=True, exist_ok=True)
+    materialized = Path(
+        tempfile.mkdtemp(prefix=f".{workspace.name}-base-", dir=workspace.parent)
+    )
+    try:
+        _materialize_disk_base(base_tree, materialized)
+        _ORIGINAL_PREPARE_WORKSPACE(
+            plan=plan,
+            workspace=workspace,
+            base_tree=materialized,
+            force=force,
+        )
+
+        base_link = workspace / "base"
+        if not base_link.is_symlink():
+            raise EditionError(
+                f"prepared workspace base is not the expected symlink: {base_link}"
+            )
+        base_link.unlink()
+        os.replace(materialized, base_link)
+    except Exception:
+        shutil.rmtree(materialized, ignore_errors=True)
+        raise
 
 
 def run_build(
@@ -119,9 +196,11 @@ def run_build(
 
 
 # The implementation functions resolve these names through their module globals.
-# Override both renderers so prepare/build use one mkosi-26-compatible contract.
+# Override the public surfaces so prepare/build share one mkosi-26-compatible
+# directory-base contract even when the caller supplies a bootable raw image.
 _IMPL.render_shared_config = render_shared_config
 _IMPL.render_image_config = render_image_config
+_IMPL.prepare_workspace = prepare_workspace
 _IMPL.run_build = run_build
 
 
