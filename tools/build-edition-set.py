@@ -116,16 +116,18 @@ def resolve_base_image(args: argparse.Namespace) -> tuple[Path, bool]:
         command.append("--clean")
     run_checked(command, cwd=REPO_ROOT)
 
+    # Prefer the canonical unprofiled common base. The legacy server-named
+    # artifact remains only as a compatibility fallback for older builders.
     candidates = (
-        args.build_dir.resolve() / "rush-linux-server.raw",
         args.build_dir.resolve() / "rush-linux.raw",
+        args.build_dir.resolve() / "rush-linux-server.raw",
     )
     for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve(), True
     raise SetBuildError(
-        "base builder completed without producing rush-linux-server.raw or "
-        "rush-linux.raw"
+        "base builder completed without producing rush-linux.raw or "
+        "rush-linux-server.raw"
     )
 
 
