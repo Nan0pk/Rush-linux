@@ -77,9 +77,12 @@ def resolve_base_image(args: argparse.Namespace) -> tuple[Path, bool]:
         command.append("--clean")
     run_checked(command, cwd=REPO_ROOT)
 
+    # The unprofiled common base is canonical. Keep the legacy server-named
+    # artifact as a compatibility fallback only, so a stale pre-sysext build
+    # cannot override the base that was just produced.
     candidates = (
-        args.build_dir.resolve() / "rush-linux-server.raw",
         args.build_dir.resolve() / "rush-linux.raw",
+        args.build_dir.resolve() / "rush-linux-server.raw",
     )
     for candidate in candidates:
         if candidate.is_file():
