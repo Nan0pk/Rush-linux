@@ -8,6 +8,7 @@ import json
 import stat
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -194,6 +195,41 @@ def test_prepare_generates_real_sysext_workspace_and_protects_unmarked_dirs(tmp_
     with pytest.raises(builder.EditionError, match="unmarked directory"):
         builder.prepare_workspace(plan=plan, workspace=unmarked, base_tree=base, force=True)
     assert (unmarked / "keep").read_text() == "yes"
+
+
+def test_raw_base_is_materialized_read_only_before_mkosi(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan, _ = make_plan(tmp_path)
+    base_image = tmp_path / "rush-linux.raw"
+    base_image.write_bytes(b"raw-image")
+    workspace = tmp_path / "workspace"
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], *, text: bool, check: bool) -> SimpleNamespace:
+        calls.append(command)
+        assert command[:3] == ["systemd-dissect", "--read-only", "--copy-from"]
+        assert Path(command[3]) == base_image
+        assert command[4] == "/"
+        target = Path(command[5])
+        (target / "etc").mkdir(parents=True)
+        (target / "etc/os-release").write_text("ID=rush-linux\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(builder.subprocess, "run", fake_run)
+    builder.prepare_workspace(
+        plan=plan,
+        workspace=workspace,
+        base_tree=base_image,
+        force=False,
+    )
+
+    assert len(calls) == 1
+    assert (workspace / "base").is_dir()
+    assert not (workspace / "base").is_symlink()
+    assert (workspace / "base/etc/os-release").read_text() == "ID=rush-linux\n"
+    image = (workspace / "mkosi.images/rush-linux-desktop/mkosi.conf").read_text()
+    assert "BaseTrees=../../base" in image
 
 
 def test_build_requires_signing_and_emits_receipts(tmp_path: Path) -> None:
