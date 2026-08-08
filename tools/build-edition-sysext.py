@@ -22,6 +22,9 @@ for _name in dir(_IMPL):
     if not _name.startswith("__"):
         globals()[_name] = getattr(_IMPL, _name)
 
+# Keep the dynamically exported exception visible to static analysis as well.
+EditionError = _IMPL.EditionError
+
 _ORIGINAL_RUN_BUILD = _IMPL.run_build
 
 
