@@ -59,8 +59,8 @@ ImageId={extension_id}
 Output={filename}
 
 [Content]
-BaseTrees=base
-ExtraTrees=tree
+BaseTrees=../../base
+ExtraTrees=../../tree
 CleanPackageMetadata=no
 Packages=
 {packages}
