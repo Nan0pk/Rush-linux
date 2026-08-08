@@ -67,7 +67,7 @@ jobs:
           classify powershell '^\.github/workflows/ci\.yml$|\.ps1$'
           classify windows '^\.github/workflows/ci\.yml$|\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
           classify workflow '^\.github/workflows/.*\.ya?ml$'
-          classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
+          classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/(build-mkosi-image\.sh|build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|packaging/|distro/|config/)'
           classify dependencies '^\.github/workflows/ci\.yml$|^Cargo\.(toml|lock)$'
 
   linux:
@@ -285,7 +285,7 @@ jobs:
           pacman -S --noconfirm --needed \
             archlinux-keyring base-devel rust mkosi git dbus pkgconf \
             systemd systemd-ukify python python-pytest python-pefile \
-            dosfstools mtools zstd util-linux
+            dosfstools mtools zstd util-linux qemu-system-x86 edk2-ovmf
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -300,6 +300,9 @@ jobs:
       - name: Validate image and boot contracts
         run: |
           bash -n tools/build-mkosi-image.sh
+          bash -n tools/build-edition-image.sh
+          bash -n tools/build-all-editions.sh
+          bash -n tools/validate-uefi-boot.sh
           bash -n testos/build-testos.sh
           python -m pytest -q \
             tools/test-livedev-image.py \
@@ -311,11 +314,27 @@ jobs:
         run: |
           set -euo pipefail
           git diff --name-only "$BASE"...HEAD > /tmp/rush-image-paths
+          built=false
+
           if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
             bash testos/build-testos.sh
-          else
+            built=true
+          fi
+
+          if grep -Eq '^(tools/(build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|mkosi/mkosi\.profiles/(desktop|laptop|realtime-audio|server)/|distro/editions/(desktop|laptop|realtime-audio|server)\.toml)' /tmp/rush-image-paths; then
+            bash tools/build-edition-image.sh --edition desktop --unsigned-development
+            test -s build/rush-linux-desktop.raw
+            test -s build/rush-linux-desktop.raw.compose.json
+            OVMF_FIRMWARE=/usr/share/edk2/x64/OVMF.4m.fd \
+              RUSH_BOOT_TIMEOUT=180 \
+              bash tools/validate-uefi-boot.sh build/rush-linux-desktop.raw
+            built=true
+          fi
+
+          if [[ "$built" == false ]]; then
             bash tools/build-mkosi-image.sh --edition livedev
           fi
+
           if ! find build -maxdepth 1 -type f -name '*.raw' -size +64M -print -quit | grep -q .; then
             echo "No real product image was produced." >&2
             exit 1
