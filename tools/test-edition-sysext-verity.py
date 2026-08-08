@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import configparser
 import importlib.util
 import json
 import sys
@@ -68,6 +69,13 @@ def prepared_workspace(tmp_path: Path) -> tuple[dict[str, object], Path]:
     return payload, workspace
 
 
+def parse_config(text: str) -> configparser.ConfigParser:
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    parser.optionxform = str
+    parser.read_string(text)
+    return parser
+
+
 def fake_successful_mkosi(
     expected_verity: str,
     *,
@@ -81,8 +89,11 @@ def fake_successful_mkosi(
         check: bool,
     ) -> SimpleNamespace:
         assert command == ["mkosi", "-f"]
-        config = (cwd / "mkosi.conf").read_text(encoding="utf-8")
-        assert f"Verity={expected_verity}" in config
+        config = parse_config((cwd / "mkosi.conf").read_text(encoding="utf-8"))
+        assert config.get("Validation", "Verity") == expected_verity
+        assert config.get("Distribution", "Distribution") == "arch"
+        assert config.get("Build", "CacheDirectory") == "cache"
+        assert not config.has_option("Output", "CacheDirectory")
         assert (cwd / "mkosi.key").is_symlink() is expect_credentials
         assert (cwd / "mkosi.crt").is_symlink() is expect_credentials
         output = cwd / "output"
@@ -97,8 +108,11 @@ def test_prepared_workspace_is_neutral_until_build_mode_is_selected(
     tmp_path: Path,
 ) -> None:
     _, workspace = prepared_workspace(tmp_path)
-    config = (workspace / "mkosi.conf").read_text(encoding="utf-8")
-    assert "Verity=auto" in config
+    config = parse_config((workspace / "mkosi.conf").read_text(encoding="utf-8"))
+    assert config.get("Validation", "Verity") == "auto"
+    assert config.get("Distribution", "Distribution") == "arch"
+    assert config.get("Build", "CacheDirectory") == "cache"
+    assert not config.has_option("Output", "CacheDirectory")
 
 
 def test_unsigned_development_explicitly_disables_verity(
