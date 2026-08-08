@@ -275,66 +275,165 @@ jobs:
     needs: classify
     if: needs.classify.outputs.image == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-      options: --privileged
     steps:
-      - name: Install image-build dependencies
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed \
-            archlinux-keyring base-devel rust mkosi git dbus pkgconf \
-            systemd systemd-ukify python python-pytest python-pefile \
-            dosfstools mtools zstd util-linux qemu-system-x86 edk2-ovmf
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Trust the container-mounted checkout
-        # The provenance tests intentionally replace HOME, so this trust entry
-        # must outlive per-user Git config inside the root-owned container.
-        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Initialize Arch package trust
-        run: |
-          pacman-key --init
-          pacman-key --populate archlinux
-      - name: Validate image and boot contracts
-        run: |
-          bash -n tools/build-mkosi-image.sh
-          bash -n tools/build-edition-image.sh
-          bash -n tools/build-all-editions.sh
-          bash -n tools/validate-uefi-boot.sh
-          bash -n testos/build-testos.sh
-          python -m pytest -q \
-            tools/test-livedev-image.py \
-            tools/test-testos-boot-behavioral.py \
-            tools/test-testos-production-provenance.py
-      - name: Build the affected product image
+
+      - name: Select product-image proof
+        id: image_scope
         env:
           BASE: ${{ needs.classify.outputs.base }}
         run: |
           set -euo pipefail
-          git diff --name-only "$BASE"...HEAD > /tmp/rush-image-paths
-          built=false
-
-          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
-            bash testos/build-testos.sh
-            built=true
-          fi
-
+          git diff --name-only "$BASE"...HEAD | tee /tmp/rush-image-paths
+          echo "edition=false" >> "$GITHUB_OUTPUT"
+          echo "testos=false" >> "$GITHUB_OUTPUT"
           if grep -Eq '^(tools/(build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|mkosi/mkosi\.profiles/(desktop|laptop|realtime-audio|server)/|distro/editions/(desktop|laptop|realtime-audio|server)\.toml)' /tmp/rush-image-paths; then
-            bash tools/build-edition-image.sh --edition desktop --unsigned-development
-            test -s build/rush-linux-desktop.raw
-            test -s build/rush-linux-desktop.raw.compose.json
-            OVMF_FIRMWARE=/usr/share/edk2/x64/OVMF.4m.fd \
-              RUSH_BOOT_TIMEOUT=180 \
-              bash tools/validate-uefi-boot.sh build/rush-linux-desktop.raw
-            built=true
+            echo "edition=true" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
+            echo "testos=true" >> "$GITHUB_OUTPUT"
           fi
 
-          if [[ "$built" == false ]]; then
-            bash tools/build-mkosi-image.sh --edition livedev
-          fi
+      - name: Validate and build in privileged Arch environment
+        env:
+          BASE: ${{ needs.classify.outputs.base }}
+          EDITION_CHANGED: ${{ steps.image_scope.outputs.edition }}
+          TESTOS_CHANGED: ${{ steps.image_scope.outputs.testos }}
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -e BASE \
+            -e EDITION_CHANGED \
+            -e TESTOS_CHANGED \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            archlinux:latest \
+            bash -lc '
+              set -euo pipefail
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm --needed \
+                archlinux-keyring base-devel rust mkosi git dbus pkgconf \
+                systemd systemd-ukify python python-pytest python-pefile \
+                dosfstools mtools zstd util-linux
+              git config --system --add safe.directory /workspace
+              pacman-key --init
+              pacman-key --populate archlinux
 
+              bash -n tools/build-mkosi-image.sh
+              bash -n tools/build-edition-image.sh
+              bash -n tools/build-all-editions.sh
+              bash -n tools/validate-uefi-boot.sh
+              bash -n testos/build-testos.sh
+              python -m pytest -q \
+                tools/test-livedev-image.py \
+                tools/test-testos-boot-behavioral.py \
+                tools/test-testos-production-provenance.py
+
+              built=false
+              if [[ "$TESTOS_CHANGED" == true ]]; then
+                bash testos/build-testos.sh
+                built=true
+              fi
+
+              if [[ "$EDITION_CHANGED" == true ]]; then
+                # Build the bootable raw common base first. Then build the same
+                # common userspace as a directory BaseTrees lower layer, which
+                # is the upstream-supported sysext pattern and needs no loop
+                # device inside the mkosi sandbox.
+                bash tools/build-mkosi-image.sh --edition server
+                (
+                  cd mkosi
+                  mkosi build --force \
+                    --format=directory \
+                    --bootable=no \
+                    --output-directory=../build \
+                    --output=rush-linux-base-tree
+                )
+                test -d build/rush-linux-base-tree
+                python tools/build-edition-sysext.py build \
+                  --edition desktop \
+                  --workspace build/edition-desktop \
+                  --base-tree build/rush-linux-base-tree \
+                  --mkosi mkosi \
+                  --force \
+                  --unsigned-development
+                test -s build/rush-linux.raw
+                test -s build/edition-desktop/output/rush-linux-desktop.raw
+                test -s build/edition-desktop/output/rush-linux-desktop.build.json
+                built=true
+              fi
+
+              if [[ "$built" == false ]]; then
+                bash tools/build-mkosi-image.sh --edition livedev
+              fi
+
+              if ! find build -maxdepth 1 -type f -name "*.raw" -size +64M -print -quit | grep -q .; then
+                echo "No real product image was produced." >&2
+                exit 1
+              fi
+            '
+
+      - name: Install host deployment and boot dependencies
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf dosfstools
+          if ! command -v systemd-dissect >/dev/null 2>&1; then
+            sudo apt-get install -y systemd-container
+          fi
+          command -v systemd-dissect
+          command -v qemu-system-x86_64
+
+      - name: Compose and boot-prove desktop edition on host
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="$GITHUB_WORKSPACE/build/rush-linux.raw"
+          FINAL_IMAGE="$GITHUB_WORKSPACE/build/rush-linux-desktop.raw"
+          PLAN="$GITHUB_WORKSPACE/build/edition-desktop/edition-plan.json"
+          RECEIPT="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.build.json"
+          EXTENSION="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.raw"
+
+          test -s "$BASE_IMAGE"
+          test -s "$PLAN"
+          test -s "$RECEIPT"
+          test -s "$EXTENSION"
+
+          sudo cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE"
+          MOUNT_DIR="$(mktemp -d)"
+          MOUNTED=false
+          cleanup() {
+            if [[ "$MOUNTED" == true ]]; then
+              sudo systemd-dissect --umount "$MOUNT_DIR" || true
+            fi
+            sudo rmdir "$MOUNT_DIR" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          sudo systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR"
+          MOUNTED=true
+          sudo env PYTHONDONTWRITEBYTECODE=1 python3 tools/deploy-edition-sysext.py install \
+            --plan "$PLAN" \
+            --receipt "$RECEIPT" \
+            --artifact "$EXTENSION" \
+            --root "$MOUNT_DIR" \
+            --allow-unsigned-development
+          sudo test -s "$MOUNT_DIR/var/lib/extensions/rush-linux-desktop.raw"
+          sudo test -s "$MOUNT_DIR/var/lib/rush-linux/editions/rush-linux-desktop.json"
+          sudo test -L "$MOUNT_DIR/etc/systemd/system/sysinit.target.wants/systemd-sysext.service"
+          sudo systemd-dissect --umount "$MOUNT_DIR"
+          MOUNTED=false
+          rmdir "$MOUNT_DIR"
+          trap - EXIT
+
+          test -s "$FINAL_IMAGE"
+          RUSH_BOOT_TIMEOUT=180 bash tools/validate-uefi-boot.sh "$FINAL_IMAGE"
+
+      - name: Confirm a real product image exists
+        run: |
           if ! find build -maxdepth 1 -type f -name '*.raw' -size +64M -print -quit | grep -q .; then
             echo "No real product image was produced." >&2
             exit 1
