@@ -7,7 +7,6 @@ import argparse
 import configparser
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -31,6 +30,7 @@ ALLOWED_TOP_LEVEL = {"edition", "defaults", "packages"}
 ALLOWED_EDITION_KEYS = {"name", "description"}
 ALLOWED_PACKAGE_KEYS = {"required"}
 SCALAR_TYPES = (str, int, bool, float)
+OPERATIONAL_EDITIONS = {"livedev", "testos"}
 
 
 class EditionError(RuntimeError):
@@ -533,15 +533,18 @@ def run_build(
 def edition_names(manifest_dir: Path, profile_dir: Path) -> list[str]:
     names: list[str] = []
     for path in sorted(manifest_dir.glob("*.toml")):
+        if path.stem in OPERATIONAL_EDITIONS:
+            continue
         manifest = load_manifest(path)
         load_profile(manifest.name, profile_dir)
         names.append(manifest.name)
     if not names:
-        raise EditionError(f"no edition manifests found in {manifest_dir}")
+        raise EditionError(f"no product edition manifests found in {manifest_dir}")
 
-    # Operational profiles such as livedev and testos are intentionally not
-    # product editions and therefore do not require distro/editions manifests.
+    # Operational profiles such as livedev and testos intentionally use a
+    # different manifest contract and are excluded before product validation.
     return names
+
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--edition", required=True)
