@@ -84,6 +84,7 @@ if [ "${QEMU_STATUS}" -ne 0 ] && [ "${QEMU_STATUS}" -ne 124 ]; then
     exit "${QEMU_STATUS}"
 fi
 
+PROOF_FAILURES=0
 require_log() {
     local pattern="$1"
     local description="$2"
@@ -92,15 +93,22 @@ require_log() {
     else
         echo "::error title=UEFI boot proof missing::${description}"
         echo "  ❌ Missing: ${description}" >&2
-        exit 1
+        PROOF_FAILURES=$((PROOF_FAILURES + 1))
     fi
 }
 
-require_log "BdsDxe: starting" "OVMF started the fallback UEFI boot path"
+# Do not depend on firmware debug strings such as "BdsDxe: starting"; those are
+# OVMF-build-specific. Reaching the systemd-boot entry through the OVMF firmware
+# supplied above is the stable UEFI proof boundary.
 require_log "Rush Linux" "systemd-boot displayed the Rush Linux entry"
 require_log "Booting initrd|EFI stub: Loaded initrd" "UKI loaded its embedded initrd"
 require_log "[Cc]ommand [Ll]ine|Generate Network Units from Kernel Command Line" "UKI command line selected the VM root partition"
 require_log "Reached target .*multi-user\.target|Reached target .*Multi-User System" "systemd reached multi-user.target"
 require_log "Started .*optid\.service|Started .*Rush Linux optimization daemon" "optid.service started"
+
+if (( PROOF_FAILURES != 0 )); then
+    echo "Error: ${PROOF_FAILURES} UEFI boot proof(s) missing; see ${LOG}" >&2
+    exit 1
+fi
 
 echo "✅ UEFI UKI boot validation passed"
