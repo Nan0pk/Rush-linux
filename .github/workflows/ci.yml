@@ -440,7 +440,7 @@ jobs:
           fi
           MOUNTED=true
 
-          ARTIFACT_BYTES="$(stat -c %s "$EXTENSION")"
+          ARTIFACT_BYTES="$(stat -Lc %s "$EXTENSION")"
           AVAILABLE_BYTES="$(df -B1 --output=avail "$MOUNT_DIR" | tail -n 1 | tr -d "[:space:]")"
           echo "::notice title=Desktop compose capacity::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES"
           if (( AVAILABLE_BYTES < ARTIFACT_BYTES + 67108864 )); then
