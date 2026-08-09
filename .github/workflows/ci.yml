@@ -416,11 +416,12 @@ jobs:
           test -s "$RECEIPT"
           test -s "$EXTENSION"
 
-          if ! COPY_ERROR="$(cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE" 2>&1)"; then
+          if ! COPY_ERROR="$(sudo cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE" 2>&1)"; then
             COPY_ERROR="$(printf "%s" "$COPY_ERROR" | tr "\n" " " | tail -c 1200)"
             echo "::error title=Desktop compose copy failed::$COPY_ERROR"
             exit 70
           fi
+          sudo chown "$(id -u):$(id -g)" "$FINAL_IMAGE"
 
           MOUNT_DIR="$(mktemp -d)"
           MOUNTED=false
