@@ -522,3 +522,12 @@ jobs:
     steps:
       - name: Compatibility alias only — inspect PR Gate and its failed named lane
         run: test "${{ needs.gate.result }}" = success
+
+  legacy-evidence:
+    name: Evidence integrity (Dragnet)
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compatibility alias only — inspect PR Gate and its failed named lane
+        run: test "${{ needs.gate.result }}" = success
