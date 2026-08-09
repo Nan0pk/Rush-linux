@@ -52,6 +52,7 @@ echo "  disk:     ${DISK}"
 echo "  firmware: ${FIRMWARE}"
 echo "  timeout:  ${TIMEOUT_SEC}s"
 echo "  log:      ${LOG}"
+echo "::notice title=UEFI boot firmware::firmware=${FIRMWARE} disk_bytes=$(stat -Lc %s "${DISK}")"
 
 QEMU_ACCEL_ARGS=()
 if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
@@ -107,6 +108,12 @@ require_log "Reached target .*multi-user\.target|Reached target .*Multi-User Sys
 require_log "Started .*optid\.service|Started .*Rush Linux optimization daemon" "optid.service started"
 
 if (( PROOF_FAILURES != 0 )); then
+    LOG_BYTES="$(stat -Lc %s "${LOG}")"
+    LOG_TAIL="$(LC_ALL=C tail -c 2400 "${LOG}" | tr '\r\n' '  ' | tr -cd '[:print:] ' | sed 's/%/%25/g')"
+    if [ -z "${LOG_TAIL}" ]; then
+        LOG_TAIL="<empty>"
+    fi
+    echo "::error title=UEFI boot serial evidence::log_bytes=${LOG_BYTES} qemu_status=${QEMU_STATUS} tail=${LOG_TAIL}"
     echo "Error: ${PROOF_FAILURES} UEFI boot proof(s) missing; see ${LOG}" >&2
     exit 1
 fi
