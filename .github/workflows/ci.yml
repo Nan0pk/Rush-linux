@@ -386,92 +386,86 @@ jobs:
             -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
             bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash tools/build-mkosi-image.sh --edition livedev'
 
-      - name: Install host boot dependencies
+      - name: Install host image and boot dependencies
         if: steps.image_scope.outputs.edition == 'true'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 ovmf dosfstools
+          if ! command -v systemd-dissect >/dev/null 2>&1; then
+            sudo apt-get install -y systemd-container
+          fi
           sudo modprobe loop
           test -c /dev/loop-control
+          losetup -f >/dev/null
+          command -v systemd-dissect
           command -v qemu-system-x86_64
 
-      - name: Compose desktop edition in Arch and boot-prove on host
+      - name: Compose desktop edition and boot-prove on host
         if: steps.image_scope.outputs.edition == 'true'
         run: |
           set -euo pipefail
-          docker run --rm --privileged \
-            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
-            bash -lc '
-              set -euo pipefail
-              git config --system --add safe.directory /workspace
-              command -v systemd-dissect
-              test -c /dev/loop-control
-              losetup -f >/dev/null
-
-              BASE_IMAGE=/workspace/build/rush-linux.raw
-              FINAL_IMAGE=/workspace/build/rush-linux-desktop.raw
-              PLAN=/workspace/build/edition-desktop/edition-plan.json
-              RECEIPT=/workspace/build/edition-desktop/output/rush-linux-desktop.build.json
-              EXTENSION=/workspace/build/edition-desktop/output/rush-linux-desktop.raw
-
-              test -s "$BASE_IMAGE"
-              test -s "$PLAN"
-              test -s "$RECEIPT"
-              test -s "$EXTENSION"
-
-              if ! COPY_ERROR="$(cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE" 2>&1)"; then
-                COPY_ERROR="$(printf "%s" "$COPY_ERROR" | tr "\n" " " | tail -c 1200)"
-                echo "::error title=Desktop compose copy failed::$COPY_ERROR"
-                exit 70
-              fi
-
-              MOUNT_DIR="$(mktemp -d /tmp/rush-edition-mount.XXXXXX)"
-              MOUNTED=false
-              cleanup() {
-                if [[ "$MOUNTED" == true ]]; then
-                  systemd-dissect --umount "$MOUNT_DIR" || true
-                fi
-                rmdir "$MOUNT_DIR" 2>/dev/null || true
-              }
-              trap cleanup EXIT
-
-              if ! MOUNT_ERROR="$(systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR" 2>&1)"; then
-                MOUNT_ERROR="$(printf "%s" "$MOUNT_ERROR" | tr "\n" " " | tail -c 1200)"
-                echo "::error title=Desktop compose mount failed::$MOUNT_ERROR"
-                exit 71
-              fi
-              MOUNTED=true
-
-              ARTIFACT_BYTES="$(stat -c %s "$EXTENSION")"
-              AVAILABLE_BYTES="$(df -B1 --output=avail "$MOUNT_DIR" | tail -n 1 | tr -d "[:space:]")"
-              echo "::notice title=Desktop compose capacity::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES"
-              if (( AVAILABLE_BYTES < ARTIFACT_BYTES + 67108864 )); then
-                echo "::error title=Desktop compose capacity failed::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES reserve_bytes=67108864"
-                exit 72
-              fi
-
-              if ! DEPLOY_ERROR="$(env PYTHONDONTWRITEBYTECODE=1 python tools/deploy-edition-sysext.py install \
-                --plan "$PLAN" \
-                --receipt "$RECEIPT" \
-                --artifact "$EXTENSION" \
-                --root "$MOUNT_DIR" \
-                --allow-unsigned-development 2>&1)"; then
-                DEPLOY_ERROR="$(printf "%s" "$DEPLOY_ERROR" | tr "\n" " " | tail -c 1200)"
-                echo "::error title=Desktop sysext deploy failed::$DEPLOY_ERROR"
-                exit 73
-              fi
-
-              test -s "$MOUNT_DIR/var/lib/extensions/rush-linux-desktop.raw"
-              test -s "$MOUNT_DIR/var/lib/rush-linux/editions/rush-linux-desktop.json"
-              test -L "$MOUNT_DIR/etc/systemd/system/sysinit.target.wants/systemd-sysext.service"
-              systemd-dissect --umount "$MOUNT_DIR"
-              MOUNTED=false
-              rmdir "$MOUNT_DIR"
-              trap - EXIT
-            '
-
+          BASE_IMAGE="$GITHUB_WORKSPACE/build/rush-linux.raw"
           FINAL_IMAGE="$GITHUB_WORKSPACE/build/rush-linux-desktop.raw"
+          PLAN="$GITHUB_WORKSPACE/build/edition-desktop/edition-plan.json"
+          RECEIPT="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.build.json"
+          EXTENSION="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.raw"
+
+          test -s "$BASE_IMAGE"
+          test -s "$PLAN"
+          test -s "$RECEIPT"
+          test -s "$EXTENSION"
+
+          if ! COPY_ERROR="$(cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE" 2>&1)"; then
+            COPY_ERROR="$(printf "%s" "$COPY_ERROR" | tr "\n" " " | tail -c 1200)"
+            echo "::error title=Desktop compose copy failed::$COPY_ERROR"
+            exit 70
+          fi
+
+          MOUNT_DIR="$(mktemp -d)"
+          MOUNTED=false
+          cleanup() {
+            if [[ "$MOUNTED" == true ]]; then
+              sudo systemd-dissect --umount "$MOUNT_DIR" || true
+            fi
+            rmdir "$MOUNT_DIR" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          if ! MOUNT_ERROR="$(sudo env SYSTEMD_LOG_LEVEL=debug systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR" 2>&1)"; then
+            MOUNT_ERROR="$(printf "%s" "$MOUNT_ERROR" | tr "\n" " " | tail -c 2400)"
+            echo "::error title=Desktop compose mount failed::$MOUNT_ERROR"
+            exit 71
+          fi
+          MOUNTED=true
+
+          ARTIFACT_BYTES="$(stat -c %s "$EXTENSION")"
+          AVAILABLE_BYTES="$(df -B1 --output=avail "$MOUNT_DIR" | tail -n 1 | tr -d "[:space:]")"
+          echo "::notice title=Desktop compose capacity::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES"
+          if (( AVAILABLE_BYTES < ARTIFACT_BYTES + 67108864 )); then
+            echo "::error title=Desktop compose capacity failed::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES reserve_bytes=67108864"
+            exit 72
+          fi
+
+          if ! DEPLOY_ERROR="$(sudo env PYTHONDONTWRITEBYTECODE=1 python3 tools/deploy-edition-sysext.py install \
+            --plan "$PLAN" \
+            --receipt "$RECEIPT" \
+            --artifact "$EXTENSION" \
+            --root "$MOUNT_DIR" \
+            --allow-unsigned-development 2>&1)"; then
+            DEPLOY_ERROR="$(printf "%s" "$DEPLOY_ERROR" | tr "\n" " " | tail -c 1200)"
+            echo "::error title=Desktop sysext deploy failed::$DEPLOY_ERROR"
+            exit 73
+          fi
+
+          sudo test -s "$MOUNT_DIR/var/lib/extensions/rush-linux-desktop.raw"
+          sudo test -s "$MOUNT_DIR/var/lib/rush-linux/editions/rush-linux-desktop.json"
+          sudo test -L "$MOUNT_DIR/etc/systemd/system/sysinit.target.wants/systemd-sysext.service"
+          sudo systemd-dissect --umount "$MOUNT_DIR"
+          MOUNTED=false
+          rmdir "$MOUNT_DIR"
+          trap - EXIT
+
           test -s "$FINAL_IMAGE"
           RUSH_BOOT_TIMEOUT=180 bash tools/validate-uefi-boot.sh "$FINAL_IMAGE"
 
