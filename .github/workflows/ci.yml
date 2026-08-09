@@ -392,6 +392,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 ovmf dosfstools
+          sudo modprobe loop
+          test -c /dev/loop-control
           command -v qemu-system-x86_64
 
       - name: Compose desktop edition in Arch and boot-prove on host
@@ -404,6 +406,8 @@ jobs:
               set -euo pipefail
               git config --system --add safe.directory /workspace
               command -v systemd-dissect
+              test -c /dev/loop-control
+              losetup -f >/dev/null
 
               BASE_IMAGE=/workspace/build/rush-linux.raw
               FINAL_IMAGE=/workspace/build/rush-linux-desktop.raw
