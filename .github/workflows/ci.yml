@@ -298,7 +298,7 @@ jobs:
           RUN pacman -Syu --noconfirm && pacman -S --noconfirm --needed \
               archlinux-keyring base-devel rust mkosi git dbus pkgconf \
               systemd systemd-ukify python python-pytest python-pefile \
-              dosfstools mtools zstd util-linux \
+              dosfstools erofs-utils mtools zstd util-linux \
               && pacman-key --init \
               && pacman-key --populate archlinux
           EOF
