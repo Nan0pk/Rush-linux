@@ -18,7 +18,6 @@ LOG="${ROOT}/build/uefi-boot.log"
 
 if [ ! -f "${DISK}" ]; then
     echo "Error: disk image not found: ${DISK}" >&2
-    echo "Build it first with: sudo bash tools/build-vm-final.sh" >&2
     exit 1
 fi
 
@@ -87,6 +86,7 @@ dd if="${TEMP_ESP}" of="${DISK}" bs=512 seek=2048 count=2097152 conv=notrunc 2>/
 rm -f "${TEMP_ESP}"
 
 if [ "${QEMU_STATUS}" -ne 0 ] && [ "${QEMU_STATUS}" -ne 124 ]; then
+    echo "::error title=UEFI boot QEMU failed::QEMU exited unexpectedly with status ${QEMU_STATUS}"
     echo "Error: QEMU exited unexpectedly with status ${QEMU_STATUS}" >&2
     exit "${QEMU_STATUS}"
 fi
@@ -97,6 +97,7 @@ require_log() {
     if grep -aEq "${pattern}" "${LOG}"; then
         echo "  ✅ ${description}"
     else
+        echo "::error title=UEFI boot proof missing::${description}"
         echo "  ❌ Missing: ${description}" >&2
         exit 1
     fi
