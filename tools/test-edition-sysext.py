@@ -258,10 +258,14 @@ def test_build_requires_signing_and_emits_receipts(tmp_path: Path) -> None:
         unsigned_development=True,
     )
     receipt = json.loads((workspace / "output/rush-linux-desktop.build.json").read_text())
+    shared = (workspace / "mkosi.conf").read_text()
+    mkosi_workspace = (workspace / ".mkosi-workspace").resolve()
     assert artifact.read_bytes() == b"fake-sysext\n"
     assert receipt["signed"] is False
     assert len(receipt["artifact"]["sha256"]) == 64
     assert (workspace / "output/rush-linux-desktop.raw.sha256").is_file()
+    assert f"WorkspaceDirectory={mkosi_workspace}" in shared
+    assert mkosi_workspace.is_dir()
 
 
 def test_signed_build_cleans_temporary_credentials(tmp_path: Path) -> None:
