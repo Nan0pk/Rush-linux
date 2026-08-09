@@ -77,10 +77,20 @@ timeout "${TIMEOUT_SEC}s" \
         -no-reboot \
     </dev/null 2>&1 | tee "${LOG}"
 QEMU_STATUS=${PIPESTATUS[0]}
+
+# Capture diagnostics while errexit is disabled so a diagnostic failure can
+# never hide the original boot failure. Base64 keeps GitHub workflow-command
+# framing safe even when firmware emits control characters or punctuation.
+LOG_BYTES="$(stat -Lc %s "${LOG}" 2>/dev/null)"
+[ -n "${LOG_BYTES}" ] || LOG_BYTES=0
+LOG_TAIL_B64="$(tail -c 1800 "${LOG}" 2>/dev/null | base64 | tr -d '\r\n')"
+[ -n "${LOG_TAIL_B64}" ] || LOG_TAIL_B64="PGVtcHR5Pg=="
 set -e
 
+echo "::notice title=UEFI QEMU result::qemu_status=${QEMU_STATUS} log_bytes=${LOG_BYTES}"
+
 if [ "${QEMU_STATUS}" -ne 0 ] && [ "${QEMU_STATUS}" -ne 124 ]; then
-    echo "::error title=UEFI boot QEMU failed::QEMU exited unexpectedly with status ${QEMU_STATUS}"
+    echo "::error title=UEFI boot QEMU failed::status=${QEMU_STATUS} log_bytes=${LOG_BYTES} tail_b64=${LOG_TAIL_B64}"
     echo "Error: QEMU exited unexpectedly with status ${QEMU_STATUS}" >&2
     exit "${QEMU_STATUS}"
 fi
@@ -108,12 +118,7 @@ require_log "Reached target .*multi-user\.target|Reached target .*Multi-User Sys
 require_log "Started .*optid\.service|Started .*Rush Linux optimization daemon" "optid.service started"
 
 if (( PROOF_FAILURES != 0 )); then
-    LOG_BYTES="$(stat -Lc %s "${LOG}")"
-    LOG_TAIL="$(LC_ALL=C tail -c 2400 "${LOG}" | tr '\r\n' '  ' | tr -cd '[:print:] ' | sed 's/%/%25/g')"
-    if [ -z "${LOG_TAIL}" ]; then
-        LOG_TAIL="<empty>"
-    fi
-    echo "::error title=UEFI boot serial evidence::log_bytes=${LOG_BYTES} qemu_status=${QEMU_STATUS} tail=${LOG_TAIL}"
+    echo "::error title=UEFI boot serial evidence::log_bytes=${LOG_BYTES} qemu_status=${QEMU_STATUS} tail_b64=${LOG_TAIL_B64}"
     echo "Error: ${PROOF_FAILURES} UEFI boot proof(s) missing; see ${LOG}" >&2
     exit 1
 fi
