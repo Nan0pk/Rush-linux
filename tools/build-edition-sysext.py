@@ -172,8 +172,14 @@ def run_build(
             "use --unsigned-development only for local non-release builds"
         )
 
+    workspace = workspace.resolve()
     verity_mode = "signed" if key is not None else "no"
-    mkosi_workspace = (workspace / ".mkosi-workspace").resolve()
+    # mkosi forbids WorkspaceDirectory= beneath any source directory. Keep the
+    # overlay workspace as a sibling of the generated source tree so CI still
+    # uses the host-backed checkout filesystem instead of Docker /var/tmp.
+    mkosi_workspace = (
+        workspace.parent / f".{workspace.name}-mkosi-workspace"
+    ).resolve()
     mkosi_workspace.mkdir(parents=True, exist_ok=True)
     (workspace / "mkosi.conf").write_text(
         render_shared_config(
