@@ -339,7 +339,9 @@ if $FULL_SYSTEM_PROOF; then
     test "$(systemctl show optid-capability-seal-test.service -p Result --value)" = exit-code
     test "$(systemctl show optid-capability-seal-test.service -p ExecMainStatus --value)" = 1
     test "$(systemctl show optid-capability-seal-test.service -p NRestarts --value)" = 0
-    ! grep -qF 'Scheduled restart job' "$OUTPUT_DIR/non75.log"
+    if grep -qF 'Scheduled restart job' "$OUTPUT_DIR/non75.log"; then
+        fail "non-75 service failure unexpectedly scheduled a restart"
+    fi
     echo "systemctl_start_status=$start_status"
     echo "live_landlock_and_supervisor_proof=pass"
 fi
@@ -380,10 +382,12 @@ payload = {
 (out / "environment.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 PY
 
+MANIFEST_TMP="$(mktemp "${TMPDIR:-/tmp}/rush-s5d-shadow-manifest.XXXXXX")"
 (
     cd "$OUTPUT_DIR"
-    find . -maxdepth 1 -type f ! -name manifest.sha256 -printf '%P\0' | sort -z | xargs -0 sha256sum > manifest.sha256
-)
+    find . -maxdepth 1 -type f ! -name manifest.sha256 -printf '%P\0' | sort -z | xargs -0 sha256sum
+) > "$MANIFEST_TMP"
+mv "$MANIFEST_TMP" "$OUTPUT_DIR/manifest.sha256"
 
 echo "shadow_evidence_manifest=$OUTPUT_DIR/manifest.sha256"
 echo "result=pass"
