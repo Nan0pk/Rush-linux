@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# tools/build-mkosi-image.sh — Build the bootable Arch-based Rush Linux image using mkosi.
+# tools/build-mkosi-image.sh — Build the bootable Arch-based Rush Linux base/operational image using mkosi.
 #
-# This is the primary build entry point for v0.5+. It compiles Rust binaries,
-# stages the overlay, and invokes mkosi with the selected edition profile.
+# This is the primary whole-image build entry point for v0.5+. Product editions
+# are now composed from the common server base plus system extensions via
+# tools/build-edition-image.sh; this script directly builds only the unprofiled
+# common server base and the operational LiveDev profile.
 #
 # Usage:
-#   sudo bash tools/build-mkosi-image.sh                     # server (default)
-#   sudo bash tools/build-mkosi-image.sh --edition desktop   # desktop
-#   sudo bash tools/build-mkosi-image.sh --edition livedev   # LiveDev (benchmark/CI)
-#   sudo bash tools/build-mkosi-image.sh --edition server --clean  # full rebuild
+#   sudo bash tools/build-mkosi-image.sh                          # common server base
+#   sudo bash tools/build-mkosi-image.sh --edition server        # same common base
+#   sudo bash tools/build-mkosi-image.sh --edition livedev       # LiveDev (benchmark/CI)
+#   sudo bash tools/build-mkosi-image.sh --edition server --clean
+#
+# Product edition example:
+#   sudo tools/build-edition-image.sh --edition desktop --unsigned-development
 #
 # Prerequisites (Arch host):
 #   pacman -S mkosi archlinux-keyring base-devel rust
@@ -38,7 +43,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [--edition server|desktop|livedev] [--clean]"
+            echo "Usage: $0 [--edition server|livedev] [--clean]"
+            echo "Product editions: use tools/build-edition-image.sh --edition desktop|laptop|realtime-audio"
             exit 0
             ;;
         *)
@@ -47,6 +53,23 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Product edition profiles are system-extension payloads, not whole-image
+# overlays. Applying one here would replace the base Packages= list and can
+# produce an unbootable image. Keep that architectural boundary fail-closed.
+case "${EDITION}" in
+    server|livedev)
+        ;;
+    desktop|laptop|realtime-audio)
+        echo "Product edition '${EDITION}' must be composed from the common server base plus its system extension." >&2
+        echo "Use: tools/build-edition-image.sh --edition ${EDITION} --unsigned-development" >&2
+        exit 2
+        ;;
+    *)
+        echo "Unsupported whole-image edition: ${EDITION} (expected server or livedev)" >&2
+        exit 2
+        ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MKOSI_DIR="${REPO_ROOT}/mkosi"
@@ -248,10 +271,14 @@ fi
 echo ">> [4/5] Invoking mkosi build (edition: ${EDITION})..."
 cd "${MKOSI_DIR}"
 
-MKOSI_ARGS=(
-    --profile="${EDITION}"
-    --force
-)
+MKOSI_ARGS=(--force)
+
+# The server target *is* the common base described by mkosi/mkosi.conf, so it
+# must not consume mkosi.profiles/server: that profile is intentionally the
+# empty server sysext payload. LiveDev remains a whole-image operational profile.
+if [[ "${EDITION}" == "livedev" ]]; then
+    MKOSI_ARGS+=(--profile="${EDITION}")
+fi
 
 if [[ -n "${MKOSI_CACHE:-}" ]]; then
     MKOSI_ARGS+=(--cache-dir="${MKOSI_CACHE}")

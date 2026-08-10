@@ -67,7 +67,7 @@ jobs:
           classify powershell '^\.github/workflows/ci\.yml$|\.ps1$'
           classify windows '^\.github/workflows/ci\.yml$|\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
           classify workflow '^\.github/workflows/.*\.ya?ml$'
-          classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/build-mkosi-image\.sh|packaging/|distro/|config/)'
+          classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/(build-mkosi-image\.sh|build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|packaging/|distro/|config/)'
           classify dependencies '^\.github/workflows/ci\.yml$|^Cargo\.(toml|lock)$'
 
   linux:
@@ -96,7 +96,6 @@ jobs:
 
       - name: Set up Go for actionlint
         if: needs.classify.outputs.workflow == 'true'
-        # v7 uses the Node 24 action runtime supported by hosted runners.
         uses: actions/setup-go@v7
         with:
           go-version: stable
@@ -123,8 +122,6 @@ jobs:
         if: needs.classify.outputs.rust == 'true'
         uses: Swatinem/rust-cache@v2
 
-      # Each logical check is a distinct GitHub step. An agent can identify the
-      # root cause from the jobs API without opening or searching the full log.
       - name: "Repository integrity — checks.sh --section integrity"
         id: integrity
         if: always()
@@ -134,9 +131,6 @@ jobs:
         id: docs
         if: always()
         env:
-          # On pull_request events, honor the `docs-not-needed` PR label. On
-          # push-to-main, the PR has already passed this gate and label context
-          # is unavailable, so treat the push run as docs-not-needed.
           RUSH_DOCS_NOT_NEEDED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-not-needed') }}
         run: bash tools/checks.sh --ci --section docs --changed-base "${{ needs.classify.outputs.base }}"
 
@@ -275,47 +269,228 @@ jobs:
     needs: classify
     if: needs.classify.outputs.image == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-      options: --privileged
     steps:
-      - name: Install image-build dependencies
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed \
-            archlinux-keyring base-devel rust mkosi git dbus pkgconf \
-            systemd systemd-ukify python python-pytest python-pefile \
-            dosfstools mtools zstd util-linux
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Trust the container-mounted checkout
-        # The provenance tests intentionally replace HOME, so this trust entry
-        # must outlive per-user Git config inside the root-owned container.
-        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Initialize Arch package trust
-        run: |
-          pacman-key --init
-          pacman-key --populate archlinux
-      - name: Validate image and boot contracts
-        run: |
-          bash -n tools/build-mkosi-image.sh
-          bash -n testos/build-testos.sh
-          python -m pytest -q \
-            tools/test-livedev-image.py \
-            tools/test-testos-boot-behavioral.py \
-            tools/test-testos-production-provenance.py
-      - name: Build the affected product image
+
+      - name: Select product-image proof
+        id: image_scope
         env:
           BASE: ${{ needs.classify.outputs.base }}
         run: |
           set -euo pipefail
-          git diff --name-only "$BASE"...HEAD > /tmp/rush-image-paths
-          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
-            bash testos/build-testos.sh
-          else
-            bash tools/build-mkosi-image.sh --edition livedev
+          git diff --name-only "$BASE"...HEAD | tee /tmp/rush-image-paths
+          echo "edition=false" >> "$GITHUB_OUTPUT"
+          echo "testos=false" >> "$GITHUB_OUTPUT"
+          if grep -Eq '^(tools/(build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|mkosi/mkosi\.profiles/(desktop|laptop|realtime-audio|server)/|distro/editions/(desktop|laptop|realtime-audio|server)\.toml)' /tmp/rush-image-paths; then
+            echo "edition=true" >> "$GITHUB_OUTPUT"
           fi
+          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
+            echo "testos=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build reusable Arch image environment
+        run: |
+          set -euo pipefail
+          cat > /tmp/rush-image-ci.Dockerfile <<'EOF'
+          FROM archlinux:latest
+          RUN pacman -Syu --noconfirm && pacman -S --noconfirm --needed \
+              archlinux-keyring base-devel rust mkosi git dbus pkgconf \
+              systemd systemd-ukify python python-pytest python-pefile \
+              dosfstools erofs-utils mtools zstd util-linux \
+              && pacman-key --init \
+              && pacman-key --populate archlinux
+          EOF
+          docker build -t rush-image-ci -f /tmp/rush-image-ci.Dockerfile /tmp
+
+      - name: Validate image contracts in Arch
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc '
+              set -euo pipefail
+              git config --system --add safe.directory /workspace
+              bash -n tools/build-mkosi-image.sh
+              bash -n tools/build-edition-image.sh
+              bash -n tools/build-all-editions.sh
+              bash -n tools/validate-uefi-boot.sh
+              bash -n testos/build-testos.sh
+              python -m pytest -q \
+                tools/test-livedev-image.py \
+                tools/test-testos-boot-behavioral.py \
+                tools/test-testos-production-provenance.py
+            '
+
+      - name: Build testOS in Arch
+        if: steps.image_scope.outputs.testos == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash testos/build-testos.sh'
+
+      - name: Build bootable common base in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash tools/build-mkosi-image.sh --edition server'
+          test -s build/rush-linux.raw
+
+      - name: Build directory common base in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc '
+              set -euo pipefail
+              git config --system --add safe.directory /workspace
+              cd mkosi
+              mkosi build --force \
+                --format=directory \
+                --bootable=no \
+                --output-directory=../build \
+                --output=rush-linux-base-tree
+            '
+          test -d build/rush-linux-base-tree
+
+      - name: Build desktop sysext in Arch
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc '
+              set -euo pipefail
+              git config --system --add safe.directory /workspace
+              python tools/build-edition-sysext.py build \
+                --edition desktop \
+                --workspace build/edition-desktop \
+                --base-tree build/rush-linux-base-tree \
+                --mkosi mkosi \
+                --force \
+                --unsigned-development
+            '
+          test -s build/edition-desktop/output/rush-linux-desktop.raw
+          test -s build/edition-desktop/output/rush-linux-desktop.build.json
+
+      - name: Build fallback LiveDev image in Arch
+        if: steps.image_scope.outputs.edition != 'true' && steps.image_scope.outputs.testos != 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace rush-image-ci \
+            bash -lc 'set -euo pipefail; git config --system --add safe.directory /workspace; bash tools/build-mkosi-image.sh --edition livedev'
+
+      - name: Install host image and boot dependencies
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf dosfstools
+          if ! command -v systemd-dissect >/dev/null 2>&1; then
+            sudo apt-get install -y systemd-container
+          fi
+          sudo modprobe loop
+          test -c /dev/loop-control
+          losetup -f >/dev/null
+          command -v systemd-dissect
+          command -v qemu-system-x86_64
+
+      - name: Compose desktop edition and boot-prove on host
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="$GITHUB_WORKSPACE/build/rush-linux.raw"
+          FINAL_IMAGE="$GITHUB_WORKSPACE/build/rush-linux-desktop.raw"
+          PLAN="$GITHUB_WORKSPACE/build/edition-desktop/edition-plan.json"
+          RECEIPT="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.build.json"
+          EXTENSION="$GITHUB_WORKSPACE/build/edition-desktop/output/rush-linux-desktop.raw"
+
+          test -s "$BASE_IMAGE"
+          test -s "$PLAN"
+          test -s "$RECEIPT"
+          test -s "$EXTENSION"
+
+          if ! COPY_ERROR="$(sudo cp --reflink=auto --sparse=always "$BASE_IMAGE" "$FINAL_IMAGE" 2>&1)"; then
+            COPY_ERROR="$(printf "%s" "$COPY_ERROR" | tr "\n" " " | tail -c 1200)"
+            echo "::error title=Desktop compose copy failed::$COPY_ERROR"
+            exit 70
+          fi
+          sudo chown "$(id -u):$(id -g)" "$FINAL_IMAGE"
+
+          MOUNT_DIR="$(mktemp -d)"
+          MOUNTED=false
+          cleanup() {
+            if [[ "$MOUNTED" == true ]]; then
+              sudo systemd-dissect --umount "$MOUNT_DIR" || true
+            fi
+            rmdir "$MOUNT_DIR" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          if ! MOUNT_ERROR="$(sudo env SYSTEMD_LOG_LEVEL=debug systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR" 2>&1)"; then
+            MOUNT_ERROR="$(printf "%s" "$MOUNT_ERROR" | tr "\n" " " | tail -c 2400)"
+            echo "::error title=Desktop compose mount failed::$MOUNT_ERROR"
+            exit 71
+          fi
+          MOUNTED=true
+
+          ARTIFACT_BYTES="$(stat -Lc %s "$EXTENSION")"
+          AVAILABLE_BYTES="$(df -B1 --output=avail "$MOUNT_DIR" | tail -n 1 | tr -d "[:space:]")"
+          echo "::notice title=Desktop compose capacity::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES"
+          if (( AVAILABLE_BYTES < ARTIFACT_BYTES + 67108864 )); then
+            echo "::error title=Desktop compose capacity failed::artifact_bytes=$ARTIFACT_BYTES available_bytes=$AVAILABLE_BYTES reserve_bytes=67108864"
+            exit 72
+          fi
+
+          if ! DEPLOY_ERROR="$(sudo env PYTHONDONTWRITEBYTECODE=1 python3 tools/deploy-edition-sysext.py install \
+            --plan "$PLAN" \
+            --receipt "$RECEIPT" \
+            --artifact "$EXTENSION" \
+            --root "$MOUNT_DIR" \
+            --allow-unsigned-development 2>&1)"; then
+            DEPLOY_ERROR="$(printf "%s" "$DEPLOY_ERROR" | tr "\n" " " | tail -c 1200)"
+            echo "::error title=Desktop sysext deploy failed::$DEPLOY_ERROR"
+            exit 73
+          fi
+
+          if ! sudo test -s "$MOUNT_DIR/var/lib/extensions/rush-linux-desktop.raw"; then
+            echo "::error title=Desktop sysext artifact missing::Expected /var/lib/extensions/rush-linux-desktop.raw after deployment"
+            exit 74
+          fi
+          if ! sudo test -s "$MOUNT_DIR/var/lib/rush-linux/editions/rush-linux-desktop.json"; then
+            echo "::error title=Desktop edition receipt missing::Expected /var/lib/rush-linux/editions/rush-linux-desktop.json after deployment"
+            exit 75
+          fi
+          if ! sudo test -L "$MOUNT_DIR/etc/systemd/system/sysinit.target.wants/systemd-sysext.service"; then
+            echo "::error title=Desktop sysext boot enablement missing::Expected systemd-sysext.service symlink after deployment"
+            exit 76
+          fi
+          if ! UMOUNT_ERROR="$(sudo systemd-dissect --umount "$MOUNT_DIR" 2>&1)"; then
+            UMOUNT_ERROR="$(printf "%s" "$UMOUNT_ERROR" | tr "\n" " " | tail -c 1600)"
+            echo "::error title=Desktop compose unmount failed::$UMOUNT_ERROR"
+            exit 77
+          fi
+          MOUNTED=false
+          if ! rmdir "$MOUNT_DIR"; then
+            echo "::error title=Desktop compose mount directory cleanup failed::Could not remove $MOUNT_DIR after unmount"
+            exit 78
+          fi
+          trap - EXIT
+
+          if ! test -s "$FINAL_IMAGE"; then
+            echo "::error title=Desktop composed image missing::Expected non-empty $FINAL_IMAGE before boot proof"
+            exit 79
+          fi
+          RUSH_BOOT_TIMEOUT=180 bash tools/validate-uefi-boot.sh "$FINAL_IMAGE"
+
+      - name: Confirm a real product image exists
+        run: |
           if ! find build -maxdepth 1 -type f -name '*.raw' -size +64M -print -quit | grep -q .; then
             echo "No real product image was produced." >&2
             exit 1
@@ -362,8 +537,6 @@ jobs:
           fi
           echo "All selected PR lanes passed."
 
-  # Temporary zero-work aliases for status names protected on main before this
-  # consolidated gate existed. They are compatibility aliases, not root causes.
   legacy-rust:
     name: Rust
     needs: gate
