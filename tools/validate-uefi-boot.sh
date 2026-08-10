@@ -112,6 +112,7 @@ set +e
 timeout "${TIMEOUT_SEC}s" \
     stdbuf -oL -eL \
     qemu-system-x86_64 \
+        -machine q35 \
         "${QEMU_ACCEL_ARGS[@]}" \
         "${QEMU_FIRMWARE_ARGS[@]}" \
         -drive "file=${DISK},format=raw,if=virtio,snapshot=on" \
