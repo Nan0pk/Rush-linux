@@ -15,7 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DISK="${1:-${ROOT}/build/disk.raw}"
 TIMEOUT_SEC="${RUSH_BOOT_TIMEOUT:-150}"
-LOG="${ROOT}/build/uefi-boot.log"
+LOG="$(mktemp "${TMPDIR:-/tmp}/rush-linux-uefi-boot.XXXXXX.log")"
 
 if [ ! -f "${DISK}" ]; then
     echo "Error: disk image not found: ${DISK}" >&2
@@ -65,7 +65,6 @@ if [ -n "${VARS_TEMPLATE}" ] && [ ! -f "${VARS_TEMPLATE}" ]; then
     exit 1
 fi
 
-mkdir -p "$(dirname "${LOG}")"
 rm -f "${LOG}"
 
 echo "Validating UEFI UKI boot"
