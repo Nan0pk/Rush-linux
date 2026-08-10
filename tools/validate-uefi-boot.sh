@@ -94,7 +94,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [ -n "${VARS_TEMPLATE}" ]; then
-    VARS_RUNTIME="$(mktemp "${ROOT}/build/ovmf-vars.XXXXXX.fd")"
+    VARS_RUNTIME="$(mktemp "${TMPDIR:-/tmp}/ovmf-vars.XXXXXX.fd")"
     cp "${VARS_TEMPLATE}" "${VARS_RUNTIME}"
     QEMU_FIRMWARE_ARGS=(
         -drive "if=pflash,format=raw,unit=0,file=${FIRMWARE},readonly=on"
