@@ -370,6 +370,16 @@ impl Default for ThermalBudget {
 const TEMP_PLAUSIBLE_MIN_C: f32 = -40.0;
 const TEMP_PLAUSIBLE_MAX_C: f32 = 150.0;
 
+/// Placeholder temperature for a channel that the kernel is flagging as faulted
+/// or alarmed but whose reading could not be obtained (ADR 0026 §5).
+///
+/// This is not an observation and must never be presented as one. It is
+/// deliberately non-finite so that `is_plausible_temp_c` rejects it everywhere,
+/// which keeps it out of every aggregation while letting the fault/alarm bit
+/// survive discovery. Negative infinity rather than NaN so that the sensor
+/// record still compares equal to itself.
+const TEMP_UNREADABLE_C: f32 = f32::NEG_INFINITY;
+
 fn is_plausible_temp_c(t: f32) -> bool {
     t.is_finite() && (TEMP_PLAUSIBLE_MIN_C..=TEMP_PLAUSIBLE_MAX_C).contains(&t)
 }
@@ -412,13 +422,14 @@ pub(crate) fn compute_thermal_budget(
 
     // A reading contributes only when it is finite, plausible, and neither
     // faulted nor alarmed (ADR 0026 §5).
-    let critical_alarm_on_die = sensors
-        .iter()
-        .any(|s| s.is_die && s.alarmed && is_plausible_temp_c(s.temp_c));
-    let excluded_invalid = sensors
-        .iter()
-        .filter(|s| is_plausible_temp_c(s.temp_c) && (s.faulted || s.alarmed))
-        .count();
+    //
+    // The alarm bit is authoritative independently of whether the channel's
+    // temperature parsed. An alarmed die channel whose reading is unusable must
+    // still force maximum derating: if it were dropped for being unreadable, a
+    // cool sibling channel would produce `Cool` while the kernel was raising an
+    // alarm, which §5 forbids outright.
+    let alarmed_die = sensors.iter().find(|s| s.is_die && s.alarmed);
+    let excluded_invalid = sensors.iter().filter(|s| s.faulted || s.alarmed).count();
     if excluded_invalid > 0 {
         reasons.push(format!(
             "excluded {excluded_invalid} reading(s) marked faulted or alarmed by the kernel"
@@ -431,12 +442,18 @@ pub(crate) fn compute_thermal_budget(
 
     // A critical alarm is evidence of an unsafe or out-of-contract state; it
     // must never present as Cool or as additional headroom.
-    if critical_alarm_on_die {
-        reasons.push(
-            "kernel raised a thermal alarm on an eligible CPU die/package channel; \
-             reporting maximum derating"
-                .to_string(),
-        );
+    if let Some(alarmed) = alarmed_die {
+        // §7 requires status to record enough for an independent verifier to
+        // reproduce the choice, so name the channel that alarmed.
+        reasons.push(format!(
+            "kernel raised a thermal alarm on eligible CPU die/package channel {} ({}); \
+             reporting maximum derating",
+            alarmed.id,
+            alarmed
+                .die_kind
+                .map(DieKind::as_str)
+                .unwrap_or("unclassified die"),
+        ));
         return ThermalBudget {
             state: ThermalBudgetState::Constrained,
             derating_ratio: 1.0,
@@ -471,7 +488,7 @@ pub(crate) fn compute_thermal_budget(
     // unrelated board, storage, GPU, battery, ambient or generic ACPI reading
     // must never become the CPU die signal (ADR 0026 §2).
     let die_sensors: Vec<&ThermalSensor> = usable.iter().copied().filter(|s| s.is_die).collect();
-    let max_die_sensor = die_sensors.into_iter().max_by(|a, b| {
+    let max_die_sensor = die_sensors.iter().copied().max_by(|a, b| {
         a.temp_c
             .partial_cmp(&b.temp_c)
             .unwrap_or(std::cmp::Ordering::Equal)
@@ -518,10 +535,88 @@ pub(crate) fn compute_thermal_budget(
         ));
     }
 
+    // ADR 0026 §2 items 2 and 5: per-core and per-CCD channels may raise the
+    // conservative maximum, but they do not replace an available package/die
+    // channel in provenance reporting. The value stays the maximum — nothing
+    // here can lower it — while the preferred package/die channel is named
+    // alongside it, so status does not report a core or CCD as the machine's
+    // die identity when a real package channel exists.
+    //
+    // `Tctl` is deliberately not in the preferred set. §2 item 4 admits it only
+    // as a conservative control value that must never be described as a
+    // physical junction, and `provenance_rank` already ranks it last.
+    if matches!(max_die_sensor.die_kind, Some(DieKind::Core | DieKind::Ccd)) {
+        let preferred = die_sensors
+            .iter()
+            .copied()
+            .filter(|s| {
+                matches!(
+                    s.die_kind,
+                    Some(DieKind::Package | DieKind::Tdie | DieKind::PlatformPackage)
+                )
+            })
+            .max_by(|a, b| {
+                a.die_kind
+                    .map(DieKind::provenance_rank)
+                    .unwrap_or(0)
+                    .cmp(&b.die_kind.map(DieKind::provenance_rank).unwrap_or(0))
+                    .then_with(|| b.id.cmp(&a.id))
+            });
+        if let Some(pkg) = preferred {
+            reasons.push(format!(
+                "provenance: package/die channel {} ({}) at {:.1}°C remains the reported CPU \
+                 identity; the conservative maximum was raised by {} ({})",
+                pkg.id,
+                pkg.die_kind.map(DieKind::as_str).unwrap_or("die"),
+                pkg.temp_c,
+                max_die_sensor.id,
+                max_die_sensor
+                    .die_kind
+                    .map(DieKind::as_str)
+                    .unwrap_or("die"),
+            ));
+        }
+    }
+
     // Dynamic upper threshold if hw crit temp exists: T_hi = min(config.thermal_hi_c, T_crit - 10°C)
+    //
+    // ADR 0026 §6 requires the effective upper threshold to remain at least
+    // `thermal_lo_c + 5.0`, and states that if that ordering cannot be
+    // satisfied the result is `Unavailable` with maximum derating "rather than
+    // an invented interpolation range". Raising the clamp back up to
+    // `lo + 5.0` and interpolating anyway — which is what this code did —
+    // manufactures headroom for a die already sitting above `crit - 10`, the
+    // same class of false-headroom path §2's no-fallback rule exists to close.
+    //
+    // `ThermalConfig::validate` already enforces `hi >= lo + 5.0` on the
+    // configured pair, so the only way to reach this refusal is a low hardware
+    // `crit`. The reason text is kept distinct from the configuration-validation
+    // failure so a verifier can tell which one fired.
+    let min_effective_hi_c = config.thermal_lo_c + 5.0;
     let effective_hi_c = match hw_crit_temp_c {
+        Some(crit) if is_plausible_temp_c(crit) && crit - 10.0 < min_effective_hi_c => {
+            reasons.push(format!(
+                "hardware T_crit {:.1}°C on {} yields an effective upper threshold of {:.1}°C, \
+                 below the required minimum {:.1}°C (thermal_lo_c + 5.0); refusing to \
+                 interpolate over an invented range; budget unavailable",
+                crit,
+                max_die_sensor.id,
+                crit - 10.0,
+                min_effective_hi_c
+            ));
+            return ThermalBudget {
+                state: ThermalBudgetState::Unavailable,
+                derating_ratio: 1.0,
+                selected_die_id: None,
+                max_die_temp_c: None,
+                selected_skin_id: None,
+                skin_temp_c: None,
+                max_fan_rpm,
+                reasons,
+            };
+        }
         Some(crit) if is_plausible_temp_c(crit) => {
-            let clamped_hi = (crit - 10.0).max(config.thermal_lo_c + 5.0);
+            let clamped_hi = crit - 10.0;
             if clamped_hi < config.thermal_hi_c {
                 reasons.push(format!(
                     "clamped thermal_hi to {:.1}°C based on hardware T_crit {:.1}°C - 10°C",
@@ -710,12 +805,28 @@ fn classify_signal(name: &str, label: &str) -> (Option<DieKind>, bool) {
         None
     };
 
-    // Skin limiting applies only to a positively identified user-touch surface.
+    // Skin limiting applies only to a positively identified user-touch surface
+    // (ADR 0026 §3).
+    //
+    // Matching is on the channel *label* only. A chip name that happens to
+    // contain a surface word — a handheld or convertible platform driver named
+    // for its own chassis, for example — does not establish that any particular
+    // channel on that chip is a touch surface. Matching the name classified
+    // every channel on such a chip, battery and board included, as skin, which
+    // is exactly the loose string matching §3 exists to prevent, on exactly the
+    // hardware class where skin limiting matters.
+    //
+    // Platform drivers that positively identify a skin channel by chip name
+    // belong in a tracked mapping here, the way `MappedCpuZone` works for die
+    // signals. None is currently tracked, so such a machine reports skin
+    // limiting as unavailable rather than guessing — which under §3 does not
+    // invalidate an otherwise valid die result.
+    //
     // `ambient` is deliberately excluded: it may describe air, board, inlet or
-    // room, none of which is a touch surface (ADR 0026 §3).
+    // room, none of which is a touch surface.
     let is_skin = ["skin", "chassis", "surface", "palm", "keyboard", "deck"]
         .iter()
-        .any(|k| label_lower.contains(k) || name_lower.contains(k));
+        .any(|k| label_lower.contains(k));
 
     (die_kind, is_skin)
 }
@@ -872,18 +983,40 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                     }
                     let prefix = &file_name[..file_name.len() - 6]; // e.g. "temp1"
 
-                    let text = match read.read_to_string(&file_path) {
-                        Ok(t) => t,
-                        Err(_) => continue,
+                    // Sensor validity attributes (ADR 0026 §5) are read *before*
+                    // the temperature is accepted or rejected. The fault and
+                    // alarm bits are authoritative on their own: a channel the
+                    // kernel is flagging must not disappear merely because its
+                    // temperature is unreadable, unparseable, or outside the
+                    // plausible envelope. If it did, a cool sibling channel
+                    // could produce a `Cool` claim while an alarm was raised.
+                    let flag = |attr: &str| -> bool {
+                        read.read_to_string(&hwmon_dir.join(format!("{prefix}_{attr}")))
+                            .ok()
+                            .map(|t| t.trim() != "0" && !t.trim().is_empty())
+                            .unwrap_or(false)
                     };
-                    let millic: i64 = match text.trim().parse() {
-                        Ok(v) => v,
-                        Err(_) => continue,
+                    let faulted = flag("fault");
+                    let alarmed = flag("alarm") || flag("crit_alarm") || flag("emergency_alarm");
+
+                    let parsed_temp_c = read
+                        .read_to_string(&file_path)
+                        .ok()
+                        .and_then(|t| t.trim().parse::<i64>().ok())
+                        .map(|m| m as f32 / 1000.0)
+                        .filter(|&t| is_plausible_temp_c(t));
+
+                    let temp_c = match parsed_temp_c {
+                        Some(t) => t,
+                        // Nothing readable and nothing flagged: there is no
+                        // observation and nothing to report.
+                        None if !faulted && !alarmed => continue,
+                        // Flagged but unreadable. Retain the channel so the flag
+                        // survives. `TEMP_UNREADABLE_C` can never satisfy
+                        // `is_plausible_temp_c`, so it can never contribute a
+                        // temperature to any aggregation.
+                        None => TEMP_UNREADABLE_C,
                     };
-                    let temp_c = millic as f32 / 1000.0;
-                    if !is_plausible_temp_c(temp_c) {
-                        continue;
-                    }
 
                     let label_path = hwmon_dir.join(format!("{prefix}_label"));
                     let label = read
@@ -909,18 +1042,6 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                     let id = format!("hwmon:{device_key}:{name}:{channel}");
 
                     let (die_kind, is_skin) = classify_signal(&name, &label);
-
-                    // Sensor validity attributes (ADR 0026 §5). A faulted or
-                    // alarmed channel does not contribute to the budget, and a
-                    // critical alarm can never produce Cool / extra headroom.
-                    let flag = |attr: &str| -> bool {
-                        read.read_to_string(&hwmon_dir.join(format!("{prefix}_{attr}")))
-                            .ok()
-                            .map(|t| t.trim() != "0" && !t.trim().is_empty())
-                            .unwrap_or(false)
-                    };
-                    let faulted = flag("fault");
-                    let alarmed = flag("alarm") || flag("crit_alarm") || flag("emergency_alarm");
 
                     results.push(ThermalSensor {
                         id,
@@ -2210,6 +2331,272 @@ mod tests {
         assert_eq!(forward.state, reverse.state);
         assert_eq!(forward.derating_ratio, reverse.derating_ratio);
         assert_eq!(forward.max_die_temp_c, Some(91.0));
+    }
+
+    /// ADR 0026 §6 — when hardware `T_crit` is low enough that
+    /// `crit - 10.0` falls below `thermal_lo_c + 5.0`, the ordering cannot be
+    /// satisfied and the result is `Unavailable` with maximum derating. The
+    /// implementation must not raise the clamp back to `lo + 5.0` and
+    /// interpolate over the resulting invented range, which would report
+    /// headroom for a die already sitting above `crit - 10`.
+    #[test]
+    fn t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range() {
+        let config = ThermalConfig::default();
+        assert_eq!(config.thermal_lo_c, 60.0);
+        assert_eq!(config.thermal_hi_c, 95.0);
+
+        // crit 70.0 => crit - 10 = 60.0, below the required minimum of 65.0.
+        // The die is cool by the configured lower threshold, so the invented
+        // range would have produced exactly the false `Cool` claim §6 forbids.
+        let low_crit = vec![sensor("hw:pkg", 30.0, true, false, Some(70.0))];
+        let b = compute_thermal_budget(&config, &low_crit, &[], None);
+        assert_eq!(b.state, ThermalBudgetState::Unavailable);
+        assert_eq!(b.derating_ratio, 1.0);
+        assert_eq!(b.max_die_temp_c, None);
+        assert_eq!(b.selected_die_id, None);
+        assert!(
+            b.reasons.iter().any(|r| r.contains("invented range")),
+            "the refusal must be explicit: {:?}",
+            b.reasons
+        );
+
+        // The boundary case is accepted, not refused: crit 75.0 gives exactly
+        // the minimum 65.0.
+        let boundary = vec![sensor("hw:pkg", 30.0, true, false, Some(75.0))];
+        let b2 = compute_thermal_budget(&config, &boundary, &[], None);
+        assert_eq!(b2.state, ThermalBudgetState::Cool);
+        assert_eq!(b2.derating_ratio, 0.0);
+
+        // A normal part is unaffected: crit 100.0 clamps to 90.0, well above
+        // the minimum, and still derates linearly.
+        let normal = vec![sensor("hw:pkg", 75.0, true, false, Some(100.0))];
+        let b3 = compute_thermal_budget(&config, &normal, &[], None);
+        assert_eq!(b3.state, ThermalBudgetState::Derating);
+        assert!(b3.derating_ratio > 0.0 && b3.derating_ratio < 1.0);
+    }
+
+    /// ADR 0026 §2 items 2 and 5 — a per-core or per-CCD channel may raise the
+    /// conservative maximum, but it does not replace an available package/die
+    /// channel in provenance reporting.
+    #[test]
+    fn t1_conformance_core_maximum_does_not_replace_package_provenance() {
+        let config = ThermalConfig::default();
+        let package = sensor_full(
+            "hw:coretemp.0:pkg",
+            70.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+        let core = sensor_full(
+            "hw:coretemp.0:core3",
+            85.0,
+            Some(DieKind::Core),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+
+        let b = compute_thermal_budget(&config, &[package, core], &[], None);
+
+        // The value still follows the conservative maximum. Nothing here may
+        // lower the observed temperature.
+        assert_eq!(b.max_die_temp_c, Some(85.0));
+
+        // The available package channel is still named as the CPU identity.
+        let provenance = b
+            .reasons
+            .iter()
+            .find(|r| r.starts_with("provenance:"))
+            .unwrap_or_else(|| panic!("expected a provenance line: {:?}", b.reasons));
+        assert!(
+            provenance.contains("hw:coretemp.0:pkg") && provenance.contains("package"),
+            "the package channel must remain the reported identity: {provenance}"
+        );
+        assert!(
+            provenance.contains("hw:coretemp.0:core3"),
+            "the line must also name what raised the maximum: {provenance}"
+        );
+
+        // A CCD behaves the same way against an available Tdie.
+        let tdie = sensor_full(
+            "hw:k10temp.0:Tdie",
+            70.0,
+            Some(DieKind::Tdie),
+            false,
+            "k10temp.0",
+            false,
+            false,
+        );
+        let ccd = sensor_full(
+            "hw:k10temp.0:Tccd1",
+            84.0,
+            Some(DieKind::Ccd),
+            false,
+            "k10temp.0",
+            false,
+            false,
+        );
+        let b2 = compute_thermal_budget(&config, &[tdie, ccd], &[], None);
+        assert_eq!(b2.max_die_temp_c, Some(84.0));
+        assert!(
+            b2.reasons
+                .iter()
+                .any(|r| r.starts_with("provenance:") && r.contains("hw:k10temp.0:Tdie")),
+            "Tdie must remain the reported identity: {:?}",
+            b2.reasons
+        );
+
+        // With no package/die channel available there is nothing to prefer, so
+        // no provenance line is invented.
+        let lone_core = sensor_full(
+            "hw:coretemp.0:core0",
+            85.0,
+            Some(DieKind::Core),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+        let b3 = compute_thermal_budget(&config, &[lone_core], &[], None);
+        assert!(
+            !b3.reasons.iter().any(|r| r.starts_with("provenance:")),
+            "no package channel exists to report: {:?}",
+            b3.reasons
+        );
+    }
+
+    /// ADR 0026 §3 — skin identity comes from the channel label. A chip *name*
+    /// containing a surface word must not classify every channel on that chip
+    /// as a touch surface.
+    #[test]
+    fn t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name() {
+        // A handheld/convertible platform driver named for its own chassis.
+        for chip in ["surface_platform", "steamdeck_hwmon", "keyboard_backlight"] {
+            let (_, battery_is_skin) = classify_signal(chip, "battery");
+            assert!(
+                !battery_is_skin,
+                "{chip}: a battery channel is not a touch surface"
+            );
+            let (_, board_is_skin) = classify_signal(chip, "board");
+            assert!(
+                !board_is_skin,
+                "{chip}: a board channel is not a touch surface"
+            );
+        }
+
+        // A positively labelled channel still qualifies, on any chip.
+        for label in ["skin", "chassis", "palm rest", "keyboard deck"] {
+            let (_, is_skin) = classify_signal("surface_platform", label);
+            assert!(is_skin, "{label} is a positively identified touch surface");
+        }
+
+        // End to end: the mislabelled chip can no longer raise derating.
+        let config = ThermalConfig::default();
+        let (die_kind, _) = classify_signal("coretemp", "Package id 0");
+        let mut die = sensor_full("hw:pkg", 30.0, die_kind, false, "coretemp.0", false, false);
+        die.crit_temp_c = Some(100.0);
+        let (_, hot_battery_is_skin) = classify_signal("surface_platform", "battery");
+        let battery = sensor_full(
+            "hw:battery",
+            55.0,
+            None,
+            hot_battery_is_skin,
+            "surface_platform.0",
+            false,
+            false,
+        );
+        let b = compute_thermal_budget(&config, &[die, battery], &[], None);
+        assert_eq!(b.state, ThermalBudgetState::Cool);
+        assert_eq!(b.skin_temp_c, None, "no skin sensor was identified");
+    }
+
+    /// ADR 0026 §5 — the alarm bit is authoritative on its own. An alarmed die
+    /// channel whose temperature cannot be read must not vanish and let a cool
+    /// sibling channel produce a `Cool` claim.
+    #[test]
+    fn t1_conformance_alarm_survives_an_unreadable_temperature() {
+        let k = MemoryKernel::new();
+
+        // A cool, healthy package on one socket.
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 30000, Some(100000))],
+        );
+
+        // A second package whose reading is garbage and which the kernel is
+        // alarming on.
+        let base = PathBuf::from("/sys/class/hwmon/hwmon1");
+        k.add_dir(Path::new("/sys/class/hwmon"), &base);
+        k.write_raw(&base.join("name"), "coretemp\n");
+        let dev_path = PathBuf::from("/sys/devices/platform/coretemp.1");
+        k.write_link(&base.join("device"), &dev_path);
+        k.add_dir(Path::new("/sys/devices/platform"), &dev_path);
+        k.write_raw(&base.join("temp1_input"), "not-a-number\n");
+        k.write_raw(&base.join("temp1_label"), "Package id 1\n");
+        k.write_raw(&base.join("temp1_crit_alarm"), "1\n");
+        for f in [
+            base.join("name"),
+            base.join("device"),
+            base.join("temp1_input"),
+            base.join("temp1_label"),
+            base.join("temp1_crit_alarm"),
+        ] {
+            k.add_dir_entry(&base, &f);
+        }
+
+        let sensors = discover_thermal_sensors_with(&k);
+        let alarmed: Vec<_> = sensors.iter().filter(|s| s.alarmed).collect();
+        assert_eq!(
+            alarmed.len(),
+            1,
+            "the alarmed channel must survive discovery: {sensors:?}"
+        );
+        assert!(
+            !is_plausible_temp_c(alarmed[0].temp_c),
+            "the retained channel must never present as an observation"
+        );
+
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_ne!(
+            b.state,
+            ThermalBudgetState::Cool,
+            "an alarm must never yield Cool: {:?}",
+            b.reasons
+        );
+        assert_eq!(b.state, ThermalBudgetState::Constrained);
+        assert_eq!(b.derating_ratio, 1.0);
+        assert!(
+            b.reasons.iter().any(|r| r.contains("Package id 1")),
+            "the alarmed channel must be named: {:?}",
+            b.reasons
+        );
+
+        // An unreadable channel with no fault or alarm is still dropped: there
+        // is no observation and nothing to report.
+        let quiet = MemoryKernel::new();
+        let qbase = PathBuf::from("/sys/class/hwmon/hwmon0");
+        quiet.add_dir(Path::new("/sys/class/hwmon"), &qbase);
+        quiet.write_raw(&qbase.join("name"), "coretemp\n");
+        quiet.write_raw(&qbase.join("temp1_input"), "not-a-number\n");
+        quiet.write_raw(&qbase.join("temp1_label"), "Package id 0\n");
+        for f in [
+            qbase.join("name"),
+            qbase.join("temp1_input"),
+            qbase.join("temp1_label"),
+        ] {
+            quiet.add_dir_entry(&qbase, &f);
+        }
+        assert!(
+            discover_thermal_sensors_with(&quiet).is_empty(),
+            "an unreadable, unflagged channel carries no information"
+        );
     }
 
     #[test]

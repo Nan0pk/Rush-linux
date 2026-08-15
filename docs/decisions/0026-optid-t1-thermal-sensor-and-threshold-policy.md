@@ -266,8 +266,46 @@ of which is exercised on the first verification host (`coretemp` `crit` is
    for.
 
 These are recorded here so a cold verifier reads the accepted policy and the
-known gaps together. They are scheduled as a follow-on repair after the T1
-physical collection, not before it.
+known gaps together.
+
+**Open-findings repair status (2026-08-16).** All four are repaired in
+`crates/optid/src/thermal.rs`, with four mapped deterministic tests added under
+`thermal::tests::t1_conformance_*` and recorded in the ledger's T1
+`acceptance_tests` map:
+
+1. A hardware `crit` that would push the effective upper threshold below
+   `thermal_lo_c + 5.0` now returns `Unavailable` at ratio `1.0` with an
+   explicit refusal reason, instead of raising the clamp back to `lo + 5.0`
+   and interpolating. Test:
+   `t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range`.
+2. When the conservative maximum comes from a `Core` or `Ccd` channel and a
+   `Package`, `Tdie` or `PlatformPackage` channel is available, status now
+   names that package/die channel as the reported CPU identity alongside the
+   channel that raised the maximum. The maximum itself is unchanged, so nothing
+   here can lower an observed temperature. `Tctl` is deliberately excluded from
+   the preferred set: §2 item 4 admits it only as a control value. Test:
+   `t1_conformance_core_maximum_does_not_replace_package_provenance`.
+3. Skin classification matches on the channel label only. Chip-name matching is
+   removed, so a platform driver named for a chassis no longer classifies its
+   battery and board channels as skin. No chip-name mapping is tracked yet, so
+   such a machine reports skin limiting as unavailable rather than guessing,
+   which under §3 does not invalidate a valid die result. Note this *reduces*
+   derating on any machine where the chip name was the only skin signal. Test:
+   `t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name`.
+4. Fault and alarm attributes are now read before a temperature is accepted or
+   rejected, so an alarmed channel whose reading is unparseable or implausible
+   survives discovery carrying its flag, and an alarmed die channel forces
+   `Constrained` regardless of whether its temperature parsed. The retained
+   placeholder is non-finite and can never satisfy the plausibility test, so it
+   can never contribute a temperature. The alarm reason now names the alarmed
+   channel, as §7 requires. Test:
+   `t1_conformance_alarm_survives_an_unreadable_temperature`.
+
+This repair does not change any decision in §2–§7 and does not alter the
+ratification above. It also creates no verification receipt: physical
+collection must be run at a commit at or after this repair, because
+`crates/optid/src/thermal.rs` is a declared T1 proof path and any later change
+to it would make an earlier receipt stale.
 
 ## Required conformance tests
 
