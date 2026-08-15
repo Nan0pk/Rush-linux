@@ -1,9 +1,7 @@
 # ADR 0026: optid T1 Thermal Sensor and Threshold Policy
 
-Status: proposed
-
-> Needs human ratification. Under `docs/decisions/README.md`, only the maintainer
-> of record may change this ADR to `accepted` and add a `Ratified-by:` line.
+Status: accepted
+Ratified-by: Nan0pk, 2026-08-15
 
 Date: 2026-08-07
 Tags: optid, thermal, sensors, thresholds, safety, hardware, T1
@@ -234,11 +232,42 @@ physical collection may be diagnostic but cannot be treated as
 completion-ready proof.
 
 **Repair status (2026-08-15).** All five findings are repaired in the T1
-conformance change on branch `work/20260815-t1-adr0026-conformance-repair`, with
-eleven mapped deterministic tests added under `thermal::tests::t1_conformance_*`
-and recorded in the ledger's T1 `acceptance_tests` map. The repair does not
-ratify this ADR: `Status` above remains `proposed` and only the maintainer of
-record may change it. Physical collection still requires ratification first.
+conformance change merged as PR #406 (`main` at `0f44a2a`), with eleven mapped
+deterministic tests added under `thermal::tests::t1_conformance_*` and recorded
+in the ledger's T1 `acceptance_tests` map. The repair did not ratify this ADR;
+ratification is the separate maintainer act recorded in the `Ratified-by:` line
+above.
+
+**Open findings at ratification (2026-08-15).** Ratification accepts the policy
+in §2–§7 as written. It does not assert that the implementation matches it in
+every respect. A review of the merged repair recorded four remaining
+implementation-vs-policy gaps, none of which changes a decision above and none
+of which is exercised on the first verification host (`coretemp` `crit` is
+100.0 °C there, so the §6 clamp is inert):
+
+1. §6's fail-closed rule for a low hardware `crit` is not implemented.
+   `compute_thermal_budget` computes `(crit - 10.0).max(lo + 5.0)` and
+   interpolates, where §6 requires `Unavailable` with maximum derating when the
+   `hi >= lo + 5.0` ordering cannot be satisfied. Reachable only on a selected
+   sensor exporting `crit < 75.0`.
+2. §2's provenance rule — that core and `Tccd` channels may raise the maximum
+   but do not replace an available package channel in reporting — is not
+   honored: selection is a single maximum over temperature, so the hottest
+   channel supplies both value and reported identity. The value stays correct
+   and conservative; only the reported identity differs.
+3. §3's positive-identification requirement is implemented as keyword matching
+   against the hwmon chip *name* as well as the channel label, so a platform
+   driver named for a touch surface classifies all of its channels as skin.
+   The error can only raise derating, never lower it.
+4. §5 does not state whether an alarm bit is authoritative when the alarmed
+   channel's temperature is unreadable. The implementation drops such a channel
+   before validity is assessed, so a second cool die channel can still yield
+   `Cool`, and the alarm reason does not name the alarmed channel that §7 asks
+   for.
+
+These are recorded here so a cold verifier reads the accepted policy and the
+known gaps together. They are scheduled as a follow-on repair after the T1
+physical collection, not before it.
 
 ## Required conformance tests
 
