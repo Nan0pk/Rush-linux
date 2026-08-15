@@ -1,0 +1,65 @@
+# Independent cold-verification receipt for T1:
+# Build thermal sensing and a pure budget model.
+# Verification PR #<filled-after-open> remains draft and requires human review
+# and merge.
+#
+# The verifier changed only the proof workflow. No T1 implementation, service,
+# feature gate, or acceptance-test code was repaired during verification.
+
+schema_version = 1
+package = "T1"
+implementation_pr = 334
+verification_pr = 0
+verified_commit = "1a07aa41b9b1decb96460abce5745ba9e89e81e5"
+verifier = "Independent cold-verification session on the maintainer's Fedora 44 host (Linux 7.1.8-200.fc44.x86_64); separate from the T1 implementation builder; did not build or repair T1 code"
+result = "pass"
+
+# No CI artifact: this bundle was collected locally on the verified commit and
+# is anchored by its tarball sha256 and the five internal file digests.
+bundle_archive = "rush-t1-thermal-proof.tar.gz"
+bundle_sha256 = "40ea5534ae8d9b493c6abfe931aa687029be7f5d53a63bdfa57d76afed6ca4a2"
+manifest_digest = "sha256:a16320401e49f1d9c2b3339ebba787bb2a6509234d9c37870af8a07ef7cd3afd"
+observations_digest = "sha256:8889c0fa79f20f255ae3cefdcfb1e4490850ad519d54ce172fdbe01d64c18f77"
+status_digest = "sha256:c726e1e9a6f266eb11f565dec713ace1188d906926167438ea65524bf498a202"
+command_results_digest = "sha256:e3de9029ac02c9bac51da07677cff4eccbe1ed7e9d4fe50d46929bbc292fd711"
+threshold_reference_digest = "sha256:699c2b76576508ea4f069afe055112ebff26665582e6cf294faeefbe770573a5"
+
+threshold_decision = "docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md"
+threshold_decision_sha256 = "b5a38249f9553bdafeaaaa05ceaeddcf86076de34c76f251fc36e23b31d18735"
+
+kernel = "Linux 7.1.8-200.fc44.x86_64"
+hardware = "consumer gaming laptop, Intel Raptor Lake class x86_64 (coretemp package + 16 core channels, hp-wmi fans, iwlwifi, NVMe, spd5118)"
+
+commands = [
+  "git status --short; git rev-parse HEAD; git diff --check -> worktree clean at 1a07aa41b9b1decb96460abce5745ba9e89e81e5",
+  "sha256sum -c SHA256SUMS (5 files) -> all OK",
+  "cargo fmt --all -- --check -> passed",
+  "cargo check --workspace --all-targets --all-features -> passed",
+  "cargo clippy --workspace --all-targets -- -D warnings -> passed",
+  "cargo test --workspace (with tuned stopped) -> 600 passed, 0 failed; 480 in optid bin",
+  "python3 tools/validate-current-work.py -> passed",
+  "python3 tools/validate-optid-packages.py -> passed",
+  "python3 tools/validate-optid-packages.py --base origin/main -> passed",
+  "python3 tools/render-frontpage.py --check -> passed",
+  "bash tools/finish-work.sh --dry-run -> passed",
+  "bash tools/checks.sh --ci --changed-base origin/main -> passed",
+  "all 29 mapped acceptance tests run individually by name -> 29 passed",
+  "bundle inspection (ordering, unique ids, hottest die/package, no-fallback, fan read-only, threshold digest) -> all consistent",
+]
+
+runtime_proofs = [
+  "Production status captured during the run: thermal_state=Cool, ratio=0.00, die sensor hwmon:coretemp.0:coretemp:Core 16 at 48.0 C, package channel 46.0 C named as reported CPU identity, hi clamped to 90.0 C from T_crit 100 C - 10 C; independently reproduced from sample 9 of the raw observations.",
+  "Die signal positively identified on real hardware (coretemp package/core channels); the hottest non-die readings (iwlwifi 61.0 C, NVMe 59.9 C, spd5118) never became the die signal, satisfying the ADR 0026 no-fallback rule.",
+  "Exactly one duplicate collapse observed (x86_pkg_temp -> coretemp package, ADR 0026 section 4 item 2): 31 sensors reported against 32 raw channels; no other pair collapsed and no two channels shared a stable id across all 10 samples.",
+  "Fan RPM is observation only; the manifest records read_only=true and no fan/hardware/powercap write paths exist in crates/optid/src/thermal.rs.",
+  "ADR 0026 sections 2-7 each matched the implementation in crates/optid/src/thermal.rs, including provenance reasons, label-only skin classification, alarm-authoritative handling with TEMP_UNREADABLE_C, and the low-crit fail-closed refusal (crit-10 < lo+5 -> Unavailable, never an invented interpolation range).",
+  "Full workspace test suite passes (600 tests, 480 in the optid binary) with tuned stopped, including the s2d production-daemon persistence test that ADR 0004 makes fail only while a conflicting policy daemon is active.",
+]
+
+source_inspection_only = [
+  "The collector ran optid via the permitted equivalent production invocation (same binary, same ExecStart arguments, dry-run, same /run/optid state dir) because optid is not installed as a system service on this host; nothing was installed and no T1 code was changed.",
+  "tuned.service was stopped (not disabled) for collection, which is the state the shipped optid.service requires via Conflicts=tuned.service; it was restarted afterwards.",
+  "Alarm, fault, malformed-value, no-eligible-die-signal, and low-crit fail-closed paths carry deterministic test evidence only (no physical fault/alarm occurred in any sample); this verifier explicitly deems those tests sufficient for the fail-closed contract.",
+]
+
+unresolved = []
