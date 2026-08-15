@@ -547,7 +547,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. The bounded verifier procedure is docs/plans/t1-thermal-cold-verification.md; adding that procedure and a monotonicity acceptance test does not constitute physical evidence or threshold approval. No package self-certifies completed."
+blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification and reviewed threshold acceptance remain outstanding. The bounded verifier procedure is docs/plans/t1-thermal-cold-verification.md; adding that procedure and a monotonicity acceptance test does not constitute physical evidence or threshold approval. No package self-certifies completed. (5) 2026-08-15 ADR 0026 conformance repair: the five blocking mismatches recorded in docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md between the proposed thermal observation contract and the landed code are repaired, and eleven deterministic tests are mapped under thermal::tests::t1_conformance_*. The repair changes no package status. T1 stays merged_incomplete: ADR 0026 is still status 'proposed' and only the maintainer of record may ratify it, no physical cold-hardware collection has been run, and no verification receipt exists at docs/plans/optid-verification/t1.toml. T2 does not unlock."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
@@ -586,6 +586,20 @@ render_includes_sensor_state = "render_includes_sensor_state_ratio_reasons"
 deterministic_ordering = "deterministic_ordering"
 production_pipeline_collect_to_render = "t1_production_pipeline_collect_to_render"
 production_pipeline_off_mode_zero_thermal_reads = "t1_production_pipeline_off_mode_zero_thermal_reads"
+# ADR 0026 conformance repair (2026-08-15). Each entry maps to a numbered
+# requirement in the "Required conformance tests" section of
+# docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md.
+adr0026_no_die_signal_is_unavailable = "t1_conformance_no_die_signal_is_unavailable_despite_other_temps"
+adr0026_generic_zones_are_not_die_signals = "t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals"
+adr0026_distinct_packages_survive_dedup = "t1_conformance_distinct_packages_with_same_label_survive_dedup"
+adr0026_mapped_alias_collapses = "t1_conformance_mapped_alias_collapses_deterministically"
+adr0026_tdie_preferred_tctl_named = "t1_conformance_tdie_preferred_over_tctl_in_provenance"
+adr0026_faulted_alarmed_never_cool = "t1_conformance_faulted_and_alarmed_readings_never_yield_cool"
+adr0026_ambient_is_not_skin = "t1_conformance_ambient_does_not_activate_skin_limit"
+adr0026_invalid_thresholds_fail_closed = "t1_conformance_invalid_thresholds_fail_closed"
+adr0026_policy_load_fails_closed = "t1_conformance_policy_load_rejects_out_of_range_thermal_threshold"
+adr0026_previous_temp_not_reused = "t1_conformance_previous_temperature_is_not_reused_as_current"
+adr0026_max_aggregation_order_independent = "t1_conformance_maximum_aggregation_is_order_independent"
 
 [[package]]
 id = "T2"

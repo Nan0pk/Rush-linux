@@ -233,6 +233,13 @@ separate T1 runtime repair with mapped deterministic tests. Until that repair,
 physical collection may be diagnostic but cannot be treated as
 completion-ready proof.
 
+**Repair status (2026-08-15).** All five findings are repaired in the T1
+conformance change on branch `work/20260815-t1-adr0026-conformance-repair`, with
+eleven mapped deterministic tests added under `thermal::tests::t1_conformance_*`
+and recorded in the ledger's T1 `acceptance_tests` map. The repair does not
+ratify this ADR: `Status` above remains `proposed` and only the maintainer of
+record may change it. Physical collection still requires ratification first.
+
 ## Required conformance tests
 
 The T1 repair must add deterministic tests proving at least:
