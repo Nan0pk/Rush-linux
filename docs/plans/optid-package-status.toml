@@ -586,6 +586,20 @@ render_includes_sensor_state = "render_includes_sensor_state_ratio_reasons"
 deterministic_ordering = "deterministic_ordering"
 production_pipeline_collect_to_render = "t1_production_pipeline_collect_to_render"
 production_pipeline_off_mode_zero_thermal_reads = "t1_production_pipeline_off_mode_zero_thermal_reads"
+# ADR 0026 conformance repair (2026-08-15). Each entry maps to a numbered
+# requirement in the "Required conformance tests" section of
+# docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md.
+adr0026_no_die_signal_is_unavailable = "t1_conformance_no_die_signal_is_unavailable_despite_other_temps"
+adr0026_generic_zones_are_not_die_signals = "t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals"
+adr0026_distinct_packages_survive_dedup = "t1_conformance_distinct_packages_with_same_label_survive_dedup"
+adr0026_mapped_alias_collapses = "t1_conformance_mapped_alias_collapses_deterministically"
+adr0026_tdie_preferred_tctl_named = "t1_conformance_tdie_preferred_over_tctl_in_provenance"
+adr0026_faulted_alarmed_never_cool = "t1_conformance_faulted_and_alarmed_readings_never_yield_cool"
+adr0026_ambient_is_not_skin = "t1_conformance_ambient_does_not_activate_skin_limit"
+adr0026_invalid_thresholds_fail_closed = "t1_conformance_invalid_thresholds_fail_closed"
+adr0026_policy_load_fails_closed = "t1_conformance_policy_load_rejects_out_of_range_thermal_threshold"
+adr0026_previous_temp_not_reused = "t1_conformance_previous_temperature_is_not_reused_as_current"
+adr0026_max_aggregation_order_independent = "t1_conformance_maximum_aggregation_is_order_independent"
 
 [[package]]
 id = "T2"

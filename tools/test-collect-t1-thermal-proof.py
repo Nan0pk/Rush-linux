@@ -111,13 +111,17 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     commands = collector.t1_acceptance_commands(
         _ROOT / "docs/plans/optid-package-status.toml"
     )
-    assert len(names) == 14
+    assert len(names) == 25
     assert len(commands) == len(names)
     assert all(command[-1] == "--exact" for command in commands)
     assert all("thermal::tests::" in command[-3] for command in commands)
     assert "t1_production_pipeline_collect_to_render" in names
     assert "t1_production_pipeline_off_mode_zero_thermal_reads" in names
     assert "thermal_budget_derating_never_decreases_as_temperature_rises" in names
+    # ADR 0026 conformance repair: every mapped test must remain addressable as
+    # `thermal::tests::<name>` so the collector can run it with --exact.
+    assert "t1_conformance_no_die_signal_is_unavailable_despite_other_temps" in names
+    assert "t1_conformance_faulted_and_alarmed_readings_never_yield_cool" in names
 
 
 def test_command_output_is_sanitized(tmp_path: Path) -> None:

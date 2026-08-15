@@ -51,11 +51,83 @@ pub(crate) struct ThermalSensor {
     /// Critical temperature limit in °C if exposed by hardware (`tempM_crit`).
     pub(crate) crit_temp_c: Option<f32>,
     /// `true` if identified as CPU die/package junction sensor.
+    /// Derived from `die_kind`: a reading is eligible only on positive
+    /// classification (ADR 0026 §2), never by being the hottest reading.
     pub(crate) is_die: bool,
+    /// Positively classified die-signal provenance; `None` when the reading is
+    /// not an eligible CPU die/package signal (ADR 0026 §2).
+    #[serde(default)]
+    pub(crate) die_kind: Option<DieKind>,
     /// `true` if identified as skin/chassis sensor.
     pub(crate) is_skin: bool,
+    /// Stable physical-device identity used for duplicate resolution
+    /// (ADR 0026 §4): two views collapse only when device topology or a
+    /// tracked alias rule proves they are the same physical source.
+    #[serde(default)]
+    pub(crate) device_key: String,
+    /// `true` when the kernel marks this channel faulted (`tempN_fault`).
+    #[serde(default)]
+    pub(crate) faulted: bool,
+    /// `true` when the kernel raises an alarm on this channel
+    /// (`tempN_alarm` / `tempN_crit_alarm`). Must never yield `Cool`.
+    #[serde(default)]
+    pub(crate) alarmed: bool,
     /// Source class used for duplicate resolution ranking.
     pub(crate) source: ThermalSource,
+}
+
+/// T1 — Positively identified CPU die/package signal provenance (ADR 0026 §2).
+///
+/// Rank affects *reporting* only: `Tdie` is preferred over `Tctl`, and a
+/// package channel is preferred over a per-core or per-CCD channel when both
+/// sit at the same temperature. The selected *value* is always the
+/// conservative maximum regardless of kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum DieKind {
+    /// Intel `coretemp` `Package id N`.
+    Package,
+    /// Intel `coretemp` per-core channel.
+    Core,
+    /// AMD `k10temp`/`zenpower` `Tdie` (physical junction).
+    Tdie,
+    /// AMD `Tctl` control value — an eligible conservative fallback that must
+    /// be named as `Tctl` and never described as a chassis/case temperature.
+    Tctl,
+    /// AMD per-CCD channel (`TccdN`).
+    Ccd,
+    /// Platform thermal zone positively naming a CPU package (`x86_pkg_temp`).
+    PlatformPackage,
+    /// Model-specific CPU/SoC zone with a tracked positive mapping.
+    MappedCpuZone,
+}
+
+impl DieKind {
+    /// Reporting preference; higher wins ties at equal temperature.
+    fn provenance_rank(self) -> u8 {
+        match self {
+            DieKind::Package => 6,
+            DieKind::Tdie => 5,
+            DieKind::PlatformPackage => 4,
+            DieKind::Core => 3,
+            DieKind::Ccd => 2,
+            DieKind::MappedCpuZone => 1,
+            // Least preferred: a control value, not a measured junction.
+            DieKind::Tctl => 0,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            DieKind::Package => "package",
+            DieKind::Core => "core",
+            DieKind::Tdie => "Tdie",
+            DieKind::Tctl => "Tctl",
+            DieKind::Ccd => "ccd",
+            DieKind::PlatformPackage => "platform_package",
+            DieKind::MappedCpuZone => "mapped_cpu_zone",
+        }
+    }
 }
 
 /// Origin of a thermal reading — used for stable identity and dedup preference.
@@ -159,7 +231,47 @@ impl ThermalConfig {
             thermal: ThermalConfig,
         }
         let wrapper: Wrapper = toml::from_str(&wrapped).map_err(|e| e.to_string())?;
+        wrapper.thermal.validate()?;
         Ok(wrapper.thermal)
+    }
+
+    /// Enforce the accepted threshold ranges and ordering (ADR 0026 §6).
+    ///
+    /// Invalid configuration fails closed with an operator-readable error. It
+    /// is never silently clamped into a valid-looking policy, because a clamp
+    /// would present an unreviewed threshold as though it were accepted.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        let checks: [(&str, f32, f32, f32); 4] = [
+            ("thermal_lo_c", self.thermal_lo_c, 40.0, 80.0),
+            ("thermal_hi_c", self.thermal_hi_c, 70.0, 120.0),
+            ("hysteresis_c", self.hysteresis_c, 0.0, 10.0),
+            ("skin_temp_limit_c", self.skin_temp_limit_c, 35.0, 55.0),
+        ];
+        for (field, value, lo, hi) in checks {
+            if !value.is_finite() {
+                return Err(format!("thermal.{field} must be a finite value"));
+            }
+            if value < lo || value > hi {
+                return Err(format!(
+                    "thermal.{field} = {value} is outside the accepted range [{lo}, {hi}]"
+                ));
+            }
+        }
+        if self.thermal_hi_c < self.thermal_lo_c + 5.0 {
+            return Err(format!(
+                "thermal.thermal_hi_c ({}) must be at least thermal_lo_c + 5.0 ({})",
+                self.thermal_hi_c,
+                self.thermal_lo_c + 5.0
+            ));
+        }
+        if !is_plausible_temp_c(self.thermal_lo_c - self.hysteresis_c) {
+            return Err(format!(
+                "thermal.thermal_lo_c - thermal.hysteresis_c ({}) falls outside the plausible \
+                 telemetry envelope",
+                self.thermal_lo_c - self.hysteresis_c
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -262,11 +374,44 @@ pub(crate) fn compute_thermal_budget(
     // Collect max fan RPM regardless of temperature availability.
     let max_fan_rpm = fans.iter().map(|f| f.rpm).max();
 
-    // Filter to plausible readings only.
+    // A reading contributes only when it is finite, plausible, and neither
+    // faulted nor alarmed (ADR 0026 §5).
+    let critical_alarm_on_die = sensors
+        .iter()
+        .any(|s| s.is_die && s.alarmed && is_plausible_temp_c(s.temp_c));
+    let excluded_invalid = sensors
+        .iter()
+        .filter(|s| is_plausible_temp_c(s.temp_c) && (s.faulted || s.alarmed))
+        .count();
+    if excluded_invalid > 0 {
+        reasons.push(format!(
+            "excluded {excluded_invalid} reading(s) marked faulted or alarmed by the kernel"
+        ));
+    }
     let usable: Vec<&ThermalSensor> = sensors
         .iter()
-        .filter(|s| is_plausible_temp_c(s.temp_c))
+        .filter(|s| is_plausible_temp_c(s.temp_c) && !s.faulted && !s.alarmed)
         .collect();
+
+    // A critical alarm is evidence of an unsafe or out-of-contract state; it
+    // must never present as Cool or as additional headroom.
+    if critical_alarm_on_die {
+        reasons.push(
+            "kernel raised a thermal alarm on an eligible CPU die/package channel; \
+             reporting maximum derating"
+                .to_string(),
+        );
+        return ThermalBudget {
+            state: ThermalBudgetState::Constrained,
+            derating_ratio: 1.0,
+            selected_die_id: None,
+            max_die_temp_c: None,
+            selected_skin_id: None,
+            skin_temp_c: None,
+            max_fan_rpm,
+            reasons,
+        };
+    }
 
     if usable.is_empty() {
         reasons.push(
@@ -285,24 +430,31 @@ pub(crate) fn compute_thermal_budget(
         };
     }
 
-    // Prefer die sensors; fall back to hottest usable reading.
+    // Conservative maximum over positively identified die/package signals only.
+    // There is deliberately no fallback to "the hottest usable reading": an
+    // unrelated board, storage, GPU, battery, ambient or generic ACPI reading
+    // must never become the CPU die signal (ADR 0026 §2).
     let die_sensors: Vec<&ThermalSensor> = usable.iter().copied().filter(|s| s.is_die).collect();
-    let max_die_sensor = if !die_sensors.is_empty() {
-        die_sensors.into_iter().max_by(|a, b| {
-            a.temp_c
-                .partial_cmp(&b.temp_c)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-    } else {
-        usable.iter().copied().max_by(|a, b| {
-            a.temp_c
-                .partial_cmp(&b.temp_c)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-    };
+    let max_die_sensor = die_sensors.into_iter().max_by(|a, b| {
+        a.temp_c
+            .partial_cmp(&b.temp_c)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            // Deterministic tie-break: better provenance, then stable id.
+            .then_with(|| {
+                a.die_kind
+                    .map(DieKind::provenance_rank)
+                    .unwrap_or(0)
+                    .cmp(&b.die_kind.map(DieKind::provenance_rank).unwrap_or(0))
+            })
+            .then_with(|| b.id.cmp(&a.id))
+    });
 
     let Some(max_die_sensor) = max_die_sensor else {
-        reasons.push("no valid temperature reading found; budget unavailable".to_string());
+        reasons.push(
+            "no positively identified CPU die/package sensor; refusing to substitute an \
+             unrelated temperature; budget unavailable"
+                .to_string(),
+        );
         return ThermalBudget {
             state: ThermalBudgetState::Unavailable,
             derating_ratio: 1.0,
@@ -318,6 +470,17 @@ pub(crate) fn compute_thermal_budget(
     let die_temp = max_die_sensor.temp_c;
     let selected_die_id = Some(max_die_sensor.id.clone());
     let hw_crit_temp_c = max_die_sensor.crit_temp_c;
+
+    // Name the provenance explicitly. Tctl in particular must be reported as a
+    // control value, never as a physical chassis or case temperature.
+    if let Some(kind) = max_die_sensor.die_kind {
+        reasons.push(format!(
+            "selected die signal {} ({}) at {:.1}°C",
+            max_die_sensor.id,
+            kind.as_str(),
+            die_temp
+        ));
+    }
 
     // Dynamic upper threshold if hw crit temp exists: T_hi = min(config.thermal_hi_c, T_crit - 10°C)
     let effective_hi_c = match hw_crit_temp_c {
@@ -466,38 +629,78 @@ fn stable_hwmon_device_key(read: &dyn KernelRead, hwmon_dir: &Path) -> String {
     "hwmon:unknown".to_string()
 }
 
-fn classify_die_skin(name: &str, label: &str) -> (bool, bool) {
+/// Positively classify a reading as an eligible CPU die/package signal and/or
+/// a skin/chassis signal (ADR 0026 §2 and §3).
+///
+/// Classification is by positive evidence only. A generic ACPI zone, an
+/// ordinal channel, an ambient/board/VRM/NVMe/GPU/battery reading, and "it was
+/// the only or hottest temperature available" are all explicitly insufficient.
+fn classify_signal(name: &str, label: &str) -> (Option<DieKind>, bool) {
     let name_lower = name.to_ascii_lowercase();
     let label_lower = label.to_ascii_lowercase();
-    let is_die = name_lower.contains("coretemp")
-        || name_lower.contains("k10temp")
-        || name_lower.contains("zenpower")
-        || label_lower.contains("package id")
-        || label_lower.contains("tdie")
-        || label_lower.contains("tctl")
-        || label_lower.contains("cpu die")
-        || label_lower.contains("x86_pkg_temp")
-        || name_lower.contains("x86_pkg_temp")
-        || name_lower.contains("cpu-thermal")
-        || name_lower.contains("soc-thermal");
-    let is_skin = label_lower.contains("skin")
-        || label_lower.contains("chassis")
-        || label_lower.contains("ambient")
-        || name_lower.contains("skin");
-    // VRM is board-level but not die; keep as non-die non-skin unless labeled skin.
-    (is_die, is_skin)
+
+    // Drivers that only ever export CPU junction telemetry. A channel from one
+    // of these is eligible; the label refines the provenance.
+    let intel_core = name_lower.contains("coretemp");
+    let amd_core = name_lower.contains("k10temp") || name_lower.contains("zenpower");
+
+    let die_kind = if name_lower.contains("x86_pkg_temp") || label_lower.contains("x86_pkg_temp") {
+        // Platform zone that positively names a CPU package.
+        Some(DieKind::PlatformPackage)
+    } else if label_lower.contains("package id") {
+        Some(DieKind::Package)
+    } else if label_lower.contains("tdie") {
+        Some(DieKind::Tdie)
+    } else if label_lower.contains("tccd") {
+        Some(DieKind::Ccd)
+    } else if label_lower.contains("tctl") {
+        Some(DieKind::Tctl)
+    } else if label_lower.starts_with("core ") || label_lower.contains("cpu die") {
+        Some(DieKind::Core)
+    } else if name_lower == "cpu-thermal"
+        || name_lower == "soc-thermal"
+        || name_lower.starts_with("cpu-thermal")
+        || name_lower.starts_with("soc-thermal")
+    {
+        // Tracked platform mapping: the zone type positively names the CPU/SoC.
+        Some(DieKind::MappedCpuZone)
+    } else if intel_core {
+        // A coretemp channel with no or an unrecognized label is still a CPU
+        // junction by driver contract, but reports as a core-level channel.
+        Some(DieKind::Core)
+    } else if amd_core {
+        Some(DieKind::Tctl)
+    } else {
+        None
+    };
+
+    // Skin limiting applies only to a positively identified user-touch surface.
+    // `ambient` is deliberately excluded: it may describe air, board, inlet or
+    // room, none of which is a touch surface (ADR 0026 §3).
+    let is_skin = ["skin", "chassis", "surface", "palm", "keyboard", "deck"]
+        .iter()
+        .any(|k| label_lower.contains(k) || name_lower.contains(k));
+
+    (die_kind, is_skin)
 }
 
-/// Deduplicate sensors that likely represent the same physical junction
-/// exposed through both hwmon and ACPI. Prefer the more informative reading
-/// (has label/crit, higher source rank for hwmon with crit).
+/// Deduplicate sensors that provably represent the same physical junction
+/// (ADR 0026 §4).
+///
+/// Two views collapse only when either (1) their stable device topology
+/// establishes that they are projections of the same physical source, or
+/// (2) a tracked alias rule identifies the pair. Identical labels alone never
+/// collapse a pair: two sockets, packages or CCDs may legitimately carry the
+/// same label, and losing one of them would silently hide a hot package.
+/// Because aggregation takes the maximum, retaining a true duplicate is
+/// harmless while collapsing a distinct source is not.
 fn dedup_sensors(mut sensors: Vec<ThermalSensor>) -> Vec<ThermalSensor> {
     // Sort for deterministic processing: by id.
     sensors.sort_by(|a, b| a.id.cmp(&b.id));
 
     let mut out: Vec<ThermalSensor> = Vec::new();
     for s in sensors {
-        // Duplicate key: normalized label/type + die/skin class.
+        // Same physical device and same channel identity only.
         let key = dedup_key(&s);
         if let Some(existing) = out.iter_mut().find(|e| dedup_key(e) == key) {
             *existing = prefer_richer(existing, &s);
@@ -505,28 +708,72 @@ fn dedup_sensors(mut sensors: Vec<ThermalSensor>) -> Vec<ThermalSensor> {
             out.push(s);
         }
     }
+
+    out = apply_alias_rules(out);
+
     // Deterministic output order by id.
     out.sort_by(|a, b| a.id.cmp(&b.id));
     out
 }
 
+/// Tracked platform alias rules — the only sanctioned cross-device collapse.
+///
+/// The single rule today: a generic `x86_pkg_temp` ACPI zone is a projection of
+/// the hwmon `coretemp` package channel, but only when exactly one such hwmon
+/// package channel exists. With two or more packages the mapping is ambiguous,
+/// so every reading is retained rather than guessed at.
+fn apply_alias_rules(sensors: Vec<ThermalSensor>) -> Vec<ThermalSensor> {
+    let hwmon_package_count = sensors
+        .iter()
+        .filter(|s| s.source == ThermalSource::Hwmon && s.die_kind == Some(DieKind::Package))
+        .count();
+    if hwmon_package_count != 1 {
+        return sensors;
+    }
+    let acpi_pkg_count = sensors
+        .iter()
+        .filter(|s| s.source == ThermalSource::Acpi && s.die_kind == Some(DieKind::PlatformPackage))
+        .count();
+    if acpi_pkg_count != 1 {
+        return sensors;
+    }
+    // Fold the ACPI projection into the richer hwmon channel.
+    let acpi = sensors
+        .iter()
+        .find(|s| s.source == ThermalSource::Acpi && s.die_kind == Some(DieKind::PlatformPackage))
+        .cloned();
+    let mut out: Vec<ThermalSensor> = sensors
+        .into_iter()
+        .filter(|s| {
+            !(s.source == ThermalSource::Acpi && s.die_kind == Some(DieKind::PlatformPackage))
+        })
+        .collect();
+    if let (Some(acpi), Some(hw)) = (
+        acpi,
+        out.iter_mut()
+            .find(|s| s.source == ThermalSource::Hwmon && s.die_kind == Some(DieKind::Package)),
+    ) {
+        // Maximum aggregation semantics: never lower the retained reading.
+        if acpi.temp_c > hw.temp_c {
+            hw.temp_c = acpi.temp_c;
+        }
+        hw.alarmed |= acpi.alarmed;
+        hw.faulted |= acpi.faulted;
+    }
+    out
+}
+
+/// Duplicate key: stable physical device plus channel identity. Deliberately
+/// includes `device_key` so that identically labelled channels on distinct
+/// devices remain distinct.
 fn dedup_key(s: &ThermalSensor) -> String {
     let label = s.label.to_ascii_lowercase().replace(' ', "_");
-    let kind = if s.is_die {
-        "die"
-    } else if s.is_skin {
-        "skin"
-    } else {
-        "other"
+    let kind = match s.die_kind {
+        Some(k) => k.as_str(),
+        None if s.is_skin => "skin",
+        None => "other",
     };
-    // Map common ACPI/hwmon aliases for the same package sensor.
-    let normalized =
-        if label.contains("package") || label.contains("x86_pkg") || label.contains("pkg") {
-            "pkg_temp".to_string()
-        } else {
-            label
-        };
-    format!("{kind}:{normalized}")
+    format!("{}:{kind}:{label}", s.device_key)
 }
 
 fn prefer_richer(a: &ThermalSensor, b: &ThermalSensor) -> ThermalSensor {
@@ -625,7 +872,19 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                     // Stable id: device + chip name + channel/label (no hwmonN).
                     let id = format!("hwmon:{device_key}:{name}:{channel}");
 
-                    let (is_die, is_skin) = classify_die_skin(&name, &label);
+                    let (die_kind, is_skin) = classify_signal(&name, &label);
+
+                    // Sensor validity attributes (ADR 0026 §5). A faulted or
+                    // alarmed channel does not contribute to the budget, and a
+                    // critical alarm can never produce Cool / extra headroom.
+                    let flag = |attr: &str| -> bool {
+                        read.read_to_string(&hwmon_dir.join(format!("{prefix}_{attr}")))
+                            .ok()
+                            .map(|t| t.trim() != "0" && !t.trim().is_empty())
+                            .unwrap_or(false)
+                    };
+                    let faulted = flag("fault");
+                    let alarmed = flag("alarm") || flag("crit_alarm") || flag("emergency_alarm");
 
                     results.push(ThermalSensor {
                         id,
@@ -636,8 +895,12 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                         },
                         temp_c,
                         crit_temp_c,
-                        is_die,
+                        is_die: die_kind.is_some(),
+                        die_kind,
                         is_skin,
+                        device_key: device_key.clone(),
+                        faulted,
+                        alarmed,
                         source: ThermalSource::Hwmon,
                     });
                 }
@@ -677,17 +940,54 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                 continue;
             }
 
-            // Stable id: acpi source + type (not thermal_zoneN index).
-            let id = format!("acpi:{kind}");
-            let (is_die, is_skin) = classify_die_skin(&kind, &kind);
+            // Stable device identity: prefer the zone's backing ACPI/platform
+            // device over the volatile thermal_zoneN index. Distinct packages
+            // exporting the same zone type must not share an identity
+            // (ADR 0026 §4).
+            let zone_device = read
+                .read_link(&tz_dir.join("device"))
+                .ok()
+                .and_then(|t| {
+                    let abs = if t.is_absolute() {
+                        t.clone()
+                    } else {
+                        tz_dir.join(&t)
+                    };
+                    read.canonicalize(&abs)
+                        .unwrap_or(t)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_default();
+            let device_key = if zone_device.is_empty() {
+                format!("zone:{kind}")
+            } else {
+                zone_device
+            };
+            let id = if device_key.starts_with("zone:") {
+                format!("acpi:{kind}")
+            } else {
+                format!("acpi:{device_key}:{kind}")
+            };
+            let (die_kind, is_skin) = classify_signal(&kind, &kind);
+
+            // The generic thermal framework exposes no per-zone fault/alarm
+            // attribute equivalent to hwmon's; trip-point evaluation is out of
+            // T1's read-only scope, so zones carry no alarm state.
+            let alarmed = false;
 
             results.push(ThermalSensor {
                 id,
                 label: kind,
                 temp_c,
                 crit_temp_c: None,
-                is_die,
+                is_die: die_kind.is_some(),
+                die_kind,
                 is_skin,
+                device_key,
+                faulted: false,
+                alarmed,
                 source: ThermalSource::Acpi,
             });
         }
@@ -828,7 +1128,36 @@ mod tests {
             temp_c: temp,
             crit_temp_c: crit,
             is_die: die,
+            die_kind: if die { Some(DieKind::Package) } else { None },
             is_skin: skin,
+            device_key: format!("dev:{id}"),
+            faulted: false,
+            alarmed: false,
+            source: ThermalSource::Hwmon,
+        }
+    }
+
+    /// Same as `sensor`, with explicit provenance and validity flags.
+    fn sensor_full(
+        id: &str,
+        temp: f32,
+        die_kind: Option<DieKind>,
+        skin: bool,
+        device_key: &str,
+        faulted: bool,
+        alarmed: bool,
+    ) -> ThermalSensor {
+        ThermalSensor {
+            id: id.to_string(),
+            label: id.to_string(),
+            temp_c: temp,
+            crit_temp_c: None,
+            is_die: die_kind.is_some(),
+            die_kind,
+            is_skin: skin,
+            device_key: device_key.to_string(),
+            faulted,
+            alarmed,
             source: ThermalSource::Hwmon,
         }
     }
@@ -1511,5 +1840,386 @@ mod tests {
         assert!(snap.max_temp_millic.is_none());
         // thermal_c() returns None for Disabled state.
         assert!(snap.thermal_c().is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // ADR 0026 conformance tests (T1 repair). Each maps to a numbered
+    // requirement in "Required conformance tests" of
+    // docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md.
+    // ------------------------------------------------------------------
+
+    /// ADR 0026 §1 — no eligible die signal yields `Unavailable` even when
+    /// unrelated valid temperatures exist. This is the defect that let a
+    /// battery, board, GPU or NVMe reading become the CPU die signal.
+    #[test]
+    fn t1_conformance_no_die_signal_is_unavailable_despite_other_temps() {
+        let config = ThermalConfig::default();
+        let sensors = vec![
+            sensor_full("nvme:composite", 44.0, None, false, "nvme0", false, false),
+            sensor_full("battery:temp", 31.0, None, false, "bat0", false, false),
+            sensor_full("board:vrm", 58.0, None, false, "board0", false, false),
+        ];
+        let b = compute_thermal_budget(&config, &sensors, &[], None);
+        assert_eq!(b.state, ThermalBudgetState::Unavailable);
+        assert_eq!(b.derating_ratio, 1.0);
+        assert!(b.selected_die_id.is_none());
+        assert!(b.max_die_temp_c.is_none());
+        assert!(
+            b.reasons
+                .iter()
+                .any(|r| r.contains("refusing to substitute")),
+            "expected an explicit refusal reason: {:?}",
+            b.reasons
+        );
+    }
+
+    /// ADR 0026 §2 — a generic `acpitz` zone and an ordinal hwmon channel are
+    /// not CPU die signals, and never become one by fallback.
+    #[test]
+    fn t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals() {
+        let k = MemoryKernel::new();
+        install_acpi_zone(&k, "thermal_zone0", "acpitz", 71000);
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "pch.0",
+            "pch_cannonlake",
+            &[("temp1", "", 62000, None)],
+        );
+        let sensors = discover_thermal_sensors_with(&k);
+        assert!(!sensors.is_empty(), "fixture should discover readings");
+        assert!(
+            sensors.iter().all(|s| !s.is_die),
+            "no reading here is an eligible die signal: {sensors:?}"
+        );
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_eq!(b.state, ThermalBudgetState::Unavailable);
+        assert_eq!(b.derating_ratio, 1.0);
+    }
+
+    /// ADR 0026 §3 — two physically distinct packages carrying the same label
+    /// survive deduplication. Collapsing them would silently hide a hot socket.
+    #[test]
+    fn t1_conformance_distinct_packages_with_same_label_survive_dedup() {
+        let k = MemoryKernel::new();
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 60000, Some(100000))],
+        );
+        install_hwmon(
+            &k,
+            "hwmon1",
+            "coretemp.1",
+            "coretemp",
+            &[("temp1", "Package id 0", 88000, Some(100000))],
+        );
+        let sensors = discover_thermal_sensors_with(&k);
+        let dies: Vec<_> = sensors.iter().filter(|s| s.is_die).collect();
+        assert_eq!(dies.len(), 2, "both packages must survive: {sensors:?}");
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_eq!(
+            b.max_die_temp_c,
+            Some(88.0),
+            "hot socket must win the maximum"
+        );
+    }
+
+    /// ADR 0026 §4 — a tracked alias pair collapses deterministically, and the
+    /// retained reading is the richer hwmon channel.
+    #[test]
+    fn t1_conformance_mapped_alias_collapses_deterministically() {
+        let build = || {
+            let k = MemoryKernel::new();
+            install_hwmon(
+                &k,
+                "hwmon0",
+                "coretemp.0",
+                "coretemp",
+                &[("temp1", "Package id 0", 66000, Some(100000))],
+            );
+            install_acpi_zone(&k, "thermal_zone2", "x86_pkg_temp", 65000);
+            discover_thermal_sensors_with(&k)
+        };
+        let a = build();
+        let b = build();
+        assert_eq!(a, b, "alias collapse must be deterministic");
+        let dies: Vec<_> = a.iter().filter(|s| s.is_die).collect();
+        assert_eq!(dies.len(), 1);
+        assert_eq!(dies[0].source, ThermalSource::Hwmon);
+        assert!(dies[0].crit_temp_c.is_some());
+    }
+
+    /// ADR 0026 §2 — `Tdie` is preferred in provenance; `Tctl` stays eligible
+    /// but is explicitly named as a control value, never as a case temperature.
+    #[test]
+    fn t1_conformance_tdie_preferred_over_tctl_in_provenance() {
+        let (tdie, _) = classify_signal("k10temp", "Tdie");
+        let (tctl, tctl_skin) = classify_signal("k10temp", "Tctl");
+        assert_eq!(tdie, Some(DieKind::Tdie));
+        assert_eq!(tctl, Some(DieKind::Tctl));
+        assert!(!tctl_skin, "Tctl must never be classified as a skin sensor");
+        assert!(
+            DieKind::Tdie.provenance_rank() > DieKind::Tctl.provenance_rank(),
+            "Tdie must outrank Tctl"
+        );
+
+        // Equal temperature: Tdie wins selection; the reason names the kind.
+        let sensors = vec![
+            sensor_full(
+                "hw:tctl",
+                70.0,
+                Some(DieKind::Tctl),
+                false,
+                "k10temp.0",
+                false,
+                false,
+            ),
+            sensor_full(
+                "hw:tdie",
+                70.0,
+                Some(DieKind::Tdie),
+                false,
+                "k10temp.0",
+                false,
+                false,
+            ),
+        ];
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_eq!(b.selected_die_id.as_deref(), Some("hw:tdie"));
+        assert!(
+            b.reasons.iter().any(|r| r.contains("Tdie")),
+            "provenance must be named: {:?}",
+            b.reasons
+        );
+
+        // Tctl alone is still eligible, and is reported as Tctl.
+        let only_tctl = vec![sensor_full(
+            "hw:tctl",
+            70.0,
+            Some(DieKind::Tctl),
+            false,
+            "k10temp.0",
+            false,
+            false,
+        )];
+        let b2 = compute_thermal_budget(&ThermalConfig::default(), &only_tctl, &[], None);
+        assert_eq!(b2.selected_die_id.as_deref(), Some("hw:tctl"));
+        assert!(b2.reasons.iter().any(|r| r.contains("Tctl")));
+    }
+
+    /// ADR 0026 §5 — faulted and alarmed readings cannot produce `Cool`.
+    #[test]
+    fn t1_conformance_faulted_and_alarmed_readings_never_yield_cool() {
+        let config = ThermalConfig::default();
+
+        // A faulted die channel is excluded; nothing eligible remains.
+        let faulted = vec![sensor_full(
+            "hw:pkg",
+            30.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            true,
+            false,
+        )];
+        let b = compute_thermal_budget(&config, &faulted, &[], None);
+        assert_ne!(b.state, ThermalBudgetState::Cool);
+        assert_eq!(b.state, ThermalBudgetState::Unavailable);
+        assert_eq!(b.derating_ratio, 1.0);
+
+        // An alarmed die channel reporting a low temperature is an unsafe
+        // state, not headroom.
+        let alarmed = vec![sensor_full(
+            "hw:pkg",
+            30.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            true,
+        )];
+        let b2 = compute_thermal_budget(&config, &alarmed, &[], None);
+        assert_ne!(b2.state, ThermalBudgetState::Cool);
+        assert_eq!(b2.state, ThermalBudgetState::Constrained);
+        assert_eq!(b2.derating_ratio, 1.0);
+    }
+
+    /// ADR 0026 §3 — a generic `ambient` reading is not a touch surface and
+    /// must not activate the skin limit.
+    #[test]
+    fn t1_conformance_ambient_does_not_activate_skin_limit() {
+        let (_, ambient_skin) = classify_signal("acpitz", "ambient");
+        assert!(
+            !ambient_skin,
+            "ambient is not a positively identified skin sensor"
+        );
+        let (_, real_skin) = classify_signal("thinkpad", "skin");
+        assert!(real_skin);
+
+        let config = ThermalConfig::default();
+        let sensors = vec![
+            sensor_full(
+                "hw:pkg",
+                50.0,
+                Some(DieKind::Package),
+                false,
+                "coretemp.0",
+                false,
+                false,
+            ),
+            // Well above skin_temp_limit_c, but not a touch surface.
+            sensor_full("hw:ambient", 60.0, None, false, "board0", false, false),
+        ];
+        let b = compute_thermal_budget(&config, &sensors, &[], None);
+        assert_eq!(b.state, ThermalBudgetState::Cool);
+        assert!(
+            b.selected_skin_id.is_none(),
+            "ambient must not become a skin signal"
+        );
+    }
+
+    /// ADR 0026 §6 — invalid threshold ranges and ordering fail closed and are
+    /// never silently clamped into a valid-looking policy.
+    #[test]
+    fn t1_conformance_invalid_thresholds_fail_closed() {
+        let cases = [
+            ("thermal_lo_c = 10.0\n", "thermal_lo_c"),
+            ("thermal_hi_c = 200.0\n", "thermal_hi_c"),
+            ("hysteresis_c = 25.0\n", "hysteresis_c"),
+            ("skin_temp_limit_c = 90.0\n", "skin_temp_limit_c"),
+            ("thermal_lo_c = 70.0\nthermal_hi_c = 72.0\n", "thermal_hi_c"),
+        ];
+        for (body, expect) in cases {
+            let text = format!("mode = \"observe\"\n{body}");
+            let err = ThermalConfig::from_toml_str(&text)
+                .expect_err(&format!("must be rejected: {body}"));
+            assert!(
+                err.contains(expect),
+                "error must name the offending field, got: {err}"
+            );
+        }
+        // The accepted defaults remain valid.
+        ThermalConfig::default()
+            .validate()
+            .expect("shipped defaults must satisfy the accepted ranges");
+    }
+
+    /// ADR 0026 §5 — a previous cycle's temperature is never reused as if it
+    /// were a fresh observation.
+    #[test]
+    fn t1_conformance_previous_temperature_is_not_reused_as_current() {
+        let config = ThermalConfig::default();
+        let warm = vec![sensor_full(
+            "hw:pkg",
+            80.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        )];
+        let first = compute_thermal_budget(&config, &warm, &[], None);
+        assert_eq!(first.state, ThermalBudgetState::Derating);
+        assert_eq!(first.max_die_temp_c, Some(80.0));
+
+        // Telemetry disappears on the next cycle.
+        let second = compute_thermal_budget(&config, &[], &[], Some(&first));
+        assert_eq!(second.state, ThermalBudgetState::Unavailable);
+        assert_eq!(second.derating_ratio, 1.0);
+        assert!(second.max_die_temp_c.is_none());
+        assert!(second.selected_die_id.is_none());
+    }
+
+    /// ADR 0026 §4 — maximum aggregation is stable regardless of the order in
+    /// which readings are discovered.
+    #[test]
+    fn t1_conformance_maximum_aggregation_is_order_independent() {
+        let config = ThermalConfig::default();
+        let a = sensor_full(
+            "hw:pkg0",
+            62.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+        let b = sensor_full(
+            "hw:pkg1",
+            91.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.1",
+            false,
+            false,
+        );
+        let c = sensor_full(
+            "hw:ccd0",
+            75.0,
+            Some(DieKind::Ccd),
+            false,
+            "coretemp.1",
+            false,
+            false,
+        );
+
+        let forward =
+            compute_thermal_budget(&config, &[a.clone(), b.clone(), c.clone()], &[], None);
+        let reverse = compute_thermal_budget(&config, &[c, b, a], &[], None);
+        assert_eq!(forward.max_die_temp_c, reverse.max_die_temp_c);
+        assert_eq!(forward.selected_die_id, reverse.selected_die_id);
+        assert_eq!(forward.state, reverse.state);
+        assert_eq!(forward.derating_ratio, reverse.derating_ratio);
+        assert_eq!(forward.max_die_temp_c, Some(91.0));
+    }
+
+    #[test]
+    fn t1_conformance_policy_load_rejects_out_of_range_thermal_threshold() {
+        // ADR 0026 §6 — the real config load path, not just the standalone
+        // [thermal] parser, must fail closed on an unaccepted threshold.
+        // The shipped policy is used as the base so this exercises a complete,
+        // otherwise-valid file rather than a fragment.
+        let base_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/optid/policy.toml");
+        let base = std::fs::read_to_string(&base_path).expect("shipped policy.toml");
+        assert!(
+            !base.contains("[thermal]"),
+            "shipped policy is expected to rely on thermal defaults"
+        );
+
+        let dir = std::env::temp_dir().join(format!("optid-t1-threshold-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("policy.toml");
+
+        let good = format!(
+            "{base}\n[thermal]\nmode = \"observe\"\nthermal_lo_c = 60.0\nthermal_hi_c = 95.0\n"
+        );
+        std::fs::write(&path, &good).expect("write policy");
+        let (_, state) = crate::policy::Policy::load_with_state(&path);
+        assert_eq!(
+            state,
+            crate::load_state::LoadState::Ok,
+            "an in-range thermal table must load cleanly"
+        );
+
+        // thermal_hi_c below thermal_lo_c + 5.0 violates the accepted ordering.
+        let bad = format!(
+            "{base}\n[thermal]\nmode = \"observe\"\nthermal_lo_c = 70.0\nthermal_hi_c = 72.0\n"
+        );
+        std::fs::write(&path, &bad).expect("write policy");
+        let (policy, state) = crate::policy::Policy::load_with_state(&path);
+        assert_eq!(
+            state,
+            crate::load_state::LoadState::Invalid,
+            "an unaccepted threshold ordering must fail closed"
+        );
+        // Fail closed means the curated baseline, never a silent clamp.
+        assert_eq!(policy.thermal.thermal_lo_c, 60.0);
+        assert_eq!(policy.thermal.thermal_hi_c, 95.0);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
