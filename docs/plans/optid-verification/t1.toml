@@ -9,7 +9,7 @@
 schema_version = 1
 package = "T1"
 implementation_pr = 334
-verification_pr = 0
+verification_pr = 409
 verified_commit = "1a07aa41b9b1decb96460abce5745ba9e89e81e5"
 verifier = "Independent cold-verification session on the maintainer's Fedora 44 host (Linux 7.1.8-200.fc44.x86_64); separate from the T1 implementation builder; did not build or repair T1 code"
 result = "pass"
