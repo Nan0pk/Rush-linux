@@ -722,20 +722,6 @@ impl Policy {
         let parsed: Result<Self, _> = toml::from_str(&text);
         match parsed {
             Ok(policy) => {
-                // T1 / ADR 0026 §6: thermal thresholds must satisfy the
-                // accepted ranges and ordering. An out-of-range threshold
-                // fails closed to the curated baseline; it is never silently
-                // clamped into a valid-looking policy, because a clamp would
-                // present an unreviewed threshold as if it had been accepted.
-                if let Err(e) = policy.thermal.validate() {
-                    eprintln!(
-                        "optid: policy TOML from {} has an unacceptable thermal threshold: {}. \
-                         Using curated baseline.",
-                        path.display(),
-                        e
-                    );
-                    return (Self::curated_baseline(), LoadState::Invalid);
-                }
                 // Structural validation: every required section must be
                 // present with at least the canonical mode set. A file that
                 // parses but is missing `[modes]` is `Partial`, not `Ok`.

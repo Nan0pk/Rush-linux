@@ -155,7 +155,7 @@ pub(crate) struct FanSensor {
 /// existing Policy TOML path. Unknown fields are rejected. Mode may only
 /// be `off` or `observe` — `actuate` is a hard parse/validation error.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, try_from = "ThermalConfigRaw")]
 pub(crate) struct ThermalConfig {
     /// Sensing mode: `off` or `observe` only.
     #[serde(default)]
@@ -172,6 +172,42 @@ pub(crate) struct ThermalConfig {
     /// Skin temperature limit in °C (default 43.0°C per IEC 62368-1).
     #[serde(default = "default_skin_temp_limit_c")]
     pub(crate) skin_temp_limit_c: f32,
+}
+
+/// Wire form of [`ThermalConfig`]. Deserializing a `[thermal]` table always
+/// goes through this shim so that the accepted ADR 0026 ranges and ordering are
+/// enforced by the type itself, on every load path, including
+/// `Policy::load_with_state`. There is no way to construct a `ThermalConfig`
+/// from configuration without passing `validate()`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThermalConfigRaw {
+    #[serde(default)]
+    mode: ThermalMode,
+    #[serde(default = "default_thermal_lo_c")]
+    thermal_lo_c: f32,
+    #[serde(default = "default_thermal_hi_c")]
+    thermal_hi_c: f32,
+    #[serde(default = "default_hysteresis_c")]
+    hysteresis_c: f32,
+    #[serde(default = "default_skin_temp_limit_c")]
+    skin_temp_limit_c: f32,
+}
+
+impl TryFrom<ThermalConfigRaw> for ThermalConfig {
+    type Error = String;
+
+    fn try_from(raw: ThermalConfigRaw) -> Result<Self, Self::Error> {
+        let config = ThermalConfig {
+            mode: raw.mode,
+            thermal_lo_c: raw.thermal_lo_c,
+            thermal_hi_c: raw.thermal_hi_c,
+            hysteresis_c: raw.hysteresis_c,
+            skin_temp_limit_c: raw.skin_temp_limit_c,
+        };
+        config.validate()?;
+        Ok(config)
+    }
 }
 
 fn default_thermal_lo_c() -> f32 {
