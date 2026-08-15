@@ -111,7 +111,7 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     commands = collector.t1_acceptance_commands(
         _ROOT / "docs/plans/optid-package-status.toml"
     )
-    assert len(names) == 25
+    assert len(names) == 29
     assert len(commands) == len(names)
     assert all(command[-1] == "--exact" for command in commands)
     assert all("thermal::tests::" in command[-3] for command in commands)
@@ -122,6 +122,11 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     # `thermal::tests::<name>` so the collector can run it with --exact.
     assert "t1_conformance_no_die_signal_is_unavailable_despite_other_temps" in names
     assert "t1_conformance_faulted_and_alarmed_readings_never_yield_cool" in names
+    # ADR 0026 open-findings repair: the four gaps recorded at ratification.
+    assert "t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range" in names
+    assert "t1_conformance_core_maximum_does_not_replace_package_provenance" in names
+    assert "t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name" in names
+    assert "t1_conformance_alarm_survives_an_unreadable_temperature" in names
 
 
 def test_command_output_is_sanitized(tmp_path: Path) -> None:
