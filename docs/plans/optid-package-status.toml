@@ -616,6 +616,9 @@ adr0026_nodes_without_device_link_distinct = "t1_conformance_hwmon_nodes_without
 adr0026_status_records_effective_thresholds = "t1_conformance_status_records_the_effective_thresholds"
 # Second independent verifier findings (2026-08-16).
 adr0026_collapse_records_raised_value = "t1_conformance_collapse_records_where_a_raised_value_came_from"
+# Third independent verifier findings (2026-08-17).
+adr0026_same_type_zones_stay_distinct = "t1_conformance_same_type_zones_without_device_link_stay_distinct"
+adr0026_alarm_anywhere_defeats_headroom = "t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim"
 
 [[package]]
 id = "T2"

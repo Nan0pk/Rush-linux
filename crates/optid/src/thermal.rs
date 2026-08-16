@@ -806,6 +806,39 @@ pub(crate) fn compute_thermal_budget(
         "effective thresholds: lo={effective_lo_c:.1}°C hi={effective_hi_c:.1}°C"
     ));
 
+    // ADR 0026 §5: "A critical alarm is evidence of an unsafe or out-of-contract
+    // state. It must never produce `Cool` or increased headroom." The sentence
+    // carries no die qualifier, and the reason it does not is physical: an alarm
+    // on any channel means the machine is doing work that heats something. A die
+    // reading that simultaneously claims full headroom does not describe a cool
+    // processor — it describes a picture that does not hold together, most
+    // likely a stale, mis-scoped or wrong die reading.
+    //
+    // Refusing to claim headroom is the honest answer, and it is the one this
+    // model already gives everywhere else it cannot vouch for what it sees.
+    // Scoped deliberately to the full-headroom claim: a die already deranting
+    // or constrained is not contradicted by an alarm elsewhere.
+    let alarm_elsewhere = sensors.iter().find(|s| s.alarmed && !s.is_die);
+    if derating_ratio <= 0.0 {
+        if let Some(alarmed) = alarm_elsewhere {
+            reasons.push(format!(
+                "kernel raised a thermal alarm on {}; a full-headroom claim cannot stand \
+                 beside it, so the budget is unavailable rather than cool",
+                alarmed.id
+            ));
+            return ThermalBudget {
+                state: ThermalBudgetState::Unavailable,
+                derating_ratio: 1.0,
+                selected_die_id,
+                max_die_temp_c: Some(die_temp),
+                selected_skin_id,
+                skin_temp_c: max_skin_temp_c,
+                max_fan_rpm,
+                reasons,
+            };
+        }
+    }
+
     let state = if derating_ratio <= 0.0 {
         reasons.push(format!(
             "die temp {:.1}°C <= lo threshold {:.1}°C; state = cool (sensor={})",
@@ -1300,7 +1333,6 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                 Some(n) if n.starts_with("thermal_zone") => n.to_string(),
                 _ => continue,
             };
-            let _ = dir_name; // not used in stable identity
 
             let kind = read
                 .read_to_string(&tz_dir.join("type"))
@@ -1343,13 +1375,24 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                         .map(|s| s.to_string())
                 })
                 .unwrap_or_default();
+            // A zone with no backing `device` link has no topology to key on,
+            // so identity falls back to the zone node itself — never to the
+            // zone *type* alone.
+            //
+            // `zone:{kind}` made every zone of a type share one identity and
+            // one dedup key, so two `x86_pkg_temp` zones on a two-socket
+            // machine collapsed into one record and a whole package was lost.
+            // ADR 0026 §4 settles this direction: "When identity is uncertain,
+            // retain both readings … retaining it avoids silently losing a
+            // distinct hot package." This is the same repair already made to
+            // the hwmon fallback, which the ACPI path was left out of.
             let device_key = if zone_device.is_empty() {
-                format!("zone:{kind}")
+                format!("zone:{kind}:{dir_name}")
             } else {
                 zone_device
             };
             let id = if device_key.starts_with("zone:") {
-                format!("acpi:{kind}")
+                format!("acpi:{kind}:{dir_name}")
             } else {
                 format!("acpi:{device_key}:{kind}")
             };
@@ -1803,7 +1846,9 @@ mod tests {
         assert_eq!(sensors.len(), 1);
         assert!(sensors[0].is_die);
         assert_eq!(sensors[0].temp_c, 70.0);
-        assert_eq!(sensors[0].id, "acpi:x86_pkg_temp");
+        // Identity carries the zone node, so two zones of one type stay
+        // distinct rather than collapsing into a single package.
+        assert_eq!(sensors[0].id, "acpi:x86_pkg_temp:thermal_zone0");
     }
 
     #[test]
@@ -3007,6 +3052,115 @@ mod tests {
             render_thermal_status(&b).contains("effective thresholds: lo=60.0°C hi=90.0°C"),
             "the clamped upper threshold is what must be recorded"
         );
+    }
+
+    /// ADR 0026 §4 — two thermal zones of the same type with no backing device
+    /// link are distinct sources. Collapsing them loses a package.
+    #[test]
+    fn t1_conformance_same_type_zones_without_device_link_stay_distinct() {
+        let k = MemoryKernel::new();
+        // A two-socket machine whose die signal comes through the generic
+        // thermal interface: one package idle, one package hot.
+        install_acpi_zone(&k, "thermal_zone0", "x86_pkg_temp", 45000);
+        install_acpi_zone(&k, "thermal_zone1", "x86_pkg_temp", 95000);
+
+        let sensors = discover_thermal_sensors_with(&k);
+        let dies: Vec<_> = sensors.iter().filter(|s| s.is_die).collect();
+        assert_eq!(
+            dies.len(),
+            2,
+            "both packages must survive; collapsing them loses one: {sensors:?}"
+        );
+        let ids: std::collections::BTreeSet<&str> = dies.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids.len(), 2, "the two zones must not share an id: {ids:?}");
+
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_eq!(
+            b.max_die_temp_c,
+            Some(95.0),
+            "the hot package must still supply the maximum"
+        );
+
+        // Two generic `acpitz` zones are not die signals either way, but they
+        // must still not be merged into one reading.
+        let z = MemoryKernel::new();
+        install_acpi_zone(&z, "thermal_zone0", "acpitz", 27800);
+        install_acpi_zone(&z, "thermal_zone1", "acpitz", 91000);
+        assert_eq!(
+            discover_thermal_sensors_with(&z).len(),
+            2,
+            "distinct zones of one type must not collapse"
+        );
+    }
+
+    /// ADR 0026 §5 — an alarm anywhere and a full-headroom claim cannot both
+    /// stand. The rule carries no die qualifier, and the reason is physical: a
+    /// channel alarming means the machine is heating something, so a die that
+    /// simultaneously reports full headroom describes a picture that does not
+    /// hold together.
+    #[test]
+    fn t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim() {
+        let config = ThermalConfig::default();
+        let cool_die = sensor_full(
+            "hwmon:coretemp.0:coretemp:Package id 0",
+            35.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+        let alarming_nvme = sensor_full(
+            "hwmon:nvme0:nvme:Composite",
+            95.0,
+            None,
+            false,
+            "nvme0",
+            false,
+            true,
+        );
+
+        let b = compute_thermal_budget(
+            &config,
+            &[cool_die.clone(), alarming_nvme.clone()],
+            &[],
+            None,
+        );
+        assert_ne!(
+            b.state,
+            ThermalBudgetState::Cool,
+            "an alarm must never leave a full-headroom claim standing: {:?}",
+            b.reasons
+        );
+        assert_eq!(b.state, ThermalBudgetState::Unavailable);
+        assert_eq!(b.derating_ratio, 1.0);
+        assert!(
+            b.reasons
+                .iter()
+                .any(|r| r.contains("full-headroom claim cannot stand")),
+            "the refusal must be explicit: {:?}",
+            b.reasons
+        );
+
+        // No alarm, no escalation: the same cool die alone is still Cool.
+        let quiet = compute_thermal_budget(&config, std::slice::from_ref(&cool_die), &[], None);
+        assert_eq!(quiet.state, ThermalBudgetState::Cool);
+        assert_eq!(quiet.derating_ratio, 0.0);
+
+        // A die already derating is not contradicted by an alarm elsewhere;
+        // the escalation is scoped to the full-headroom claim.
+        let warm_die = sensor_full(
+            "hwmon:coretemp.0:coretemp:Package id 0",
+            75.0,
+            Some(DieKind::Package),
+            false,
+            "coretemp.0",
+            false,
+            false,
+        );
+        let warm = compute_thermal_budget(&config, &[warm_die, alarming_nvme], &[], None);
+        assert_eq!(warm.state, ThermalBudgetState::Derating);
+        assert!(warm.derating_ratio > 0.0);
     }
 
     /// ADR 0026 §7 — a temperature produced by collapsing two views must say so.
