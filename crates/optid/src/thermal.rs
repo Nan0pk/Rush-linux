@@ -65,6 +65,16 @@ pub(crate) struct ThermalSensor {
     /// tracked alias rule proves they are the same physical source.
     #[serde(default)]
     pub(crate) device_key: String,
+    /// This channel's own reading, before any duplicate or alias collapse
+    /// raised it. `temp_c` is the aggregate; this is what the channel itself
+    /// reported, so status can never attribute a value to a channel that did
+    /// not produce it (ADR 0026 §7).
+    #[serde(default)]
+    pub(crate) own_temp_c: Option<f32>,
+    /// The channel whose reading raised `temp_c` during a collapse, when one
+    /// did. Recording it is what makes the collapse reproducible.
+    #[serde(default)]
+    pub(crate) value_raised_by: Option<String>,
     /// `true` when the kernel marks this channel faulted (`tempN_fault`).
     #[serde(default)]
     pub(crate) faulted: bool,
@@ -521,7 +531,43 @@ pub(crate) fn compute_thermal_budget(
     // There is deliberately no fallback to "the hottest usable reading": an
     // unrelated board, storage, GPU, battery, ambient or generic ACPI reading
     // must never become the CPU die signal (ADR 0026 §2).
-    let die_sensors: Vec<&ThermalSensor> = usable.iter().copied().filter(|s| s.is_die).collect();
+    // ADR 0026 §2 item 3 makes `Tdie` preferred when present, and item 4 admits
+    // `Tctl` only "when `Tdie` is unavailable". `Tctl` is a control value that
+    // carries a vendor offset and normally reads *hotter* than `Tdie`, so
+    // leaving it in the candidate set let it win a plain temperature maximum
+    // and be reported as the die on every AMD machine that exposes both — the
+    // wrong identity and an inflated number. Eligibility is per device, so a
+    // socket without a `Tdie` still gets its `Tctl` fallback.
+    let devices_with_tdie: std::collections::BTreeSet<&str> = usable
+        .iter()
+        .filter(|s| s.die_kind == Some(DieKind::Tdie))
+        .map(|s| s.device_key.as_str())
+        .collect();
+    let superseded_tctl: Vec<&str> = usable
+        .iter()
+        .copied()
+        .filter(|s| {
+            s.die_kind == Some(DieKind::Tctl) && devices_with_tdie.contains(s.device_key.as_str())
+        })
+        .map(|s| s.id.as_str())
+        .collect();
+    if !superseded_tctl.is_empty() {
+        reasons.push(format!(
+            "excluded {} Tctl control channel(s) superseded by an available Tdie on the same              device: {}",
+            superseded_tctl.len(),
+            superseded_tctl.join(", ")
+        ));
+    }
+
+    let die_sensors: Vec<&ThermalSensor> = usable
+        .iter()
+        .copied()
+        .filter(|s| s.is_die)
+        .filter(|s| {
+            !(s.die_kind == Some(DieKind::Tctl)
+                && devices_with_tdie.contains(s.device_key.as_str()))
+        })
+        .collect();
     let max_die_sensor = die_sensors.iter().copied().max_by(|a, b| {
         a.temp_c
             .partial_cmp(&b.temp_c)
@@ -565,6 +611,17 @@ pub(crate) fn compute_thermal_budget(
             max_die_sensor.id,
             kind.as_str(),
             die_temp
+        ));
+    }
+    // §7: a value that came from a collapsed sibling must say so, or status
+    // attributes a reading to a channel that never produced it.
+    if let (Some(own), Some(raiser)) = (
+        max_die_sensor.own_temp_c,
+        max_die_sensor.value_raised_by.as_ref(),
+    ) {
+        reasons.push(format!(
+            "that value is a collapse maximum: {} read {:.1}°C itself and was raised to {:.1}°C              by {}",
+            max_die_sensor.id, own, die_temp, raiser
         ));
     }
 
@@ -1020,7 +1077,15 @@ fn apply_alias_rules(sensors: Vec<ThermalSensor>) -> Vec<ThermalSensor> {
             .find(|s| s.source == ThermalSource::Hwmon && s.die_kind == Some(DieKind::Package)),
     ) {
         // Maximum aggregation semantics: never lower the retained reading.
+        //
+        // The retained record keeps the hwmon channel's identity, so raising
+        // its temperature silently made status attribute a value to a channel
+        // that never reported it — caught in the field when a bundle's status
+        // said "Package id 0 at 43.0°C" while that channel read 42.0°C in every
+        // sample. Record what the channel itself read and what raised it.
         if acpi.temp_c > hw.temp_c {
+            hw.own_temp_c = Some(hw.temp_c);
+            hw.value_raised_by = Some(acpi.id.clone());
             hw.temp_c = acpi.temp_c;
         }
         hw.alarmed |= acpi.alarmed;
@@ -1089,6 +1154,13 @@ fn prefer_richer(a: &ThermalSensor, b: &ThermalSensor) -> ThermalSensor {
     } else {
         out.temp_c
     };
+    if hotter > out.temp_c {
+        // Same rule as the alias path: the retained record keeps one channel's
+        // identity, so a raised value must say where it came from.
+        out.own_temp_c = Some(out.temp_c);
+        let raiser = if a.temp_c >= b.temp_c { &a.id } else { &b.id };
+        out.value_raised_by = Some(raiser.clone());
+    }
     out.temp_c = hotter;
     out.alarmed = a.alarmed || b.alarmed;
     out.faulted = a.faulted || b.faulted;
@@ -1208,6 +1280,8 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                         die_kind,
                         is_skin,
                         device_key: device_key.clone(),
+                        own_temp_c: None,
+                        value_raised_by: None,
                         faulted,
                         alarmed,
                         source: ThermalSource::Hwmon,
@@ -1295,6 +1369,8 @@ pub(crate) fn discover_thermal_sensors_with(read: &dyn KernelRead) -> Vec<Therma
                 die_kind,
                 is_skin,
                 device_key,
+                own_temp_c: None,
+                value_raised_by: None,
                 faulted: false,
                 alarmed,
                 source: ThermalSource::Acpi,
@@ -1440,6 +1516,8 @@ mod tests {
             die_kind: if die { Some(DieKind::Package) } else { None },
             is_skin: skin,
             device_key: format!("dev:{id}"),
+            own_temp_c: None,
+            value_raised_by: None,
             faulted: false,
             alarmed: false,
             source: ThermalSource::Hwmon,
@@ -1465,6 +1543,8 @@ mod tests {
             die_kind,
             is_skin: skin,
             device_key: device_key.to_string(),
+            own_temp_c: None,
+            value_raised_by: None,
             faulted,
             alarmed,
             source: ThermalSource::Hwmon,
@@ -2304,6 +2384,71 @@ mod tests {
             b.reasons
         );
 
+        // The case that matters on real AMD hardware, and the one this test
+        // could not previously fail: `Tctl` carries a vendor offset and reads
+        // HOTTER than `Tdie`. Giving both channels the same temperature only
+        // ever exercised the tie-break. §2 item 4 admits `Tctl` "when `Tdie` is
+        // unavailable", so an available `Tdie` supersedes it entirely — in the
+        // reported identity and in the value.
+        let hotter_tctl = vec![
+            sensor_full(
+                "hw:tctl",
+                85.0,
+                Some(DieKind::Tctl),
+                false,
+                "k10temp.0",
+                false,
+                false,
+            ),
+            sensor_full(
+                "hw:tdie",
+                75.0,
+                Some(DieKind::Tdie),
+                false,
+                "k10temp.0",
+                false,
+                false,
+            ),
+        ];
+        let bh = compute_thermal_budget(&ThermalConfig::default(), &hotter_tctl, &[], None);
+        assert_eq!(
+            bh.selected_die_id.as_deref(),
+            Some("hw:tdie"),
+            "an available Tdie supersedes Tctl: {:?}",
+            bh.reasons
+        );
+        assert_eq!(
+            bh.max_die_temp_c,
+            Some(75.0),
+            "the Tctl offset must not inflate the die temperature"
+        );
+        assert!(
+            bh.reasons
+                .iter()
+                .any(|r| r.contains("superseded by an available Tdie")),
+            "the exclusion must be recorded: {:?}",
+            bh.reasons
+        );
+
+        // Per device: a second socket with no Tdie keeps its own Tctl.
+        let mut two_sockets = hotter_tctl.clone();
+        two_sockets.push(sensor_full(
+            "hw:tctl1",
+            80.0,
+            Some(DieKind::Tctl),
+            false,
+            "k10temp.1",
+            false,
+            false,
+        ));
+        let b2s = compute_thermal_budget(&ThermalConfig::default(), &two_sockets, &[], None);
+        assert_eq!(
+            b2s.max_die_temp_c,
+            Some(80.0),
+            "socket 1 has no Tdie, so its Tctl remains eligible"
+        );
+        assert_eq!(b2s.selected_die_id.as_deref(), Some("hw:tctl1"));
+
         // Tctl alone is still eligible, and is reported as Tctl.
         let only_tctl = vec![sensor_full(
             "hw:tctl",
@@ -2861,6 +3006,70 @@ mod tests {
         assert!(
             render_thermal_status(&b).contains("effective thresholds: lo=60.0°C hi=90.0°C"),
             "the clamped upper threshold is what must be recorded"
+        );
+    }
+
+    /// ADR 0026 §7 — a temperature produced by collapsing two views must say so.
+    ///
+    /// The retained record keeps one channel's identity, so raising its value to
+    /// a sibling's silently attributed a reading to a channel that never
+    /// produced it. This is the exact shape found in a collected bundle: status
+    /// said `Package id 0 ... at 43.0°C` while that channel read 42.0 °C in all
+    /// ten samples, the 43.0 having come from the aliased `x86_pkg_temp` zone.
+    #[test]
+    fn t1_conformance_collapse_records_where_a_raised_value_came_from() {
+        let k = MemoryKernel::new();
+        install_hwmon(
+            &k,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 42000, Some(100000))],
+        );
+        install_acpi_zone(&k, "thermal_zone5", "x86_pkg_temp", 43000);
+
+        let sensors = discover_thermal_sensors_with(&k);
+        let die = sensors
+            .iter()
+            .find(|s| s.die_kind == Some(DieKind::Package))
+            .expect("the coretemp package channel survives the alias collapse");
+        assert_eq!(die.temp_c, 43.0, "maximum aggregation still applies");
+        assert_eq!(
+            die.own_temp_c,
+            Some(42.0),
+            "the channel's own reading must be retained"
+        );
+        assert!(
+            die.value_raised_by.is_some(),
+            "the raising channel must be recorded"
+        );
+
+        let b = compute_thermal_budget(&ThermalConfig::default(), &sensors, &[], None);
+        assert_eq!(b.max_die_temp_c, Some(43.0));
+        let rendered = render_thermal_status(&b);
+        assert!(
+            rendered.contains("collapse maximum") && rendered.contains("read 42.0°C itself"),
+            "status must not attribute 43.0 to a channel that read 42.0: {rendered}"
+        );
+
+        // No collapse, no claim: an unraised channel says nothing extra.
+        let plain = MemoryKernel::new();
+        install_hwmon(
+            &plain,
+            "hwmon0",
+            "coretemp.0",
+            "coretemp",
+            &[("temp1", "Package id 0", 42000, Some(100000))],
+        );
+        let b2 = compute_thermal_budget(
+            &ThermalConfig::default(),
+            &discover_thermal_sensors_with(&plain),
+            &[],
+            None,
+        );
+        assert!(
+            !render_thermal_status(&b2).contains("collapse maximum"),
+            "nothing was collapsed"
         );
     }
 
