@@ -111,7 +111,7 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     commands = collector.t1_acceptance_commands(
         _ROOT / "docs/plans/optid-package-status.toml"
     )
-    assert len(names) == 34
+    assert len(names) == 35
     assert len(commands) == len(names)
     assert all(command[-1] == "--exact" for command in commands)
     assert all("thermal::tests::" in command[-3] for command in commands)
@@ -137,6 +137,7 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     assert "t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm" in names
     assert "t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct" in names
     assert "t1_conformance_status_records_the_effective_thresholds" in names
+    assert "t1_conformance_collapse_records_where_a_raised_value_came_from" in names
 
 
 def test_command_output_is_sanitized(tmp_path: Path) -> None:

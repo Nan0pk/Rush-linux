@@ -442,3 +442,33 @@ unresolved list. Only that independent receipt may propose T1 `completed`.
   https://docs.kernel.org/hwmon/k10temp.html
 - Linux generic thermal sysfs documentation:
   https://docs.kernel.org/driver-api/thermal/sysfs-api.html
+
+**Second independent verifier findings and repair (2026-08-16).** A second
+independent cold verifier examined `4d1efdf5` and declined to issue a receipt,
+recording two further defects. Both are repaired in `crates/optid/src/thermal.rs`:
+
+1. **§7 — a collapsed value was attributed to a channel that never produced it.**
+   `apply_alias_rules` and `prefer_richer` both raise the retained record's
+   temperature to a sibling's while keeping the retained record's identity, so
+   status named one channel and reported another channel's reading. Found in a
+   collected bundle: status said `Package id 0 ... at 43.0°C` while that channel
+   read 42.0 °C in all ten samples, the 43.0 having come from the aliased
+   `x86_pkg_temp` zone. Maximum aggregation is unchanged; the collapse is now
+   recorded. `ThermalSensor` carries the channel's own reading and the id of
+   whatever raised it, and status states both. Test:
+   `t1_conformance_collapse_records_where_a_raised_value_came_from`.
+2. **§2 items 3 and 4 — `Tctl` could supersede an available `Tdie`.** Selection
+   is a temperature maximum with provenance only as a tie-break, and `Tctl`
+   carries a vendor offset that normally reads hotter than `Tdie`. On any AMD
+   machine exposing both, the control value won the maximum and was reported as
+   the die — the wrong identity and an inflated number. Item 4 admits `Tctl`
+   only "when `Tdie` is unavailable", so an available `Tdie` on the same device
+   now supersedes it entirely and the exclusion is recorded in the reasons.
+   Eligibility is per device, so a socket without a `Tdie` keeps its fallback.
+   The existing test could not fail on this: it gave both channels the same
+   temperature and so only ever exercised the tie-break. It now covers a hotter
+   `Tctl` and a two-socket mix.
+
+Neither changes a decision in §2–§7. Because `crates/optid/src/thermal.rs` is a
+declared T1 proof path, the 2026-08-16 collection bundles are stale as of this
+repair and physical collection must be re-run at or after it.
