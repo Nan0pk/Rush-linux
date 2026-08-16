@@ -111,7 +111,7 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     commands = collector.t1_acceptance_commands(
         _ROOT / "docs/plans/optid-package-status.toml"
     )
-    assert len(names) == 29
+    assert len(names) == 34
     assert len(commands) == len(names)
     assert all(command[-1] == "--exact" for command in commands)
     assert all("thermal::tests::" in command[-3] for command in commands)
@@ -127,6 +127,16 @@ def test_acceptance_commands_cover_canonical_t1_mapping() -> None:
     assert "t1_conformance_core_maximum_does_not_replace_package_provenance" in names
     assert "t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name" in names
     assert "t1_conformance_alarm_survives_an_unreadable_temperature" in names
+    # Independent verifier findings: the policy-facing temperature invariant is
+    # the one that pins the cross-module leak, so assert it by name.
+    assert (
+        "t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source"
+        in names
+    )
+    assert "t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped" in names
+    assert "t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm" in names
+    assert "t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct" in names
+    assert "t1_conformance_status_records_the_effective_thresholds" in names
 
 
 def test_command_output_is_sanitized(tmp_path: Path) -> None:
