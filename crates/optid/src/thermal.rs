@@ -620,7 +620,8 @@ pub(crate) fn compute_thermal_budget(
         max_die_sensor.value_raised_by.as_ref(),
     ) {
         reasons.push(format!(
-            "that value is a collapse maximum: {} read {:.1}°C itself and was raised to {:.1}°C              by {}",
+            "that value is a collapse maximum: {} read {:.1}°C itself and was raised to \
+             {:.1}°C by {}",
             max_die_sensor.id, own, die_temp, raiser
         ));
     }
