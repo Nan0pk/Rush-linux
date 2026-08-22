@@ -1,0 +1,2006 @@
+{
+  "schema_version": 2,
+  "correlation_id": "optid-000000006a89e4e4-0000000000000033",
+  "cycle_timestamp": 1787422043,
+  "pipeline_stage": "complete",
+  "boot": {
+    "policy_load_state": "ok",
+    "allowlist_load_state": "ok",
+    "allowlist_gate_enabled": true,
+    "apply_armed": true,
+    "baseline_armed": false
+  },
+  "observation": {
+    "values": [
+      {
+        "component_id": "power-source",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": false,
+        "source": "power_supply",
+        "provenance": "kernel_interface",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "battery-charge",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": 92,
+        "source": "power_supply",
+        "provenance": "kernel_interface",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "thermal-budget",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": 35.0,
+        "source": "thermal",
+        "provenance": "resolved_sensor_budget",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "load-average",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": 0.7799999713897705,
+        "source": "procfs",
+        "provenance": "kernel_interface",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "cpu-pressure",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 129153995
+        },
+        "source": "psi",
+        "provenance": "procfs",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "memory-pressure",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 1028755
+        },
+        "source": "psi",
+        "provenance": "procfs",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "io-pressure",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": {
+          "avg10": 0.3100000023841858,
+          "avg300": 0.1599999964237213,
+          "avg60": 0.3499999940395355,
+          "total": 34332060
+        },
+        "source": "psi",
+        "provenance": "procfs",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "zram-swap",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": true,
+        "source": "procfs",
+        "provenance": "kernel_interface",
+        "responsible_subsystem": "sensors"
+      },
+      {
+        "component_id": "virtual-machine",
+        "pipeline_stage": "observation",
+        "support": "supported",
+        "reason": "observed",
+        "value": false,
+        "source": "dmi",
+        "provenance": "platform_identity",
+        "responsible_subsystem": "sensors"
+      }
+    ]
+  },
+  "decision": {
+    "selected_mode": "battery",
+    "workload_class": "idle",
+    "workload_reason": "pinned override (global)",
+    "reasons": [
+      "system is on battery"
+    ],
+    "contract": {
+      "workload_class": "idle",
+      "cpu_wakeup_latency_us": 100000,
+      "device_resume_latency_us": 1000000
+    }
+  },
+  "domains": [
+    {
+      "domain": "cpu_epp",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "cpu:epp",
+      "action_outcomes": [
+        {
+          "domain": "cpu_epp",
+          "desired": {
+            "operation": "set_cpu_epp",
+            "value": "power",
+            "target_id": "cpu:epp"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "cpu:epp",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "platform_profile",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "platform:profile",
+      "action_outcomes": [
+        {
+          "domain": "platform_profile",
+          "desired": {
+            "operation": "set_platform_profile",
+            "value": "low-power",
+            "target_id": "platform:profile"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "platform:profile",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "vm_sysctl",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "vm-sysctl:swappiness",
+      "action_outcomes": [
+        {
+          "domain": "vm_sysctl",
+          "desired": {
+            "operation": "set_vm_sysctl",
+            "value": "60",
+            "target_id": "vm-sysctl:swappiness"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "vm-sysctl:swappiness",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "vm_sysctl",
+          "desired": {
+            "operation": "set_vm_sysctl",
+            "value": "67108864",
+            "target_id": "vm-sysctl:dirty_background_bytes"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "vm-sysctl:dirty_background_bytes",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "vm_sysctl",
+          "desired": {
+            "operation": "set_vm_sysctl",
+            "value": "134217728",
+            "target_id": "vm-sysctl:dirty_bytes"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "vm-sysctl:dirty_bytes",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "cpu_dma_latency",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "cpu:pm-qos-latency",
+      "action_outcomes": [
+        {
+          "domain": "cpu_dma_latency",
+          "desired": {
+            "operation": "set_cpu_dma_latency",
+            "value": "100000",
+            "target_id": "cpu:pm-qos-latency"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "cpu:pm-qos-latency",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "device_resume_latency",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "not_evaluated",
+      "component_id": "domain:device_resume_latency",
+      "action_outcomes": []
+    },
+    {
+      "domain": "runtime_pm",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "runtime-pm:8e541e541a85c7e0",
+      "action_outcomes": [
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:8e541e541a85c7e0"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:8e541e541a85c7e0",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:b0d8147af3482c7b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:b0d8147af3482c7b",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:ea71f7019a044548"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:ea71f7019a044548",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:e320d5a5322cf9a4"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:e320d5a5322cf9a4",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:4d4eab405a77adba"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:4d4eab405a77adba",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:e2823a06cf7639a9"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:e2823a06cf7639a9",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:ac71fa4776edcd7"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:ac71fa4776edcd7",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:faad049b2cdfd356"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:faad049b2cdfd356",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:4818a65ca33eadda"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:4818a65ca33eadda",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:738b6cb67b5f6b9e"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:738b6cb67b5f6b9e",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:9e35aace90f8977"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:9e35aace90f8977",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:63c95fd8ab568389"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:63c95fd8ab568389",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422226; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:3395b00382ea4b1b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422229; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:3395b00382ea4b1b",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422229; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:38422afd0e22337b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422231; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:38422afd0e22337b",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422231; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:83bbe1220dbe893a"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422233; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:83bbe1220dbe893a",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422233; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:4baa82a20e832fa9"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422236; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:4baa82a20e832fa9",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422236; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:dd8a05618f96299b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422238; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:dd8a05618f96299b",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422238; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:29495235a4f75ae8"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422240; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:29495235a4f75ae8",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422240; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:edb6470ee3d4ba73"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422243; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:edb6470ee3d4ba73",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422243; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:84e5d3f449ca7eed"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422245; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:84e5d3f449ca7eed",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422245; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:44820b87ccc7278b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422247; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:44820b87ccc7278b",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422247; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:19cb90bb352199cf"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422249; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:19cb90bb352199cf",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422249; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:320ccbb5833357f6"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422252; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:320ccbb5833357f6",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422252; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:7a7d927c365c7075"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422254; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:7a7d927c365c7075",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422254; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:b93f8f86bc42ed23"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422256; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:b93f8f86bc42ed23",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422256; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:8ef3fb318f2f1bd2"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422259; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:8ef3fb318f2f1bd2",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422259; domain remains observe-only"
+            }
+          ]
+        },
+        {
+          "domain": "runtime_pm",
+          "desired": {
+            "operation": "enable_runtime_pm",
+            "value": "control=auto;autosuspend_delay_ms=2000",
+            "target_id": "runtime-pm:ebebcef7a2450804"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "denied",
+              "reason": "apply_disarmed_by_boot_state",
+              "detail": "S5D circuit open until 1787422261; domain remains observe-only"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "runtime-pm:ebebcef7a2450804",
+              "pipeline_stage": "apply_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "S5D circuit open until 1787422261; domain remains observe-only"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "pci_aspm",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "pcie-aspm:dd8a05618f96299b",
+      "action_outcomes": [
+        {
+          "domain": "pci_aspm",
+          "desired": {
+            "operation": "set_pcie_aspm",
+            "value": "1",
+            "target_id": "pcie-aspm:dd8a05618f96299b"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "pcie-aspm:dd8a05618f96299b",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "pci_aspm",
+          "desired": {
+            "operation": "set_pcie_aspm",
+            "value": "1",
+            "target_id": "pcie-aspm:edb6470ee3d4ba73"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "pcie-aspm:edb6470ee3d4ba73",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "sata_alpm",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "sata-alpm:33a2efffec3bce36",
+      "action_outcomes": [
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:33a2efffec3bce36"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:33a2efffec3bce36",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:a712859db261c4e1"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:a712859db261c4e1",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:348414dd6b6daefd"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:348414dd6b6daefd",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:9016da1363dedd23"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:9016da1363dedd23",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:3585d3569e23c7b3"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:3585d3569e23c7b3",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:ad0b2aa2765205c9"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:ad0b2aa2765205c9",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:cc3d536f047d0670"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:cc3d536f047d0670",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        },
+        {
+          "domain": "sata_alpm",
+          "desired": {
+            "operation": "set_sata_alpm",
+            "value": "med_power_with_dipm",
+            "target_id": "sata-alpm:abc4130132e47d44"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "sata-alpm:abc4130132e47d44",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "backlight",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "unknown",
+      "component_id": "backlight:8a68d4d8179ea18a",
+      "action_outcomes": [
+        {
+          "domain": "backlight",
+          "desired": {
+            "operation": "set_backlight",
+            "value": "40%",
+            "target_id": "backlight:8a68d4d8179ea18a"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "denied",
+              "reason": "capability_denied",
+              "detail": "S4D capability sealing is observe-only or startup sealing failed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "backlight:8a68d4d8179ea18a",
+              "pipeline_stage": "capability_gate",
+              "support": "unknown",
+              "reason": "gate_denied",
+              "write_attempted": false,
+              "write_outcome": "denied",
+              "readback": "not_performed",
+              "ownership": "unowned",
+              "pending_restore": "not_applicable",
+              "responsible_subsystem": "actuator",
+              "detail": "kernel write requires an enforced pre-opened capability table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "cgroup_reweight",
+      "pipeline_stage": "complete",
+      "selected_mode": "actuate",
+      "support": "supported",
+      "component_id": "systemd-unit:background.slice",
+      "action_outcomes": [
+        {
+          "domain": "cgroup_reweight",
+          "desired": {
+            "operation": "set_systemd_properties",
+            "value": "CPUWeight=25 IOWeight=25",
+            "target_id": "systemd-unit:background.slice"
+          },
+          "gates": [
+            {
+              "stage": "domain_mode",
+              "disposition": "allowed",
+              "reason": "domain_actuate"
+            },
+            {
+              "stage": "apply_armed",
+              "disposition": "allowed",
+              "reason": "apply_armed"
+            },
+            {
+              "stage": "contract",
+              "disposition": "not_applicable",
+              "reason": "contract_not_applicable"
+            },
+            {
+              "stage": "capability_validation",
+              "disposition": "not_applicable",
+              "reason": "capability_allowed"
+            }
+          ],
+          "targets": [
+            {
+              "target_id": "systemd-unit:background.slice:property:CPUWeight",
+              "pipeline_stage": "write",
+              "support": "supported",
+              "reason": "redundant_value",
+              "write_attempted": false,
+              "write_outcome": "redundant",
+              "readback": {
+                "confirmed": {
+                  "value": "25"
+                }
+              },
+              "ownership": "optid",
+              "pending_restore": "pending",
+              "responsible_subsystem": "systemd"
+            },
+            {
+              "target_id": "systemd-unit:background.slice:property:IOWeight",
+              "pipeline_stage": "write",
+              "support": "supported",
+              "reason": "redundant_value",
+              "write_attempted": false,
+              "write_outcome": "redundant",
+              "readback": {
+                "confirmed": {
+                  "value": "25"
+                }
+              },
+              "ownership": "optid",
+              "pending_restore": "pending",
+              "responsible_subsystem": "systemd"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "restore_outcomes": [],
+  "recovery_state": "known_current_cycle"
+}

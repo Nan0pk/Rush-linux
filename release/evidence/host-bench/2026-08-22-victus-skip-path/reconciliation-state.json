@@ -1,0 +1,1344 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "backlight:8a68d4d8179ea18a": {
+      "target_id": "backlight:8a68d4d8179ea18a",
+      "domain": "backlight",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/backlight/intel_backlight/brightness"
+      },
+      "legacy_journal_key": "bl_8a68d4d8179ea18a",
+      "baseline": {
+        "kind": "scalar",
+        "value": "16142"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "38400"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:10a2a61bd5dc65d9": {
+      "target_id": "cpu-epp:10a2a61bd5dc65d9",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu6/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:1960757c844693ae": {
+      "target_id": "cpu-epp:1960757c844693ae",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu20/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:22ce71157e4f0f04": {
+      "target_id": "cpu-epp:22ce71157e4f0f04",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu17/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:26bee5a3a28d9ebe": {
+      "target_id": "cpu-epp:26bee5a3a28d9ebe",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu3/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:2a38b340d671a41d": {
+      "target_id": "cpu-epp:2a38b340d671a41d",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu16/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:30eb8f0c02cdddef": {
+      "target_id": "cpu-epp:30eb8f0c02cdddef",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu1/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:49c90ca679a19e05": {
+      "target_id": "cpu-epp:49c90ca679a19e05",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu2/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:4b571559fd1f0789": {
+      "target_id": "cpu-epp:4b571559fd1f0789",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu10/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:5ae1f53c375035fd": {
+      "target_id": "cpu-epp:5ae1f53c375035fd",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu8/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:67bda9469617851c": {
+      "target_id": "cpu-epp:67bda9469617851c",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:6cded578bab0c968": {
+      "target_id": "cpu-epp:6cded578bab0c968",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu13/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:81523bfb1f5a98b4": {
+      "target_id": "cpu-epp:81523bfb1f5a98b4",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu12/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:83cffcca8d46c04": {
+      "target_id": "cpu-epp:83cffcca8d46c04",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu11/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:8a405aa0ea2ebe74": {
+      "target_id": "cpu-epp:8a405aa0ea2ebe74",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu7/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:a1f9e3e40f1a8cb5": {
+      "target_id": "cpu-epp:a1f9e3e40f1a8cb5",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:afff83baa0c42330": {
+      "target_id": "cpu-epp:afff83baa0c42330",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu19/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:ba198d09802a84d": {
+      "target_id": "cpu-epp:ba198d09802a84d",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu18/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:c0637ccc1b3c48b3": {
+      "target_id": "cpu-epp:c0637ccc1b3c48b3",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu14/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:c40aa080a9ede888": {
+      "target_id": "cpu-epp:c40aa080a9ede888",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu9/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:cd337ecd2c00cba3": {
+      "target_id": "cpu-epp:cd337ecd2c00cba3",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu4/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:d93e78a22936bc68": {
+      "target_id": "cpu-epp:d93e78a22936bc68",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu22/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:e1fceabbc31cf6f9": {
+      "target_id": "cpu-epp:e1fceabbc31cf6f9",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu15/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:e28690f34700ad67": {
+      "target_id": "cpu-epp:e28690f34700ad67",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu21/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu-epp:f41f7f65b511072e": {
+      "target_id": "cpu-epp:f41f7f65b511072e",
+      "domain": "cpu_epp",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/devices/system/cpu/cpu5/cpufreq/energy_performance_preference"
+      },
+      "baseline": {
+        "kind": "scalar",
+        "value": "balance_performance"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "power"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "cpu:pm-qos-latency": {
+      "target_id": "cpu:pm-qos-latency",
+      "domain": "cpu_dma_latency",
+      "target": {
+        "kind": "pmqos_cpu"
+      },
+      "legacy_journal_key": "cpu_dma_latency",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "pcie-aspm:dd8a05618f96299b": {
+      "target_id": "pcie-aspm:dd8a05618f96299b",
+      "domain": "pci_aspm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/bus/pci/devices/0000:01:00.0/link/l1_aspm"
+      },
+      "legacy_journal_key": "aspm_dd8a05618f96299b",
+      "baseline": {
+        "kind": "scalar",
+        "value": "0"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "1"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "pcie-aspm:edb6470ee3d4ba73": {
+      "target_id": "pcie-aspm:edb6470ee3d4ba73",
+      "domain": "pci_aspm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/bus/pci/devices/0000:07:00.0/link/l1_aspm"
+      },
+      "legacy_journal_key": "aspm_edb6470ee3d4ba73",
+      "baseline": {
+        "kind": "scalar",
+        "value": "1"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "1"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "platform:profile": {
+      "target_id": "platform:profile",
+      "domain": "platform_profile",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/firmware/acpi/platform_profile"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:19cb90bb352199cf": {
+      "target_id": "runtime-pm:19cb90bb352199cf",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:15.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:15.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_19cb90bb352199cf",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:29495235a4f75ae8": {
+      "target_id": "runtime-pm:29495235a4f75ae8",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1f.5/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1f.5/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_29495235a4f75ae8",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:320ccbb5833357f6": {
+      "target_id": "runtime-pm:320ccbb5833357f6",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1e.3/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1e.3/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_320ccbb5833357f6",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:3395b00382ea4b1b": {
+      "target_id": "runtime-pm:3395b00382ea4b1b",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:08.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:08.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_3395b00382ea4b1b",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:38422afd0e22337b": {
+      "target_id": "runtime-pm:38422afd0e22337b",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1f.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1f.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_38422afd0e22337b",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:44820b87ccc7278b": {
+      "target_id": "runtime-pm:44820b87ccc7278b",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:00.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:00.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_44820b87ccc7278b",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:4818a65ca33eadda": {
+      "target_id": "runtime-pm:4818a65ca33eadda",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/usb/devices/usb1/power/control",
+        "delay_path": "/sys/bus/usb/devices/usb1/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_4818a65ca33eadda",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "0"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:4baa82a20e832fa9": {
+      "target_id": "runtime-pm:4baa82a20e832fa9",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:14.3/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:14.3/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_4baa82a20e832fa9",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:4d4eab405a77adba": {
+      "target_id": "runtime-pm:4d4eab405a77adba",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1d.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1d.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_4d4eab405a77adba",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "100"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:63c95fd8ab568389": {
+      "target_id": "runtime-pm:63c95fd8ab568389",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:17.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:17.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_63c95fd8ab568389",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:738b6cb67b5f6b9e": {
+      "target_id": "runtime-pm:738b6cb67b5f6b9e",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/usb/devices/usb2/power/control",
+        "delay_path": "/sys/bus/usb/devices/usb2/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_738b6cb67b5f6b9e",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "0"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:7a7d927c365c7075": {
+      "target_id": "runtime-pm:7a7d927c365c7075",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:14.2/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:14.2/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_7a7d927c365c7075",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:83bbe1220dbe893a": {
+      "target_id": "runtime-pm:83bbe1220dbe893a",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:04.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:04.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_83bbe1220dbe893a",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:84e5d3f449ca7eed": {
+      "target_id": "runtime-pm:84e5d3f449ca7eed",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1e.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1e.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_84e5d3f449ca7eed",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:8e541e541a85c7e0": {
+      "target_id": "runtime-pm:8e541e541a85c7e0",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:16.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:16.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_8e541e541a85c7e0",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "500"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:8ef3fb318f2f1bd2": {
+      "target_id": "runtime-pm:8ef3fb318f2f1bd2",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:14.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:14.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_8ef3fb318f2f1bd2",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:9e35aace90f8977": {
+      "target_id": "runtime-pm:9e35aace90f8977",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/usb/devices/1-6/power/control",
+        "delay_path": "/sys/bus/usb/devices/1-6/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_9e35aace90f8977",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:ac71fa4776edcd7": {
+      "target_id": "runtime-pm:ac71fa4776edcd7",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1f.4/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1f.4/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_ac71fa4776edcd7",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "1000"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:b0d8147af3482c7b": {
+      "target_id": "runtime-pm:b0d8147af3482c7b",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1b.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1b.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_b0d8147af3482c7b",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "100"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:b93f8f86bc42ed23": {
+      "target_id": "runtime-pm:b93f8f86bc42ed23",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1e.1/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1e.1/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_b93f8f86bc42ed23",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:dd8a05618f96299b": {
+      "target_id": "runtime-pm:dd8a05618f96299b",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:01:00.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:01:00.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_dd8a05618f96299b",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:e2823a06cf7639a9": {
+      "target_id": "runtime-pm:e2823a06cf7639a9",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:02.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:02.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_e2823a06cf7639a9",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "10000"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:e320d5a5322cf9a4": {
+      "target_id": "runtime-pm:e320d5a5322cf9a4",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1d.4/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1d.4/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_e320d5a5322cf9a4",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "100"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:ea71f7019a044548": {
+      "target_id": "runtime-pm:ea71f7019a044548",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:1f.3/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:1f.3/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_ea71f7019a044548",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:ebebcef7a2450804": {
+      "target_id": "runtime-pm:ebebcef7a2450804",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:00:0a.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:00:0a.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_ebebcef7a2450804",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:edb6470ee3d4ba73": {
+      "target_id": "runtime-pm:edb6470ee3d4ba73",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/pci/devices/0000:07:00.0/power/control",
+        "delay_path": "/sys/bus/pci/devices/0000:07:00.0/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_edb6470ee3d4ba73",
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "runtime-pm:faad049b2cdfd356": {
+      "target_id": "runtime-pm:faad049b2cdfd356",
+      "domain": "runtime_pm",
+      "target": {
+        "kind": "runtime_pm",
+        "control_path": "/sys/bus/usb/devices/1-14/power/control",
+        "delay_path": "/sys/bus/usb/devices/1-14/power/autosuspend_delay_ms"
+      },
+      "legacy_journal_key": "rpm_faad049b2cdfd356",
+      "baseline": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "desired": {
+        "kind": "runtime_pm",
+        "control": "auto",
+        "delay": "2000"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:33a2efffec3bce36": {
+      "target_id": "sata-alpm:33a2efffec3bce36",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host7/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_33a2efffec3bce36",
+      "baseline": {
+        "kind": "scalar",
+        "value": "min_power_with_partial"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:348414dd6b6daefd": {
+      "target_id": "sata-alpm:348414dd6b6daefd",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host3/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_348414dd6b6daefd",
+      "baseline": {
+        "kind": "scalar",
+        "value": "keep_firmware_settings"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:3585d3569e23c7b3": {
+      "target_id": "sata-alpm:3585d3569e23c7b3",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host6/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_3585d3569e23c7b3",
+      "baseline": {
+        "kind": "scalar",
+        "value": "min_power_with_partial"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:9016da1363dedd23": {
+      "target_id": "sata-alpm:9016da1363dedd23",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host1/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_9016da1363dedd23",
+      "baseline": {
+        "kind": "scalar",
+        "value": "keep_firmware_settings"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:a712859db261c4e1": {
+      "target_id": "sata-alpm:a712859db261c4e1",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host5/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_a712859db261c4e1",
+      "baseline": {
+        "kind": "scalar",
+        "value": "min_power_with_partial"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:abc4130132e47d44": {
+      "target_id": "sata-alpm:abc4130132e47d44",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host0/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_abc4130132e47d44",
+      "baseline": {
+        "kind": "scalar",
+        "value": "keep_firmware_settings"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:ad0b2aa2765205c9": {
+      "target_id": "sata-alpm:ad0b2aa2765205c9",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host4/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_ad0b2aa2765205c9",
+      "baseline": {
+        "kind": "scalar",
+        "value": "min_power_with_partial"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "sata-alpm:cc3d536f047d0670": {
+      "target_id": "sata-alpm:cc3d536f047d0670",
+      "domain": "sata_alpm",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/sys/class/scsi_host/host2/link_power_management_policy"
+      },
+      "legacy_journal_key": "alpm_cc3d536f047d0670",
+      "baseline": {
+        "kind": "scalar",
+        "value": "keep_firmware_settings"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "med_power_with_dipm"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "systemd-unit:background.slice:property:CPUWeight": {
+      "target_id": "systemd-unit:background.slice:property:CPUWeight",
+      "domain": "cgroup_reweight",
+      "target": {
+        "kind": "systemd_property",
+        "unit": "background.slice",
+        "property": "CPUWeight"
+      },
+      "baseline": {
+        "kind": "systemd",
+        "explicit": false,
+        "value": "[not set]"
+      },
+      "desired": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "last_attempted": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "last_confirmed": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "ownership": "optid",
+      "retries": 0,
+      "restore_pending": true
+    },
+    "systemd-unit:background.slice:property:IOWeight": {
+      "target_id": "systemd-unit:background.slice:property:IOWeight",
+      "domain": "cgroup_reweight",
+      "target": {
+        "kind": "systemd_property",
+        "unit": "background.slice",
+        "property": "IOWeight"
+      },
+      "baseline": {
+        "kind": "systemd",
+        "explicit": false,
+        "value": "[not set]"
+      },
+      "desired": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "last_attempted": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "last_confirmed": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "25"
+      },
+      "ownership": "optid",
+      "retries": 0,
+      "restore_pending": true
+    },
+    "systemd-unit:user.slice:property:CPUWeight": {
+      "target_id": "systemd-unit:user.slice:property:CPUWeight",
+      "domain": "cgroup_reweight",
+      "target": {
+        "kind": "systemd_property",
+        "unit": "user.slice",
+        "property": "CPUWeight"
+      },
+      "baseline": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "[not set]"
+      },
+      "last_attempted": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "150"
+      },
+      "last_confirmed": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "150"
+      },
+      "ownership": "relinquished",
+      "ownership_reason": "restore retry limit reached (3)",
+      "retries": 3,
+      "restore_pending": false
+    },
+    "systemd-unit:user.slice:property:IOWeight": {
+      "target_id": "systemd-unit:user.slice:property:IOWeight",
+      "domain": "cgroup_reweight",
+      "target": {
+        "kind": "systemd_property",
+        "unit": "user.slice",
+        "property": "IOWeight"
+      },
+      "baseline": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "[not set]"
+      },
+      "last_attempted": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "150"
+      },
+      "last_confirmed": {
+        "kind": "systemd",
+        "explicit": true,
+        "value": "150"
+      },
+      "ownership": "relinquished",
+      "ownership_reason": "restore retry limit reached (3)",
+      "retries": 3,
+      "restore_pending": false
+    },
+    "vm-sysctl:dirty_background_bytes": {
+      "target_id": "vm-sysctl:dirty_background_bytes",
+      "domain": "vm_sysctl",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/proc/sys/vm/dirty_background_bytes"
+      },
+      "legacy_journal_key": "vm_dirty_background_bytes",
+      "baseline": {
+        "kind": "scalar",
+        "value": "0"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "67108864"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "vm-sysctl:dirty_bytes": {
+      "target_id": "vm-sysctl:dirty_bytes",
+      "domain": "vm_sysctl",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/proc/sys/vm/dirty_bytes"
+      },
+      "legacy_journal_key": "vm_dirty_bytes",
+      "baseline": {
+        "kind": "scalar",
+        "value": "0"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "134217728"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    },
+    "vm-sysctl:swappiness": {
+      "target_id": "vm-sysctl:swappiness",
+      "domain": "vm_sysctl",
+      "target": {
+        "kind": "kernel_value",
+        "path": "/proc/sys/vm/swappiness"
+      },
+      "legacy_journal_key": "vm_swappiness",
+      "baseline": {
+        "kind": "scalar",
+        "value": "60"
+      },
+      "desired": {
+        "kind": "scalar",
+        "value": "60"
+      },
+      "ownership": "unowned",
+      "retries": 0,
+      "restore_pending": false
+    }
+  }
+}
