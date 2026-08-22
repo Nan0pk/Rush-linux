@@ -102,7 +102,10 @@ part of X1/security work.
 
 - `optctl` commands for status, explain, mode, pin, trace, and allowlist
   management, including machine-readable output.
-- `rushbench` energy/responsiveness measurement harness.
+- `rushbench` energy/responsiveness measurement harness, including the
+  `mixed-load-001` Phase D preset and `tools/phase-d-capture.sh`, which drive
+  the D3/D4 arms. The preset's `input-latency-p95/p99-ms` metrics still record
+  `unsupported_here`; see `docs/strategy/mixed-load-workload.md`.
 - Rush LiveDev planner, runner, capture, evidence validation/submission, Linux
   bootstrap, and Windows PowerShell bootstrap.
 - Bootable testOS USB backend and manual installers.

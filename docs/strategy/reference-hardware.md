@@ -70,27 +70,38 @@ holds physical access for the benchmark runs, and (c) the baseline distro.
 | Baseline distro | <!-- FILL: e.g. "Ubuntu 24.04 LTS, PPD balanced" (recommended) --> |
 | Physical-access owner | <!-- FILL: e.g. "@Nan0pk" --> |
 | Battery present | No → **Criterion 3 = N/A** |
-| HWID seeded in allowlist? | <!-- FILL: yes/no — check `config/optid/hardware-allowlist.toml` and add this board if missing --> |
+| HWID seeded in allowlist? | <!-- FILL: yes/no — check `crates/optid/data/allowlist.toml` (the compiled-in seeded baseline; `config/optid/hardware-allowlist.toml` does not exist) and add this board if missing --> |
 
 ### Laptop slot
 
-> **TODO (human decision required):** Fill every `<!-- FILL -->` field below.
-> The HP Victus (i7-13700HX, 24 cores, Fedora 44) is a candidate but its
-> existing sample is defective (see "HP Victus sample" section below) and
-> must be re-captured cleanly if reused.
+**Nominated 2026-08-22 by the project owner (@Nan0pk), who holds physical
+access.** Every field below is a literal value read from the machine, not a
+suggestion. The defective 2026-06-10 sample from this same laptop stays retired;
+this nomination requires a clean re-capture through
+[`tools/phase-d-capture.sh`](../../tools/phase-d-capture.sh).
 
 | Field | Value |
 |-------|-------|
-| Machine (make/model) | <!-- FILL: e.g. "HP Victus 16 (i7-13700HX)" or "ThinkPad T14 Gen 4" --> |
-| CPU | <!-- FILL: e.g. "Intel i7-13700HX, 8P+8E, 24 threads" --> |
-| GPU (iGPU/dGPU) | <!-- FILL: e.g. "Intel UHD Graphics 770 (iGPU) + RTX 4050 (dGPU)" --> |
-| RAM | <!-- FILL: e.g. "32 GB DDR5-4800" --> |
-| `dmi_board` (board name) | <!-- FILL: run `cat /sys/class/dmi/id/board_vendor` + `/sys/class/dmi/id/board_name` --> |
-| Baseline distro | <!-- FILL: e.g. "Ubuntu 24.04 LTS, PPD balanced" (recommended) --> |
-| Physical-access owner | <!-- FILL: e.g. "@Nan0pk" --> |
+| Machine (make/model) | HP `Victus by HP Gaming Laptop 16-r0xxx` |
+| CPU | Intel Core i7-13700HX, 24 threads, `intel_pstate` |
+| GPU (iGPU/dGPU) | Intel UHD Graphics 770 (`00:02.0`, Alder Lake-HX GT1). **No discrete GPU is enumerated by `lspci`** on this unit, so D4 (conservative dGPU runtime PM) cannot be exercised here and needs the desktop slot or a second laptop. |
+| RAM | 16 GB (`MemTotal: 16034280 kB`) |
+| `dmi_board` (board name) | `HP` / `8BC2`, BIOS `F.31` |
+| Baseline distro | **Fedora 44, `tuned` in its default `balanced` profile.** This deviates from the suggested "Ubuntu 24.04 + PPD balanced": on Fedora 44 `power-profiles-daemon` is inactive and `tuned` is the shipped default, so `tuned balanced` — not PPD — is what "mainstream defaults" means on this machine. Recorded in each arm's `meta.txt`. |
+| Physical-access owner | @Nan0pk |
 | Battery present | Yes → **Criterion 3 in scope** |
-| Battery design capacity (µWh) | <!-- FILL: run `cat /sys/class/power_supply/BAT0/energy_full_design` --> |
-| HWID seeded in allowlist? | <!-- FILL: yes/no — check `config/optid/hardware-allowlist.toml` and add this board if missing --> |
+| Battery design capacity (µWh) | `70070000` (`/sys/class/power_supply/BAT1/energy_full_design` — note `BAT1`, not `BAT0`) |
+| HWID seeded in allowlist? | No. The seeded baseline in `crates/optid/data/allowlist.toml` carries 14 entries and none is this board; every seeded row is `verified = false` regardless, so per-device depth writes answer `entry_unverified` on this host. That denial path is Criterion 1's evidence ("unsupported knobs are skipped with reasons"), not a blocker: the global levers (EPP, platform profile, VM sysctls, `cpu_dma_latency`, cgroup weights) are not allowlist-gated and do actuate. |
+
+#### Known hardware quirk found during nomination
+
+`/sys/class/power_supply` on this board enumerates `BAT1`, an idle
+`ucsi-source-psy-USBC000:001` USB-C source, and then the online `ACAD` barrel
+jack. `optid`'s `read_on_ac` answered from the first external supply it walked
+and so reported battery power with the charger attached, which put the daemon on
+its battery policy branch while on mains. Fixed before any capture; see the
+`read_on_ac_with` aggregation rule in
+[`docs/adaptive-engine.md`](../adaptive-engine.md).
 
 ## The existing HP Victus sample is NOT a candidate-by-default
 
@@ -107,9 +118,13 @@ following the Dragnet `meta.txt` template, or nominate a different laptop.
 ## Definition of done for D1
 
 - [ ] Desktop slot filled (machine, access owner, baseline distro).
-- [ ] Laptop slot filled (machine, access owner, baseline distro, battery present).
-- [ ] Both boards confirmed present in `config/optid/hardware-allowlist.toml`
-      (so `optid --apply` operates on allowlisted HWIDs in D4).
+- [x] Laptop slot filled (machine, access owner, baseline distro, battery present) — 2026-08-22.
+- [ ] Both boards' HWIDs recorded in `crates/optid/data/allowlist.toml`. This is
+      a *record*, not an enablement: seeded rows are `verified = false`, so
+      per-device depth writes stay denied with `entry_unverified` until a
+      separate promotion decision (I3) marks a row verified against committed
+      evidence. The non-allowlisted global levers actuate either way, so D4 is
+      not blocked on it.
 - [ ] Physical access confirmed for both, with lead time for ~30-minute runs ×
       baseline + optid (≈ 4 runs total across the two machines, ×5 repeats each).
 
