@@ -33,7 +33,15 @@ const MAX_FAILURE_THRESHOLD: u32 = 10;
 const MIN_COOLDOWN_SECS: u64 = 30;
 const MAX_COOLDOWN_SECS: u64 = 86_400;
 const PRODUCTION_STATE_DIR: &str = "/run/optid";
-const PERSISTENT_CIRCUIT_FILE: &str = "/var/lib/optid/recovery/circuits-v1.json";
+const PERSISTENT_CIRCUIT_FILE: &str = "/var/lib/optid/circuits-v1.json";
+/// Where this file used to live. `/var/lib/optid/recovery/` holds pending
+/// rollback records, and the recovery scan requires every JSON file there to
+/// deserialize as one. Keeping circuit state in that directory meant the daemon
+/// wrote a file the scan then rejected (`InvalidRecord: missing field
+/// `generation``) and stopped right after arming — the first root `--apply` run
+/// on real hardware died on its own bookkeeping. Migrated out; the scan's
+/// strictness is the safety property and stays untouched.
+const LEGACY_PERSISTENT_CIRCUIT_FILE: &str = "/var/lib/optid/recovery/circuits-v1.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CircuitConfig {
@@ -257,9 +265,34 @@ pub(crate) struct CircuitBreaker {
     startup_warning: Option<String>,
 }
 
+/// Move a circuit file left in the old location by an earlier build. Only the
+/// production path is migrated, only when the new location is still empty, and
+/// a failure is silent: this is bookkeeping, and a daemon must not refuse to
+/// start because a leftover file could not be moved.
+fn migrate_out_of_recovery_dir(path: &Path) {
+    if path != Path::new(PERSISTENT_CIRCUIT_FILE) {
+        return;
+    }
+    let legacy = Path::new(LEGACY_PERSISTENT_CIRCUIT_FILE);
+    if !legacy.exists() || path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if fs::rename(legacy, path).is_err() {
+        // A cross-device or read-only situation: copying then unlinking still
+        // clears the recovery directory, which is what unblocks startup.
+        if fs::copy(legacy, path).is_ok() {
+            let _ = fs::remove_file(legacy);
+        }
+    }
+}
+
 impl CircuitBreaker {
     pub(crate) fn load(path: PathBuf, failure_threshold: u32, cooldown_secs: u64) -> Self {
         let mut startup_warning = None;
+        migrate_out_of_recovery_dir(&path);
         let config = match CircuitConfig::validated(failure_threshold, cooldown_secs) {
             Ok(config) => config,
             Err(error) => {
@@ -1491,5 +1524,39 @@ mod tests {
             .targets
             .iter()
             .any(|target| target.detail.as_deref() == Some("S5D circuit open")));
+    }
+
+    /// Regression: the production circuit file must not sit in the directory
+    /// the transaction-recovery scan owns, or the daemon rejects its own
+    /// bookkeeping and stops after arming.
+    #[test]
+    fn production_circuit_file_is_outside_the_recovery_directory() {
+        let production = CircuitBreaker::state_path_for(Path::new("/run/optid"));
+        assert_eq!(production, Path::new("/var/lib/optid/circuits-v1.json"));
+        assert_ne!(
+            production.parent(),
+            Some(Path::new("/var/lib/optid/recovery"))
+        );
+    }
+
+    #[test]
+    fn a_non_production_state_dir_keeps_its_own_circuit_file() {
+        let path = CircuitBreaker::state_path_for(Path::new("/tmp/optid-test-state"));
+        assert_eq!(
+            path,
+            Path::new("/tmp/optid-test-state/persistent-circuits-v1.json")
+        );
+    }
+
+    #[test]
+    fn migration_only_touches_the_production_path() {
+        let dir = std::env::temp_dir().join("optid-circuit-migration-scope");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("temp dir");
+        let unrelated = dir.join("persistent-circuits-v1.json");
+        // No panic, no file created: a runtime state dir is left alone.
+        migrate_out_of_recovery_dir(&unrelated);
+        assert!(!unrelated.exists());
+        let _ = fs::remove_dir_all(&dir);
     }
 }
