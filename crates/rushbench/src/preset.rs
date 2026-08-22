@@ -276,9 +276,37 @@ pub fn parse_ninja_completed_edges(output: &str) -> u64 {
 /// Generator revision. The workload spec asks for "a pinned medium C++ project
 /// (fixed revision)"; a generated project pins by generator version and unit
 /// count instead of by git SHA, which is reproducible without network access.
-pub const THROUGHPUT_PROJECT_REVISION: &str = "rushbench-cxx-1";
+pub const THROUGHPUT_PROJECT_REVISION: &str = "rushbench-cxx-2";
 /// Translation units in the generated project.
-pub const THROUGHPUT_TRANSLATION_UNITS: usize = 96;
+///
+/// Sized so the build **cannot finish inside a 60 s window**: one unit costs
+/// about a second of a modern core, so a 24-thread machine clears roughly 1 300
+/// of them per minute. At 96 units the first draft finished in ~5 s and the
+/// remaining ~55 s of the "throughput" phase measured an idle machine
+/// (`psi-cpu-avg10` came out at 0.06 %). A phase that goes quiescent halfway
+/// through is not a throughput measurement.
+///
+/// A slower machine simply completes fewer units, which is exactly what
+/// `joules-per-work-unit` normalizes away. A machine fast enough to drain the
+/// whole project inside the window records
+/// `throughput_build_completed_early` so the same defect cannot recur silently.
+pub const THROUGHPUT_TRANSLATION_UNITS: usize = 1600;
+
+/// Build parallelism for the throughput phase: twice the CPU count, so the run
+/// queue is genuinely contended.
+///
+/// `ninja`'s own default (`nproc + 2`) leaves a 24-thread machine essentially
+/// uncontended: a first draft measured `psi-cpu-avg10` at 0.06 % during a
+/// saturated build, far under the 12.0 % the classifier needs to call
+/// `throughput`, so the phase would have been classified `interactive` and
+/// certified the wrong class. Oversubscribing is the same technique
+/// `tools/bench-optid-host-v2.sh` already uses for its throughput scenario.
+pub fn throughput_jobs() -> usize {
+    let cpus = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(2);
+    cpus.saturating_mul(2).max(2)
+}
 
 /// One translation unit's source. Template-instantiation heavy so each unit
 /// costs roughly a second of a modern core, and pure so the compiler cannot
@@ -442,6 +470,8 @@ fn start_driver(
             let child = Command::new("ninja")
                 .arg("-C")
                 .arg(&dir)
+                .arg("-j")
+                .arg(throughput_jobs().to_string())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
                 .spawn()
@@ -558,6 +588,15 @@ fn stop_driver(driver: Driver, mut running: RunningDriver) -> DriverOutcome {
             outcome
                 .unsupported
                 .push(format!("ninja completed no edges in {}", dir.display()));
+        }
+        if units >= THROUGHPUT_TRANSLATION_UNITS as u64 {
+            // The build drained before the window closed, so the tail of the
+            // phase measured an idle machine, not throughput.
+            outcome.unsupported.push(
+                "throughput_build_completed_early: the phase went quiescent before \
+                       the window closed; raise THROUGHPUT_TRANSLATION_UNITS"
+                    .to_string(),
+            );
         }
         outcome.work_units = Some(units);
     }
@@ -767,7 +806,9 @@ pub fn run_preset(
     );
     say(
         format!(
-            "throughput_project={THROUGHPUT_PROJECT_REVISION} units={THROUGHPUT_TRANSLATION_UNITS}"
+            "throughput_project={THROUGHPUT_PROJECT_REVISION} units={THROUGHPUT_TRANSLATION_UNITS} \
+             jobs={}",
+            throughput_jobs()
         ),
         &mut transcript,
     );
@@ -1169,6 +1210,15 @@ mod tests {
     fn ninja_progress_ignores_non_progress_lines() {
         let out = "ninja: Entering directory `/tmp/x'\n[3/96] CC tu002.o\nFAILED: tu003.o\n";
         assert_eq!(parse_ninja_completed_edges(out), 3);
+    }
+
+    #[test]
+    fn throughput_oversubscribes_the_cpu_count() {
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(2);
+        assert_eq!(throughput_jobs(), cpus * 2);
+        assert!(throughput_jobs() >= 2);
     }
 
     #[test]
