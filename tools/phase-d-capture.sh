@@ -133,6 +133,14 @@ if (( ac_online == 0 )) && (( battery_pct < MIN_BATTERY )); then
     exit 1
 fi
 
+# Seed the arm directory from the evidence template on first use so VERDICT.md
+# and the README's required-file shape are present from the start.
+if [[ ! -d "$DIR" ]]; then
+    cp -r "$REPO/release/evidence/host-bench/_TEMPLATE" "$DIR"
+    # The template ships placeholder arm files; a real capture writes its own.
+    rm -f "$DIR"/baseline/* "$DIR"/optid/* "$DIR/README.md"
+    echo "note: seeded $DIR from the evidence template; VERDICT.md still needs filling"
+fi
 mkdir -p "$DIR"
 LOG="$DIR/capture.log"
 exec > >(tee -a "$LOG") 2>&1
