@@ -87,7 +87,13 @@ All PM QoS writes are subject to the dry-run (`--apply`) gate, act on floor chan
 The current Rust implementation:
 
 - reads PSI from `/proc/pressure/{cpu,memory,io}`;
-- reads AC/battery state from `/sys/class/power_supply`;
+- reads AC/battery state from `/sys/class/power_supply`, aggregating across
+  every supply: any online `Mains`/`USB`/`USB_C`/`USB_PD` entry means
+  external power, supplies that are all offline mean battery, and a host
+  with no supply at all stays unknown. Laptops that expose an idle USB-C
+  source alongside the barrel jack (HP Victus 16-r0xxx enumerates `BAT1`,
+  `ucsi-source-psy-USBC000:001`, then `ACAD`) must not be read from the
+  first external supply the kernel happens to return;
 - reads thermal state from `/sys/class/thermal`;
 - reads load average from `/proc/loadavg`;
 - chooses battery, balanced, performance, or realtime mode;
