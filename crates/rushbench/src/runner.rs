@@ -2,10 +2,12 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::contracts::{check_apply_in_effect, get_optctl_status_json, parse_contracts_toml};
+use crate::contracts::{
+    check_apply_in_effect, get_optctl_status_json, parse_contracts_toml, parse_optctl_status,
+};
 use crate::energy::{calculate_window, read_on_ac, EnergySource};
 use crate::probes::{run_probe_for_metric, ProbeResult};
-use crate::types::{EnergyInfo, HostInfo, OptctlStatus, ResolvedFloors, RunRecord, RushInfo};
+use crate::types::{EnergyInfo, HostInfo, ResolvedFloors, RunRecord, RushInfo};
 use crate::utils::{
     find_repo_file, get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
     get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp, percentile,
@@ -204,7 +206,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     }
 
     let status_json_str = get_optctl_status_json()?;
-    let status: OptctlStatus = serde_json::from_str(&status_json_str)
+    let status = parse_optctl_status(&status_json_str)
         .map_err(|e| format!("Failed to parse optctl status JSON: {e}"))?;
 
     if status.workload_class != class {

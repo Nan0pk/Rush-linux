@@ -149,6 +149,17 @@ anomaly.
 | Idle "discharge (W)" | prose in the phase table | Recorded under the metric name `discharge-w`, one sample per cycle, from the phase's own energy window. |
 | `input-latency-p95-ms` / `-p99-ms` | interactive phase metrics | **Still `unsupported_here`.** The probe needs synthetic input injection (`evemu`) plus frame observation in a live session; no such probe exists, and inventing a proxy under the spec's metric name would misreport what was measured. **Criterion 2 must therefore be judged on `frametime-p95/p99-ms` and `foreground-launch-ms`, or stay open** — an owner decision, not the harness's. |
 
+### Class observation
+
+`optctl status --json` is now `schema_version = 2` and nests the fields under
+`decision` (`decision.workload_class`, `decision.contract.cpu_wakeup_latency_us`,
+`decision.contract.device_resume_latency_us`); version 1 had them at the top
+level. `rushbench`'s `OptctlStatus` still described the flat v1 shape, so a
+strict deserialize failed against every current daemon — the preset would have
+recorded `optid_absent` for a live daemon, and `rushbench run --class` aborted
+with a parse error. `contracts::parse_optctl_status` reads either generation and
+names the schema version when a status carries no class at all.
+
 ### Energy counter, and why it is pinned
 
 `EnergySource::detect()` prefers RAPL when `intel-rapl:0/energy_uj` is readable,

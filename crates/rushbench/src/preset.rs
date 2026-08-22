@@ -36,11 +36,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::contracts::{get_optctl_status_json, parse_contracts_toml};
+use crate::contracts::{get_optctl_status_json, parse_contracts_toml, parse_optctl_status};
 use crate::energy::{calculate_window, read_on_ac, EnergySample, EnergySource};
 use crate::probes::{run_probe_for_metric, ProbeResult};
 use crate::runner::build_record;
-use crate::types::{EnergyInfo, OptctlStatus};
+use crate::types::EnergyInfo;
 use crate::utils::{
     find_repo_file, get_cpu_model, get_git_sha, get_kernel_version, get_utc_timestamp, percentile,
 };
@@ -617,7 +617,7 @@ impl PhaseAccumulator {
 /// The class `optid` currently reports, or `None` when no daemon answers.
 fn observe_class() -> Option<String> {
     let json = get_optctl_status_json().ok()?;
-    let status: OptctlStatus = serde_json::from_str(&json).ok()?;
+    let status = parse_optctl_status(&json).ok()?;
     Some(status.workload_class)
 }
 
