@@ -41,6 +41,36 @@ The completion plan also leaves zone selection and weighting open. The decision 
 
 The completion plan recommends the maximum of eligible zones for v1 and no fan writes. The research defaults remain hypotheses until that review is recorded. The collector can reference an accepted decision, but it cannot create or approve one.
 
+## Maintainer ruling on evidence provenance (2026-08-17)
+
+Verifiers have twice raised whether a locally produced proof bundle is
+sufficient, given that every earlier receipt in `docs/plans/optid-verification/`
+cites a CI artifact. The maintainer of record has ruled. It is settled; do not
+re-open it as an unresolved item.
+
+**Physical hardware is the objective, so hardware evidence is primary.** CI can
+prove the algorithm and the sequence — what the levers and pulleys do. It cannot
+prove what this package exists to prove, because a CI runner has no real thermal
+topology to observe. CI evidence is acceptable for early versions; for a
+completion receipt on a hardware-facing package, hardware is what counts.
+
+**What replaces CI provenance is collector independence, not location.** The
+weakness of a locally produced bundle is that the agent that wrote the code also
+produced its evidence. That is fixed by having a *different* agent collect it on
+real hardware, not by moving the collection to a machine with no sensors.
+
+A completion-ready collection for this package must therefore:
+
+- run on physical hardware with a real thermal topology;
+- be collected by an agent that did not write the implementation under test;
+- record in the collection report **how** the collection was performed — the
+  exact invocation, the host state, and every deviation from this procedure; and
+- record **what the collecting agent independently re-checked**, distinguishing
+  what it verified for itself from what it took from the artifacts it was given.
+
+A verifier may still record a provenance concern, but the bundle being locally
+produced is not by itself grounds to withhold a receipt.
+
 ## Clean verification checkout
 
 Use a fresh clone or worktree at the exact implementation commit being verified. Confirm the checkout is clean and has sufficient history for receipt-freshness validation.
