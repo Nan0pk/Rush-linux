@@ -1,0 +1,8 @@
+total 36
+drwxr-xr-x.  2 root root   140 Aug 22 22:28 .
+drwxr-xr-x. 59 root root  1520 Aug 22 22:27 ..
+-rw-r--r--.  1 root root  5643 Aug 22 22:27 decisions.log
+-rw-r--r--.  1 root root     4 Aug 22 22:29 mode
+-rw-r--r--.  1 root root     0 Aug 22 22:27 optid.lock
+-rw-r--r--.  1 root root 16588 Aug 22 22:27 reconciliation-state.json
+-rw-r--r--.  1 root root     4 Aug 22 22:27 workload_class

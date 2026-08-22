@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "last_seen_at": 1787419669,
+  "global": {
+    "opened_at": 1787419669,
+    "reason": "S5D unisolatable reconciliation failure; global circuit opened: InvalidRecord: parse /var/lib/optid/recovery/circuits-v1.json: missing field `generation` at line 42 column 1"
+  },
+  "records": {
+    "cpu_dma_latency|set_cpu_dma_latency|cpu:pm-qos-latency|hwid:9847dab658560237|firmware:ceb232cd5769e502|journal": {
+      "scope": {
+        "domain": "cpu_dma_latency",
+        "operation": "set_cpu_dma_latency",
+        "target_id": "cpu:pm-qos-latency",
+        "hardware_id": "hwid:9847dab658560237",
+        "firmware_id": "firmware:ceb232cd5769e502"
+      },
+      "failure_class": "journal",
+      "consecutive_failures": 1,
+      "open": false,
+      "opened_at": 0,
+      "cooldown_until": 0,
+      "recovery_verified": false,
+      "canary_in_flight": false,
+      "last_failure_at": 1787419669,
+      "last_reason": "persistent transaction or recovery journal gate failed"
+    },
+    "platform_profile|set_platform_profile|platform:profile|hwid:9847dab658560237|firmware:ceb232cd5769e502|journal": {
+      "scope": {
+        "domain": "platform_profile",
+        "operation": "set_platform_profile",
+        "target_id": "platform:profile",
+        "hardware_id": "hwid:9847dab658560237",
+        "firmware_id": "firmware:ceb232cd5769e502"
+      },
+      "failure_class": "journal",
+      "consecutive_failures": 1,
+      "open": false,
+      "opened_at": 0,
+      "cooldown_until": 0,
+      "recovery_verified": false,
+      "canary_in_flight": false,
+      "last_failure_at": 1787419669,
+      "last_reason": "persistent transaction or recovery journal gate failed"
+    }
+  }
+}
