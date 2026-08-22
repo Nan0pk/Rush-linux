@@ -2,6 +2,7 @@ use std::env;
 
 pub mod contracts;
 pub mod energy;
+pub mod preset;
 pub mod probes;
 pub mod report;
 pub mod runner;
@@ -14,6 +15,7 @@ use runner::run_cell;
 fn print_usage() {
     println!("Usage:");
     println!("  rushbench run --class <class> --workload <workload> [--n <count>] [--ac-ok]");
+    println!("  rushbench run preset=mixed-load-001 --tag=<lever>-<hostname> [--cycles <n>] [--out <dir>] [--ac-ok]");
     println!("  rushbench matrix [--ac-ok]");
     println!("  rushbench report <results-dir>");
 }
@@ -31,6 +33,10 @@ fn main() {
             let mut workload = None;
             let mut n = 5;
             let mut ac_ok = false;
+            let mut preset: Option<String> = None;
+            let mut tag: Option<String> = None;
+            let mut out: Option<String> = None;
+            let mut cycles = preset::REQUIRED_CYCLES;
 
             let mut i = 2;
             while i < args.len() {
@@ -66,12 +72,79 @@ fn main() {
                         ac_ok = true;
                         i += 1;
                     }
+                    "--cycles" => {
+                        if i + 1 < args.len() {
+                            cycles = match args[i + 1].parse() {
+                                Ok(value) => value,
+                                Err(_) => {
+                                    eprintln!("Error: --cycles must be an integer");
+                                    std::process::exit(1);
+                                }
+                            };
+                            i += 2;
+                        } else {
+                            eprintln!("Error: --cycles requires an argument");
+                            std::process::exit(1);
+                        }
+                    }
+                    other if other.starts_with("preset=") => {
+                        preset = Some(other["preset=".len()..].to_string());
+                        i += 1;
+                    }
+                    other if other.starts_with("--tag=") => {
+                        tag = Some(other["--tag=".len()..].to_string());
+                        i += 1;
+                    }
+                    "--tag" => {
+                        if i + 1 < args.len() {
+                            tag = Some(args[i + 1].clone());
+                            i += 2;
+                        } else {
+                            eprintln!("Error: --tag requires an argument");
+                            std::process::exit(1);
+                        }
+                    }
+                    other if other.starts_with("--out=") => {
+                        out = Some(other["--out=".len()..].to_string());
+                        i += 1;
+                    }
+                    "--out" => {
+                        if i + 1 < args.len() {
+                            out = Some(args[i + 1].clone());
+                            i += 2;
+                        } else {
+                            eprintln!("Error: --out requires an argument");
+                            std::process::exit(1);
+                        }
+                    }
                     _ => {
                         eprintln!("Error: unknown argument {}", args[i]);
                         print_usage();
                         std::process::exit(1);
                     }
                 }
+            }
+
+            if let Some(preset_name) = preset {
+                let tag = match tag {
+                    Some(t) => t,
+                    None => {
+                        eprintln!("Error: preset runs require --tag=<lever>-<hostname>");
+                        std::process::exit(1);
+                    }
+                };
+                let out_dir = match out {
+                    Some(dir) => std::path::PathBuf::from(dir),
+                    None => {
+                        eprintln!("Error: preset runs require --out=<evidence arm directory>");
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(e) = preset::run_preset(&preset_name, cycles, &tag, &out_dir, ac_ok) {
+                    eprintln!("Preset run failed: {}", e);
+                    std::process::exit(1);
+                }
+                return;
             }
 
             let class = match class {

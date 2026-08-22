@@ -2,10 +2,12 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::contracts::{check_apply_in_effect, get_optctl_status_json, parse_contracts_toml};
+use crate::contracts::{
+    check_apply_in_effect, get_optctl_status_json, parse_contracts_toml, parse_optctl_status,
+};
 use crate::energy::{calculate_window, read_on_ac, EnergySource};
 use crate::probes::{run_probe_for_metric, ProbeResult};
-use crate::types::{EnergyInfo, HostInfo, OptctlStatus, ResolvedFloors, RunRecord, RushInfo};
+use crate::types::{EnergyInfo, HostInfo, ResolvedFloors, RunRecord, RushInfo};
 use crate::utils::{
     find_repo_file, get_battery_design_uwh, get_contracts_sha256, get_cpu_model, get_dmi_board,
     get_git_sha, get_host_folder_name, get_kernel_version, get_utc_timestamp, percentile,
@@ -34,8 +36,11 @@ pub fn resolve_workload_and_metric(w: &str) -> Result<(String, String), String> 
     }
 }
 
+/// Assemble a `RunRecord` without deciding where it is stored. `write_record`
+/// files it in the standard results tree; the `mixed-load-001` preset also
+/// serializes the same record into its evidence directory.
 #[allow(clippy::too_many_arguments)]
-pub fn write_record(
+pub fn build_record(
     class_requested: &str,
     class_observed: &str,
     workload: &str,
@@ -49,30 +54,7 @@ pub fn write_record(
     power_source: &str,
     cpu_floor: i64,
     dev_floor: i64,
-) -> Result<(), String> {
-    let host_folder = get_host_folder_name();
-    let utc_date = started_at.split('T').next().unwrap_or("unknown");
-
-    let default_root = find_repo_file("VERSION")
-        .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
-        .unwrap_or_else(|| PathBuf::from("benchmarks/results"));
-
-    // Base results directory can be overridden by RUSHBENCH_STATE_DIR for testing
-    let results_root = if let Ok(dir) = env::var("RUSHBENCH_STATE_DIR") {
-        PathBuf::from(dir)
-    } else {
-        default_root.clone()
-    };
-
-    let target_dir = results_root
-        .join(utc_date)
-        .join(&host_folder)
-        .join(class_requested);
-
-    fs::create_dir_all(&target_dir).map_err(|e| format!("Failed to create results dir: {e}"))?;
-
-    let target_file = target_dir.join(format!("{workload}.json"));
-
+) -> RunRecord {
     let (median, p95, iqr) = if let Some(ref s) = samples {
         let mut sorted = s.clone();
         sorted.sort_unstable();
@@ -91,7 +73,7 @@ pub fn write_record(
 
     let git_sha = get_git_sha().unwrap_or_else(|_| "unknown".to_string());
 
-    let record = RunRecord {
+    RunRecord {
         schema_version: 1,
         host: HostInfo {
             kernel: get_kernel_version(),
@@ -123,7 +105,66 @@ pub fn write_record(
         started_at: started_at.to_string(),
         warmup_runs,
         anomalies,
+    }
+}
+
+/// File a record in the standard results tree
+/// (`benchmarks/results/<date>/<host>/<class>/<workload>.json`, or under
+/// `RUSHBENCH_STATE_DIR` when set).
+#[allow(clippy::too_many_arguments)]
+pub fn write_record(
+    class_requested: &str,
+    class_observed: &str,
+    workload: &str,
+    metric: &str,
+    n: usize,
+    samples: Option<Vec<u64>>,
+    energy: Option<EnergyInfo>,
+    started_at: &str,
+    warmup_runs: usize,
+    anomalies: Vec<String>,
+    power_source: &str,
+    cpu_floor: i64,
+    dev_floor: i64,
+) -> Result<(), String> {
+    let record = build_record(
+        class_requested,
+        class_observed,
+        workload,
+        metric,
+        n,
+        samples,
+        energy,
+        started_at,
+        warmup_runs,
+        anomalies,
+        power_source,
+        cpu_floor,
+        dev_floor,
+    );
+
+    let host_folder = get_host_folder_name();
+    let utc_date = started_at.split('T').next().unwrap_or("unknown");
+
+    let default_root = find_repo_file("VERSION")
+        .map(|p| p.parent().unwrap().join("benchmarks").join("results"))
+        .unwrap_or_else(|| PathBuf::from("benchmarks/results"));
+
+    // Base results directory can be overridden by RUSHBENCH_STATE_DIR for testing
+    let results_root = if let Ok(dir) = env::var("RUSHBENCH_STATE_DIR") {
+        PathBuf::from(dir)
+    } else {
+        default_root
     };
+
+    let target_dir = results_root
+        .join(utc_date)
+        .join(&host_folder)
+        .join(class_requested);
+
+    fs::create_dir_all(&target_dir).map_err(|e| format!("Failed to create results dir: {e}"))?;
+
+    let target_file = target_dir.join(format!("{workload}.json"));
 
     let json_str = serde_json::to_string_pretty(&record)
         .map_err(|e| format!("Failed to serialize RunRecord: {e}"))?;
@@ -165,7 +206,7 @@ pub fn run_cell(class: &str, workload: &str, n: usize, ac_ok: bool) -> Result<()
     }
 
     let status_json_str = get_optctl_status_json()?;
-    let status: OptctlStatus = serde_json::from_str(&status_json_str)
+    let status = parse_optctl_status(&status_json_str)
         .map_err(|e| format!("Failed to parse optctl status JSON: {e}"))?;
 
     if status.workload_class != class {
