@@ -104,11 +104,81 @@ v0.6 `criteria_status` rows in `release/milestones.toml`.
 
 ## Reproducibility checklist
 
-- [ ] Same baseline distro + PPD `balanced` on both machines (per D1).
-- [ ] Firefox JS benchmark page pinned to a fixed local revision.
-- [ ] `ninja` C++ project pinned to a fixed commit; build dir pre-configured so
-      phase 3 measures compile, not configure.
+- [ ] Same baseline distro + mainstream default power stack on both machines
+      (per D1; `tuned balanced` on Fedora 44 — see "Deviations" below).
+- [x] Firefox JS benchmark page pinned to a fixed local revision
+      (`benchmarks/fixtures/interactive-load.html`, deterministic PRNG, fixed
+      work per frame).
+- [x] `ninja` C++ project pinned; generated from
+      `THROUGHPUT_PROJECT_REVISION` with no configure step, so phase 3 measures
+      compile only.
 - [ ] `glmark2` version recorded in `meta.txt`.
 - [ ] Thermal soak: run baseline and optid on the same machine in the same
       session where possible, alternating, to control ambient temperature drift.
 - [ ] `n=5` per metric; reject any record carrying `insufficient_n`.
+
+## Implementation status (D2, landed 2026-08-22)
+
+The preset exists: `crates/rushbench/src/preset.rs` implements the five-phase
+sequence and
+
+```bash
+rushbench run preset=mixed-load-001 --tag=<lever>-<hostname> \
+    --cycles 5 --out release/evidence/host-bench/<date>-<hostname>/<arm>
+```
+
+writes the four artifacts above into `--out`. Both arms are driven by
+[`tools/phase-d-capture.sh`](../../tools/phase-d-capture.sh), which owns the
+daemon and service state the two arms must differ in and nothing else.
+
+Unlike `rushbench run --class`, the preset does **not** call `optctl pin`.
+Watching whether the classifier reaches the expected class under real load is
+part of the evidence, so a mismatch is recorded as a `class_mismatch:<observed>`
+anomaly on that phase's records rather than aborting the run. A baseline arm has
+no daemon at all, so its `class_observed` is `unmeasured` with an `optid_absent`
+anomaly.
+
+### Deviations from the phase table above, and why
+
+| Item | Spec text | What the implementation does |
+|------|-----------|------------------------------|
+| Baseline stack | "PPD `balanced`" | On Fedora 44, `power-profiles-daemon` is inactive and `tuned` is the shipped default, so the baseline arm runs `tuned` in `balanced`. `meta.txt` records it. A baseline that nobody actually runs would not support a "mainstream defaults" claim. |
+| Throughput project | "a pinned medium C++ project (fixed revision)" | A generated project (`THROUGHPUT_PROJECT_REVISION`, 96 translation units) instead of a git checkout: byte-identical on every host, no network, and pinned by generator revision + unit count. |
+| Throughput work units | joules per work unit | Work units are object files the phase produced. Killing `ninja` at the window edge discards its buffered progress output, so counting `*.o` is the authoritative measure; the `[k/n]` parser is kept for builds that finish inside the window. |
+| Frametime distribution | `frametime-p95-ms`, `frametime-p99-ms` | `glmark2` alone reports per-scene average FPS, which cannot yield a percentile. `glmark2 --run-forever --fullscreen` is therefore wrapped in MangoHud's per-frame CSV log, and the percentiles are computed from real frames. Without `mangohud` the two metrics record `unsupported_here` rather than a fabricated average. |
+| Idle "discharge (W)" | prose in the phase table | Recorded under the metric name `discharge-w`, one sample per cycle, from the phase's own energy window. |
+| `input-latency-p95-ms` / `-p99-ms` | interactive phase metrics | **Still `unsupported_here`.** The probe needs synthetic input injection (`evemu`) plus frame observation in a live session; no such probe exists, and inventing a proxy under the spec's metric name would misreport what was measured. **Criterion 2 must therefore be judged on `frametime-p95/p99-ms` and `foreground-launch-ms`, or stay open** — an owner decision, not the harness's. |
+
+### Energy counter, and why it is pinned
+
+`EnergySource::detect()` prefers RAPL when `intel-rapl:0/energy_uj` is readable,
+which on current kernels means root-only. An arm run as a user would fall back
+to the battery charge counter while an arm run as root picked RAPL — two
+different counters, silently incomparable. `tools/phase-d-capture.sh` pins
+`RUSHBENCH_ENERGY_SOURCE=battery` for both arms, and each transcript records the
+counter path so a verdict can assert the two match.
+
+For the same reason both arms must run **on battery**: the battery counter
+measures nothing while the charger holds the pack full, so an on-AC window would
+report a real-looking `0 W`. The preset refuses an on-AC run unless `--ac-ok` is
+given, and when it is, every energy-derived metric records
+`unsupported_here: energy: battery counter cannot measure a window on AC`
+instead of a zero.
+
+### Sample units
+
+`RunRecord.samples` are integers in whatever unit the probe emits, following the
+pre-existing convention that fractional metrics are stored in milli-units
+(`psi-*-avg10` is already ×1000): `frametime-*-ms` samples are microseconds,
+`discharge-w` samples are milliwatts, and `joules-per-work-unit` samples are
+millijoules per unit. `foreground-launch-ms` keeps its existing whole-millisecond
+samples. `results.csv` always prints the median in the metric's *declared* unit,
+so the human-facing artifact needs no scaling knowledge.
+
+### Harness validation vs evidence
+
+`RUSHBENCH_PHASE_SCALE=N` (or `--scale N`) divides every phase window so the
+sequencer can be exercised in seconds. Any run with a scale other than 1 stamps
+`phase_scale_shortened:N` on every record, and any run with fewer than five
+cycles stamps `insufficient_n`. Neither is milestone evidence, and neither
+belongs under `release/evidence/`.

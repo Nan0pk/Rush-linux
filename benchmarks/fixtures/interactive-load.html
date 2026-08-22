@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rushbench interactive load</title>
+<!--
+  Fixed local JavaScript benchmark page for the `interactive` phase of
+  `mixed-load-001` (docs/strategy/mixed-load-workload.md). It must be
+  deterministic and self-contained: no network, no timers whose rate depends on
+  wall-clock date, and the same amount of work per animation frame on every
+  host so the phase is comparable across arms.
+
+  The loop is deliberately a mix of layout, style recalculation, and scalar
+  compute, which is what makes the phase land in the `interactive` class rather
+  than in `throughput`: it yields to the compositor every frame instead of
+  saturating a core.
+-->
+<style>
+  body { margin: 0; font: 14px/1.4 monospace; background: #101014; color: #e6e6ea; }
+  #grid { display: grid; grid-template-columns: repeat(24, 1fr); gap: 1px; padding: 8px; }
+  .cell { height: 14px; background: #23232c; }
+  #hud { padding: 8px; }
+</style>
+<div id="hud">rushbench interactive load — frames: <span id="frames">0</span></div>
+<div id="grid"></div>
+<script>
+  'use strict';
+  var CELLS = 24 * 24;
+  var WORK_PER_FRAME = 20000;
+  var grid = document.getElementById('grid');
+  var frameLabel = document.getElementById('frames');
+  var cells = [];
+  for (var i = 0; i < CELLS; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    grid.appendChild(cell);
+    cells.push(cell);
+  }
+
+  // Deterministic PRNG: the page must do identical work on every run.
+  var seed = 2463534242;
+  function next() {
+    seed ^= seed << 13; seed >>>= 0;
+    seed ^= seed >> 17;
+    seed ^= seed << 5;  seed >>>= 0;
+    return seed;
+  }
+
+  var frames = 0;
+  function tick() {
+    var accumulator = 0;
+    for (var i = 0; i < WORK_PER_FRAME; i++) {
+      accumulator += Math.sqrt(next() % 4096);
+    }
+    for (var c = 0; c < CELLS; c++) {
+      var value = (next() % 160) + 32;
+      cells[c].style.backgroundColor = 'rgb(' + value + ',' + ((value * 3) % 200) + ',' + ((value * 7) % 220) + ')';
+    }
+    // Force layout so the phase exercises style + layout, not just script.
+    void grid.offsetHeight;
+    frames++;
+    if ((frames & 15) === 0) {
+      frameLabel.textContent = frames + ' (acc ' + accumulator.toFixed(0) + ')';
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>
