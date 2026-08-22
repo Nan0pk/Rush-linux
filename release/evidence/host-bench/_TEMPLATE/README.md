@@ -20,13 +20,21 @@ DIR="$HB/<date>-<hostname>"
 # 1. Copy the template for this machine (D3 baseline + D4 optid live here)
 cp -r "$HB/_TEMPLATE" "$DIR"
 
-# 2. D3 — baseline run (mainstream defaults, e.g. Ubuntu 24.04 + PPD balanced)
-rushbench run preset=mixed-load-001 --tag=baseline-ubuntu-2404-<hostname>
-#   → place meta.txt, transcript.log, results.csv, *.json in $DIR/baseline/
+# 2. D3 + D4 — both arms, on battery. The script owns the service/daemon state
+#    the two arms must differ in (baseline keeps the distro's default power
+#    stack; the optid arm stops it and runs `optid --apply`), pins the energy
+#    counter so the arms stay comparable, and writes meta.txt, transcript.log,
+#    results.csv and the per-metric *.json straight into $DIR/{baseline,optid}/.
+sudo bash tools/phase-d-capture.sh --arm both --dir "$DIR"
 
-# 3. D4 — optid run (Rush Linux v0.6.0-beta.1, optctl mode apply)
-rushbench run preset=mixed-load-001 --tag=optid-0.6.0-beta.1-<hostname>
-#   → place meta.txt, transcript.log, results.csv, *.json in $DIR/optid/
+#    Or one arm at a time, for example after a recharge:
+sudo bash tools/phase-d-capture.sh --arm baseline --dir "$DIR"
+sudo bash tools/phase-d-capture.sh --arm optid    --dir "$DIR"
+
+#    Underneath, each arm is one preset run (do not invoke this directly unless
+#    you are managing the daemon and service state yourself):
+# rushbench run preset=mixed-load-001 --tag=<lever>-<hostname> \
+#     --cycles 5 --out "$DIR/<lever>"
 
 # 4. D5 — comparison + verdict
 rushbench report "$DIR/baseline" > "$DIR/baseline-report.md"
@@ -55,7 +63,12 @@ rushbench report "$DIR/optid"    > "$DIR/optid-report.md"
 
 - Both reference machines (per [`docs/strategy/reference-hardware.md`](../../../../docs/strategy/reference-hardware.md))
   have a committed, non-template directory.
-- Every metric record has `n >= 5` (no `insufficient_n` anomaly).
+- Every metric record has `n >= 5` (no `insufficient_n` anomaly) and no
+  `phase_scale_shortened` anomaly (that stamp marks a shortened harness-validation
+  run, which is never evidence).
+- Both arms' `transcript.log` name the **same** energy counter. A baseline arm
+  that fell back to the battery counter cannot be compared against an optid arm
+  that read RAPL.
 - `python3 tools/dragnet.py --observe` is green.
 - Each `VERDICT.md` carries an explicit PASS/FAIL for Criterion 2, and
   PASS/FAIL/N-A for Criterion 3.
