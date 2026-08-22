@@ -172,6 +172,10 @@ run_rushbench() {
     local tag="$1" out="$2"
     mkdir -p "$out"
     chown -R "$DESKTOP_USER" "$out"
+    local extra_args=()
+    if (( AC_OK )); then
+        extra_args+=(--ac-ok)
+    fi
     runuser -u "$DESKTOP_USER" -- env \
         XDG_RUNTIME_DIR="/run/user/$USER_UID" \
         WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
@@ -183,7 +187,7 @@ run_rushbench() {
         PATH="$REPO/target/release:$PATH" \
         "$RUSHBENCH" run preset=mixed-load-001 \
             --cycles "$CYCLES" --tag="$tag" --out "$out" \
-            $( (( AC_OK )) && echo --ac-ok )
+            "${extra_args[@]}"
 }
 
 capture_baseline() {
