@@ -30,10 +30,21 @@ transcript means:
    `user.slice:property:CPUWeight`) from a defect fixed the same evening. While
    it was open, every domain was denied at the `apply_armed` stage, so nothing
    downstream was ever evaluated. The latched file is kept here as
-   `latched-circuit-before-clear.json`. There is no supported way to clear it:
-   `CircuitBreaker::clear_all` exists but has no caller — no `optctl`
-   subcommand, no D-Bus method — so the only route is deleting
-   `/var/lib/optid/circuits-v1.json` by hand.
+   `latched-circuit-before-clear.json`.
+
+   **Correction.** This note first said there was no supported way to clear a
+   latched circuit. That was wrong: `optid --clear-all-circuits` and
+   `optid --clear-circuit-domain DOMAIN` both exist, are one-shot, require
+   effective UID 0, and refuse to run alongside `--apply`
+   (`main.rs:145`). Verified: `optid --clear-all-circuits` reported
+   `cleared 20 S5D circuit record(s)`. The file for this capture was cleared by
+   hand before that was found, which is why the copy is kept here.
+
+   What remains true is that nothing tells you to run it. The daemon keeps
+   starting, keeps logging, and keeps reporting `apply_armed` denials with the
+   original fault as their detail — a fault that may have been fixed long ago.
+   Nothing in the status output says "a latch is holding this open, clear it
+   with X".
 
 ## What the cycles show
 

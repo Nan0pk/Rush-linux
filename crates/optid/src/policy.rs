@@ -1137,19 +1137,31 @@ impl Policy {
             });
         }
 
-        // WP-N5: runtime-PM autosuspend. Conservative "battery-idle" trigger
-        // (Decision B): only nominate devices when on battery AND the workload
-        // class is idle. The actuator gates each device on the N4 allowlist,
-        // skips network devices with an active link, preserves wakeup, and
-        // journals for revert-on-stop — so nominating broadly here is safe.
-        if snapshot.on_ac == Some(false) && workload_class == WorkloadClass::Idle {
+        // WP-N5: runtime-PM autosuspend. On battery, nominate devices while the
+        // machine is quiet — `idle` or `light`.
+        //
+        // `idle` alone was unreachable in practice. It requires a 1-minute load
+        // average at or below 0.05, and a laptop with a logged-in desktop
+        // session sits around 0.3 doing nothing at all (measured: 0.31 on the
+        // HP Victus 16-r0xxx laptop slot with an idle session). So these levers
+        // were dead code on any machine with a user on it, which is every
+        // machine that has a battery to save. `light` is the class for "barely
+        // doing anything", which is exactly when suspending an idle device is
+        // appropriate.
+        //
+        // The actuator gates each device on the N4 allowlist, skips network
+        // devices with an active link, preserves wakeup, and journals for
+        // revert-on-stop — so nominating broadly here is safe.
+        let on_battery = snapshot.on_ac == Some(false);
+        let quiet = matches!(workload_class, WorkloadClass::Idle | WorkloadClass::Light);
+        if on_battery && quiet {
             for device_dir in &snapshot.runtime_pm_device_paths {
                 actions.push(Action::RuntimePm {
                     device_dir: device_dir.clone(),
                     autosuspend_delay_ms:
                         crate::actuators::runtime_pm::DEFAULT_AUTOSUSPEND_DELAY_MS,
                     reason: format!(
-                        "battery-idle runtime PM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet runtime PM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
@@ -1161,7 +1173,7 @@ impl Policy {
                     device_dir: device_dir.clone(),
                     enable: true,
                     reason: format!(
-                        "battery-idle PCIe ASPM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet PCIe ASPM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
@@ -1173,14 +1185,22 @@ impl Policy {
                     host_dir: host_dir.clone(),
                     policy: crate::actuators::storage::DEFAULT_ALPM_POLICY.to_string(),
                     reason: format!(
-                        "battery-idle SATA ALPM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet SATA ALPM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
 
-            // WP-N7 display depth: dim the panel backlight toward the interactive
-            // floor on battery-idle. Allowlist-gated (domain backlight); the
-            // actuator floor-clamps so the screen never goes black.
+        }
+
+        // WP-N7 display depth: dim the panel backlight toward the interactive
+        // floor on battery-idle. Allowlist-gated (domain backlight); the actuator
+        // floor-clamps so the screen never goes black.
+        //
+        // Deliberately still `idle` only, not the wider `quiet` band above.
+        // Suspending an idle device is invisible; dimming the panel is not, and
+        // a screen that dims while someone is reading is a worse defect than a
+        // lever that fires less often.
+        if on_battery && workload_class == WorkloadClass::Idle {
             if let Some(backlight) = &snapshot.selected_backlight {
                 actions.push(Action::Backlight {
                     device_dir: backlight.clone(),
