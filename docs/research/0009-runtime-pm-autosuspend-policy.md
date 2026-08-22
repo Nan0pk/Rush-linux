@@ -289,8 +289,19 @@ capability check [PROVEN — matches SPEC §3.1 gate; blanket `echo auto > /sys/
 ### Decision B: Delay Values — Static vs. Dynamic
 
 **Selected: Two static delay levels per device class**:
-- `normal` (AC or non-idle workload): preserve kernel default
-- `battery-idle` (battery + idle workload class): apply tightened delay from §1.2 table
+- `normal` (AC, or a workload class busier than `light`): preserve kernel default
+- `battery-quiet` (battery + `idle` **or** `light` workload class): apply
+  tightened delay from §1.2 table
+
+> **Amended 2026-08-22.** The trigger was originally `battery` + `idle` only.
+> That proved unreachable on real hardware: `idle` requires a 1-minute load
+> average at or below 0.05, and a laptop with a logged-in desktop session idles
+> around 0.3 (measured: 0.31 on the HP Victus 16-r0xxx laptop slot with nothing
+> running). The lever was therefore dead on every machine with a user on it —
+> which is every machine that has a battery worth saving. `light` is the class
+> for "barely doing anything", which is when suspending an idle device is
+> appropriate. Backlight dimming deliberately stayed on `idle` alone: an idle
+> device suspending is invisible, a panel dimming while someone reads is not.
 
 Dynamic per-context delay calculation is premature optimisation for v0.1; two levels
 cover 95 % of practical battery-saving scenarios [HYPOTHESIS — can be revisited in v0.2
