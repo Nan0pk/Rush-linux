@@ -307,6 +307,89 @@ collection must be run at a commit at or after this repair, because
 `crates/optid/src/thermal.rs` is a declared T1 proof path and any later change
 to it would make an earlier receipt stale.
 
+**Independent verifier findings and repair (2026-08-16).** An independent cold
+verifier examined `1a07aa41` against this ADR and declined to issue a receipt,
+recording five conformance defects. Four were reachable through the production
+discovery entrypoint, not merely through the pure functions. All five are now
+repaired in `crates/optid/src/thermal.rs`, with five further mapped tests:
+
+1. **§2 — the reported CPU identity was a per-core channel.** The earlier repair
+   added a provenance *reason* but left `selected_die_id`, and therefore
+   `thermal_die_sensor`, carrying whichever channel supplied the maximum. The
+   one machine-readable provenance field contradicted the prose beside it, and a
+   reader parsing the field got the answer §2 items 2 and 5 forbid. The field now
+   carries the preferred `Package`/`Tdie`/`PlatformPackage` channel when one is
+   available; the channel that raised the maximum is named in the reason. The
+   value is unchanged. Test:
+   `t1_conformance_core_maximum_does_not_replace_package_provenance`, strengthened
+   to assert the field rather than only the reason.
+2. **§2 — eligibility was decided by label text on any chip.** `classify_signal`
+   matched `Package id`, `Tdie`, `Tccd`, `Tctl`, `Core N` and `cpu die` against
+   the channel label with no constraint on the driver, so an `amdgpu` channel
+   labelled `Tdie` or an `nvme` channel labelled `Core 0` entered the die maximum
+   and could displace the real CPU package in both value and identity — the exact
+   device classes §2 names as ineligible. hwmon classification is now
+   driver-scoped first (`coretemp`, `k10temp`, `zenpower`) and label-refined
+   second; thermal zones are classified by zone type alone. Test:
+   `t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped`.
+3. **§4 and §5 — a duplicate collapse discarded the hotter reading and the alarm
+   bit.** `prefer_richer` selected one entire record by a richness score in which
+   `crit` presence outranked temperature, so a 50 °C channel carrying `tempN_crit`
+   beat a 95 °C sibling carrying `tempN_crit_alarm`, and both the maximum and the
+   alarm vanished with no reason recording the loss — `Cool` at full headroom
+   while the kernel was alarming. Metadata still follows richness; the
+   observation is now merged, taking the maximum temperature and the union of the
+   fault and alarm bits, as `apply_alias_rules` already did. Test:
+   `t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm`.
+4. **§4 — hwmon nodes without a `device` symlink shared one identity.**
+   `stable_hwmon_device_key` fell back to `chip:{name}`, so two `k10temp` nodes on
+   a two-socket machine — both legitimately labelled `Tctl`, the case §4 calls out
+   by name — produced the same dedup key and collapsed, silently losing a socket.
+   The fallback is now node-unique. §4 resolves this direction explicitly:
+   retaining an uncertain duplicate is harmless under maximum aggregation, losing
+   a distinct package is not. Test:
+   `t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct`.
+5. **§7 — status did not record the effective thresholds unless the hardware
+   clamp fired.** They appeared only inside conditional reason strings, so on a
+   part whose `crit` is high the status stated no upper threshold at all and the
+   choice could not be reproduced from status alone. An unconditional
+   `effective thresholds: lo=… hi=…` line is now recorded on every path that
+   computes them. Test: `t1_conformance_status_records_the_effective_thresholds`.
+
+**§5 and §2 — the policy-facing temperature could come from a non-die source.**
+The verifier's most serious finding, and the one that motivated the change to the
+alarm branch. `compute_thermal_budget` returned `Constrained` with
+`max_die_temp_c = None` when an alarm fired. `Snapshot::thermal_c()` special-cases
+only `Disabled` and `Unavailable`, so that combination fell through to the legacy
+`max_temp_millic` path — the maximum over every thermal zone on the machine, which
+is the "hottest readable reading" fallback §2 exists to close. Measured: a CPU
+package alarming at 99 °C reached the policy layer as an unrelated zone's 42 °C,
+with `is_critical_thermal` false.
+
+The alarm branch was the only producer of a non-`Unavailable` state with no die
+temperature, so it is closed there: an alarm on a channel that reads reports
+`Constrained` carrying that channel's real temperature, and an alarm on a channel
+that does not read reports `Unavailable` at ratio `1.0` under §5's own rule that
+no eligible valid CPU signal means `Unavailable`. Both are maximum derating;
+neither produces headroom, and neither implies an observation that does not exist.
+The invariant — that the policy-facing temperature is the budget's own die
+temperature or nothing — is now pinned by
+`t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source`,
+which drives `Snapshot::collect_with_thermal` rather than the pure function.
+
+This repair deliberately does not modify `crates/optid/src/sensors.rs` or
+`crates/optid/src/policy.rs`. Both are declared proof paths for completed
+packages — F1, F2, S4D and S5D — and editing them would demote four healthy
+packages on a stale-receipt finding. Closing the leak inside `thermal.rs` makes
+the legacy fallback unreachable from `thermal_c()` without that cost.
+
+One consequence is recorded rather than repaired: the decision layer still cannot
+distinguish `Unavailable` from `not hot`, because `thermal_c()` returns
+`Option<f32>` and the budget's state and ratio have no consumer outside
+`thermal.rs`. That was recorded as T2/T3 scope at ratification and is unchanged
+here. What this repair guarantees is narrower and checkable: policy is never
+handed a temperature that did not come from a positively identified die channel.
+
 ## Required conformance tests
 
 The T1 repair must add deterministic tests proving at least:
@@ -359,3 +442,33 @@ unresolved list. Only that independent receipt may propose T1 `completed`.
   https://docs.kernel.org/hwmon/k10temp.html
 - Linux generic thermal sysfs documentation:
   https://docs.kernel.org/driver-api/thermal/sysfs-api.html
+
+**Second independent verifier findings and repair (2026-08-16).** A second
+independent cold verifier examined `4d1efdf5` and declined to issue a receipt,
+recording two further defects. Both are repaired in `crates/optid/src/thermal.rs`:
+
+1. **§7 — a collapsed value was attributed to a channel that never produced it.**
+   `apply_alias_rules` and `prefer_richer` both raise the retained record's
+   temperature to a sibling's while keeping the retained record's identity, so
+   status named one channel and reported another channel's reading. Found in a
+   collected bundle: status said `Package id 0 ... at 43.0°C` while that channel
+   read 42.0 °C in all ten samples, the 43.0 having come from the aliased
+   `x86_pkg_temp` zone. Maximum aggregation is unchanged; the collapse is now
+   recorded. `ThermalSensor` carries the channel's own reading and the id of
+   whatever raised it, and status states both. Test:
+   `t1_conformance_collapse_records_where_a_raised_value_came_from`.
+2. **§2 items 3 and 4 — `Tctl` could supersede an available `Tdie`.** Selection
+   is a temperature maximum with provenance only as a tie-break, and `Tctl`
+   carries a vendor offset that normally reads hotter than `Tdie`. On any AMD
+   machine exposing both, the control value won the maximum and was reported as
+   the die — the wrong identity and an inflated number. Item 4 admits `Tctl`
+   only "when `Tdie` is unavailable", so an available `Tdie` on the same device
+   now supersedes it entirely and the exclusion is recorded in the reasons.
+   Eligibility is per device, so a socket without a `Tdie` keeps its fallback.
+   The existing test could not fail on this: it gave both channels the same
+   temperature and so only ever exercised the tie-break. It now covers a hotter
+   `Tctl` and a two-socket mix.
+
+Neither changes a decision in §2–§7. Because `crates/optid/src/thermal.rs` is a
+declared T1 proof path, the 2026-08-16 collection bundles are stale as of this
+repair and physical collection must be re-run at or after it.
