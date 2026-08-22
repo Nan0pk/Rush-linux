@@ -209,6 +209,15 @@ capture_optid() {
     rm -rf /run/optid
     mkdir -p /run/optid
     chmod 755 /run/optid
+    # Mirror the packaged unit ordering: optid-apply.service Requires= and
+    # After= optid-recover.service. Transaction records left by an earlier
+    # generation make the daemon refuse to touch their targets, so without this
+    # step it stops at startup after any unclean exit.
+    "$REPO/target/release/optid-recover" \
+        --recovery-dir /var/lib/optid/recovery \
+        --status-file /run/optid/recovery-status.json \
+        >"$DIR/optid-recover.log" 2>&1
+    echo "[optid] recovery exit=$?"
     "$OPTID" --apply --config "$REPO/config/optid/policy.toml" \
         >"$DIR/optid-daemon.log" 2>&1 &
     OPTID_PID=$!
