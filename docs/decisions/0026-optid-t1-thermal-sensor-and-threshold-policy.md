@@ -472,3 +472,44 @@ recording two further defects. Both are repaired in `crates/optid/src/thermal.rs
 Neither changes a decision in §2–§7. Because `crates/optid/src/thermal.rs` is a
 declared T1 proof path, the 2026-08-16 collection bundles are stale as of this
 repair and physical collection must be re-run at or after it.
+
+**Third independent verifier findings and repair (2026-08-17).** A third
+independent cold verifier examined `55221c72` and declined to issue a receipt.
+Both findings are repaired in `crates/optid/src/thermal.rs`:
+
+1. **§4 — two thermal zones of the same type with no backing `device` link
+   shared one identity.** Zone `device_key` and `id` fell back to the zone type
+   alone, so a two-socket machine whose die signal arrives through the generic
+   thermal interface — the case §2 item 6 exists for — collapsed both packages
+   into a single record and lost one silently. The maximum survived, so no false
+   headroom was produced, but §4 forbids deduplicating "solely by normalized
+   label and class". This is the same fallback pattern already repaired on the
+   hwmon side and left in place here; zone identity now carries the zone node.
+   Test: `t1_conformance_same_type_zones_without_device_link_stay_distinct`.
+2. **§5 — an alarm on a non-die channel left a full-headroom claim standing.**
+   The authoritative alarm branch was scoped to `is_die`, so an alarming NVMe
+   channel at 95 °C alongside a cool package produced `Cool` at ratio `0.00`.
+   §5's sentence carries no die qualifier, and the maintainer's ruling records
+   why it should not: an alarm on any channel means the machine is heating
+   something, so a die simultaneously claiming full headroom is not describing a
+   cool processor — it is describing a picture that does not hold together, most
+   likely from a stale or mis-scoped die reading. Refusing to claim headroom is
+   the honest answer and is what this model already does everywhere it cannot
+   vouch for what it sees. The escalation is scoped to the full-headroom claim:
+   a die already derating or constrained is not contradicted by an alarm
+   elsewhere. Test:
+   `t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim`.
+
+The verifier also asked the maintainer to settle whether §7's enumeration binds
+the alarm path, which returns before thresholds are computed. It does not
+require a change here: the alarm path records identity, temperature, state,
+ratio and reasons, and no interpolation range exists on that path to record.
+
+Evidence provenance is settled by maintainer ruling and recorded in
+`docs/plans/t1-thermal-cold-verification.md`: hardware evidence is primary for a
+hardware-facing package, CI cannot prove what this package exists to prove, and
+collector independence — a different agent collecting on real hardware,
+documenting how and what it re-checked — is what replaces CI provenance.
+
+Because `crates/optid/src/thermal.rs` is a declared T1 proof path, the
+2026-08-16 collection is stale as of this repair.
