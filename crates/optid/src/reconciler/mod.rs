@@ -28,6 +28,10 @@ use crate::policy::{Domain, DomainMode};
 use crate::sensors::discover_cpu_epp_paths_with;
 use crate::workload::{Mode, WorkloadClass};
 
+#[path = "../systemd_placeholder.rs"]
+mod systemd_placeholder;
+use systemd_placeholder::{assigns_a_value, is_unset_placeholder};
+
 const STATE_FILE: &str = "reconciliation-state.json";
 const MODE_FILE: &str = "reconciler-mode";
 pub(crate) const MAX_RESTORE_RETRIES: u32 = 3;
@@ -224,30 +228,6 @@ impl RealSystemd {
         }
         Ok(false)
     }
-}
-
-/// systemd's human-readable stand-in for "this property has no value".
-///
-/// The same two helpers exist in `recovery.rs`. They are duplicated rather than
-/// shared because `recovery.rs` is `#[path]`-included by the `optid-recover`
-/// binary and has to stay self-contained — which is exactly how the daemon kept
-/// this defect after the recover tool was fixed. Change both together.
-const SYSTEMD_UNSET: &str = "[not set]";
-
-/// Is this `systemctl show` output the absence of a value rather than a value?
-fn is_unset_placeholder(value: &str) -> bool {
-    let value = value.trim();
-    value.is_empty() || value == SYSTEMD_UNSET
-}
-
-/// Does this drop-in line give `property` an actual value? A bare `CPUWeight=`
-/// is what an unset-restore leaves behind, and counting it as an explicit
-/// setting makes the restore unverifiable.
-fn assigns_a_value(line: &str, property: &str) -> bool {
-    line.trim_start()
-        .strip_prefix(property)
-        .and_then(|suffix| suffix.strip_prefix('='))
-        .is_some_and(|value| !value.trim().is_empty())
 }
 
 impl SystemdIo for RealSystemd {
