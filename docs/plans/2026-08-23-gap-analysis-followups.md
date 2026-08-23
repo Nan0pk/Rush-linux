@@ -28,19 +28,19 @@ source), not because the ledger nominated it.
    human present, not an autonomous call.
 
 2. **Silent global S5D circuit latch — no operator-facing surfacing** —
-   `done` (code), `blocked-on-human` (merge). PR #427: `optctl circuits` +
-   the `Circuits` D-Bus method + `circuit_breaker::render_persisted_circuits`.
+   `done`. PR #427 (merged 2026-08-23T15:34:32Z): `optctl circuits` + the
+   `Circuits` D-Bus method + `circuit_breaker::render_persisted_circuits`.
    F3 and S5D receipts recertified in the same PR after their declared proof
    paths (`dbus.rs`, `optctl/main.rs`, the D-Bus XML, `circuit_breaker.rs`)
    went stale.
 
 3. **Duplicated `[not set]` parsing** across `recovery.rs` and
-   `reconciler/mod.rs` — `done` (code), `blocked-on-human` (merge). PR #426:
+   `reconciler/mod.rs` — `done`. PR #426 (merged 2026-08-23T16:22:52Z):
    extracted into a shared `systemd_placeholder.rs`, `#[path]`-included by
-   both. F4, S2D, and S3D receipts recertified in the same PR.
+   both. F4, S2D, and S3D receipts recertified along the way.
 
 4. **`shim::detect_conflicts` bypasses the F2 injectable boundary** —
-   `done` (code), `blocked-on-human` (merge). PR #425: added
+   `done`. PR #425 (merged 2026-08-23T16:15:51Z): added
    `with_conflict_checker_override`, mirroring
    `kernel_io::with_real_kernel_override`; the previously-red
    `s2d_production_daemon_run_uses_persistent_transaction_protocol` now
@@ -63,11 +63,11 @@ source), not because the ledger nominated it.
 
 8. **Missing benchmark config silently degrades instead of failing loudly**
    (`policy-enforce-measurement.toml` not found → fell back to curated
-   baseline) — `done` (code), `blocked-on-human` (merge). PR #428:
-   `rushbench` now reads `boot.policy_load_state` from `optctl status
-   --json` and refuses to start a capture if a live daemon answers with
-   anything other than `"ok"`, naming the boot state in the error. `optid`'s
-   own fallback-to-curated-baseline behavior is untouched and correct by
+   baseline) — `done`. PR #428 (merged 2026-08-23T14:51:09Z): `rushbench`
+   now reads `boot.policy_load_state` from `optctl status --json` and
+   refuses to start a capture if a live daemon answers with anything other
+   than `"ok"`, naming the boot state in the error. `optid`'s own
+   fallback-to-curated-baseline behavior is untouched and correct by
    design; only the harness's blindness to it is fixed.
 
 9. **Meta-gap: `completed` in the package ledger means "cold-verified under
@@ -104,12 +104,29 @@ for any future optid change: run `python3 tools/validate-optid-packages.py
 --base origin/main` on a committed diff before assuming a change is clean,
 not just `cargo test`/`clippy`.
 
-All four PRs are open as drafts, each `bash tools/finish-work.sh --dry-run`-
-clean except for the one known pre-existing `tuned`-active test failure
-(itself fixed by #425, which the other three branches don't include yet
-since they branched before it merged). None are merged — that's the human
-maintainer's call per `docs/plans/current-work.md` §"Agent rules": "Open a
-draft pull request; never merge or enable auto-merge."
+All four PRs were opened as drafts; the human maintainer merged all four
+(#425, #426, #427, #428) plus this doc's own tracking PRs (#424, #429) on
+2026-08-23. `main` at the end of this sequence is `cargo test --workspace`
+514/514 clean for `optid`, `cargo clippy --workspace --all-targets -D
+warnings` clean, and `validate-optid-packages.py` clean — the `tuned`
+dependency that started this whole thread is genuinely gone, not just
+documented as pre-existing.
+
+**A second lesson, on top of the recertification one above:** because four
+sibling branches were all independently appending to the same two
+append-only logs (T1's `blocking_reason` clause list in
+`optid-package-status.toml`, and S2D's recertification note in `s2d.toml`),
+each branch fell back into `CONFLICTING` merge state every time a sibling
+merged into `main` first. Fixing this needed a real merge (not a rebase)
+each time, with the conflicting clause manually renumbered in merge order
+and, in `s2d.toml`'s case, the two branches' separate recertification notes
+combined into one that actually re-ran all seventeen mapped S2D tests
+against the resulting merge commit and cited *that* commit as
+`verified_commit` — picking one side's commit there would have quietly
+dropped the other side's declared-proof-path changes from the receipt's
+scope. Worth checking `gh pr view <n> --json mergeable,mergeStateStatus`
+before assuming a green-CI draft PR is still mergeable, especially when
+several PRs are landing in the same session and touch the same ledger files.
 
 Items 1 and 7 need the human at the physical machine (battery unplug,
 fullscreen app); items 5, 6, and 9 need a decision, not code. All are recorded
