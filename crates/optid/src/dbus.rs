@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 use zbus::interface;
 
+use crate::circuit_breaker::{render_persisted_circuits, CircuitBreaker};
 use crate::workload::Mode;
 
 pub(crate) struct OptidServer {
@@ -122,6 +123,30 @@ impl OptidServer {
     fn explain(&self) -> zbus::fdo::Result<String> {
         fs::read_to_string(self.state_dir.join("decisions.log"))
             .map_err(|e| zbus::fdo::Error::Failed(format!("failed to read decisions.log: {e}")))
+    }
+
+    /// Human-readable S5D circuit-breaker state: whether the global circuit
+    /// is open (which silently suppresses every domain and never auto-closes)
+    /// and which per-domain circuits are currently open. A circuit tripping
+    /// otherwise looks identical to a clean, uneventful cycle — this exists so
+    /// "optid ran and changed nothing" and "optid ran and a circuit is
+    /// blocking it" are distinguishable without reading `control-cycles.jsonl`
+    /// by hand.
+    fn circuits(&self) -> zbus::fdo::Result<String> {
+        let path = CircuitBreaker::state_path_for(&self.state_dir);
+        let contents = match fs::read_to_string(&path) {
+            Ok(contents) => contents,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok("no circuit records; nothing has ever tripped".to_string());
+            }
+            Err(e) => {
+                return Err(zbus::fdo::Error::Failed(format!(
+                    "failed to read circuit state at {}: {e}",
+                    path.display()
+                )))
+            }
+        };
+        render_persisted_circuits(&contents).map_err(zbus::fdo::Error::Failed)
     }
 
     fn set_mode(&self, mode: &str) -> zbus::fdo::Result<()> {
