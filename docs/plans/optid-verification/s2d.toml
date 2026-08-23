@@ -28,11 +28,27 @@ verification_pr = 388
 # remains an ancestor: the change adds no transaction protocol, record
 # schema, or compensation path, and touches test setup only, not assertions.
 # All seventeen mapped S2D acceptance tests were re-run individually with
-# `--exact` against 9868d6bbf7bb and passed. This is a builder re-run of the
-# mapped contract only -- no independent cold verification was performed for
-# it, and the `verifier`, `workflow_run`, and `workflow_attempt` fields below
-# still describe the original independent job at 99204930d567.
-verified_commit = "9868d6bbf7bb27380da4bb899da6942b980c8701"
+# `--exact` against 9868d6bbf7bb and passed; this recertification merged
+# into main via PR #425 (2026-08-23T16:15:51Z).
+#
+# PR #426 builder recertification, merged forward. Commit 0d7ae31319a1
+# (developed in parallel on a sibling branch, before #425 merged) extracted
+# is_unset_placeholder/assigns_a_value out of crates/optid/src/reconciler/mod.rs
+# and crates/optid/src/reconciler/tests.rs (both declared S2D proof paths) into
+# a new shared systemd_placeholder.rs, included by #[path] instead of
+# hand-duplicated across recovery.rs and the daemon; call sites, assertions,
+# and the transaction protocol are unchanged. This merge brings #425 and #426
+# together for the first time, so both sets of declared-proof-path changes are
+# now present at once. All seventeen mapped S2D acceptance tests were re-run
+# individually with `--exact` against the merge commit and passed -- with
+# #425 already merged, s2d_production_daemon_run_uses_persistent_transaction_protocol
+# now passes on this host regardless of `tuned`, closing the caveat recorded
+# in #426's now-superseded standalone recertification. This is a builder
+# re-run of the mapped contract only -- no independent cold verification was
+# performed for it, and the `verifier`, `workflow_run`, and
+# `workflow_attempt` fields below still describe the original independent
+# job at 99204930d567.
+verified_commit = "3b876605fa0deaa064207ec0fbb243bd005f36b3"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668

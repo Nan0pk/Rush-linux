@@ -13,6 +13,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "systemd_placeholder.rs"]
+mod systemd_placeholder;
+use systemd_placeholder::{assigns_a_value, is_unset_placeholder};
+
 pub const DEFAULT_RECOVERY_DIR: &str = "/var/lib/optid/recovery";
 pub const RECOVERY_FAILURE_EXIT: i32 = 78;
 const TRANSACTION_SCHEMA_VERSION: u32 = 1;
@@ -159,36 +163,6 @@ fn canonicalize_stored(value: &mut StoredValue) {
             text.clear();
         }
     }
-}
-
-/// systemd's human-readable stand-in for "this property has no value".
-const SYSTEMD_UNSET: &str = "[not set]";
-
-/// Is this `systemctl show` output the absence of a value rather than a value?
-pub(crate) fn is_unset_placeholder(value: &str) -> bool {
-    let value = value.trim();
-    value.is_empty() || value == SYSTEMD_UNSET
-}
-
-/// Does this drop-in line give `property` an actual value?
-///
-/// Restoring a property that was never explicitly set is done with an empty
-/// assignment (`systemctl set-property --runtime user.slice CPUWeight=`), which
-/// resets the value but leaves the drop-in file in place carrying the bare
-/// `CPUWeight=` line. Treating that as an explicit setting made the restore
-/// unverifiable: recovery wrote the original, read back `explicit = true`
-/// against a record saying `explicit = false`, and reported "recovery readback
-/// did not match captured original" — permanently, since a retry does the same
-/// thing. On any machine where these weights start out unset (all of them), one
-/// unclean exit left records that could never be recovered, and the daemon then
-/// refused to start at all with `StaleGeneration`.
-///
-/// An empty assignment is the absence of a value, so it is not explicit.
-fn assigns_a_value(line: &str, property: &str) -> bool {
-    line.trim_start()
-        .strip_prefix(property)
-        .and_then(|suffix| suffix.strip_prefix('='))
-        .is_some_and(|value| !value.trim().is_empty())
 }
 
 fn systemd_property_is_explicit(unit: &str, property: &str) -> io::Result<bool> {
@@ -727,41 +701,9 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
-    #[test]
-    fn an_empty_assignment_is_not_an_explicit_value() {
-        assert!(!assigns_a_value("CPUWeight=", "CPUWeight"));
-        assert!(!assigns_a_value("  CPUWeight=  ", "CPUWeight"));
-        assert!(!assigns_a_value("CPUWeight=\t", "CPUWeight"));
-    }
-
-    #[test]
-    fn a_real_assignment_is_explicit() {
-        assert!(assigns_a_value("CPUWeight=150", "CPUWeight"));
-        assert!(assigns_a_value("  CPUWeight=100", "CPUWeight"));
-    }
-
-    #[test]
-    fn a_different_property_does_not_match() {
-        assert!(!assigns_a_value("IOWeight=150", "CPUWeight"));
-        // A property whose name merely starts the same must not match either.
-        assert!(!assigns_a_value("CPUWeightFoo=150", "CPUWeight"));
-        assert!(!assigns_a_value("[Slice]", "CPUWeight"));
-    }
-
-    #[test]
-    fn the_systemd_unset_placeholder_is_not_a_value() {
-        assert!(is_unset_placeholder("[not set]"));
-        assert!(is_unset_placeholder("  [not set]  "));
-        assert!(is_unset_placeholder(""));
-        assert!(is_unset_placeholder("   "));
-    }
-
-    #[test]
-    fn a_real_systemd_value_is_a_value() {
-        assert!(!is_unset_placeholder("150"));
-        assert!(!is_unset_placeholder("infinity"));
-        assert!(!is_unset_placeholder("[not set] 150"));
-    }
+    // `is_unset_placeholder` and `assigns_a_value` are tested once, in
+    // `systemd_placeholder.rs`, which both this module and the daemon's
+    // `reconciler/mod.rs` include by `#[path]`.
 
     #[test]
     fn canonicalizing_collapses_the_placeholder_to_an_unset_value() {

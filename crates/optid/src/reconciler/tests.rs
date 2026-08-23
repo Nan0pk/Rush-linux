@@ -163,37 +163,6 @@ include!("tests/unit.rs");
 include!("tests/s2d.rs");
 include!("tests/s3d.rs");
 
-// ── the systemd `[not set]` placeholder (daemon-side copy) ─────────────────
-
-/// The daemon read a property with no value as if `[not set]` were the value,
-/// then tried to write that string back. Its log filled with
-/// `Failed to parse CPUWeight= value '[not set]': Invalid argument` once per
-/// cycle, the cgroup weight lever could never undo itself, and the pending
-/// record then blocked the next start. `recovery.rs` was fixed first; this is
-/// the daemon's own copy of the same logic.
-#[test]
-fn the_unset_placeholder_is_not_a_value() {
-    assert!(is_unset_placeholder("[not set]"));
-    assert!(is_unset_placeholder("  [not set]  "));
-    assert!(is_unset_placeholder(""));
-    assert!(is_unset_placeholder("   "));
-    assert!(!is_unset_placeholder("150"));
-    assert!(!is_unset_placeholder("infinity"));
-}
-
-/// A bare `CPUWeight=` is what an unset-restore leaves behind. Counting it as an
-/// explicit setting is what made a correct restore look like a failed one.
-#[test]
-fn a_bare_assignment_is_not_an_explicit_setting() {
-    assert!(!assigns_a_value("CPUWeight=", "CPUWeight"));
-    assert!(!assigns_a_value("  CPUWeight=  ", "CPUWeight"));
-    assert!(assigns_a_value("CPUWeight=150", "CPUWeight"));
-}
-
-/// A property whose name merely prefixes another must not match.
-#[test]
-fn a_neighbouring_property_does_not_match() {
-    assert!(!assigns_a_value("CPUWeightFoo=150", "CPUWeight"));
-    assert!(!assigns_a_value("IOWeight=150", "CPUWeight"));
-    assert!(!assigns_a_value("[Slice]", "CPUWeight"));
-}
+// `is_unset_placeholder` and `assigns_a_value` are tested once, in
+// `systemd_placeholder.rs`, which both this daemon and `recovery.rs` (the
+// standalone `optid-recover` binary) include by `#[path]`.
