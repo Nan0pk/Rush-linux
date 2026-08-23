@@ -16,6 +16,7 @@ trait Optid {
     fn status(&self) -> zbus::Result<String>;
     fn status_json(&self) -> zbus::Result<String>;
     fn explain(&self) -> zbus::Result<String>;
+    fn circuits(&self) -> zbus::Result<String>;
     fn set_mode(&self, mode: &str) -> zbus::Result<()>;
     fn pin_application(&self, app_id: &str, class: &str) -> zbus::Result<()>;
     #[zbus(property)]
@@ -120,6 +121,22 @@ fn run(args: Vec<String>) -> io::Result<()> {
             &state_dir.join("actions.log"),
             "optid has not applied actions in this state directory yet",
         ),
+        "circuits" => {
+            if let Some(ref p) = proxy {
+                if let Ok(circuits) = p.circuits() {
+                    print!("{circuits}");
+                    return Ok(());
+                }
+            }
+            // No D-Bus connection: this crate delegates rendering to optid
+            // (CLAUDE.md "no business logic here"), so without the daemon to
+            // ask, the raw persisted record is the best available answer.
+            println!("no D-Bus connection to optid; showing the raw persisted record instead:");
+            print_file_or_hint(
+                &circuit_state_path(&state_dir),
+                "no circuit records; nothing has ever tripped",
+            )
+        }
         "mode" => {
             let requested = positional.get(1).map(String::as_str);
             if let Some(ref p) = proxy {
@@ -227,6 +244,18 @@ fn mode_command(state_dir: &Path, requested: Option<&str>) -> io::Result<()> {
     }
 }
 
+/// Where optid persists circuit-breaker state for a given `--state-dir`.
+/// Mirrors `optid::circuit_breaker::CircuitBreaker::state_path_for` -- kept in
+/// sync by hand, since optctl does not depend on the `optid` binary crate.
+/// Only reached when no D-Bus connection is available.
+fn circuit_state_path(state_dir: &Path) -> PathBuf {
+    if state_dir == Path::new(DEFAULT_STATE_DIR) {
+        PathBuf::from("/var/lib/optid/circuits-v1.json")
+    } else {
+        state_dir.join("persistent-circuits-v1.json")
+    }
+}
+
 fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
     match fs::read_to_string(path) {
         Ok(text) => {
@@ -243,13 +272,14 @@ fn print_file_or_hint(path: &Path, hint: &str) -> io::Result<()> {
 
 fn print_usage() {
     println!(
-        "Usage: optctl [--state-dir PATH] [--json] <status|explain|mode|pin|trace|allow|deny|list-allow>\n\
+        "Usage: optctl [--state-dir PATH] [--json] <status|explain|circuits|mode|pin|trace|allow|deny|list-allow>\n\
          \n\
          Examples:\n\
            optctl status\n\
            optctl status --json\n\
            optctl mode performance\n\
            optctl explain\n\
+           optctl circuits\n\
            optctl allow nvme_apst pci:v0000144Dp00009A36 --max-state 3 --reason \"tested on T14\"\n\
            optctl deny pci_aspm /sys/bus/pci/devices/0000:04:00.0 --reason \"L1.2 link drop\"\n\
            optctl list-allow"
@@ -322,6 +352,22 @@ mod tests {
 
     fn sample_json() -> String {
         r#"{"schema_version":2,"correlation_id":"cycle-1","future_field":true}"#.to_string()
+    }
+
+    #[test]
+    fn circuit_state_path_uses_the_production_path_for_the_default_state_dir() {
+        assert_eq!(
+            circuit_state_path(Path::new(DEFAULT_STATE_DIR)),
+            PathBuf::from("/var/lib/optid/circuits-v1.json")
+        );
+    }
+
+    #[test]
+    fn circuit_state_path_keeps_a_non_production_state_dir_self_contained() {
+        assert_eq!(
+            circuit_state_path(Path::new("/tmp/optid-test-state")),
+            PathBuf::from("/tmp/optid-test-state/persistent-circuits-v1.json")
+        );
     }
 
     #[test]

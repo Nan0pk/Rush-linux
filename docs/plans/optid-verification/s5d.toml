@@ -9,7 +9,20 @@ schema_version = 1
 package = "S5D"
 implementation_pr = 392
 verification_pr = 393
-verified_commit = "c616f3079792dd72249bd65053bce258c8531bec"
+# PR #427 builder recertification. Commit 6c68e63fbaf5 added
+# render_persisted_circuits (a new pure function rendering the persisted
+# circuit JSON as a human-readable report) and made PERSISTENT_CIRCUIT_FILE
+# pub(crate) to crates/optid/src/circuit_breaker.rs, a declared S5D
+# runtime_entrypoint and integration_tests path, so this receipt went stale
+# the moment the change landed. The addition is purely additive and read-only
+# over already-persisted state: no existing CircuitBreaker evaluation logic,
+# threshold, cooldown, canary, or scope-key computation changed. All thirteen
+# mapped S5D acceptance tests were re-run individually with `--exact` against
+# 6c68e63fbaf5 and passed. This is a builder re-run of the mapped contract
+# only -- no independent cold verification was performed for it, and the
+# `verifier`, `result`, `verified_at` fields below still describe the
+# original independent job at c616f3079792.
+verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
 implementation_head = "f1b38e3e4b1b1b8f2e48a65eeb84a31b600654c6"
 integrated_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
 source_base_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
