@@ -1,5 +1,16 @@
 # BLOCKED — Phase D phase 4 cannot certify `latency-critical`
 
+**RESOLVED 2026-08-23: decision A implemented.** Phase 4's driver in
+`crates/rushbench/src/preset.rs` is now wrapped with `gamemoderun` when
+installed, registering `glmark2` with optid's `com.feralinteractive.GameMode`
+shim so the class is asserted, not inferred. See
+`docs/strategy/mixed-load-workload.md` §"Implementation status" for the
+resulting anomaly semantics (`class_pinned_via_gamemode`,
+`class_pin_ineffective:<observed>`). No capture has been run against this
+change yet — Criterion 2's still-open `input-latency-p95/p99-ms` gap and the
+desktop-slot gap (Criterion 2 needs two machines) are unaffected by this
+decision and remain open.
+
 Raised 2026-08-22 while building D2 (`mixed-load-001`) and validating it against
 the nominated laptop slot. Follows the escalation format in
 `OPTID-COMPLETION-PLAN.md` §6.3. **No capture has been run**; a capture with

@@ -131,12 +131,32 @@ writes the four artifacts above into `--out`. Both arms are driven by
 [`tools/phase-d-capture.sh`](../../tools/phase-d-capture.sh), which owns the
 daemon and service state the two arms must differ in and nothing else.
 
-Unlike `rushbench run --class`, the preset does **not** call `optctl pin`.
-Watching whether the classifier reaches the expected class under real load is
-part of the evidence, so a mismatch is recorded as a `class_mismatch:<observed>`
-anomaly on that phase's records rather than aborting the run. A baseline arm has
-no daemon at all, so its `class_observed` is `unmeasured` with an `optid_absent`
-anomaly.
+Unlike `rushbench run --class`, the preset does **not** call `optctl pin` for
+three of its four load-producing phases. Watching whether the classifier
+reaches the expected class under real load is part of the evidence, so a
+mismatch is recorded as a `class_mismatch:<observed>` anomaly on that phase's
+records rather than aborting the run. A baseline arm has no daemon at all, so
+its `class_observed` is `unmeasured` with an `optid_absent` anomaly.
+
+Phase 4 is the exception. `policy.rs`'s `LatencyCritical` branch requires
+`on_ac == Some(true)`, which Criterion 3 (battery) makes unreachable by
+construction — no workload can make the classifier infer this class during an
+on-battery run. Per the resolution of
+[`docs/inbox/2026-08-22-phase-d-latency-critical-blocked.md`](../inbox/2026-08-22-phase-d-latency-critical-blocked.md)
+(decision A), phase 4's driver is wrapped with `gamemoderun` when it is
+installed, registering the running `glmark2` process with optid's
+`com.feralinteractive.GameMode` shim — the same path Steam and Lutris use in
+production — so the class is asserted rather than inferred. This changes no
+policy and exercises an already-shipped, already-tested code path
+(`crates/optid/src/shim/gamemode.rs`). A resulting mismatch is recorded as
+`class_pin_ineffective:<observed>` rather than `class_mismatch`, since it now
+signals a broken assertion path (shim disabled, a competing `gamemoded`, an
+expired registration), not a classifier that failed to infer. A match is
+recorded as `class_pinned_via_gamemode`, so a verdict can tell at a glance that
+phase 4's class was asserted, not observed. If `gamemoderun` is absent, the
+phase silently falls back to observation and the pre-existing `class_mismatch`
+semantics apply — which, given the branch above, will mismatch every time on
+battery.
 
 ### Deviations from the phase table above, and why
 
