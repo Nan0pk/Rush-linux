@@ -56,4 +56,9 @@ pub struct OptctlStatus {
     pub workload_class: String,
     pub cpu_wakeup_latency: Option<i64>,
     pub device_resume_latency: Option<i64>,
+    /// `boot.policy_load_state` from the daemon's status: `"ok"` when the
+    /// configured `--config` policy loaded cleanly, `"defaulted"` /
+    /// `"partial"` / `"invalid"` when the daemon silently fell back to its
+    /// curated baseline. `None` when the field is absent (older schema).
+    pub policy_load_state: Option<String>,
 }
