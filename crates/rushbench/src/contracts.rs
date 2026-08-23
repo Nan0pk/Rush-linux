@@ -89,6 +89,12 @@ pub fn parse_optctl_status(json: &str) -> Result<OptctlStatus, String> {
             format!("optctl status (schema_version {schema}) carries no workload_class")
         })?;
 
+    let policy_load_state = value
+        .get("boot")
+        .and_then(|boot| boot.get("policy_load_state"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+
     Ok(OptctlStatus {
         workload_class,
         cpu_wakeup_latency: pick(contract, "cpu_wakeup_latency_us", "cpu_wakeup_latency")
@@ -101,6 +107,7 @@ pub fn parse_optctl_status(json: &str) -> Result<OptctlStatus, String> {
         )
         .as_ref()
         .and_then(serde_json::Value::as_i64),
+        policy_load_state,
     })
 }
 
