@@ -384,9 +384,21 @@ pub(crate) fn read_on_ac() -> Option<bool> {
     read_on_ac_with(&RealKernel::new())
 }
 
+/// Resolve external-power state across *every* supply, not the first one the
+/// kernel happens to hand back. `/sys/class/power_supply` enumerates in
+/// directory order, so a laptop that exposes an idle USB-C source alongside its
+/// barrel-jack `Mains` supply (HP Victus 16-r0xxx: `BAT1`,
+/// `ucsi-source-psy-USBC000:001`, `ACAD`) previously answered from the offline
+/// USB-C entry and reported battery power while the charger was attached.
+///
+/// A supply is authoritative only when it is online: any online mains/USB
+/// source means external power. Seeing supplies that are all offline means
+/// battery. Seeing no supply at all (a VM with no `power_supply` class) stays
+/// `None` so policy keeps its unknown-power path.
 pub(crate) fn read_on_ac_with(read: &dyn KernelRead) -> Option<bool> {
     let entries = read.read_dir(Path::new("/sys/class/power_supply")).ok()?;
     let mut saw_battery = false;
+    let mut saw_external = false;
 
     for path in entries {
         let kind = read.read_to_string(&path.join("type")).unwrap_or_default();
@@ -398,12 +410,15 @@ pub(crate) fn read_on_ac_with(read: &dyn KernelRead) -> Option<bool> {
 
         if matches!(kind, "Mains" | "USB" | "USB_C" | "USB_PD") {
             if let Ok(online) = read.read_to_string(&path.join("online")) {
-                return Some(online.trim() == "1");
+                saw_external = true;
+                if online.trim() == "1" {
+                    return Some(true);
+                }
             }
         }
     }
 
-    if saw_battery {
+    if saw_external || saw_battery {
         Some(false)
     } else {
         None
@@ -519,6 +534,8 @@ pub(crate) fn now_unix() -> u64 {
 mod tests {
     use super::*;
 
+    use crate::kernel_io::MemoryKernel;
+
     #[test]
     fn parses_psi_some_line() {
         let pressure = parse_pressure(
@@ -549,6 +566,96 @@ mod tests {
         assert!(s.contains("avg60=0.20"));
         assert!(s.contains("avg300=0.30"));
         assert!(s.contains("total=7"));
+    }
+
+    // ── read_on_ac_with: aggregate across every power supply ─────────────
+
+    /// Install one `/sys/class/power_supply/<name>` entry. `online` is `None`
+    /// for supplies that expose no `online` attribute (every `Battery`, and
+    /// malformed external supplies).
+    fn install_supply(k: &MemoryKernel, name: &str, kind: &str, online: Option<&str>) {
+        let root = Path::new("/sys/class/power_supply");
+        let dir = root.join(name);
+        k.add_dir_entry(root, &dir);
+        k.write_raw(&dir.join("type"), kind);
+        if let Some(value) = online {
+            k.write_raw(&dir.join("online"), value);
+        }
+    }
+
+    /// Regression for the HP Victus 16-r0xxx laptop slot: the kernel enumerates
+    /// `BAT1`, an idle `ucsi-source-psy-USBC000:001` USB-C source, then the
+    /// online `ACAD` barrel jack. Answering from the first external supply
+    /// reported battery power with the charger attached, which flipped the
+    /// whole AC/battery policy branch on real hardware.
+    #[test]
+    fn on_ac_ignores_offline_usb_source_and_finds_later_online_mains() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "BAT1", "Battery", None);
+        install_supply(&k, "ucsi-source-psy-USBC000:001", "USB", Some("0"));
+        install_supply(&k, "ACAD", "Mains", Some("1"));
+        assert_eq!(read_on_ac_with(&k), Some(true));
+    }
+
+    #[test]
+    fn on_ac_is_true_when_the_only_mains_supply_is_online() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "BAT0", "Battery", None);
+        install_supply(&k, "AC", "Mains", Some("1"));
+        assert_eq!(read_on_ac_with(&k), Some(true));
+    }
+
+    #[test]
+    fn on_ac_is_false_when_every_external_supply_is_offline() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "BAT1", "Battery", None);
+        install_supply(&k, "ucsi-source-psy-USBC000:001", "USB", Some("0"));
+        install_supply(&k, "ACAD", "Mains", Some("0"));
+        assert_eq!(read_on_ac_with(&k), Some(false));
+    }
+
+    /// An online USB-PD charger is external power even with no `Mains` supply.
+    #[test]
+    fn on_ac_accepts_an_online_usb_pd_charger_without_mains() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "BAT0", "Battery", None);
+        install_supply(&k, "ucsi-source-psy-USBC000:001", "USB_PD", Some("1"));
+        assert_eq!(read_on_ac_with(&k), Some(true));
+    }
+
+    /// A battery with no external supply at all is battery power.
+    #[test]
+    fn on_ac_is_false_for_a_battery_only_topology() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "BAT0", "Battery", None);
+        assert_eq!(read_on_ac_with(&k), Some(false));
+    }
+
+    /// An external supply whose `online` attribute is unreadable must not be
+    /// mistaken for an offline one and must not mask a later online supply.
+    #[test]
+    fn on_ac_skips_an_external_supply_with_no_online_attribute() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "ucsi-source-psy-USBC000:001", "USB", None);
+        install_supply(&k, "ACAD", "Mains", Some("1"));
+        assert_eq!(read_on_ac_with(&k), Some(true));
+    }
+
+    /// A host with no `power_supply` class (the VM case) keeps the
+    /// unknown-power path rather than claiming battery.
+    #[test]
+    fn on_ac_is_unknown_when_no_supply_exists() {
+        let k = MemoryKernel::new();
+        assert_eq!(read_on_ac_with(&k), None);
+    }
+
+    /// Supplies present but none of a recognized type: the class exists, so the
+    /// host is not on external power, but nothing claims otherwise either.
+    #[test]
+    fn on_ac_is_unknown_when_no_supply_is_battery_or_external() {
+        let k = MemoryKernel::new();
+        install_supply(&k, "wacom_battery_0", "Unknown", None);
+        assert_eq!(read_on_ac_with(&k), None);
     }
 
     // ── v0.6 Phase C2: is_vm_guest_sys_vendor ────────────────────────────
