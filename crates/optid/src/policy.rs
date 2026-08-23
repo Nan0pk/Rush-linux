@@ -1137,19 +1137,31 @@ impl Policy {
             });
         }
 
-        // WP-N5: runtime-PM autosuspend. Conservative "battery-idle" trigger
-        // (Decision B): only nominate devices when on battery AND the workload
-        // class is idle. The actuator gates each device on the N4 allowlist,
-        // skips network devices with an active link, preserves wakeup, and
-        // journals for revert-on-stop — so nominating broadly here is safe.
-        if snapshot.on_ac == Some(false) && workload_class == WorkloadClass::Idle {
+        // WP-N5: runtime-PM autosuspend. On battery, nominate devices while the
+        // machine is quiet — `idle` or `light`.
+        //
+        // `idle` alone was unreachable in practice. It requires a 1-minute load
+        // average at or below 0.05, and a laptop with a logged-in desktop
+        // session sits around 0.3 doing nothing at all (measured: 0.31 on the
+        // HP Victus 16-r0xxx laptop slot with an idle session). So these levers
+        // were dead code on any machine with a user on it, which is every
+        // machine that has a battery to save. `light` is the class for "barely
+        // doing anything", which is exactly when suspending an idle device is
+        // appropriate.
+        //
+        // The actuator gates each device on the N4 allowlist, skips network
+        // devices with an active link, preserves wakeup, and journals for
+        // revert-on-stop — so nominating broadly here is safe.
+        let on_battery = snapshot.on_ac == Some(false);
+        let quiet = matches!(workload_class, WorkloadClass::Idle | WorkloadClass::Light);
+        if on_battery && quiet {
             for device_dir in &snapshot.runtime_pm_device_paths {
                 actions.push(Action::RuntimePm {
                     device_dir: device_dir.clone(),
                     autosuspend_delay_ms:
                         crate::actuators::runtime_pm::DEFAULT_AUTOSUSPEND_DELAY_MS,
                     reason: format!(
-                        "battery-idle runtime PM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet runtime PM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
@@ -1161,7 +1173,7 @@ impl Policy {
                     device_dir: device_dir.clone(),
                     enable: true,
                     reason: format!(
-                        "battery-idle PCIe ASPM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet PCIe ASPM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
@@ -1173,14 +1185,21 @@ impl Policy {
                     host_dir: host_dir.clone(),
                     policy: crate::actuators::storage::DEFAULT_ALPM_POLICY.to_string(),
                     reason: format!(
-                        "battery-idle SATA ALPM (class={workload_class}, allowlist-gated)"
+                        "battery-quiet SATA ALPM (class={workload_class}, allowlist-gated)"
                     ),
                 });
             }
+        }
 
-            // WP-N7 display depth: dim the panel backlight toward the interactive
-            // floor on battery-idle. Allowlist-gated (domain backlight); the
-            // actuator floor-clamps so the screen never goes black.
+        // WP-N7 display depth: dim the panel backlight toward the interactive
+        // floor on battery-idle. Allowlist-gated (domain backlight); the actuator
+        // floor-clamps so the screen never goes black.
+        //
+        // Deliberately still `idle` only, not the wider `quiet` band above.
+        // Suspending an idle device is invisible; dimming the panel is not, and
+        // a screen that dims while someone is reading is a worse defect than a
+        // lever that fires less often.
+        if on_battery && workload_class == WorkloadClass::Idle {
             if let Some(backlight) = &snapshot.selected_backlight {
                 actions.push(Action::Backlight {
                     device_dir: backlight.clone(),
@@ -2181,6 +2200,77 @@ mode = "off"
             None,
             None,
         )
+    }
+
+    fn f1_decide_as(policy: &Policy, snapshot: &Snapshot, class: WorkloadClass) -> Decision {
+        let contracts = f1_contracts();
+        policy.decide_resolved(
+            snapshot,
+            Mode::Auto,
+            class,
+            "test".to_string(),
+            &contracts,
+            None,
+            None,
+        )
+    }
+
+    /// `idle` needs a 1-minute load average at or below 0.05, which a laptop
+    /// with a logged-in desktop session never reaches (measured: 0.31 idling on
+    /// the HP Victus 16-r0xxx laptop slot). Gating the device levers on `idle`
+    /// alone left them dead on every machine with a user on it.
+    #[test]
+    fn device_levers_are_nominated_on_battery_while_the_machine_is_light() {
+        let policy = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let decision = f1_decide_as(&policy, &snapshot, WorkloadClass::Light);
+        let domains: Vec<Domain> = decision.actions.iter().filter_map(|a| a.domain()).collect();
+        for expected in [Domain::RuntimePm, Domain::PcieAspm, Domain::SataAlpm] {
+            assert!(
+                domains.contains(&expected),
+                "{expected:?} must be nominated on battery in the light class"
+            );
+        }
+    }
+
+    /// Suspending an idle device is invisible; dimming the panel while someone
+    /// is reading is not. The backlight lever stays on `idle` alone.
+    #[test]
+    fn backlight_is_not_dimmed_in_the_light_class() {
+        let policy = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let light = f1_decide_as(&policy, &snapshot, WorkloadClass::Light);
+        let light_domains: Vec<Domain> = light.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(
+            !light_domains.contains(&Domain::Backlight),
+            "backlight must not dim in the light class"
+        );
+
+        let idle = f1_decide_as(&policy, &snapshot, WorkloadClass::Idle);
+        let idle_domains: Vec<Domain> = idle.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(
+            idle_domains.contains(&Domain::Backlight),
+            "backlight must still dim in the idle class"
+        );
+    }
+
+    /// A busy machine keeps kernel defaults, and nothing is nominated on AC.
+    #[test]
+    fn device_levers_are_not_nominated_when_busy_or_on_ac() {
+        let policy = Policy::default();
+        let snapshot = f1_snapshot_all_domains();
+        let busy = f1_decide_as(&policy, &snapshot, WorkloadClass::Interactive);
+        let busy_domains: Vec<Domain> = busy.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(!busy_domains.contains(&Domain::RuntimePm));
+        assert!(!busy_domains.contains(&Domain::SataAlpm));
+
+        let mut on_ac = f1_snapshot_all_domains();
+        on_ac.on_ac = Some(true);
+        let plugged = f1_decide_as(&policy, &on_ac, WorkloadClass::Light);
+        let plugged_domains: Vec<Domain> =
+            plugged.actions.iter().filter_map(|a| a.domain()).collect();
+        assert!(!plugged_domains.contains(&Domain::RuntimePm));
+        assert!(!plugged_domains.contains(&Domain::Backlight));
     }
 
     #[test]

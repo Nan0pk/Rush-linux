@@ -1,0 +1,5 @@
+optid: boot state — policy_load_state=ok allowlist_load_state=ok allowlist_gate=true apply_armed=true baseline_armed=false; independent VM baseline retired into F4 complete desired state
+optid: S4D seal enforced — capabilities=92 Landlock ABI=9 rights=0x7ff2 new_write_open_denied=true state_write_allowed=true
+D-Bus server error: org.freedesktop.DBus.Error.AccessDenied: Request to own name refused by policy. Running without D-Bus.
+Failed to parse CPUWeight= value '[not set]': Invalid argument
+Failed to parse IOWeight= value '[not set]': Invalid argument

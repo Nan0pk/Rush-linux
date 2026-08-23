@@ -93,6 +93,12 @@ The current Rust implementation:
 - chooses battery, balanced, performance, or realtime mode;
 - workload classifier pure function mapping PSI/load/AC/pin to the six published classes with hysteresis, D-Bus override pinning (`optctl pin`), and state publication;
 - writes status and decision logs under `/run/optid`;
+- nominates the device-depth levers (runtime PM, PCIe ASPM, SATA ALPM) on
+  battery while the machine is quiet — the `idle` **or** `light` class. `idle`
+  alone requires a 1-minute load average at or below 0.05, which a machine with
+  a logged-in desktop session does not reach, so the levers never fired in
+  normal use. Backlight dimming stays on `idle` alone: a device suspending is
+  invisible, a panel dimming while someone reads is not;
 - contains guarded action paths for EPP, platform profile, VM sysctls, CPU and
   per-device PM QoS, runtime PM, PCIe ASPM, SATA ALPM, backlight, and cgroup
   weights; and

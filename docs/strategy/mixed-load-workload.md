@@ -176,6 +176,28 @@ given, and when it is, every energy-derived metric records
 `unsupported_here: energy: battery counter cannot measure a window on AC`
 instead of a zero.
 
+### The battery counter is not trustworthy at full charge
+
+A run started at 100% produced, on the laptop slot: `0.00 W` for the idle
+window, `0.00 W` for the interactive window, then **188.40 W** for the
+throughput window — a figure the machine cannot physically draw. The charge
+gauge does not move while the pack is reported full, then decrements in one
+step, and the harness attributed the whole step to whichever window it landed
+in. The first cycle of that run is not data.
+
+Three guards now:
+
+- an on-battery window whose counter did not move at all is refused
+  (`battery_counter_did_not_move`) instead of being recorded as 0 W;
+- an on-battery window implying more than `RUSHBENCH_MAX_PLAUSIBLE_WATTS`
+  (default 150 W) is refused as `counter_step_artifact`;
+- before the first cycle, an on-battery run waits for the counter to actually
+  move (up to `RUSHBENCH_COUNTER_WARMUP_SECS`, default 300) and says so in the
+  transcript.
+
+Medians survive a single outlier; means and p95 do not. A run whose transcript
+shows either refusal in cycle 1 has fewer usable samples than its `n` suggests.
+
 ### Sample units
 
 `RunRecord.samples` are integers in whatever unit the probe emits, following the
