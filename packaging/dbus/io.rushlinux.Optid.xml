@@ -11,6 +11,9 @@
     <method name="Explain">
       <arg name="explanation" type="s" direction="out"/>
     </method>
+    <method name="Circuits">
+      <arg name="circuits" type="s" direction="out"/>
+    </method>
     <method name="SetMode">
       <arg name="mode" type="s" direction="in"/>
     </method>

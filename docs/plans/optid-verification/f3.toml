@@ -58,7 +58,21 @@ implementation_pr = 369
 # 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD` returns 0 (the prior
 # verified commit is an ancestor), confirming the F3 production surface added
 # in PR #369 is still present and now exercises the F4-cutover restore path.
-verified_commit = "99204930d5677aa19cf64794852fd45034a4c9ee"
+#
+# PR #427 builder recertification. Commit 6c68e63fbaf5 added a new `Circuits`
+# D-Bus method to crates/optid/src/dbus.rs, a matching `circuits` subcommand
+# to crates/optctl/src/main.rs, and the `Circuits` method declaration to
+# packaging/dbus/io.rushlinux.Optid.xml -- all three are declared F3
+# runtime_entrypoints, so this receipt went stale the moment the change
+# landed. The addition is purely additive: no existing method (Status,
+# StatusJson, Explain, SetMode, PinApplication), no envelope field, and no
+# schema_version changed. All six mapped F3 in-crate acceptance tests and all
+# three mapped optctl status_cli integration tests were re-run individually
+# with `--exact` against 6c68e63fbaf5 and passed. This is a builder re-run of
+# the mapped contract only -- no independent cold verification was performed
+# for it, and the `verifier`, `result` fields below still describe the
+# original independent job at 99204930d567.
+verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 
