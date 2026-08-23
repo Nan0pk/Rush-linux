@@ -1,0 +1,328 @@
+=== phase-d-capture 2026-08-22T19:32:34Z arm=baseline cycles=5 scale=1
+=== optid_version=optid 0.7.0-beta.4 desktop_user=victus battery=100%
+--- D3 baseline arm: mainstream defaults, no optid
+[baseline] tuned profile: Current active profile: balanced
+rushbench preset=mixed-load-001 tag=baseline-fedora44-tuned-balanced-fedora lever=baseline cycles=5
+started_at=2026-08-22T19:32:35Z power_source=battery on_ac=Some(false)
+energy_counter=/sys/class/power_supply/BAT1/energy_now optid_version=optid 0.7.0-beta.4
+throughput_project=rushbench-cxx-2 units=1600 jobs=48
+sample units: psi-* and frametime-*/discharge-w/joules-per-work-unit samples are milli-units (x1000); results.csv medians are in the metric's declared unit
+cycle 1/5 phase idle-warm (60s, expect class idle)
+  energy 0.00 J over 60.0 s (0.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=0.000 W
+cycle 1/5 phase interactive (60s, expect class interactive)
+  energy 0.00 J over 60.0 s (0.00 W) via BAT1/energy_now
+  class_observed=light
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=118.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 1/5 phase throughput (60s, expect class throughput)
+  energy 11304.00 J over 60.0 s (188.40 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=58.900 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=35.547 J
+cycle 1/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2628.00 J over 60.0 s (43.80 W) via BAT1/energy_now
+  class_observed=light
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.220 percent
+cycle 1/5 phase idle-cooldown (30s, expect class idle)
+  energy 828.00 J over 30.0 s (27.60 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=27.600 W
+cycle 2/5 phase idle-warm (60s, expect class idle)
+  energy 1332.00 J over 60.0 s (22.20 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=22.200 W
+cycle 2/5 phase interactive (60s, expect class interactive)
+  energy 1584.00 J over 60.0 s (26.40 W) via BAT1/energy_now
+  class_observed=light
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=103.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 2/5 phase throughput (60s, expect class throughput)
+  energy 3456.00 J over 60.0 s (57.60 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=52.370 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=11.294 J
+cycle 2/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2700.00 J over 60.0 s (45.00 W) via BAT1/energy_now
+  class_observed=light
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.200 percent
+cycle 2/5 phase idle-cooldown (30s, expect class idle)
+  energy 828.00 J over 30.0 s (27.60 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=27.600 W
+cycle 3/5 phase idle-warm (60s, expect class idle)
+  energy 1548.00 J over 60.0 s (25.80 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=25.800 W
+cycle 3/5 phase interactive (60s, expect class interactive)
+  energy 1584.00 J over 60.0 s (26.40 W) via BAT1/energy_now
+  class_observed=light
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=65.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 3/5 phase throughput (60s, expect class throughput)
+  energy 3600.00 J over 60.0 s (60.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=48.790 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=12.162 J
+cycle 3/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2664.00 J over 60.0 s (44.40 W) via BAT1/energy_now
+  class_observed=light
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.160 percent
+cycle 3/5 phase idle-cooldown (30s, expect class idle)
+  energy 720.00 J over 30.0 s (24.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=24.000 W
+cycle 4/5 phase idle-warm (60s, expect class idle)
+  energy 1476.00 J over 60.0 s (24.60 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=24.600 W
+cycle 4/5 phase interactive (60s, expect class interactive)
+  energy 1620.00 J over 60.0 s (27.00 W) via BAT1/energy_now
+  class_observed=light
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=70.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 4/5 phase throughput (60s, expect class throughput)
+  energy 3780.00 J over 60.0 s (63.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=49.770 percent
+  psi-io-avg10=0.450 percent
+  joules-per-work-unit=12.154 J
+cycle 4/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2700.00 J over 60.0 s (45.00 W) via BAT1/energy_now
+  class_observed=light
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.160 percent
+cycle 4/5 phase idle-cooldown (30s, expect class idle)
+  energy 720.00 J over 30.0 s (24.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=24.000 W
+cycle 5/5 phase idle-warm (60s, expect class idle)
+  energy 1548.00 J over 60.0 s (25.80 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.000 percent
+  discharge-w=25.800 W
+cycle 5/5 phase interactive (60s, expect class interactive)
+  energy 1656.00 J over 60.0 s (27.60 W) via BAT1/energy_now
+  class_observed=light
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=65.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 5/5 phase throughput (60s, expect class throughput)
+  energy 3780.00 J over 60.0 s (63.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=49.410 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=13.310 J
+cycle 5/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2988.00 J over 60.0 s (49.80 W) via BAT1/energy_now
+  class_observed=light
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.620 percent
+cycle 5/5 phase idle-cooldown (30s, expect class idle)
+  energy 900.00 J over 30.0 s (30.00 W) via BAT1/energy_now
+  class_observed=light
+  psi-cpu-avg10=0.030 percent
+  discharge-w=30.000 W
+Wrote baseline arm artifacts to release/evidence/host-bench/2026-08-23-victus/baseline
+=== done 2026-08-22T19:55:07Z; artifacts under release/evidence/host-bench/2026-08-23-victus
+=== next: rushbench report, then fill release/evidence/host-bench/2026-08-23-victus/VERDICT.md
+[cleanup] restoring system state
+[cleanup] restarting 
+=== phase-d-capture 2026-08-22T19:55:46Z arm=optid cycles=5 scale=1
+=== optid_version=optid 0.7.0-beta.4 desktop_user=victus battery=71%
+--- D4 optid arm: tuned stopped, optid --apply supervising
+[optid] recovery exit=0
+[optid] capability_sealing = "enforce"
+[optid] apply_armed line: unavailable
+rushbench preset=mixed-load-001 tag=optid-optid-0.7.0-beta.4-fedora lever=optid cycles=5
+started_at=2026-08-22T19:55:48Z power_source=battery on_ac=Some(false)
+energy_counter=/sys/class/power_supply/BAT1/energy_now optid_version=optid 0.7.0-beta.4
+throughput_project=rushbench-cxx-2 units=1600 jobs=48
+sample units: psi-* and frametime-*/discharge-w/joules-per-work-unit samples are milli-units (x1000); results.csv medians are in the metric's declared unit
+cycle 1/5 phase idle-warm (60s, expect class idle)
+  energy 2088.00 J over 60.0 s (34.80 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.000 percent
+  discharge-w=34.800 W
+cycle 1/5 phase interactive (60s, expect class interactive)
+  unsupported_here: driver exited before the phase window closed
+  energy 2772.00 J over 60.0 s (46.20 W) via BAT1/energy_now
+  class_observed=interactive
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=51.000 ms
+  psi-cpu-avg10=0.630 percent
+cycle 1/5 phase throughput (60s, expect class throughput)
+  energy 3600.00 J over 60.0 s (59.99 W) via BAT1/energy_now
+  class_observed=throughput
+  psi-cpu-avg10=50.250 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=15.385 J
+cycle 1/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 3060.00 J over 60.0 s (51.00 W) via BAT1/energy_now
+  class_observed=interactive
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=1.220 percent
+cycle 1/5 phase idle-cooldown (30s, expect class idle)
+  energy 1044.00 J over 30.0 s (34.80 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.070 percent
+  discharge-w=34.800 W
+cycle 2/5 phase idle-warm (60s, expect class idle)
+  energy 2160.00 J over 60.0 s (36.00 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.000 percent
+  discharge-w=36.000 W
+cycle 2/5 phase interactive (60s, expect class interactive)
+  energy 2448.00 J over 60.0 s (40.80 W) via BAT1/energy_now
+  class_observed=interactive
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=59.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 2/5 phase throughput (60s, expect class throughput)
+  energy 3780.00 J over 60.0 s (63.00 W) via BAT1/energy_now
+  class_observed=throughput
+  psi-cpu-avg10=47.460 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=15.304 J
+cycle 2/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: driver exited before the phase window closed
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2952.00 J over 60.0 s (49.20 W) via BAT1/energy_now
+  class_observed=interactive
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.610 percent
+cycle 2/5 phase idle-cooldown (30s, expect class idle)
+  energy 972.00 J over 30.0 s (32.40 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.170 percent
+  discharge-w=32.400 W
+cycle 3/5 phase idle-warm (60s, expect class idle)
+  energy 2520.00 J over 60.0 s (42.00 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.060 percent
+  discharge-w=42.000 W
+cycle 3/5 phase interactive (60s, expect class interactive)
+  energy 2376.00 J over 60.0 s (39.60 W) via BAT1/energy_now
+  class_observed=interactive
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=81.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 3/5 phase throughput (60s, expect class throughput)
+  energy 3924.00 J over 60.1 s (65.31 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=50.840 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=14.864 J
+cycle 3/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 3060.00 J over 60.0 s (51.00 W) via BAT1/energy_now
+  class_observed=interactive
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.780 percent
+cycle 3/5 phase idle-cooldown (30s, expect class idle)
+  energy 1152.00 J over 30.0 s (38.40 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.030 percent
+  discharge-w=38.400 W
+cycle 4/5 phase idle-warm (60s, expect class idle)
+  energy 2232.00 J over 60.0 s (37.20 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.040 percent
+  discharge-w=37.200 W
+cycle 4/5 phase interactive (60s, expect class interactive)
+  energy 2052.00 J over 60.0 s (34.20 W) via BAT1/energy_now
+  class_observed=interactive
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=67.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 4/5 phase throughput (60s, expect class throughput)
+  energy 3924.00 J over 60.0 s (65.40 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=49.600 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=13.438 J
+cycle 4/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2952.00 J over 60.0 s (49.20 W) via BAT1/energy_now
+  class_observed=interactive
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.180 percent
+cycle 4/5 phase idle-cooldown (30s, expect class idle)
+  energy 828.00 J over 30.0 s (27.60 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.000 percent
+  discharge-w=27.600 W
+cycle 5/5 phase idle-warm (60s, expect class idle)
+  energy 1584.00 J over 60.0 s (26.40 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.000 percent
+  discharge-w=26.400 W
+cycle 5/5 phase interactive (60s, expect class interactive)
+  energy 1728.00 J over 60.0 s (28.80 W) via BAT1/energy_now
+  class_observed=interactive
+  input-latency-p95-ms=unavailable (unsupported_here: input-latency-p95-ms: evemu-style testing requires local graphical session and evemu tool)
+  input-latency-p99-ms=unavailable (unsupported_here: input-latency-p99-ms: evemu-style testing requires local graphical session and evemu tool)
+  foreground-launch-ms=73.000 ms
+  psi-cpu-avg10=0.000 percent
+cycle 5/5 phase throughput (60s, expect class throughput)
+  energy 3888.00 J over 60.0 s (64.80 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=49.310 percent
+  psi-io-avg10=0.000 percent
+  joules-per-work-unit=13.135 J
+cycle 5/5 phase latency-critical (60s, expect class latency-critical)
+  unsupported_here: mangohud wrote no frametime rows
+  energy 2880.00 J over 60.0 s (48.00 W) via BAT1/energy_now
+  class_observed=interactive
+  frametime-p95-ms=unavailable (no sample produced)
+  frametime-p99-ms=unavailable (no sample produced)
+  psi-cpu-avg10=0.180 percent
+cycle 5/5 phase idle-cooldown (30s, expect class idle)
+  energy 900.00 J over 30.0 s (30.00 W) via BAT1/energy_now
+  class_observed=interactive
+  psi-cpu-avg10=0.000 percent
+  discharge-w=30.000 W
+Wrote optid arm artifacts to release/evidence/host-bench/2026-08-23-victus/optid

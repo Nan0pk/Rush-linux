@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "host": {
+    "kernel": "7.1.8-200.fc44.x86_64",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "8BC2",
+    "battery_design_uwh": 70070000
+  },
+  "rush": {
+    "optid_sha": "95525e8c5d05c3152ada0e708627ef19542cd22c",
+    "contracts_sha256": "8493ccef4497eb628f7fcb460fdaea2238bbb77732e556dd4bd45004888dc646",
+    "rig_sha": "95525e8c5d05c3152ada0e708627ef19542cd22c",
+    "rig_version": "0.7.0-beta.4"
+  },
+  "class_requested": "idle",
+  "class_observed": "interactive",
+  "resolved_floors": {
+    "cpu_wakeup_latency_us": 100000,
+    "device_resume_latency_us": 1000000
+  },
+  "power_source": "battery",
+  "workload": "idle-cooldown",
+  "metric": "psi-cpu-avg10",
+  "n": 5,
+  "samples": [
+    70,
+    170,
+    30,
+    0,
+    0
+  ],
+  "median": 30.0,
+  "p95": 150.0,
+  "iqr": 70.0,
+  "energy": {
+    "window_joules": 900.0,
+    "avg_watts": 30.0,
+    "counter": "BAT1/energy_now"
+  },
+  "started_at": "2026-08-22T19:55:48Z",
+  "warmup_runs": 0,
+  "anomalies": [
+    "class_mismatch:interactive"
+  ]
+}

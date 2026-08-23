@@ -134,6 +134,17 @@ impl EnergySource {
     }
 }
 
+/// Above this average draw, a battery-counter window is a reporting step rather
+/// than a measurement. Overridable with `RUSHBENCH_MAX_PLAUSIBLE_WATTS` for
+/// hardware that genuinely draws more.
+pub fn implausible_power_ceiling_w() -> f64 {
+    env::var("RUSHBENCH_MAX_PLAUSIBLE_WATTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v: &f64| *v > 0.0)
+        .unwrap_or(150.0)
+}
+
 pub fn calculate_window(
     source: &EnergySource,
     start: &EnergySample,
@@ -161,6 +172,25 @@ pub fn calculate_window(
             end.joules - start.joules
         }
     };
+
+    // A battery charge counter pinned at full reports no change at all, then
+    // dumps the accumulated discharge into whichever later window it lands in.
+    // On the HP Victus laptop slot a run started at 100% read 0.00 W for two
+    // consecutive 60 s windows and then 188.40 W for the third — a figure the
+    // machine cannot physically draw. Both are artifacts, and both must be
+    // refused rather than averaged into a result.
+    if matches!(source, EnergySource::Battery(_)) && start.on_ac != Some(true) {
+        if delta_joules == 0.0 {
+            return Err("battery_counter_did_not_move".to_string());
+        }
+        let implied_watts = delta_joules / elapsed;
+        if implied_watts > implausible_power_ceiling_w() {
+            return Err(format!(
+                "counter_step_artifact: {implied_watts:.0} W exceeds the {:.0} W ceiling",
+                implausible_power_ceiling_w()
+            ));
+        }
+    }
 
     let avg_watts = delta_joules / elapsed;
 

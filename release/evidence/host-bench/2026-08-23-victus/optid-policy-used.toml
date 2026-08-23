@@ -1,0 +1,171 @@
+# Default Rush Linux optimizer policy.
+# The Rust MVP currently embeds these defaults; this file is the package
+# interface that the daemon will parse once the D-Bus/config layer lands.
+
+[policy]
+owner = "optid"
+competing_policy_daemons = [
+  "tlp.service",
+  "power-profiles-daemon.service",
+  "tuned.service",
+]
+
+# S4D capability sealing. `observe` inventories exact targets but suppresses
+# kernel writes. Set `enforce` only on kernels covered by the D0 mechanism
+# proof; startup must still pass the live table/seal self-tests.
+[safety]
+capability_sealing = "enforce"
+# S5D mandatory circuit-breaker controls. Bounds are enforced in code:
+# failure threshold 2..10, cooldown 30..86400 seconds. Invalid values
+# fail closed to process-wide observe-only; there is no environment bypass.
+circuit_failure_threshold = 2
+circuit_cooldown_sec = 300
+
+# v0.6 Phase B1: PPD compatibility shim configuration.
+# The shim implements net.hadess.PowerProfiles on optid's D-Bus connection
+# so GNOME Settings and KDE powerdevil drive optid without code changes.
+# When the shim is active (no PPD conflict detected at startup), optid
+# claims the net.hadess.PowerProfiles bus name.
+#
+# The [shim.ppd.profiles] map overrides the default PPD profile → optid
+# mode mapping. Omitted profile names fall back to:
+#   power-saver  → battery
+#   balanced     → auto   (clears override; classifier drives mode)
+#   performance  → performance
+# Mapping values must be valid optid Mode strings: auto, battery,
+# balanced, performance, realtime. An invalid value causes the PPD
+# Set / HoldProfile call to fail with a clear error.
+[shim.ppd.profiles]
+# Default mapping — uncomment and edit to override per-deployment.
+# "power-saver"  = "battery"
+# "balanced"     = "auto"
+# "performance"  = "performance"
+
+# v0.6 Phase B2: GameMode compatibility shim configuration.
+# The shim implements com.feralinteractive.GameMode on optid's D-Bus
+# connection so Steam, Lutris, and Heroic drive optid without code changes.
+# On RegisterGame(pid), optid writes state_dir/pins/<pid> with the
+# configured pin_class (default: latency-critical). The run loop reads
+# the pin on the next tick and applies the latency contract. On
+# UnregisterGame(pid), the pin file is removed.
+#
+# The TTL is best-effort: stale registrations are expired lazily on the
+# next RegisterGame / QueryStatus / QueryStatusClient call.
+[shim.gamemode]
+ttl_sec = 1800                      # 30 minutes (default)
+pin_class = "latency-critical"      # default; one of: idle, light, interactive, latency-critical, throughput
+
+# v0.6 Phase C1: foreground-app detection configuration.
+# When --foreground=auto is passed (default is off), optid spawns a
+# subscriber thread that — in v0.6 — is a stub (never yields events).
+# v0.7 will fill in real compositor integration (login1 SessionNew +
+# Mutter/KWin/wlr-foreign-toplevel-management focus signals) and use
+# this config to map window classes to workload classes.
+[foreground]
+game_class = "latency-critical"     # default; class to pin game windows to
+
+[thresholds]
+cpu_pressure_perf_avg10 = 12.0
+memory_pressure_protect_avg10 = 5.0
+io_pressure_throttle_avg10 = 8.0
+hot_temp_c = 82.0
+critical_temp_c = 92.0
+low_battery_pct = 20
+
+# =====================================================================
+# NOTE (corrected 2026-07-21, audit env-remediation):
+# The [memory] and [modes.*] sysctl values below ARE ACTUATED by optid.
+# `Policy::decide_resolved` in `policy.rs` emits `Action::VmSysctl` for
+# `vm.swappiness`, `vm.dirty_background_bytes`, and `vm.dirty_bytes`
+# (see `policy.rs` around line 646-680), and `actuator.rs` writes them
+# through `guarded_write` with journal-and-revert. The earlier FINAL
+# AUDIT REPORT (section 4.3) comment claiming these keys were NOT
+# actuated was stale — it predates the VmSysctl action landing. The
+# `high_swappiness_requires_zram` gate below is honored: when ZRAM is
+# not the active swap device, vm.* writes are skipped with a logged
+# reason.
+# =====================================================================
+#
+# Memory / VM tuning is owned by optid (ADR 0004), NOT by a static sysctl
+# drop-in, so the values can adapt to mode and hardware instead of being baked
+# in unconditionally at boot. In particular vm.swappiness is only safe at high
+# values when ZRAM is the active swap device, so it is gated on detected swap
+# (see `high_swappiness_requires_zram` below and the `zram_swap_active`
+# snapshot field consumed by `Policy::decide_resolved`).
+[memory]
+owner = "optid"
+# Apply high swappiness only when ZRAM-backed swap is active.
+high_swappiness_requires_zram = true
+
+[modes.battery]
+cpu_epp = "power"
+platform_profile = "low-power"
+background_cpu_weight = 25
+background_io_weight = 25
+# Conservative on battery: avoid aggressive swap churn that costs power.
+vm_swappiness = 60
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.balanced]
+cpu_epp = "balance_performance"
+platform_profile = "balanced"
+user_cpu_weight = 150
+user_io_weight = 150
+vm_swappiness = 100
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.performance]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 200
+user_io_weight = 200
+# High swappiness only meaningful with ZRAM (see high_swappiness_requires_zram).
+vm_swappiness = 150
+vm_dirty_background_bytes = 67108864   # 64 MB
+vm_dirty_bytes = 134217728             # 128 MB
+
+[modes.realtime]
+cpu_epp = "performance"
+platform_profile = "performance"
+user_cpu_weight = 250
+user_io_weight = 200
+requires_controlled_rt_access = true
+vm_swappiness = 10
+
+# =====================================================================
+# F1 — Per-domain runtime mode (added 2026-07-22).
+#
+# Each domain has an effective mode: `off`, `observe`, or `actuate`.
+# - `off`      : the domain is invisible; no actions are emitted and no
+#                observe-mode reason is recorded.
+# - `observe`  : optid computes the would-be action and records it in the
+#                decision report (`optctl explain`) but suppresses the
+#                final write. Use for promotion-evidence collection.
+# - `actuate`  : optid may write through the actuator when all other gates
+#                pass (--apply, hardware allowlist, contract floor,
+#                journaled revert). This is the v0.6 default.
+#
+# When the `[domains]` section is absent or a specific domain is not
+# listed, the domain uses its `default_mode()`. All v0.6 domains ship
+# with `default_mode = actuate`, so existing deployments keep today's
+# behavior. Domains added after F1 will default to `off` and must be
+# explicitly enabled.
+#
+# Unknown domain keys and unknown fields are rejected at parse time
+# (`deny_unknown_fields`). Invalid mode strings fail closed.
+#
+# Recognized domain keys (matches `Capability::allowlist_domain`):
+#   cpu_epp, platform_profile, vm_sysctl, cpu_dma_latency,
+#   device_resume_latency, runtime_pm, pci_aspm, sata_alpm, backlight
+# =====================================================================
+[domains]
+# All entries below are commented out — uncomment to override per domain.
+# Examples:
+#   [domains.runtime_pm]
+#   mode = "observe"        # collect promotion evidence; suppress writes
+#
+#   [domains.backlight]
+#   mode = "off"            # disable the backlight lever entirely
+
