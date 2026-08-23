@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "host": {
+    "kernel": "7.1.8-200.fc44.x86_64",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700HX",
+    "dmi_board": "8BC2",
+    "battery_design_uwh": 70070000
+  },
+  "rush": {
+    "optid_sha": "1430d4855a7fa5bab1d724256591cb3c1c08cda0",
+    "contracts_sha256": "8493ccef4497eb628f7fcb460fdaea2238bbb77732e556dd4bd45004888dc646",
+    "rig_sha": "1430d4855a7fa5bab1d724256591cb3c1c08cda0",
+    "rig_version": "0.7.0-beta.4"
+  },
+  "class_requested": "latency-critical",
+  "class_observed": "light",
+  "resolved_floors": {
+    "cpu_wakeup_latency_us": 1000,
+    "device_resume_latency_us": 1000
+  },
+  "power_source": "battery",
+  "workload": "latency-critical",
+  "metric": "frametime-p95-ms",
+  "n": 0,
+  "samples": null,
+  "median": null,
+  "p95": null,
+  "iqr": null,
+  "energy": {
+    "window_joules": 2988.0,
+    "avg_watts": 49.8,
+    "counter": "BAT1/energy_now"
+  },
+  "started_at": "2026-08-22T19:32:35Z",
+  "warmup_runs": 0,
+  "anomalies": [
+    "unsupported_here: mangohud wrote no frametime rows",
+    "class_mismatch:light",
+    "insufficient_n",
+    "no_samples"
+  ]
+}

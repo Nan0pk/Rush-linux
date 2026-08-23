@@ -145,6 +145,52 @@ fn systemd_output(args: &[&str]) -> io::Result<String> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
+/// Normalize a stored systemd value so the placeholder and an empty value are
+/// one thing. Applied to records on load, and matched by `read_target`, so a
+/// comparison never turns on which build wrote the record.
+fn canonicalize_stored(value: &mut StoredValue) {
+    if let StoredValue::Systemd {
+        explicit,
+        value: text,
+    } = value
+    {
+        if is_unset_placeholder(text) {
+            *explicit = false;
+            text.clear();
+        }
+    }
+}
+
+/// systemd's human-readable stand-in for "this property has no value".
+const SYSTEMD_UNSET: &str = "[not set]";
+
+/// Is this `systemctl show` output the absence of a value rather than a value?
+pub(crate) fn is_unset_placeholder(value: &str) -> bool {
+    let value = value.trim();
+    value.is_empty() || value == SYSTEMD_UNSET
+}
+
+/// Does this drop-in line give `property` an actual value?
+///
+/// Restoring a property that was never explicitly set is done with an empty
+/// assignment (`systemctl set-property --runtime user.slice CPUWeight=`), which
+/// resets the value but leaves the drop-in file in place carrying the bare
+/// `CPUWeight=` line. Treating that as an explicit setting made the restore
+/// unverifiable: recovery wrote the original, read back `explicit = true`
+/// against a record saying `explicit = false`, and reported "recovery readback
+/// did not match captured original" — permanently, since a retry does the same
+/// thing. On any machine where these weights start out unset (all of them), one
+/// unclean exit left records that could never be recovered, and the daemon then
+/// refused to start at all with `StaleGeneration`.
+///
+/// An empty assignment is the absence of a value, so it is not explicit.
+fn assigns_a_value(line: &str, property: &str) -> bool {
+    line.trim_start()
+        .strip_prefix(property)
+        .and_then(|suffix| suffix.strip_prefix('='))
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
 fn systemd_property_is_explicit(unit: &str, property: &str) -> io::Result<bool> {
     let paths = systemd_output(&["show", "--property=DropInPaths", "--value", unit])?;
     for raw in paths.split_whitespace() {
@@ -155,11 +201,7 @@ fn systemd_property_is_explicit(unit: &str, property: &str) -> io::Result<bool> 
         let Ok(content) = fs::read_to_string(path) else {
             continue;
         };
-        if content.lines().any(|line| {
-            line.trim_start()
-                .strip_prefix(property)
-                .is_some_and(|suffix| suffix.starts_with('='))
-        }) {
+        if content.lines().any(|line| assigns_a_value(line, property)) {
             return Ok(true);
         }
     }
@@ -191,6 +233,19 @@ fn read_target(target: &TargetKind) -> io::Result<StoredValue> {
             let value = systemd_output(&["show", &selector, "--value", unit])?
                 .trim()
                 .to_string();
+            if is_unset_placeholder(&value) {
+                // `systemctl show` prints the literal `[not set]` for a property
+                // with no value. Storing that string as if it were a value
+                // produced records that could never be restored: the restore
+                // path sent `IOWeight=[not set]`, systemd answered "Failed to
+                // parse IOWeight= value '[not set]': Invalid argument", the
+                // record stayed pending, and the next daemon start refused to
+                // touch the target at all with StaleGeneration.
+                return Ok(StoredValue::Systemd {
+                    explicit: false,
+                    value: String::new(),
+                });
+            }
             Ok(StoredValue::Systemd {
                 explicit: systemd_property_is_explicit(unit, property)?,
                 value,
@@ -223,14 +278,34 @@ fn write_target(target: &TargetKind, value: &StoredValue) -> io::Result<()> {
             TargetKind::SystemdProperty { unit, property },
             StoredValue::Systemd { explicit, value },
         ) => {
-            let assignment = format!("{property}={}", if *explicit { value.as_str() } else { "" });
-            let status = Command::new("systemctl")
+            // Never send the placeholder back as a value, even if an older
+            // record on disk still carries it.
+            let restore_to = if *explicit && !is_unset_placeholder(value) {
+                value.as_str()
+            } else {
+                ""
+            };
+            let assignment = format!("{property}={restore_to}");
+            // Capture stderr: `systemctl exited with exit status: 1` on its own
+            // is a dead end, and this path failing is what leaves a property
+            // changed and its record pending, which then blocks the next
+            // daemon start with StaleGeneration.
+            let output = Command::new("systemctl")
                 .args(["set-property", "--runtime", unit, &assignment])
-                .status()?;
-            if status.success() {
+                .output()?;
+            if output.status.success() {
                 Ok(())
             } else {
-                Err(io::Error::other(format!("systemctl exited with {status}")))
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                Err(io::Error::other(format!(
+                    "systemctl set-property --runtime {unit} {assignment} exited with {}: {}",
+                    output.status,
+                    if stderr.is_empty() {
+                        "no stderr"
+                    } else {
+                        &stderr
+                    }
+                )))
             }
         }
         _ => Err(io::Error::new(
@@ -346,12 +421,17 @@ fn recover_record(root: &Path, path: &Path) -> Result<RecoveryEvent, RecoveryEve
             format!("read transaction record: {error}"),
         )
     })?;
-    let record: TransactionRecord = serde_json::from_str(&content).map_err(|error| {
+    let mut record: TransactionRecord = serde_json::from_str(&content).map_err(|error| {
         fail_event(
             path.display().to_string(),
             format!("parse transaction record: {error}"),
         )
     })?;
+    // Records written by earlier builds stored systemd's `[not set]` placeholder
+    // as a value. Canonicalize on load so those records compare equal to a
+    // freshly-read unset property instead of failing their readback forever.
+    canonicalize_stored(&mut record.original);
+    canonicalize_stored(&mut record.intended);
     if record.schema_version != TRANSACTION_SCHEMA_VERSION {
         return Err(fail_event(
             record.target_id,
@@ -645,5 +725,87 @@ mod tests {
         assert_eq!(first.scanned, 0);
         assert_eq!(second.scanned, 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn an_empty_assignment_is_not_an_explicit_value() {
+        assert!(!assigns_a_value("CPUWeight=", "CPUWeight"));
+        assert!(!assigns_a_value("  CPUWeight=  ", "CPUWeight"));
+        assert!(!assigns_a_value("CPUWeight=\t", "CPUWeight"));
+    }
+
+    #[test]
+    fn a_real_assignment_is_explicit() {
+        assert!(assigns_a_value("CPUWeight=150", "CPUWeight"));
+        assert!(assigns_a_value("  CPUWeight=100", "CPUWeight"));
+    }
+
+    #[test]
+    fn a_different_property_does_not_match() {
+        assert!(!assigns_a_value("IOWeight=150", "CPUWeight"));
+        // A property whose name merely starts the same must not match either.
+        assert!(!assigns_a_value("CPUWeightFoo=150", "CPUWeight"));
+        assert!(!assigns_a_value("[Slice]", "CPUWeight"));
+    }
+
+    #[test]
+    fn the_systemd_unset_placeholder_is_not_a_value() {
+        assert!(is_unset_placeholder("[not set]"));
+        assert!(is_unset_placeholder("  [not set]  "));
+        assert!(is_unset_placeholder(""));
+        assert!(is_unset_placeholder("   "));
+    }
+
+    #[test]
+    fn a_real_systemd_value_is_a_value() {
+        assert!(!is_unset_placeholder("150"));
+        assert!(!is_unset_placeholder("infinity"));
+        assert!(!is_unset_placeholder("[not set] 150"));
+    }
+
+    #[test]
+    fn canonicalizing_collapses_the_placeholder_to_an_unset_value() {
+        let mut v = StoredValue::Systemd {
+            explicit: true,
+            value: "[not set]".to_string(),
+        };
+        canonicalize_stored(&mut v);
+        assert_eq!(
+            v,
+            StoredValue::Systemd {
+                explicit: false,
+                value: String::new()
+            }
+        );
+    }
+
+    #[test]
+    fn canonicalizing_leaves_a_real_value_alone() {
+        let mut v = StoredValue::Systemd {
+            explicit: true,
+            value: "150".to_string(),
+        };
+        canonicalize_stored(&mut v);
+        assert_eq!(
+            v,
+            StoredValue::Systemd {
+                explicit: true,
+                value: "150".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn canonicalizing_ignores_non_systemd_values() {
+        let mut v = StoredValue::Scalar {
+            value: "[not set]".to_string(),
+        };
+        canonicalize_stored(&mut v);
+        assert_eq!(
+            v,
+            StoredValue::Scalar {
+                value: "[not set]".to_string()
+            }
+        );
     }
 }

@@ -1,0 +1,15 @@
+phase,lever,scenario,metric,median,iters,batt_pct,ambient_cpu_pct
+idle-warm,optid,mixed-load-001,psi-cpu-avg10,0.000,5,41,0.00
+idle-warm,optid,mixed-load-001,discharge-w,36.000,5,41,0.00
+interactive,optid,mixed-load-001,input-latency-p95-ms,na,0,41,0.00
+interactive,optid,mixed-load-001,input-latency-p99-ms,na,0,41,0.00
+interactive,optid,mixed-load-001,foreground-launch-ms,67.000,5,41,0.00
+interactive,optid,mixed-load-001,psi-cpu-avg10,0.000,5,41,0.00
+throughput,optid,mixed-load-001,psi-cpu-avg10,49.600,5,41,0.00
+throughput,optid,mixed-load-001,psi-io-avg10,0.000,5,41,0.00
+throughput,optid,mixed-load-001,joules-per-work-unit,14.864,5,41,0.00
+latency-critical,optid,mixed-load-001,frametime-p95-ms,na,0,41,0.00
+latency-critical,optid,mixed-load-001,frametime-p99-ms,na,0,41,0.00
+latency-critical,optid,mixed-load-001,psi-cpu-avg10,0.610,5,41,0.00
+idle-cooldown,optid,mixed-load-001,psi-cpu-avg10,0.030,5,41,0.00
+idle-cooldown,optid,mixed-load-001,discharge-w,32.400,5,41,0.00

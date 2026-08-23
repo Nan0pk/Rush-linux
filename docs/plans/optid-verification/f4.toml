@@ -6,7 +6,16 @@ schema_version = 1
 package = "F4"
 implementation_pr = 371
 verification_pr = 388
-verified_commit = "99204930d5677aa19cf64794852fd45034a4c9ee"
+# PR #418 builder recertification. Commit 5c3dfb27373c repaired the daemon's own
+# `[not set]` placeholder handling in crates/optid/src/reconciler/mod.rs, a
+# declared F4 proof path, which made the prior receipt stale. The prior verified
+# commit 99204930d567 remains an ancestor: the repair adds no reconciler surface
+# and removes none. All ten mapped F4 acceptance tests were re-run individually
+# with `--exact` against 5c3dfb27373c and passed. This is a builder re-run of the
+# mapped contract only -- no independent cold verification was performed for it,
+# and the `verifier`, `workflow_run`, and `workflow_attempt` fields below still
+# describe the original independent job at 99204930d567.
+verified_commit = "5c3dfb27373cf5750d0e01720cf345df0ddb09b5"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668

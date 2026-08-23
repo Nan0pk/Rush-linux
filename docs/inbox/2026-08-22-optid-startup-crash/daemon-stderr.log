@@ -1,0 +1,4 @@
+optid: boot state — policy_load_state=ok allowlist_load_state=ok allowlist_gate=true apply_armed=true baseline_armed=false; independent VM baseline retired into F4 complete desired state
+optid: S4D capability sealing observe-only ([safety].capability_sealing=observe); non-systemd kernel writes suppressed
+D-Bus server error: org.freedesktop.DBus.Error.AccessDenied: Request to own name refused by policy. Running without D-Bus.
+optid: InvalidRecord: parse /var/lib/optid/recovery/circuits-v1.json: missing field `generation` at line 42 column 1

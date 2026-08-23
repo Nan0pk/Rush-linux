@@ -218,16 +218,36 @@ impl RealSystemd {
             let Ok(content) = fs::read_to_string(path) else {
                 continue;
             };
-            if content.lines().any(|line| {
-                line.trim_start()
-                    .strip_prefix(property)
-                    .is_some_and(|suffix| suffix.starts_with('='))
-            }) {
+            if content.lines().any(|line| assigns_a_value(line, property)) {
                 return Ok(true);
             }
         }
         Ok(false)
     }
+}
+
+/// systemd's human-readable stand-in for "this property has no value".
+///
+/// The same two helpers exist in `recovery.rs`. They are duplicated rather than
+/// shared because `recovery.rs` is `#[path]`-included by the `optid-recover`
+/// binary and has to stay self-contained — which is exactly how the daemon kept
+/// this defect after the recover tool was fixed. Change both together.
+const SYSTEMD_UNSET: &str = "[not set]";
+
+/// Is this `systemctl show` output the absence of a value rather than a value?
+fn is_unset_placeholder(value: &str) -> bool {
+    let value = value.trim();
+    value.is_empty() || value == SYSTEMD_UNSET
+}
+
+/// Does this drop-in line give `property` an actual value? A bare `CPUWeight=`
+/// is what an unset-restore leaves behind, and counting it as an explicit
+/// setting makes the restore unverifiable.
+fn assigns_a_value(line: &str, property: &str) -> bool {
+    line.trim_start()
+        .strip_prefix(property)
+        .and_then(|suffix| suffix.strip_prefix('='))
+        .is_some_and(|value| !value.trim().is_empty())
 }
 
 impl SystemdIo for RealSystemd {
@@ -236,6 +256,12 @@ impl SystemdIo for RealSystemd {
         let value = Self::output(&["show", &selector, "--value", unit])?
             .trim()
             .to_string();
+        if is_unset_placeholder(&value) {
+            return Ok(SystemdPropertyState {
+                explicit: false,
+                value: String::new(),
+            });
+        }
         Ok(SystemdPropertyState {
             explicit: Self::runtime_property_is_explicit(unit, property)?,
             value,
@@ -243,14 +269,24 @@ impl SystemdIo for RealSystemd {
     }
 
     fn set_property(&self, unit: &str, property: &str, value: Option<&str>) -> io::Result<()> {
-        let assignment = format!("{property}={}", value.unwrap_or(""));
-        let status = Command::new("systemctl")
+        let restore_to = value.filter(|v| !is_unset_placeholder(v)).unwrap_or("");
+        let assignment = format!("{property}={restore_to}");
+        let output = Command::new("systemctl")
             .args(["set-property", "--runtime", unit, &assignment])
-            .status()?;
-        if status.success() {
+            .output()?;
+        if output.status.success() {
             Ok(())
         } else {
-            Err(io::Error::other(format!("systemctl exited with {status}")))
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            Err(io::Error::other(format!(
+                "systemctl set-property --runtime {unit} {assignment} exited with {}: {}",
+                output.status,
+                if stderr.is_empty() {
+                    "no stderr"
+                } else {
+                    &stderr
+                }
+            )))
         }
     }
 }

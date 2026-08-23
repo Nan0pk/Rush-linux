@@ -32,8 +32,18 @@ identity cannot be observed; neither value is hardware-promotion evidence.
 Production state is root-private JSON at:
 
 ```text
-/var/lib/optid/recovery/circuits-v1.json
+/var/lib/optid/circuits-v1.json
 ```
+
+Deliberately **not** under `/var/lib/optid/recovery/`. That directory belongs to
+the transaction-recovery scan, whose invariant is that every JSON file in it
+deserializes as a pending rollback record — circuit state does not, so the scan
+rejected the daemon's own file (`InvalidRecord: missing field `generation``) and
+the daemon stopped immediately after arming. The scan's strictness is the safety
+property (a rollback record that cannot be read must never be silently skipped),
+so the circuit file moved out instead. A file left in the old location by an
+earlier build is migrated on first load; a failed migration is silent, because
+leftover bookkeeping must not stop a daemon from starting.
 
 Custom/test state directories use a colocated persistent fixture file. Writes
 use a mode-0600 temporary file, file sync, atomic rename, final permission
