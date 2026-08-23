@@ -16,7 +16,23 @@ verification_pr = 388
 # a builder re-run of the mapped contract only -- no independent cold verification
 # was performed for it, and the `verifier`, `workflow_run`, and `workflow_attempt`
 # fields below still describe the original independent job at 99204930d567.
-verified_commit = "5c3dfb27373cf5750d0e01720cf345df0ddb09b5"
+#
+# PR #425 builder recertification. Commit 9868d6bbf7bb gave
+# crates/optid/src/shim/conflict.rs a test-only override seam
+# (with_conflict_checker_override) so end-to-end `crate::run()` tests are not
+# at the mercy of whichever policy daemon happens to be active on the host
+# running the suite, and updated the mapped test
+# s2d_production_daemon_run_uses_persistent_transaction_protocol (declared
+# S2D proof path crates/optid/src/reconciler/tests/s2d.rs) to use it -- which
+# made the prior receipt stale. The prior verified commit 5c3dfb27373c
+# remains an ancestor: the change adds no transaction protocol, record
+# schema, or compensation path, and touches test setup only, not assertions.
+# All seventeen mapped S2D acceptance tests were re-run individually with
+# `--exact` against 9868d6bbf7bb and passed. This is a builder re-run of the
+# mapped contract only -- no independent cold verification was performed for
+# it, and the `verifier`, `workflow_run`, and `workflow_attempt` fields below
+# still describe the original independent job at 99204930d567.
+verified_commit = "9868d6bbf7bb27380da4bb899da6942b980c8701"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668
