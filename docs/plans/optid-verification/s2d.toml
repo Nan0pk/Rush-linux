@@ -48,7 +48,7 @@ verification_pr = 388
 # performed for it, and the `verifier`, `workflow_run`, and
 # `workflow_attempt` fields below still describe the original independent
 # job at 99204930d567.
-verified_commit = "REPLACE_WITH_MERGE_COMMIT"
+verified_commit = "3b876605fa0deaa064207ec0fbb243bd005f36b3"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668
