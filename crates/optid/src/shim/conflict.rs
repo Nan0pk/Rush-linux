@@ -79,10 +79,57 @@ pub(crate) fn systemd_is_active(service: &str) -> bool {
     output.status.success()
 }
 
-/// Detect conflicts using the default `systemctl is-active` checker. See
-/// `detect_conflicts_with` for the injectable-checker variant used by tests.
+/// Detect conflicts using the default `systemctl is-active` checker, unless a
+/// test on this thread has installed an override (see
+/// `with_conflict_checker_override`). See `detect_conflicts_with` for the
+/// injectable-checker variant used directly by unit tests in this module.
 pub(crate) fn detect_conflicts(daemons: &[String]) -> ConflictReport {
+    #[cfg(test)]
+    {
+        let overridden = CONFLICT_CHECKER_OVERRIDE.with(|slot| *slot.borrow());
+        if let Some(checker) = overridden {
+            return detect_conflicts_with(daemons, checker);
+        }
+    }
     detect_conflicts_with(daemons, systemd_is_active)
+}
+
+// `crate::run()` calls `detect_conflicts` directly rather than going through
+// an injected `KernelIo`: this check spawns `systemctl is-active`, a process
+// execution, not the file I/O `KernelIo` models, so it needs its own seam.
+// End-to-end production-surface tests (e.g. S2D's) need `detect_conflicts` to
+// answer deterministically regardless of which policy daemon happens to be
+// active on the host running the suite — mirrors
+// `kernel_io::with_real_kernel_override`.
+#[cfg(test)]
+thread_local! {
+    static CONFLICT_CHECKER_OVERRIDE: std::cell::RefCell<Option<SystemdChecker>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct ConflictCheckerGuard(Option<SystemdChecker>);
+
+#[cfg(test)]
+impl Drop for ConflictCheckerGuard {
+    fn drop(&mut self) {
+        CONFLICT_CHECKER_OVERRIDE.with(|slot| {
+            slot.replace(self.0.take());
+        });
+    }
+}
+
+/// Run a binary-crate test with `detect_conflicts`'s systemd check on the
+/// current thread routed through `checker` instead of a real `systemctl`
+/// call. The previous override is restored even if the test unwinds.
+#[cfg(test)]
+pub(crate) fn with_conflict_checker_override<R>(
+    checker: SystemdChecker,
+    run: impl FnOnce() -> R,
+) -> R {
+    let previous = CONFLICT_CHECKER_OVERRIDE.with(|slot| slot.replace(Some(checker)));
+    let _guard = ConflictCheckerGuard(previous);
+    run()
 }
 
 /// Detect conflicts using a caller-supplied checker. Exposed for tests so
@@ -215,5 +262,48 @@ mod tests {
         );
         assert!(advice.contains("systemctl mask --now"), "{advice}");
         assert!(advice.contains("dry-run"), "{advice}");
+    }
+
+    #[test]
+    fn detect_conflicts_production_entrypoint_honors_the_override() {
+        let daemons = vec!["tuned.service".to_string()];
+        let with_no_conflicts =
+            with_conflict_checker_override(|_service| false, || detect_conflicts(&daemons));
+        assert!(!with_no_conflicts.is_blocking());
+
+        let with_a_conflict =
+            with_conflict_checker_override(|_service| true, || detect_conflicts(&daemons));
+        assert!(with_a_conflict.is_blocking());
+    }
+
+    #[test]
+    fn conflict_checker_override_is_restored_after_the_closure_returns() {
+        let daemons = vec!["tuned.service".to_string()];
+        with_conflict_checker_override(
+            |_service| true,
+            || {
+                assert!(detect_conflicts(&daemons).is_blocking());
+            },
+        );
+        // No override installed here: falls through to the real
+        // `systemctl is-active` check, which cannot report a conflict for a
+        // service name no unit file on this or any host defines.
+        let unregistered = vec!["optid-conflict-test-sentinel.service".to_string()];
+        assert!(!detect_conflicts(&unregistered).is_blocking());
+    }
+
+    #[test]
+    fn conflict_checker_override_survives_a_panicking_closure() {
+        let result = std::panic::catch_unwind(|| {
+            with_conflict_checker_override(
+                |_service| true,
+                || {
+                    panic!("simulated test failure inside the override scope");
+                },
+            )
+        });
+        assert!(result.is_err());
+        let daemons = vec!["optid-conflict-test-sentinel.service".to_string()];
+        assert!(!detect_conflicts(&daemons).is_blocking());
     }
 }

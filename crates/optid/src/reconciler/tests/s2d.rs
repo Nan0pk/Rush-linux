@@ -807,6 +807,7 @@ fn s2d_production_daemon_run_uses_persistent_transaction_protocol() {
 
     use crate::args::{Args, ForegroundMode};
     use crate::kernel_io::with_real_kernel_override;
+    use crate::shim::conflict::with_conflict_checker_override;
 
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -878,8 +879,17 @@ mode = "off"
         foreground: ForegroundMode::Off,
     };
 
-    with_real_kernel_override(Box::new(trace), || crate::run(args))
-        .expect("production daemon run must complete through S2D");
+    // This exercises the real production `--apply` path end to end, which
+    // must not be at the mercy of whichever policy daemon happens to be
+    // active on the host running the suite (see
+    // `shim::conflict::with_conflict_checker_override`) — `tuned` being
+    // active on the dev/CI host previously downgraded `--apply` to dry-run
+    // here and hid every S2D assertion below it.
+    with_conflict_checker_override(
+        |_service| false,
+        || with_real_kernel_override(Box::new(trace), || crate::run(args)),
+    )
+    .expect("production daemon run must complete through S2D");
 
     assert_eq!(
         memory.read_to_string(&swappiness).expect("restored swappiness"),
