@@ -161,7 +161,7 @@ Wrote baseline arm artifacts to release/evidence/host-bench/2026-08-23-victus/ba
 === done 2026-08-22T19:55:07Z; artifacts under release/evidence/host-bench/2026-08-23-victus
 === next: rushbench report, then fill release/evidence/host-bench/2026-08-23-victus/VERDICT.md
 [cleanup] restoring system state
-[cleanup] restarting 
+[cleanup] restarting
 === phase-d-capture 2026-08-22T19:55:46Z arm=optid cycles=5 scale=1
 === optid_version=optid 0.7.0-beta.4 desktop_user=victus battery=71%
 --- D4 optid arm: tuned stopped, optid --apply supervising

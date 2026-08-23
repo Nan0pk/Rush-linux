@@ -168,4 +168,3 @@ vm_swappiness = 10
 #
 #   [domains.backlight]
 #   mode = "off"            # disable the backlight lever entirely
-
