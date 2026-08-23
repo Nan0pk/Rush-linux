@@ -223,6 +223,66 @@ fn main() {
     }
 }
 
+// --- battery-counter window guards ---
+
+#[cfg(test)]
+mod counter_guard_tests {
+    use crate::energy::{calculate_window, EnergySample, EnergySource};
+    use std::path::PathBuf;
+    use std::time::{Duration, Instant};
+
+    fn battery() -> EnergySource {
+        EnergySource::Battery(PathBuf::from("/sys/class/power_supply/BAT1/energy_now"))
+    }
+
+    fn window(start_j: f64, end_j: f64, secs: u64, on_ac: Option<bool>) -> Result<f64, String> {
+        let now = Instant::now();
+        let start = EnergySample {
+            time: now,
+            joules: start_j,
+            on_ac,
+        };
+        let end = EnergySample {
+            time: now + Duration::from_secs(secs),
+            joules: end_j,
+            on_ac,
+        };
+        calculate_window(&battery(), &start, &end).map(|info| info.avg_watts)
+    }
+
+    /// A counter pinned at full charge reports no change; averaging that in as
+    /// 0 W is how a run started at 100% produced two silent minutes.
+    #[test]
+    fn a_battery_window_that_did_not_move_is_refused() {
+        let err = window(100_000.0, 100_000.0, 60, Some(false)).expect_err("must refuse");
+        assert_eq!(err, "battery_counter_did_not_move");
+    }
+
+    /// And the step that follows must not be believed either: 188 W is not a
+    /// figure this class of machine can draw.
+    #[test]
+    fn an_implausible_step_is_refused() {
+        let err = window(100_000.0, 88_696.0, 60, Some(false)).expect_err("must refuse");
+        assert!(err.starts_with("counter_step_artifact"), "{err}");
+        assert!(err.contains("188"), "{err}");
+    }
+
+    #[test]
+    fn a_plausible_discharge_is_accepted() {
+        let watts = window(100_000.0, 97_000.0, 60, Some(false)).expect("must accept");
+        assert!((watts - 50.0).abs() < 0.5, "{watts}");
+    }
+
+    /// On AC the same counter legitimately does not move, and the preset already
+    /// marks energy unsupported there — so this path must not add a second,
+    /// different refusal.
+    #[test]
+    fn an_unmoved_counter_on_ac_is_not_treated_as_a_battery_artifact() {
+        let watts = window(100_000.0, 100_000.0, 60, Some(true)).expect("must accept");
+        assert_eq!(watts, 0.0);
+    }
+}
+
 // --- Verification Tests (T1-T9) ---
 
 #[cfg(test)]
