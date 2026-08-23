@@ -13,11 +13,28 @@
 //! | 5 | idle-cooldown | 30 s | `idle` |
 //!
 //! The preset deliberately does **not** pin the class with `optctl pin` the way
-//! `run_cell` does: observing whether the classifier reaches the expected class
-//! under real load is part of the evidence. A mismatch is recorded as a
-//! `class_mismatch:<observed>` anomaly on that phase's records, never as a hard
-//! error. A baseline arm has no `optid` at all, so `class_observed` is
-//! `unmeasured` with an `optid_absent` anomaly.
+//! `run_cell` does for three of its four load-producing phases: observing
+//! whether the classifier reaches the expected class under real load is part
+//! of the evidence. A mismatch is recorded as a `class_mismatch:<observed>`
+//! anomaly on that phase's records, never as a hard error. A baseline arm has
+//! no `optid` at all, so `class_observed` is `unmeasured` with an
+//! `optid_absent` anomaly.
+//!
+//! **Phase 4 is the one exception, and it is asserted, not observed.**
+//! `policy.rs`'s `LatencyCritical` branch requires `on_ac == Some(true)`, and
+//! Criterion 3 requires the full cycle to run on battery — the class is
+//! unreachable there by construction, independent of what `glmark2` does (see
+//! `docs/inbox/2026-08-22-phase-d-latency-critical-blocked.md`, decision A).
+//! Phase 4's driver is therefore wrapped with `gamemoderun` — the same
+//! `com.feralinteractive.GameMode` D-Bus path Steam and Lutris already use in
+//! production, already implemented and tested in
+//! `crates/optid/src/shim/gamemode.rs` — so the class comes from a real
+//! `RegisterGame` call against the actual `glmark2` process, not a policy
+//! change or a synthetic override. If `gamemoderun` is absent, this phase
+//! silently reverts to observation and the pre-existing `class_mismatch`
+//! anomaly applies; if it is present and the class still fails to land, that
+//! is recorded as `class_pin_ineffective:<observed>` instead, because it now
+//! means the assertion path itself is broken, not that inference failed.
 //!
 //! ## Sample units
 //!
@@ -174,6 +191,10 @@ pub struct DriverOutcome {
     pub work_units: Option<u64>,
     /// Reasons a metric could not be produced on this host.
     pub unsupported: Vec<String>,
+    /// `true` when this phase's driver was wrapped with `gamemoderun`, i.e.
+    /// its class is asserted via `RegisterGame` rather than left for the
+    /// classifier to infer. Only ever set for `Driver::LatencyCritical`.
+    pub pinned_via_gamemode: bool,
 }
 
 /// A running driver plus everything needed to stop it and harvest its output.
@@ -184,6 +205,7 @@ struct RunningDriver {
     mangohud_dir: Option<PathBuf>,
     ninja_dir: Option<PathBuf>,
     unsupported: Vec<String>,
+    pinned_via_gamemode: bool,
 }
 
 /// Is the binary on `PATH`?
@@ -391,6 +413,7 @@ fn start_driver(
             mangohud_dir: None,
             ninja_dir: None,
             unsupported,
+            pinned_via_gamemode: false,
         }),
 
         Driver::Interactive => {
@@ -408,6 +431,7 @@ fn start_driver(
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
+                    pinned_via_gamemode: false,
                 });
             };
             if !unsupported.is_empty() {
@@ -417,6 +441,7 @@ fn start_driver(
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
+                    pinned_via_gamemode: false,
                 });
             }
             let profile = work_root.join("firefox-profile");
@@ -436,6 +461,7 @@ fn start_driver(
                 mangohud_dir: None,
                 ninja_dir: None,
                 unsupported,
+                pinned_via_gamemode: false,
             })
         }
 
@@ -453,6 +479,7 @@ fn start_driver(
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
+                    pinned_via_gamemode: false,
                 });
             }
             let dir = work_root.join("throughput-project");
@@ -482,6 +509,7 @@ fn start_driver(
                 mangohud_dir: None,
                 ninja_dir: Some(dir),
                 unsupported,
+                pinned_via_gamemode: false,
             })
         }
 
@@ -512,26 +540,48 @@ fn start_driver(
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
+                    pinned_via_gamemode: false,
                 });
+            }
+            // Phase 4's class cannot be inferred on battery — `policy.rs`'s
+            // `LatencyCritical` branch requires `on_ac == Some(true)`, which
+            // Criterion 3 (battery) makes unreachable by construction. Wrap
+            // the driver with `gamemoderun` so it registers with optid's
+            // `com.feralinteractive.GameMode` shim — the same path Steam and
+            // Lutris use — asserting the class instead of relying on the
+            // classifier to infer it. See
+            // docs/inbox/2026-08-22-phase-d-latency-critical-blocked.md
+            // (decision A).
+            let pinned = have("gamemoderun");
+            if !pinned {
+                unsupported.push(
+                    "gamemoderun not installed: phase 4's class is asserted via the GameMode \
+                     shim in production; without it this phase falls back to observing the \
+                     classifier, which cannot reach latency-critical on battery"
+                        .to_string(),
+                );
             }
             let log_dir = work_root.join("mangohud");
             let _ = fs::remove_dir_all(&log_dir);
             fs::create_dir_all(&log_dir).map_err(|e| format!("mangohud log dir: {e}"))?;
             let seconds = phase.duration.as_secs();
-            let mut command = if instrumented {
-                let mut c = Command::new("mangohud");
-                c.arg("glmark2");
-                c.env(
+            let (program, chain): (&str, &[&str]) = match (pinned, instrumented) {
+                (true, true) => ("gamemoderun", &["mangohud", "glmark2"]),
+                (true, false) => ("gamemoderun", &["glmark2"]),
+                (false, true) => ("mangohud", &["glmark2"]),
+                (false, false) => ("glmark2", &[]),
+            };
+            let mut command = Command::new(program);
+            command.args(chain);
+            if instrumented {
+                command.env(
                     "MANGOHUD_CONFIG",
                     format!(
                         "autostart_log=1,log_duration={seconds},output_folder={},no_display=1",
                         log_dir.display()
                     ),
                 );
-                c
-            } else {
-                Command::new("glmark2")
-            };
+            }
             command
                 .arg("--run-forever")
                 .arg("--fullscreen")
@@ -544,6 +594,7 @@ fn start_driver(
                 mangohud_dir: if instrumented { Some(log_dir) } else { None },
                 ninja_dir: None,
                 unsupported,
+                pinned_via_gamemode: pinned,
             })
         }
     }
@@ -552,7 +603,10 @@ fn start_driver(
 fn stop_driver(driver: Driver, mut running: RunningDriver) -> DriverOutcome {
     // `start_driver` already reported its own unsupported reasons; this only
     // adds what the harvest itself discovers.
-    let mut outcome = DriverOutcome::default();
+    let mut outcome = DriverOutcome {
+        pinned_via_gamemode: running.pinned_via_gamemode,
+        ..DriverOutcome::default()
+    };
 
     let mut ninja_stdout = String::new();
     if let Some(mut child) = running.child.take() {
@@ -658,6 +712,28 @@ fn observe_class() -> Option<String> {
     let json = get_optctl_status_json().ok()?;
     let status = parse_optctl_status(&json).ok()?;
     Some(status.workload_class)
+}
+
+/// The anomaly (if any) to record for one phase's observed class.
+///
+/// Three of the four load-producing phases leave the class to the classifier;
+/// a disagreement there is `class_mismatch` — evidence the classifier didn't
+/// infer what was expected, never a hard error. Phase 4 is asserted via
+/// `gamemoderun`'s `RegisterGame` call instead (see the module docs), so a
+/// disagreement there means the *assertion* failed — a different, more
+/// serious anomaly — and agreement is itself worth recording, since it was
+/// not inferred.
+fn class_observation_anomaly(
+    observed: &str,
+    expected_class: &str,
+    pinned_via_gamemode: bool,
+) -> Option<String> {
+    match (observed == expected_class, pinned_via_gamemode) {
+        (true, true) => Some("class_pinned_via_gamemode".to_string()),
+        (true, false) => None,
+        (false, true) => Some(format!("class_pin_ineffective:{observed}")),
+        (false, false) => Some(format!("class_mismatch:{observed}")),
+    }
 }
 
 fn optid_version() -> String {
@@ -978,8 +1054,12 @@ pub fn run_preset(
             match observe_class() {
                 Some(observed) => {
                     acc.classes_observed.push(observed.clone());
-                    if observed != phase.expected_class {
-                        acc.note(format!("class_mismatch:{observed}"));
+                    if let Some(anomaly) = class_observation_anomaly(
+                        &observed,
+                        phase.expected_class,
+                        outcome.pinned_via_gamemode,
+                    ) {
+                        acc.note(anomaly);
                     }
                     say(format!("  class_observed={observed}"), &mut transcript);
                 }
@@ -1219,6 +1299,38 @@ mod tests {
                 "no phase drives {class}"
             );
         }
+    }
+
+    #[test]
+    fn unpinned_matching_class_has_no_anomaly() {
+        assert_eq!(
+            class_observation_anomaly("interactive", "interactive", false),
+            None
+        );
+    }
+
+    #[test]
+    fn unpinned_mismatch_is_class_mismatch() {
+        assert_eq!(
+            class_observation_anomaly("light", "latency-critical", false),
+            Some("class_mismatch:light".to_string())
+        );
+    }
+
+    #[test]
+    fn pinned_matching_class_is_recorded_as_pinned() {
+        assert_eq!(
+            class_observation_anomaly("latency-critical", "latency-critical", true),
+            Some("class_pinned_via_gamemode".to_string())
+        );
+    }
+
+    #[test]
+    fn pinned_mismatch_is_pin_ineffective_not_class_mismatch() {
+        assert_eq!(
+            class_observation_anomaly("light", "latency-critical", true),
+            Some("class_pin_ineffective:light".to_string())
+        );
     }
 
     #[test]
