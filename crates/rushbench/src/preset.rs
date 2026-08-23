@@ -838,6 +838,58 @@ pub fn run_preset(
         );
     }
 
+    // A battery counter pinned at full charge reports nothing for the first
+    // minutes of a run, so the first cycle measured no energy at all and the
+    // step that followed landed on a later window as an impossible 188 W. Wait
+    // for the counter to actually move before starting cycle 1.
+    if on_ac != Some(true) {
+        let warmup_limit = Duration::from_secs(
+            std::env::var("RUSHBENCH_COUNTER_WARMUP_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(300),
+        );
+        match energy_source.sample() {
+            Ok(first) => {
+                let started = Instant::now();
+                let mut moved = false;
+                while started.elapsed() < warmup_limit {
+                    std::thread::sleep(Duration::from_secs(5));
+                    match energy_source.sample() {
+                        Ok(now) if now.joules != first.joules => {
+                            moved = true;
+                            break;
+                        }
+                        Ok(_) => {}
+                        Err(_) => break,
+                    }
+                }
+                if moved {
+                    say(
+                        format!(
+                            "energy counter moved after {:.0} s; starting cycles",
+                            started.elapsed().as_secs_f64()
+                        ),
+                        &mut transcript,
+                    );
+                } else {
+                    say(
+                        format!(
+                            "WARNING: energy counter did not move in {:.0} s; energy windows \
+                             may be rejected",
+                            warmup_limit.as_secs_f64()
+                        ),
+                        &mut transcript,
+                    );
+                }
+            }
+            Err(error) => say(
+                format!("WARNING: could not sample the energy counter: {error}"),
+                &mut transcript,
+            ),
+        }
+    }
+
     let mut accumulators: Vec<PhaseAccumulator> =
         phases.iter().map(|_| PhaseAccumulator::new()).collect();
 

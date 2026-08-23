@@ -1,0 +1,89 @@
+correlation_id=optid-000000006a89e4e4-0000000000000033
+restore_outcomes=none
+circuit_state=global_open=false open_domains=cgroup_reweight,cpu_dma_latency,platform_profile,runtime_pm records=20
+timestamp=1787422043
+mode=battery
+on_ac=Some(false)
+battery_pct=Some(92)
+thermal_c=Some(35.0)
+thermal_state=Cool
+thermal_derating_ratio=0.00
+thermal_die_sensor=hwmon:coretemp.0:coretemp:Package id 0
+thermal_die_temp_c=35.0
+thermal_skin_sensor=none
+thermal_skin_temp_c=none
+thermal_max_fan_rpm=2700
+thermal_reasons:
+- selected die signal hwmon:coretemp.0:coretemp:Package id 0 (package) at 35.0°C
+- clamped thermal_hi to 90.0°C based on hardware T_crit 100.0°C - 10°C
+- effective thresholds: lo=60.0°C hi=90.0°C
+- die temp 35.0°C <= lo threshold 60.0°C; state = cool (sensor=hwmon:coretemp.0:coretemp:Package id 0)
+thermal_sensor_count=31
+fan_sensor_count=2
+loadavg_1=Some(0.78)
+cpu_pressure=avg10=0.00 avg60=0.00 avg300=0.00 total=129153995
+memory_pressure=avg10=0.00 avg60=0.00 avg300=0.00 total=1028755
+io_pressure=avg10=0.31 avg60=0.35 avg300=0.16 total=34332060
+workload_class=idle
+workload_reason=pinned override (global)
+cpu_wakeup_latency=100000
+device_resume_latency=1000000
+reasons:
+- system is on battery
+actions:
+- cpu.epp=power (prefer battery life through CPU energy preference)
+- platform.profile=low-power (request low-power platform profile)
+- systemd.set-property background.slice CPUWeight=25 IOWeight=25 (deprioritize background services on battery)
+- vm.sysctl /proc/sys/vm/swappiness=60 (adjust swappiness for current mode)
+- vm.sysctl /proc/sys/vm/dirty_background_bytes=67108864 (adjust dirty background bytes for current mode)
+- vm.sysctl /proc/sys/vm/dirty_bytes=134217728 (adjust dirty bytes for current mode)
+- cpu_dma_latency=100000 (class=idle, floor=100000us, row=contracts.idle)
+- runtime_pm /sys/bus/pci/devices/0000:00:17.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:08.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1f.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:04.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:14.3 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:16.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:01:00.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1b.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1f.5 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:07:00.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1e.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1f.3 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:00.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1d.4 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:15.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1d.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1e.3 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:14.2 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:02.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1e.1 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:14.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:1f.4 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/pci/devices/0000:00:0a.0 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/usb/devices/1-14 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/usb/devices/usb1 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/usb/devices/usb2 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- runtime_pm /sys/bus/usb/devices/1-6 control=auto autosuspend_delay_ms=2000 (battery-idle runtime PM (class=idle, allowlist-gated))
+- pci_aspm /sys/bus/pci/devices/0000:01:00.0 l1_aspm=1 (battery-idle PCIe ASPM (class=idle, allowlist-gated))
+- pci_aspm /sys/bus/pci/devices/0000:07:00.0 l1_aspm=1 (battery-idle PCIe ASPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host7 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host5 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host3 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host1 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host6 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host4 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host2 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- sata_alpm /sys/class/scsi_host/host0 policy=med_power_with_dipm (battery-idle SATA ALPM (class=idle, allowlist-gated))
+- backlight /sys/class/backlight/intel_backlight target=40% (battery-idle backlight floor (class=idle, allowlist-gated))
+effective_config:
+domains.cpu_epp=actuate
+domains.platform_profile=actuate
+domains.vm_sysctl=actuate
+domains.cpu_dma_latency=actuate
+domains.device_resume_latency=actuate
+domains.runtime_pm=actuate
+domains.pci_aspm=actuate
+domains.sata_alpm=actuate
+domains.backlight=actuate
+domains.cgroup_reweight=actuate

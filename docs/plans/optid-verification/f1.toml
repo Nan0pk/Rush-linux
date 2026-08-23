@@ -60,7 +60,7 @@ implementation_pr = 332
 # returns 0 (the prior verified commit is an ancestor), confirming the F1
 # production surface added in PR #369 is still present and now exercised
 # through the F4-cutover main.rs.
-verified_commit = "99204930d5677aa19cf64794852fd45034a4c9ee"
+verified_commit = "6bace508735c6758fc30bc9ac1918556060ba5f8"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 
