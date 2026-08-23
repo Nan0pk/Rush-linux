@@ -9,7 +9,20 @@ schema_version = 1
 package = "S3D"
 implementation_pr = 388
 verification_pr = 389
-verified_commit = "c616f3079792dd72249bd65053bce258c8531bec"
+# PR #426 builder recertification. Commit 0d7ae31319a1 extracted
+# is_unset_placeholder/assigns_a_value out of crates/optid/src/recovery.rs (a
+# declared S3D proof path) into a new shared systemd_placeholder.rs, included
+# by #[path] instead of hand-duplicated with the daemon's own copy in
+# reconciler/mod.rs; recovery.rs's own recovery logic and its test assertions
+# are unchanged. All twelve mapped S3D acceptance tests (six in-crate via
+# optid-recover's recovery::tests, two in-crate via optid's
+# reconciler::tests, two in tests/s3d_systemd.rs, two in
+# tests/recovery_cli.rs) were re-run individually with `--exact` against
+# 0d7ae31319a1 and passed. This is a builder re-run of the mapped contract
+# only -- no independent cold verification was performed for it, and the
+# `verifier`, `verified_at`, and workflow fields below still describe the
+# original independent job at c616f3079792.
+verified_commit = "0d7ae31319a1384483131cf6441626df2854d3c8"
 systemd_verified_commit = "88c9b38a5c24477495f61d3226998e9d8834def8"
 implementation_head = "32bdd7143862ad326ddc56d07076136cd5d5857a"
 integrated_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"

@@ -15,7 +15,17 @@ verification_pr = 388
 # mapped contract only -- no independent cold verification was performed for it,
 # and the `verifier`, `workflow_run`, and `workflow_attempt` fields below still
 # describe the original independent job at 99204930d567.
-verified_commit = "5c3dfb27373cf5750d0e01720cf345df0ddb09b5"
+#
+# PR #426 builder recertification. Commit 0d7ae31319a1 extracted
+# is_unset_placeholder/assigns_a_value out of crates/optid/src/reconciler/mod.rs
+# (a declared F4 proof path) into a new shared systemd_placeholder.rs, included
+# by #[path] instead of hand-duplicated; the call sites and behavior are
+# unchanged. All ten mapped F4 acceptance tests were re-run individually with
+# `--exact` against 0d7ae31319a1 and passed. This is a builder re-run of the
+# mapped contract only -- no independent cold verification was performed for
+# it, and the `verifier`, `workflow_run`, and `workflow_attempt` fields below
+# still describe the original independent job at 99204930d567.
+verified_commit = "0d7ae31319a1384483131cf6441626df2854d3c8"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668
