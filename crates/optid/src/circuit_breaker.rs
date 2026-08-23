@@ -33,7 +33,12 @@ const MAX_FAILURE_THRESHOLD: u32 = 10;
 const MIN_COOLDOWN_SECS: u64 = 30;
 const MAX_COOLDOWN_SECS: u64 = 86_400;
 const PRODUCTION_STATE_DIR: &str = "/run/optid";
-const PERSISTENT_CIRCUIT_FILE: &str = "/var/lib/optid/circuits-v1.json";
+/// Where the daemon persists circuit state. `dbus.rs` reads this same path to
+/// answer `optctl circuits` — a circuit that opens is otherwise invisible
+/// (same startup banner, same seal line, clean cycles) except in the
+/// per-target `detail` field of `control-cycles.jsonl`, which is how two
+/// silent no-op runs went unnoticed during the 2026-08-22 enforce run.
+pub(crate) const PERSISTENT_CIRCUIT_FILE: &str = "/var/lib/optid/circuits-v1.json";
 /// Where this file used to live. `/var/lib/optid/recovery/` holds pending
 /// rollback records, and the recovery scan requires every JSON file there to
 /// deserialize as one. Keeping circuit state in that directory meant the daemon
@@ -1086,6 +1091,68 @@ where
     Ok((request, remaining))
 }
 
+/// Render the daemon's persisted circuit state (the JSON at
+/// [`PERSISTENT_CIRCUIT_FILE`]) as a human-readable report, for `optctl
+/// circuits` and the `Circuits` D-Bus method. A pure function over already-read
+/// bytes so it is testable with fixtures instead of a live daemon.
+///
+/// Every failure class this covers ("everything looks clean, nothing
+/// happened") is silent by design elsewhere — this is the one place meant to
+/// answer, without grepping `control-cycles.jsonl`, whether a circuit is why.
+pub(crate) fn render_persisted_circuits(json: &str) -> Result<String, String> {
+    let state: PersistedCircuitState =
+        serde_json::from_str(json).map_err(|error| format!("malformed circuit state: {error}"))?;
+
+    let mut out = String::new();
+    match &state.global {
+        Some(global) => {
+            out.push_str(&format!(
+                "GLOBAL CIRCUIT OPEN since unix={} — {}\n\
+                 This suppresses every domain and does not auto-close.\n\
+                 Clear with: optid --clear-all-circuits\n",
+                global.opened_at, global.reason
+            ));
+        }
+        None => out.push_str("global circuit: closed\n"),
+    }
+
+    let open: Vec<&CircuitRecord> = state
+        .records
+        .values()
+        .filter(|record| record.open)
+        .collect();
+    if open.is_empty() {
+        out.push_str("no per-domain circuits open\n");
+    } else {
+        out.push_str(&format!("{} per-domain circuit(s) open:\n", open.len()));
+        for record in open {
+            out.push_str(&format!(
+                "  {}|{}|{} (hw={} fw={}): {} failures ({}), opened unix={}, cooldown until unix={}, \
+                 recovery_verified={}, canary_in_flight={}, last: {}\n",
+                record.scope.domain,
+                record.scope.operation,
+                record.scope.target_id,
+                record.scope.hardware_id,
+                record.scope.firmware_id,
+                record.consecutive_failures,
+                record.failure_class.as_str(),
+                record.opened_at,
+                record.cooldown_until,
+                record.recovery_verified,
+                record.canary_in_flight,
+                record.last_reason,
+            ));
+        }
+    }
+
+    let closed_count = state.records.len() - state.records.values().filter(|r| r.open).count();
+    out.push_str(&format!(
+        "{} record(s) total, {closed_count} closed/historical\n",
+        state.records.len()
+    ));
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1558,5 +1625,71 @@ mod tests {
         migrate_out_of_recovery_dir(&unrelated);
         assert!(!unrelated.exists());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn a_record(open: bool) -> CircuitRecord {
+        CircuitRecord {
+            scope: CircuitScope {
+                domain: "cgroup_reweight".to_string(),
+                operation: "systemd_set_property".to_string(),
+                target_id: "user.slice:CPUWeight".to_string(),
+                hardware_id: "generic".to_string(),
+                firmware_id: "abc123".to_string(),
+            },
+            failure_class: FailureClass::Restore,
+            consecutive_failures: 3,
+            open,
+            opened_at: 1_700_000_000,
+            cooldown_until: 1_700_000_300,
+            recovery_verified: false,
+            canary_in_flight: false,
+            last_failure_at: 1_700_000_050,
+            last_reason: "StaleGeneration".to_string(),
+        }
+    }
+
+    #[test]
+    fn render_persisted_circuits_reports_closed_when_nothing_is_open() {
+        let state = PersistedCircuitState::default();
+        let json = serde_json::to_string(&state).expect("serialize fixture");
+        let report = render_persisted_circuits(&json).expect("render");
+        assert!(report.contains("global circuit: closed"));
+        assert!(report.contains("no per-domain circuits open"));
+    }
+
+    #[test]
+    fn render_persisted_circuits_reports_the_global_circuit() {
+        let state = PersistedCircuitState {
+            global: Some(GlobalCircuit {
+                opened_at: 1_700_000_000,
+                reason: "corrupted shared reconciliation state".to_string(),
+            }),
+            ..PersistedCircuitState::default()
+        };
+        let json = serde_json::to_string(&state).expect("serialize fixture");
+        let report = render_persisted_circuits(&json).expect("render");
+        assert!(report.contains("GLOBAL CIRCUIT OPEN"));
+        assert!(report.contains("corrupted shared reconciliation state"));
+        assert!(report.contains("optid --clear-all-circuits"));
+    }
+
+    #[test]
+    fn render_persisted_circuits_lists_open_records_and_counts_closed_ones() {
+        let mut state = PersistedCircuitState::default();
+        state.records.insert("open-one".to_string(), a_record(true));
+        state
+            .records
+            .insert("closed-one".to_string(), a_record(false));
+        let json = serde_json::to_string(&state).expect("serialize fixture");
+        let report = render_persisted_circuits(&json).expect("render");
+        assert!(report.contains("1 per-domain circuit(s) open"));
+        assert!(report.contains("user.slice:CPUWeight"));
+        assert!(report.contains("StaleGeneration"));
+        assert!(report.contains("2 record(s) total, 1 closed/historical"));
+    }
+
+    #[test]
+    fn render_persisted_circuits_rejects_malformed_json() {
+        assert!(render_persisted_circuits("not json").is_err());
     }
 }
