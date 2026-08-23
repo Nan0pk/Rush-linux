@@ -736,6 +736,44 @@ fn class_observation_anomaly(
     }
 }
 
+/// `optctl status --json`'s `boot.policy_load_state`, or `None` when no
+/// daemon answers (expected for the baseline arm, which has no daemon at
+/// all) or the field is absent (older schema).
+fn observe_policy_load_state() -> Option<String> {
+    let json = get_optctl_status_json().ok()?;
+    let status = parse_optctl_status(&json).ok()?;
+    status.policy_load_state
+}
+
+/// The refusal message for a daemon that did not load its configured policy,
+/// or `None` when `policy_load_state` is `"ok"` (loaded cleanly) or absent
+/// (no daemon answered -- expected for the baseline arm, which has none).
+/// A pure function so the decision is testable without mocking `optctl`.
+fn policy_load_failure(policy_load_state: Option<&str>) -> Option<String> {
+    match policy_load_state {
+        Some("ok") | None => None,
+        Some(other) => Some(format!(
+            "optid's policy failed to load (boot.policy_load_state={other}) -- it is running \
+             on its curated baseline, not the policy this run intended. Refusing to capture: \
+             check the daemon's --config path and `optctl explain` before retrying."
+        )),
+    }
+}
+
+/// Refuse to start the run if a live daemon answers but did not load the
+/// policy it was configured with. A capture that silently ran against the
+/// curated baseline instead of the intended policy previously produced
+/// results indistinguishable from a valid capture -- see
+/// `docs/inbox/2026-08-22-phase-d-latency-critical-blocked.md` and the
+/// 2026-08-23-victus capture, which had to be discarded for this reason
+/// after the fact instead of before spending the battery cycle.
+fn refuse_if_policy_failed_to_load() -> Result<(), String> {
+    match policy_load_failure(observe_policy_load_state().as_deref()) {
+        None => Ok(()),
+        Some(message) => Err(message),
+    }
+}
+
 fn optid_version() -> String {
     let candidates = [
         std::env::var("RUSHBENCH_OPTID_BIN").unwrap_or_default(),
@@ -965,6 +1003,8 @@ pub fn run_preset(
             ),
         }
     }
+
+    refuse_if_policy_failed_to_load()?;
 
     let mut accumulators: Vec<PhaseAccumulator> =
         phases.iter().map(|_| PhaseAccumulator::new()).collect();
@@ -1331,6 +1371,27 @@ mod tests {
             class_observation_anomaly("light", "latency-critical", true),
             Some("class_pin_ineffective:light".to_string())
         );
+    }
+
+    #[test]
+    fn policy_load_failure_is_none_when_the_policy_loaded_cleanly() {
+        assert_eq!(policy_load_failure(Some("ok")), None);
+    }
+
+    #[test]
+    fn policy_load_failure_is_none_when_no_daemon_answered() {
+        // Expected for the baseline arm, which has no daemon at all.
+        assert_eq!(policy_load_failure(None), None);
+    }
+
+    #[test]
+    fn policy_load_failure_flags_a_silent_fallback_to_the_curated_baseline() {
+        for state in ["defaulted", "partial", "invalid"] {
+            let message = policy_load_failure(Some(state))
+                .unwrap_or_else(|| panic!("expected a refusal for policy_load_state={state}"));
+            assert!(message.contains(state), "{message}");
+            assert!(message.contains("curated baseline"), "{message}");
+        }
     }
 
     #[test]
