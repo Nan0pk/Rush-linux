@@ -446,7 +446,7 @@ lane = "contracts"
 title = "Model contracts with measured latency and provenance"
 status = "candidate"
 depends = ["F1", "F3"]
-pr = ""
+pr = "431"
 # Builder result awaiting independent cold verification. Not self-certified.
 #
 # What landed: `crates/optid/src/latency.rs` defines `LatencyEstimate`
