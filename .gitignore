@@ -1,5 +1,11 @@
-# Rust build artifacts
-/target/
+# Rust build artifacts.
+# Unanchored so nested target/ directories are covered too: crates that are
+# excluded from the workspace (see the `exclude` list in the root Cargo.toml)
+# build into their own crates/<name>/target/, which a leading-slash rule misses.
+target/
+# Lockfiles generated under workspace-excluded crates. The root /Cargo.lock
+# stays tracked; only excluded crates resolve their own.
+/crates/*/Cargo.lock
 
 # Python
 __pycache__/
