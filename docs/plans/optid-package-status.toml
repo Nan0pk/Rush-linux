@@ -444,10 +444,90 @@ clear_cli_is_one_shot = "s5d_clear_commands_are_one_shot_and_mutually_exclusive"
 id = "C1"
 lane = "contracts"
 title = "Model contracts with measured latency and provenance"
-status = "next"
+status = "candidate"
 depends = ["F1", "F3"]
 pr = ""
-completion_evidence = []
+# Builder result awaiting independent cold verification. Not self-certified.
+#
+# What landed: `crates/optid/src/latency.rs` defines `LatencyEstimate`
+# (value_us, source, confidence, measured_at, hardware_id, firmware_id) and a
+# first-class `LatencyResolution::Unknown`. `contracts.rs` adds `ContractBook`
+# (per-class floors plus per-cgroup overrides, composed strictest-wins),
+# `ContractsMode` (`[contracts] mode = "observe|enforce"`, default enforce),
+# and the pure `ContractEvaluator`. The actuator's runtime-PM contract gate
+# previously read `let evidence: Option<&ExitLatencyEvidence> = None;` with a
+# `_c1_api_surface` tuple that existed only to keep constructors from being
+# dead code — every runtime-PM action was therefore denied unconditionally.
+# That placeholder is replaced by a real allowlist-backed resolution, and the
+# superseded `ExitLatencyEvidence`/`ExitLatencyProvenance`/
+# `contract_gate_runtime_pm` scaffolding is removed rather than left beside
+# its replacement.
+#
+# Evidence source in v1 (the completion plan's "Recommended v1"): a hardware
+# allowlist entry carrying `exit_latency_us`, keyed by HWID and optionally
+# pinned by `firmware_id`. Unverified entries are not evidence, so the latency
+# gate cannot route around the `verified = false` rule (0006 §4).
+#
+# Known gaps for the cold verifier — none of these are claimed as done:
+# (1) No seeded entry carries `exit_latency_us`. Reading `PCI_EXP_LNKCAP` and
+#     the NVMe `EXLAT` descriptor is deferred pending reference hardware
+#     (docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md §3), and inventing
+#     values would violate AGENTS.md §1. In production every device therefore
+#     still resolves Unknown and is denied — the same outcome as before C1,
+#     now for a traceable reason and through a path an administrator can
+#     populate with an override entry.
+# (2) Firmware-revision reading is not wired, so a firmware-pinned entry reads
+#     as a stale cache and denies. Fail-safe, but it means the `High`
+#     confidence path is unreachable in production until revision parsing
+#     lands (research 0008 §3 short-term list).
+# (3) Per-cgroup overrides are parsed, composed, and consumed through
+#     `ContractBook::effective_floors` on the daemon path, but cgroup scope
+#     discovery is package O2, so the active-scope list is empty today and
+#     composition reduces to the class row.
+runtime_entrypoints = [
+  "crates/optid/src/main.rs",
+  "crates/optid/src/actuator.rs",
+  "crates/optid/src/contracts.rs",
+  "crates/optid/src/latency.rs",
+  "crates/optid/src/allowlist.rs",
+]
+# Binary-crate exception (same as F1): `optid` is a `[[bin]]`-only crate, so
+# production paths are `pub(crate)` and cannot be reached from `tests/`.
+# The C1 behavioral tests live in-crate; the mapping below names the real
+# `#[test] fn` definitions.
+integration_tests = [
+  "crates/optid/src/tests_impl.rs",
+  "crates/optid/src/contracts.rs",
+  "crates/optid/src/latency.rs",
+]
+completion_evidence = [
+  "crates/optid/src/latency.rs",
+  "crates/optid/src/contracts.rs",
+  "crates/optid/src/actuator.rs",
+]
+[package.acceptance_tests]
+max_composition = "c1_compose_max_takes_the_slowest_component"
+composition_keeps_weakest_confidence = "c1_compose_max_keeps_the_weakest_confidence"
+unknown_component_poisons_composition = "c1_compose_max_is_unknown_if_any_component_is_unknown"
+empty_composition_is_unknown = "c1_compose_max_of_nothing_is_unknown"
+stale_firmware_cache = "c1_stale_firmware_cache_invalidates_the_estimate"
+unreadable_firmware_invalidates_pin = "c1_unreadable_firmware_invalidates_a_pinned_estimate"
+per_cgroup_override = "c1_contract_book_parses_per_cgroup_overrides"
+inactive_scope_does_not_apply = "c1_inactive_scope_override_does_not_apply"
+multiple_active_contracts = "c1_multiple_active_contracts_compose_to_the_strictest"
+override_cannot_relax_the_floor = "c1_a_looser_override_cannot_relax_the_class_floor"
+contracts_mode_defaults_to_enforce = "c1_contracts_mode_defaults_to_enforce_and_parses_observe"
+observe_never_relaxes_a_real_write = "c1_observe_mode_reports_but_never_relaxes_a_real_write"
+boundary_equality = "c1_boundary_equality_permits_exactly_at_the_floor"
+denial_reason_strings = "c1_denial_reason_names_the_provenance_and_the_floor"
+unknown_reason_rejects_lookalikes = "c1_unknown_denial_reason_rejects_the_two_lookalike_values"
+tightening_never_authorizes_deeper = "c1_property_tightening_a_floor_never_authorizes_a_deeper_state"
+unknown_denies_at_every_floor = "c1_property_unknown_is_denied_at_every_floor"
+production_pipeline_permits_on_evidence = "c1_production_runtime_pm_permits_on_verified_allowlist_latency"
+production_pipeline_denies_above_floor = "c1_production_runtime_pm_denies_when_evidence_exceeds_floor"
+production_unverified_entry_is_not_evidence = "c1_production_unverified_entry_latency_is_not_evidence"
+production_firmware_pin_denies_until_readable = "c1_production_firmware_pinned_entry_denies_until_revision_is_readable"
+production_entry_without_latency_denies = "c1_production_entry_without_latency_still_denies"
 
 [[package]]
 id = "E1"

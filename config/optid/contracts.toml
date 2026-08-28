@@ -2,18 +2,37 @@
 #
 # Latency-budget contracts for the workload classes defined in SPEC §1.
 #
-# ENFORCEMENT STATUS (as of 2026-07-20, FINAL-AUDIT-REPORT.md section 4.2):
+# ENFORCEMENT STATUS (updated by package C1):
 # - CPU-side latency floor (/dev/cpu_dma_latency): ENFORCED by actuator.rs
-#   via write_cpu_latency() at actuator.rs:52.
+#   via write_cpu_latency().
 # - Device-side latency floor (per-device power/qos/resume_latency_us):
-#   WRITTEN by actuator.rs via write_device_latency() at actuator.rs:74,
-#   but the fits_contract() gate (contracts.rs:190) that would decide
-#   whether a depth-enabler may fire is currently dead code with zero
-#   call sites. The depth-enablers (WP-N5/N6: runtime PM autosuspend,
-#   NVMe APST, PCIe ASPM, SATA ALPM) are not implemented yet.
+#   ENFORCED. The contract gate is live on both depth-enabler paths:
+#   `DeviceResumeLatency` compares the requested QoS ceiling against the
+#   floor, and `RuntimePm` compares the device's resolved exit latency
+#   against it. C1 replaced the earlier hardcoded "no evidence" placeholder
+#   with a real lookup; see crates/optid/src/latency.rs.
 # - Values are PROVISIONAL pending WP-B1 hardware validation against real
 #   hardware wakeup distributions.
 # Consumed by WP-N2 (PM QoS); see contracts.rs for the in-binary defaults.
+#
+# ── Gate mode (C1) ───────────────────────────────────────────────────────────
+# `mode = "enforce"` (the default) blocks a depth change that has no verified
+# exit-latency evidence or that exceeds the floor. `mode = "observe"` records
+# what enforcement would have blocked *without* blocking it, but only while no
+# real write is armed — once --apply is armed the gate enforces regardless, so
+# observe can never be used to disarm it. An unrecognised value means enforce.
+#
+# [contracts]
+# mode = "enforce"
+#
+# ── Per-cgroup overrides (C1) ────────────────────────────────────────────────
+# A scope may tighten — never loosen — the floors of the class in force. When
+# several active scopes name the same axis, the strictest value wins.
+# Scope discovery is package O2; until it lands no scope is active and these
+# rows are parsed but not selected.
+#
+# [contracts.cgroup."app.slice/game.scope"]
+# device_resume_latency = 400
 
 [contracts.idle]
 cpu_wakeup_latency = 100000        # 100ms (in microseconds)

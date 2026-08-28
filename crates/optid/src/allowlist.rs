@@ -28,6 +28,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
+use crate::latency::{LatencyConfidence, LatencyEstimate, LatencyResolution, LatencySource};
 use crate::load_state::LoadState;
 
 /// Action stored in a compiled-in seeded entry. Mirrors `EntryAction` but is a
@@ -48,6 +49,11 @@ pub(crate) struct SeededEntry {
     pub(crate) reason: &'static str,
     pub(crate) tested_on: &'static str,
     pub(crate) verified: bool,
+    /// C1: verified exit latency in microseconds, when this entry carries one.
+    pub(crate) exit_latency_us: Option<u64>,
+    /// C1: the firmware revision `exit_latency_us` was established against.
+    /// Empty means the value is not firmware-pinned.
+    pub(crate) firmware_id: &'static str,
 }
 
 // Pulls in `SEEDED_VERSION` and `SEEDED_ENTRIES` (see build.rs). Included inside
@@ -81,6 +87,17 @@ pub(crate) struct Entry {
     pub(crate) verified: bool,
     /// Where the winning definition came from (for `optctl list-allow`).
     pub(crate) source: String,
+    /// C1: verified exit latency in microseconds for this `(domain, hwid)`
+    /// pair. `None` means this entry proves nothing about exit latency, and
+    /// the C1 contract gate must treat the device's latency as unknown.
+    ///
+    /// This is exit latency, never `autosuspend_delay_ms` and never a
+    /// `pm_qos_resume_latency_us` constraint.
+    pub(crate) exit_latency_us: Option<u64>,
+    /// C1: the firmware revision `exit_latency_us` was established against.
+    /// `None` means the value is not pinned to a firmware revision, which
+    /// caps the estimate's confidence at `Medium`.
+    pub(crate) firmware_id: Option<String>,
 }
 
 impl Entry {
@@ -108,6 +125,58 @@ tested_on={tested_on:?} reason={reason:?}",
             tested_on = self.tested_on,
             reason = self.reason,
         )
+    }
+
+    /// C1: the exit-latency evidence this entry carries, if any.
+    ///
+    /// Returns [`LatencyResolution::Unknown`] — never a guess — when the
+    /// entry records no latency, when the entry is not verified, or when the
+    /// pinned firmware revision does not match what the device reports.
+    /// Unknown denies depth actuation; that is the point of it.
+    ///
+    /// An unverified entry is deliberately not evidence. `verified = false`
+    /// already means "Rush may identify and explain this device, but
+    /// automatic writes are denied" (data/allowlist.toml schema, 0006 §4);
+    /// letting such an entry authorize a deeper state through the latency
+    /// gate would route around that rule.
+    pub(crate) fn latency_estimate(&self, observed_firmware_id: Option<&str>) -> LatencyResolution {
+        let Some(value_us) = self.exit_latency_us else {
+            return LatencyResolution::unknown(format!(
+                "allowlist entry for {domain} {hwid} records no exit latency",
+                domain = self.domain,
+                hwid = self.hwid,
+            ));
+        };
+        if value_us == 0 {
+            return LatencyResolution::unknown(format!(
+                "allowlist entry for {domain} {hwid} records exit_latency_us=0, which is not a \
+                 measurable exit latency",
+                domain = self.domain,
+                hwid = self.hwid,
+            ));
+        }
+        if !self.verified {
+            return LatencyResolution::unknown(format!(
+                "allowlist entry for {domain} {hwid} is unverified, so its exit latency is not \
+                 evidence",
+                domain = self.domain,
+                hwid = self.hwid,
+            ));
+        }
+        let confidence = if self.firmware_id.is_some() {
+            LatencyConfidence::High
+        } else {
+            LatencyConfidence::Medium
+        };
+        LatencyEstimate {
+            value_us,
+            source: LatencySource::AllowlistVerified,
+            confidence,
+            measured_at: None,
+            hardware_id: self.hwid.clone(),
+            firmware_id: self.firmware_id.clone(),
+        }
+        .revalidate(observed_firmware_id)
     }
 }
 
@@ -153,6 +222,13 @@ struct OverrideEntry {
     tested_on: String,
     #[serde(default)]
     verified: bool,
+    /// C1: verified exit latency in microseconds. Absent ⇒ unknown ⇒ the
+    /// contract gate denies depth actuation on this device.
+    #[serde(default)]
+    exit_latency_us: Option<u64>,
+    /// C1: the firmware revision `exit_latency_us` was established against.
+    #[serde(default)]
+    firmware_id: Option<String>,
 }
 
 fn default_action() -> String {
@@ -186,6 +262,12 @@ impl Allowlist {
                     tested_on: s.tested_on.to_string(),
                     verified: s.verified,
                     source: "seeded-baseline".to_string(),
+                    exit_latency_us: s.exit_latency_us,
+                    firmware_id: if s.firmware_id.is_empty() {
+                        None
+                    } else {
+                        Some(s.firmware_id.to_string())
+                    },
                 },
             );
         }
@@ -310,6 +392,8 @@ impl Allowlist {
                         tested_on: oe.tested_on,
                         verified: oe.verified,
                         source: source.clone(),
+                        exit_latency_us: oe.exit_latency_us,
+                        firmware_id: oe.firmware_id,
                     },
                 );
             }
