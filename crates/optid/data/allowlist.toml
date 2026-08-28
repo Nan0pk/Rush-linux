@@ -20,6 +20,20 @@
 #   tested_on  — the hardware/evidence this entry is attributable to.
 #   reason     — why this entry exists (surfaced by `optctl explain`).
 #   added_in   — optid version the entry was added in.
+#   exit_latency_us
+#              — optional (C1): the device's verified exit latency for this
+#                domain, in MICROSECONDS. This is exit latency only. It is
+#                never `autosuspend_delay_ms` (a policy timer) and never a
+#                `pm_qos_resume_latency_us` value (a constraint optid writes,
+#                not a measurement). Absent ⇒ the contract gate treats this
+#                device's latency as unknown and denies depth actuation.
+#                Only read from an entry with `verified = true`.
+#   firmware_id
+#              — optional (C1): the firmware revision `exit_latency_us` was
+#                established against. Pinning raises the estimate's confidence,
+#                but the value is only usable once optid can read the device's
+#                running revision; until then a pinned entry reads as a stale
+#                cache and is denied. Absent ⇒ not firmware-pinned.
 #   verified   — true once validated on real hardware per §4. False entries are
 #                candidates: Rush may identify and explain them, but automatic
 #                writes are denied with `entry_unverified`. An administrator can

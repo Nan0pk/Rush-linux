@@ -1256,6 +1256,172 @@ device_resume_latency = 100000
     // ── Defect 3: SPEC §3 contract gate in the actuator ─────────────────────
 
     /// Build an allowlisted synthetic runtime-PM device for contract tests.
+    /// C1 variant of `contract_rpm_device`: the admin allowlist entry also
+    /// carries exit-latency evidence, so the contract gate has something to
+    /// evaluate instead of failing closed on "unknown".
+    fn c1_rpm_device_with_latency(
+        temp: &Path,
+        name: &str,
+        modalias: &str,
+        entry_fields: &str,
+    ) -> PathBuf {
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let dev = temp.join(name);
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\n\
+                 reason=\"c1 production-path test\"\n{entry_fields}"
+            ),
+        )
+        .unwrap();
+        dev
+    }
+
+    fn c1_apply_runtime_pm(temp: &Path, dev: &Path, floor_us: i64) -> String {
+        let mut actuator =
+            Actuator::new_with_sink(temp.to_path_buf(), Box::new(MockPmqosSink::new()));
+        let admin_dir = temp.join("admin");
+        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.set_active_floors(crate::contracts::ContractFloors {
+            cpu_wakeup_latency: 1_000,
+            device_resume_latency: floor_us,
+        });
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.to_path_buf(),
+                autosuspend_delay_ms: 2_000,
+                reason: "c1 production path".to_string(),
+            })
+            .unwrap();
+        fs::read_to_string(temp.join("actions.log")).unwrap_or_default()
+    }
+
+    /// C1 production path: with verified exit-latency evidence on the
+    /// allowlist entry and a floor that accommodates it, the runtime-PM
+    /// contract gate permits. Before C1 this was unreachable — the gate
+    /// denied every runtime-PM action because the evidence was hardcoded
+    /// `None`.
+    #[test]
+    fn c1_production_runtime_pm_permits_on_verified_allowlist_latency() {
+        let temp = std::env::temp_dir().join(format!("optid_c1_permit_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0C01d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = c1_rpm_device_with_latency(
+            &temp,
+            "3-1",
+            modalias,
+            "verified=true\nexit_latency_us=500\n",
+        );
+
+        let log = c1_apply_runtime_pm(&temp, &dev, 10_000);
+        assert!(
+            !log.contains("contract gate BLOCKED"),
+            "verified 500us evidence under a 10000us floor must pass the gate: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// C1 production path: verified evidence that exceeds the floor is
+    /// denied, and the denial names the measured value and the floor.
+    #[test]
+    fn c1_production_runtime_pm_denies_when_evidence_exceeds_floor() {
+        let temp = std::env::temp_dir().join(format!("optid_c1_over_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0C02d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = c1_rpm_device_with_latency(
+            &temp,
+            "3-2",
+            modalias,
+            "verified=true\nexit_latency_us=50000\n",
+        );
+
+        let log = c1_apply_runtime_pm(&temp, &dev, 1_000);
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("50000us"),
+            "evidence above the floor must be denied and named: {log}"
+        );
+        assert!(
+            log.contains("floor=1000us"),
+            "denial must name the floor: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// C1 production path: an *unverified* entry's latency is not evidence.
+    /// `verified = false` already means automatic writes are denied; the
+    /// latency gate must not become a way around that.
+    #[test]
+    fn c1_production_unverified_entry_latency_is_not_evidence() {
+        let temp = std::env::temp_dir().join(format!("optid_c1_unver_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0C03d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = c1_rpm_device_with_latency(
+            &temp,
+            "3-3",
+            modalias,
+            "verified=false\nexit_latency_us=10\n",
+        );
+
+        let log = c1_apply_runtime_pm(&temp, &dev, 1_000_000);
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("unverified"),
+            "an unverified entry must not supply latency evidence: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// C1 production path: an entry that pins a firmware revision is a stale
+    /// cache until the daemon can read the device's revision, so it denies.
+    #[test]
+    fn c1_production_firmware_pinned_entry_denies_until_revision_is_readable() {
+        let temp = std::env::temp_dir().join(format!("optid_c1_fw_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0C04d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = c1_rpm_device_with_latency(
+            &temp,
+            "3-4",
+            modalias,
+            "verified=true\nexit_latency_us=100\nfirmware_id=\"1.2.0\"\n",
+        );
+
+        let log = c1_apply_runtime_pm(&temp, &dev, 1_000_000);
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("stale cache"),
+            "a firmware-pinned entry must not be trusted before the revision is read: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// C1 production path: an entry with no recorded latency leaves the
+    /// device unknown, which still denies. This is the default state of
+    /// every seeded entry today.
+    #[test]
+    fn c1_production_entry_without_latency_still_denies() {
+        let temp = std::env::temp_dir().join(format!("optid_c1_nolat_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let modalias = "usb:v046Dp0C05d0001dc00dsc00dp00ic03isc01ip01in00";
+        let dev = c1_rpm_device_with_latency(&temp, "3-5", modalias, "verified=true\n");
+
+        let log = c1_apply_runtime_pm(&temp, &dev, 1_000_000);
+        assert!(
+            log.contains("contract gate BLOCKED") && log.contains("records no exit latency"),
+            "an entry with no latency must resolve unknown and deny: {log}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     fn contract_rpm_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();

@@ -22,8 +22,8 @@ use crate::allowlist::{
 };
 use crate::capability::Capability;
 use crate::contracts::{
-    contract_gate_device_resume_constraint, contract_gate_runtime_pm, ContractFloors,
-    ContractGateResult, ExitLatencyEvidence,
+    contract_gate_device_resume_constraint, ContractEvaluator, ContractFloors, ContractGateResult,
+    ContractsMode,
 };
 use crate::envelope::{
     readback_from_result, sanitize_public_detail, ActionOutcome, ErrorKindCode, GateDisposition,
@@ -36,6 +36,7 @@ use crate::io_util::{
     mark_applied_with,
 };
 use crate::kernel_io::{KernelIo, KernelWrite, RealKernel};
+use crate::latency::LatencyResolution;
 use crate::load_state::BootState;
 use crate::sensors::discover_cpu_epp_paths_with;
 
@@ -178,6 +179,10 @@ pub(crate) struct Actuator {
     /// actuator behaves exactly as before. `main` calls
     /// `set_active_floors` every tick before applying the decision.
     pub(crate) active_floors: Option<ContractFloors>,
+    /// C1: whether the contract gate enforces or only reports. Defaults to
+    /// `Enforce`; `main` installs the mode parsed from `[contracts] mode`.
+    /// Observe mode only relaxes a denial when no real write is armed.
+    pub(crate) contracts_mode: ContractsMode,
     /// F2: injectable kernel I/O. Defaults to `RealKernel` for production
     /// and existing tests. New fault-injection tests construct the actuator
     /// via `new_with_kernel` and pass a `FaultKernel` to simulate missing
@@ -201,7 +206,8 @@ pub(crate) struct Actuator {
     /// phase6 transactional-apply tests, the N4/N5 allowlist tests) do
     /// so without being blocked by the post-#338 fail-closed contract
     /// gate (which denies depth-enablers when `active_floors` is `None`
-    /// and denies RuntimePm when C1 evidence is absent). The contract
+    /// and denies RuntimePm when no verified exit-latency evidence
+    /// resolves for the device). The contract
     /// gate itself is tested separately in the `test_contract_gate_*`
     /// tests. This field is `#[cfg(test)]` — it does NOT exist in
     /// production builds.
@@ -248,6 +254,7 @@ impl Actuator {
             allowlist: None,
             boot_state: None,
             active_floors: None,
+            contracts_mode: ContractsMode::Enforce,
             kernel,
             correlation_id: String::new(),
             capability_sealing_enforced: None,
@@ -276,6 +283,7 @@ impl Actuator {
             allowlist: None,
             boot_state: None,
             active_floors: None,
+            contracts_mode: ContractsMode::Enforce,
             kernel: Box::new(RealKernel::new()),
             correlation_id: String::new(),
             capability_sealing_enforced: None,
@@ -300,6 +308,52 @@ impl Actuator {
         self.active_floors = Some(floors);
     }
 
+    /// C1: install the contract-gate mode from `[contracts] mode`.
+    pub(crate) fn set_contracts_mode(&mut self, mode: ContractsMode) {
+        self.contracts_mode = mode;
+    }
+
+    /// C1: resolve a runtime-PM device's exit latency from the hardware
+    /// allowlist, the only evidence source wired in v1.
+    ///
+    /// Every path that cannot produce verified evidence returns
+    /// [`LatencyResolution::Unknown`] with the reason, and unknown denies.
+    /// That includes the case where the allowlist gate is switched off: with
+    /// no allowlist there is no entry, and with no entry there is nothing
+    /// that could have established a latency.
+    ///
+    /// The observed firmware revision is `None` until firmware-revision
+    /// parsing lands on the enumeration path (research 0008 §3, "Add firmware
+    /// revision parsing to NVMe enumeration path"). An entry that pins a
+    /// firmware revision therefore reads as a stale cache and is denied,
+    /// which is the fail-safe direction; an entry that pins none is usable at
+    /// `Medium` confidence.
+    fn runtime_pm_latency(&self, hwid: Option<String>) -> LatencyResolution {
+        let Some(allowlist) = self.allowlist.as_ref() else {
+            return LatencyResolution::unknown(
+                "hardware allowlist gate is disabled, so no entry can supply verified exit latency",
+            );
+        };
+        // An unresolvable HWID cannot be looked up, so nothing can vouch for
+        // this device's exit latency.
+        let Some(hwid) = hwid else {
+            return LatencyResolution::unknown(
+                "device HWID could not be resolved, so no allowlist entry can be matched",
+            );
+        };
+        let components = match allowlist.lookup("runtime_pm", &hwid) {
+            Some(entry) => vec![entry.latency_estimate(None)],
+            None => vec![LatencyResolution::unknown(format!(
+                "no hardware allowlist entry for runtime_pm {hwid}"
+            ))],
+        };
+        // Compose every component of this device's exit path. Today the
+        // allowlist entry is the only component; when link-state and
+        // controller-state sources land (research 0008 §3) they join this
+        // slice and the slowest one wins.
+        LatencyResolution::compose_max(&components)
+    }
+
     pub(crate) fn set_correlation_id(&mut self, correlation_id: String) {
         self.correlation_id = correlation_id;
     }
@@ -318,9 +372,11 @@ impl Actuator {
     ///   unconstrained (`None`) fails closed; a ceiling above the class
     ///   floor is denied.
     /// - `RuntimePm` — autosuspend delay is **not** exit latency and is
-    ///   never converted to microseconds for this gate. Without measured
-    ///   or hardware-proven [`ExitLatencyEvidence`] (C1), runtime-PM is
-    ///   denied with an operator-visible reason.
+    ///   never converted to microseconds for this gate. C1 resolves the
+    ///   device's exit latency from the hardware allowlist through
+    ///   [`Self::runtime_pm_latency`]; anything that cannot produce verified
+    ///   evidence resolves to [`LatencyResolution::Unknown`] and is denied
+    ///   with an operator-visible reason.
     ///
     /// Every other variant is ungated and returns `true`.
     ///
@@ -399,16 +455,22 @@ impl Actuator {
             Action::DeviceResumeLatency { value, .. } => {
                 contract_gate_device_resume_constraint(value.map(i64::from), floor_us, &label)
             }
-            Action::RuntimePm { .. } => {
-                let _c1_api_surface = (
-                    ExitLatencyEvidence::measured_us,
-                    ExitLatencyEvidence::hardware_proven_us,
-                );
-                let evidence: Option<&ExitLatencyEvidence> = None;
-                if let Some(evidence) = evidence {
-                    let _ = evidence.is_usable();
-                }
-                contract_gate_runtime_pm(evidence, floor_us, &label)
+            Action::RuntimePm { device_dir, .. } => {
+                let resolution = self.runtime_pm_latency(hwid_from_device_dir(device_dir));
+                // A real write is armed unless boot state says otherwise. An
+                // actuator with no boot state may still write, so it counts
+                // as applying — observe mode must not relax a gate it cannot
+                // prove is running dry.
+                let applying = self
+                    .boot_state
+                    .as_ref()
+                    .map_or(true, |boot| boot.apply_armed);
+                ContractEvaluator::new(self.contracts_mode).evaluate_depth(
+                    &resolution,
+                    floor_us,
+                    applying,
+                    &label,
+                )
             }
             _ => unreachable!("non-depth action returned above"),
         };
@@ -424,6 +486,16 @@ impl Actuator {
                     GateStage::Contract,
                     GateReasonCode::ContractDenied,
                     reason,
+                ))
+            }
+            ContractGateResult::ObserveOnly { would_deny_reason } => {
+                self.log(&format!(
+                    "contracts mode={} (no real write armed): {would_deny_reason}",
+                    self.contracts_mode.label()
+                ))?;
+                Ok(GateEvaluation::allowed(
+                    GateStage::Contract,
+                    GateReasonCode::ContractAllowed,
                 ))
             }
         }

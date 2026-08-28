@@ -36,6 +36,12 @@ struct RawEntry {
     reason: String,
     #[serde(default)]
     verified: bool,
+    /// C1: verified exit latency in microseconds for this entry, if known.
+    #[serde(default)]
+    exit_latency_us: Option<u64>,
+    /// C1: the firmware revision `exit_latency_us` was established against.
+    #[serde(default)]
+    firmware_id: String,
 }
 
 fn default_action() -> String {
@@ -123,6 +129,16 @@ fn main() {
             rust_string_literal(&e.reason),
             rust_string_literal(&e.tested_on),
             e.verified
+        )
+        .unwrap();
+        let exit_latency_us = match e.exit_latency_us {
+            Some(n) => format!("Some({n})"),
+            None => "None".to_string(),
+        };
+        writeln!(
+            generated,
+            "        exit_latency_us: {exit_latency_us}, firmware_id: {},",
+            rust_string_literal(&e.firmware_id)
         )
         .unwrap();
         writeln!(generated, "    }},").unwrap();

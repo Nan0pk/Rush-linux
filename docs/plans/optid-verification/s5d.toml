@@ -22,7 +22,7 @@ verification_pr = 393
 # only -- no independent cold verification was performed for it, and the
 # `verifier`, `result`, `verified_at` fields below still describe the
 # original independent job at c616f3079792.
-verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
+verified_commit = "791cd5364a8fd6e57717d5efc016b10eec64be69"
 implementation_head = "f1b38e3e4b1b1b8f2e48a65eeb84a31b600654c6"
 integrated_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
 source_base_commit = "f3d785df064c9b2734509307bd1b33cf409ea9fb"
@@ -73,3 +73,38 @@ evidence_notes = [
 ]
 
 unresolved = []
+
+# Builder recertification for the C1 contracts package (this PR).
+#
+# C1 modified declared proof paths of this completed package, which staled
+# the receipt above under tools/validate-optid-packages.py. Following the
+# established builder-recertification convention (precedent: T1's
+# blocking_reason clauses 13-15, and the F1-F4/S2D-S5D recertifications in
+# PRs #425-#428), every mapped S5D acceptance test was re-run individually
+# against the C1 implementation commit and the receipt's verified_commit was
+# bumped. This is builder self-checking under AGENTS.md section 9, NOT a new
+# independent cold verification: no package status changed and S5D remains
+# certified by the independent receipt above.
+c1_recertification_prior_verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
+c1_recertification_implementation_head = "791cd5364a8fd6e57717d5efc016b10eec64be69"
+c1_recertified_at = "2026-08-28T17:46:14Z"
+c1_recertification_mapped_tests_total = 13
+c1_recertification_mapped_tests_passed = 13
+c1_recertification_commands = [
+  "cargo test --bin optid s5d_repeated_failure_opens_persistent_scope -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_restart_preserves_open_circuit -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_cooldown_requires_recovery_before_one_canary -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_canary_success_closes_circuit -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_canary_failure_reopens_immediately -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_firmware_change_uses_independent_scope -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_manual_clear_requires_root_authorization -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_backward_clock_jump_never_shortens_cooldown -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_multi_domain_failure_isolation -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_restore_failures_open_only_the_affected_domain -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_unknown_process_corruption_forces_global_observe_only -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_production_gate_emits_scoped_diagnostic_and_firmware_identity -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid s5d_clear_commands_are_one_shot_and_mutually_exclusive -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0",
+  "cargo clippy -p optid --all-targets -- -D warnings -> EXECUTED, exit 0",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED on the committed diff",
+]

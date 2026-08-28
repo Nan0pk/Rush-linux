@@ -31,6 +31,7 @@ mod envelope;
 mod foreground;
 mod io_util;
 mod kernel_io;
+mod latency;
 mod load_state;
 mod policy;
 mod reconciler;
@@ -54,7 +55,7 @@ use circuit_breaker::{
     circuit_runtime_failure_outcome, circuit_suppressed_outcome, extract_circuit_clear_request,
     CircuitBreaker, CircuitClearRequest, CircuitPermit, CircuitScope,
 };
-use contracts::Contracts;
+use contracts::ContractBook;
 use dbus::OptidServer;
 use envelope::{ActionOutcome, ControlCycleEnvelope, CycleIdGenerator, WriteOutcome};
 use io_util::{append_log, append_log_with, atomic_write_state_file_with};
@@ -492,14 +493,21 @@ fn run(args: Args) -> io::Result<RunExit> {
             .parent()
             .map(|parent| parent.join("contracts.toml"))
             .unwrap_or_else(|| PathBuf::from("contracts.toml"));
-        let contracts = Contracts::load(&contracts_path);
-        actuator.set_active_floors(contracts.resolve(committed_class));
+        let contract_book = ContractBook::load(&contracts_path);
+        actuator.set_contracts_mode(contract_book.mode());
+        // C1: compose the class contract with every override naming an active
+        // cgroup scope. Scope discovery is package O2; until it lands there
+        // are no active scopes and this reduces to the class row. The parsed
+        // overrides are still validated and surfaced by `ContractBook`.
+        let active_scopes: Vec<String> = Vec::new();
+        actuator.set_active_floors(contract_book.effective_floors(committed_class, &active_scopes));
+        let contracts = contract_book.base();
         let decision = policy.decide_resolved(
             &snapshot,
             override_mode,
             committed_class,
             class_reason,
-            &contracts,
+            contracts,
             Some(resolved_mode),
             mode_hysteresis_reason,
         );
