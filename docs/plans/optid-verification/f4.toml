@@ -25,7 +25,7 @@ verification_pr = 388
 # mapped contract only -- no independent cold verification was performed for
 # it, and the `verifier`, `workflow_run`, and `workflow_attempt` fields below
 # still describe the original independent job at 99204930d567.
-verified_commit = "0d7ae31319a1384483131cf6441626df2854d3c8"
+verified_commit = "791cd5364a8fd6e57717d5efc016b10eec64be69"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 workflow_run = 30853374668
@@ -130,4 +130,36 @@ s5d_candidate_runtime_proofs = [
   "Canonical MODALIAS or a privacy-safe platform HWID token and a separate firmware token scope the persistent record without promoting hardware.",
   "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
   "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
+]
+
+# Builder recertification for the C1 contracts package (this PR).
+#
+# C1 modified declared proof paths of this completed package, which staled
+# the receipt above under tools/validate-optid-packages.py. Following the
+# established builder-recertification convention (precedent: T1's
+# blocking_reason clauses 13-15, and the F1-F4/S2D-S5D recertifications in
+# PRs #425-#428), every mapped F4 acceptance test was re-run individually
+# against the C1 implementation commit and the receipt's verified_commit was
+# bumped. This is builder self-checking under AGENTS.md section 9, NOT a new
+# independent cold verification: no package status changed and F4 remains
+# certified by the independent receipt above.
+c1_recertification_prior_verified_commit = "0d7ae31319a1384483131cf6441626df2854d3c8"
+c1_recertification_implementation_head = "791cd5364a8fd6e57717d5efc016b10eec64be69"
+c1_recertified_at = "2026-08-28T17:46:14Z"
+c1_recertification_mapped_tests_total = 10
+c1_recertification_mapped_tests_passed = 10
+c1_recertification_commands = [
+  "cargo test --bin optid f4_production_coalesces_confirmed_value_and_writes_one_change -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_production_runtime_pm_transition_restores_baseline -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_production_external_drift_relinquishes_without_overwrite -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_restart_hydrates_real_legacy_journal_and_ownership -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_restart_hydrates_typed_vm_state_and_restores -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_systemd_multiple_properties_apply_restore_and_unset -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_systemd_partial_property_failure_is_typed_and_independent -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_systemd_readback_mismatch_never_claims_ownership -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_transition_detection_covers_ac_workload_mode_and_domain_off -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f4_malformed_typed_state_fails_closed -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0",
+  "cargo clippy -p optid --all-targets -- -D warnings -> EXECUTED, exit 0",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED on the committed diff",
 ]

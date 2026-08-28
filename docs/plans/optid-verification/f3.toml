@@ -72,7 +72,7 @@ implementation_pr = 369
 # the mapped contract only -- no independent cold verification was performed
 # for it, and the `verifier`, `result` fields below still describe the
 # original independent job at 99204930d567.
-verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
+verified_commit = "791cd5364a8fd6e57717d5efc016b10eec64be69"
 verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
 result = "pass"
 
@@ -245,3 +245,50 @@ s5d_candidate_runtime_proofs = [
   "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
   "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
 ]
+
+# Builder recertification for the C1 contracts package (this PR).
+#
+# C1 modified declared proof paths of this completed package, which staled
+# the receipt above under tools/validate-optid-packages.py. Following the
+# established builder-recertification convention (precedent: T1's
+# blocking_reason clauses 13-15, and the F1-F4/S2D-S5D recertifications in
+# PRs #425-#428), every mapped F3 acceptance test was re-run individually
+# against the C1 implementation commit and the receipt's verified_commit was
+# bumped. This is builder self-checking under AGENTS.md section 9, NOT a new
+# independent cold verification: no package status changed and F3 remains
+# certified by the independent receipt above.
+c1_recertification_prior_verified_commit = "6c68e63fbaf525a15a2c0ebb09f9d55037435748"
+c1_recertification_implementation_head = "791cd5364a8fd6e57717d5efc016b10eec64be69"
+c1_recertified_at = "2026-08-28T17:46:14Z"
+c1_recertification_mapped_tests_total = 6
+c1_recertification_mapped_tests_passed = 5
+c1_recertification_commands = [
+  "cargo test --bin optid f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials -> EXECUTED, 1 FAILED (environment, see c1_recertification_caveat)",
+  "cargo test --bin optid f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo test --bin optid f3_production_daemon_run_writes_one_correlated_versioned_cycle -- --exact -> EXECUTED, 1 passed; 0 failed",
+  "cargo fmt --all -- --check -> EXECUTED, exit 0",
+  "cargo clippy -p optid --all-targets -- -D warnings -> EXECUTED, exit 0",
+  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED on the committed diff",
+]
+
+# Environment caveat, recorded rather than papered over.
+#
+# One mapped F3 acceptance test could not be executed in this builder's
+# container: f3_actuator_matrix_reports_missing_unsupported_contract_and_
+# allowlist_denials asserts GateReasonCode::AllowlistDenied but observes
+# HwidUnresolved, because the container has no /sys/class/dmi/id, so HWID
+# resolution fails before the allowlist verdict is reached.
+#
+# This is NOT caused by the C1 change. The same test fails identically
+# (same assertion, same left/right values, crates/optid/src/tests.rs:382)
+# on a clean detached worktree of origin/main at e85a0ac, checked before
+# and after the C1 commit. The C1 diff does not touch HWID resolution.
+#
+# The remaining five mapped F3 acceptance tests pass. CI runs this test on
+# a runner that has DMI, and CI is the authoritative check for it; this
+# receipt does not claim the test was proven here.
+c1_recertification_environment_blocked = ["f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials"]
+c1_recertification_environment_blocked_reason = "no /sys/class/dmi/id in the builder container; fails identically on unmodified origin/main, so it is pre-existing and environmental, not a C1 regression"
