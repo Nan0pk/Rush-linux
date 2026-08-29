@@ -499,6 +499,7 @@ jobs:
         if: steps.image_scope.outputs.edition == 'true'
         run: |
           set -euo pipefail
+          sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/build"
           RUSH_BOOT_TIMEOUT=180 bash tools/test-rollback.sh \
             "$GITHUB_WORKSPACE/build/rush-linux-desktop.raw"
 
