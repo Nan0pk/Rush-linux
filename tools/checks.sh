@@ -304,6 +304,10 @@ if selected rust && matches '^(Cargo\.(toml|lock)|crates/|rust-toolchain)'; then
         attempt run "R5 — Rust formatting drifted" cargo fmt --all -- --check
         attempt run "R3/R5 — safety behavior or existing Rust behavior regressed" \
             cargo test --workspace
+        attempt run "R3/R5 — deterministic optid full-system simulation regressed" \
+            cargo test -p optid --features test-simulation --bin optid-simulation simulation::
+        attempt run "R3/R5 — optid simulation production entry point regressed" \
+            cargo test -p optid --features test-simulation --test i2_simulation_cli
         attempt run "R5 — Rust defects were found by static analysis" \
             cargo clippy --workspace --all-targets -- -D warnings
         attempt run "R5 — an optional feature or target no longer compiles" \
