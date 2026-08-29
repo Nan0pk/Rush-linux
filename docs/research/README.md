@@ -41,6 +41,7 @@ current completion plan, current-work selector, and package ledger remain author
 - [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
 - [0022 — Platform primitive disposition](0022-platform-primitives-disposition.md)
 - [0023 — Render scaling and ambient-light feasibility](0023-render-scaling-als-feasibility.md)
+- [0024 — Non-bare-metal optid validation method](0024-non-bare-metal-optid-validation-method.md)
 
 New numbered papers must be linked here. Machine checks enforce the index
 without duplicating every paper's metadata in `docmap.toml`.
