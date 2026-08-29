@@ -101,6 +101,13 @@ The rig performs zero optimization writes. The only writes are to the `benchmark
 
 Scenario definitions live in `benchmarks/manifest.toml`.
 
+When no physical machine is available, the candidate method in
+[research paper 0024](research/0024-non-bare-metal-optid-validation-method.md)
+separates real cloud-guest outcomes, deterministic QEMU/simulation proof, and
+model-conditional power/thermal estimates. It is future work for planned
+package I2; it does not replace T3 hardware evidence or T4 comparative release
+evidence.
+
 Required comparisons:
 
 - Fedora current.
