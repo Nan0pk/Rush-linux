@@ -32,6 +32,13 @@ name = "optid-capability-seal-test"
 path = "src/bin/optid-capability-seal-test.rs"
 required-features = ["experimental-capability-sealing"]
 
+# I2 — deterministic full-system scenario CLI. It is absent unless the
+# non-default test-simulation feature is selected.
+[[bin]]
+name = "optid-simulation"
+path = "src/bin/optid-simulation.rs"
+required-features = ["test-simulation"]
+
 [features]
 # D0: experimental Landlock capability-sealing prototype. Validates the
 # D2 fail-passive architecture's security boundary. Not connected to
@@ -43,6 +50,11 @@ experimental-capability-sealing = []
 # integration tests that need to construct test kernels from outside
 # the optid crate.
 test-utils = []
+
+# I2: deterministic full-system scenarios. This feature is intentionally not
+# part of the default build. It exposes `optid-simulation --simulation-root`
+# for CI and local fixtures; the engine has no host-write implementation.
+test-simulation = []
 
 [dependencies]
 zbus = { version = "5.16.0", features = ["blocking"] }
