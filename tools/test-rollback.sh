@@ -265,7 +265,7 @@ done
 
 # Count rollback entries (exclude MAIN_EFI itself)
 ROLLBACK_COUNT=$(mdir -i "${TEST_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null \
-    | grep -o "rush-linux-[^ ]*\.efi" | grep -v "^${MAIN_EFI}$" | wc -l || echo "0")
+    | grep -o "rush-linux-[^ ]*\.efi" | grep -vc "^${MAIN_EFI}$" || true)
 echo "  Rollback entries found: ${ROLLBACK_COUNT}"
 
 if [ "${ROLLBACK_COUNT}" -ge 3 ]; then
