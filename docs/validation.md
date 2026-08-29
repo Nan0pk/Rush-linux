@@ -25,6 +25,12 @@ Run all locally relevant checks with:
 bash tools/checks.sh
 ```
 
+To run every cloud lane regardless of the latest changed paths, use the
+**Run workflow** action for **PR Gate**. A manual run exercises the complete
+Linux, Rust, Python, shell, PowerShell, native Windows, testOS, desktop image,
+UEFI boot, and update/rollback matrix. It remains simulation proof: it does not
+promote hardware allowlist entries or performance claims.
+
 Run the exact CI section shown in a failed step with:
 
 ```sh
