@@ -766,14 +766,20 @@ runtime_entrypoints = [
   "crates/optid/Cargo.toml",
   "crates/optid/src/bin/optid-simulation.rs",
   "crates/optid/src/simulation.rs",
+  "crates/optid/src/main.rs",
+  "crates/optid/src/sim_evidence/mod.rs",
 ]
 integration_tests = [
   "crates/optid/tests/i2_simulation_cli.rs",
+  "crates/optid/tests/i2_simulation_evidence_cli.rs",
 ]
 completion_evidence = [
   "crates/optid/src/simulation.rs",
   "crates/optid/tests/i2_simulation_cli.rs",
   "crates/optid/tests/fixtures/i2-simulation",
+  "crates/optid/src/sim_evidence/mod.rs",
+  "crates/optid/tests/i2_simulation_evidence_cli.rs",
+  "release/evidence/optid-simulated-evidence/2026-08-29",
 ]
 [package.acceptance_tests]
 deterministic_complete_matrix = "i2_complete_matrix_matches_declared_results_and_is_deterministic"
@@ -785,6 +791,13 @@ undeclared_domain_and_expected_result_rejection = "i2_manifest_rejects_undeclare
 production_cli_entrypoint = "i2_production_cli_runs_the_complete_simulation_matrix"
 real_root_and_mutation_flag_rejection = "i2_simulation_rejects_real_root_and_mutation_flags"
 symlink_escape_rejection = "i2_simulation_rejects_symlink_roots_and_inputs"
+# The evidence harness runs the real control loop against a simulated machine
+# and computes the modelled outcome from the machine state, rather than from a
+# declared answer in a manifest.
+contained_deterministic_controlled_matrix = "i2_evidence_matrix_is_contained_deterministic_and_controlled"
+evidence_receipts_and_unsupported_controls = "i2_evidence_receipts_record_all_four_values_and_never_pass_an_inert_control"
+evidence_root_rejection = "i2_evidence_rejects_an_unsafe_or_unmarked_root"
+evidence_symlink_root_rejection = "i2_evidence_rejects_a_symlinked_root"
 
 [[package]]
 id = "I3"

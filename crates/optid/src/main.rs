@@ -37,6 +37,10 @@ mod policy;
 mod reconciler;
 mod sensors;
 mod shim;
+// I2 — deterministic simulated-evidence harness. Compiled only under the
+// non-default `test-simulation` feature; a shipped optid has no such surface.
+#[cfg(feature = "test-simulation")]
+mod sim_evidence;
 #[cfg(test)]
 mod tests;
 mod thermal;
@@ -71,6 +75,17 @@ use workload::{
 
 fn main() {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    // I2 — the simulated-evidence harness is selected before the daemon's own
+    // argument parser runs, and only exists in a `test-simulation` build.
+    #[cfg(feature = "test-simulation")]
+    match sim_evidence::extract_evidence_options(&raw_args) {
+        Ok(Some(options)) => std::process::exit(sim_evidence::main_entry(&options)),
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("optid: {error}");
+            std::process::exit(2);
+        }
+    }
     let (clear_request, filtered_args) = match extract_circuit_clear_request(raw_args) {
         Ok(value) => value,
         Err(error) => {
@@ -215,7 +230,7 @@ fn run(args: Args) -> io::Result<RunExit> {
     }
 
     let (allowlist, allowlist_load_state) = if args.allowlist {
-        allowlist::Allowlist::load_with_state(allowlist::DEFAULT_OVERRIDE_DIRS)
+        allowlist::Allowlist::load_with_state(&RealKernel::new(), allowlist::DEFAULT_OVERRIDE_DIRS)
     } else {
         (allowlist::Allowlist::seeded(), LoadState::Ok)
     };
@@ -263,10 +278,14 @@ fn run(args: Args) -> io::Result<RunExit> {
     let mut actuator_kernel: Box<dyn KernelIo> = Box::new(RealKernel::new());
     let mut cycle_kernel: Box<dyn KernelIo> = Box::new(RealKernel::new());
     let mut pmqos_sink: Box<dyn PmqosSink> = Box::new(RealPmqosSink::new());
+    #[cfg(feature = "test-simulation")]
+    if let Some(sink) = actuator::overridden_pmqos_sink() {
+        pmqos_sink = sink;
+    }
     let mut capability_sealing_enforced = false;
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-simulation"))]
     let injected_kernel_test_seam = kernel_io::real_kernel_override_is_active();
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "test-simulation")))]
     let injected_kernel_test_seam = false;
 
     if apply_armed

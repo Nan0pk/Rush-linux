@@ -11,6 +11,8 @@ use recovery::{recover_directory, DEFAULT_RECOVERY_DIR, RECOVERY_FAILURE_EXIT};
 
 fn usage() {
     eprintln!("Usage: optid-recover [--recovery-dir PATH] [--status-file PATH]");
+    #[cfg(feature = "test-simulation")]
+    eprintln!("       optid-recover [--machine-root PATH]   (test-simulation builds only)");
 }
 
 fn atomic_write(path: &Path, content: &str) -> io::Result<()> {
@@ -29,6 +31,19 @@ fn main() {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            // I2 — rebase every recorded target path onto a simulated machine
+            // tree so this binary can be exercised end to end without a write
+            // reaching a real kernel path. The flag does not exist in a shipped
+            // build: it is compiled only with the non-default
+            // `test-simulation` feature.
+            #[cfg(feature = "test-simulation")]
+            "--machine-root" => {
+                let Some(value) = args.next() else {
+                    usage();
+                    std::process::exit(2);
+                };
+                recovery::set_simulated_machine_root(Some(PathBuf::from(value)));
+            }
             "--recovery-dir" => {
                 let Some(value) = args.next() else {
                     usage();

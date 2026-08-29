@@ -129,12 +129,66 @@ fn now_unix() -> u64 {
         .unwrap_or_default()
 }
 
+// Simulated machine root for S3D recovery.
+//
+// `target_path` below is the identity function in a shipped build. Under
+// `cfg(test)` and the non-default `test-simulation` feature a caller may
+// install a machine root on the current thread, which lets S3D recovery be
+// exercised end to end without any write reaching a real `/sys` or `/proc`
+// path. Recovery writes its targets directly rather than through the F2
+// `KernelIo` seam, because the recovery binary carries no policy, D-Bus or
+// daemon surface and must stay free of them.
+#[cfg(any(test, feature = "test-simulation"))]
+thread_local! {
+    static SIMULATED_MACHINE_ROOT: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Install a simulated machine root for the current thread, returning the
+/// previous one so the caller can restore it.
+#[cfg(any(test, feature = "test-simulation"))]
+pub fn set_simulated_machine_root(root: Option<PathBuf>) -> Option<PathBuf> {
+    SIMULATED_MACHINE_ROOT.with(|slot| slot.replace(root))
+}
+
+#[cfg(any(test, feature = "test-simulation"))]
+const _: fn(Option<PathBuf>) -> Option<PathBuf> = set_simulated_machine_root;
+
+fn target_path(path: &Path) -> PathBuf {
+    #[cfg(any(test, feature = "test-simulation"))]
+    {
+        let root = SIMULATED_MACHINE_ROOT.with(|slot| slot.borrow().clone());
+        if let Some(root) = root {
+            if let Ok(relative) = path.strip_prefix("/") {
+                return root.join(relative);
+            }
+        }
+    }
+    path.to_path_buf()
+}
+
+/// The inverse of `target_path`, so a canonical identity computed on a
+/// simulated machine is still the identity the record was written with.
+/// Identity in a shipped build.
+fn machine_path(path: &Path) -> PathBuf {
+    #[cfg(any(test, feature = "test-simulation"))]
+    {
+        let root = SIMULATED_MACHINE_ROOT.with(|slot| slot.borrow().clone());
+        if let Some(root) = root {
+            if let Ok(relative) = path.strip_prefix(&root) {
+                return Path::new("/").join(relative);
+            }
+        }
+    }
+    path.to_path_buf()
+}
+
 fn read_trimmed(path: &Path) -> io::Result<String> {
-    fs::read_to_string(path).map(|value| value.trim().to_string())
+    fs::read_to_string(target_path(path)).map(|value| value.trim().to_string())
 }
 
 fn write_value(path: &Path, value: &str) -> io::Result<()> {
-    fs::write(path, format!("{value}\n"))
+    fs::write(target_path(path), format!("{value}\n"))
 }
 
 fn systemd_output(args: &[&str]) -> io::Result<String> {
@@ -290,7 +344,9 @@ fn write_target(target: &TargetKind, value: &StoredValue) -> io::Result<()> {
 }
 
 fn canonical_identity(target: &TargetKind) -> io::Result<String> {
-    let canonical = |path: &Path| fs::canonicalize(path).map(|value| value.display().to_string());
+    let canonical = |path: &Path| {
+        fs::canonicalize(target_path(path)).map(|value| machine_path(&value).display().to_string())
+    };
     match target {
         TargetKind::KernelValue { path } => canonical(path).map(|path| format!("kernel:{path}")),
         TargetKind::PmqosCpu => Ok("pmqos:/dev/cpu_dma_latency".to_string()),

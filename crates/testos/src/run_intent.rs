@@ -427,7 +427,7 @@ fn parse_iso8601_to_epoch(s: &str) -> Option<u64> {
     let doy =
         (153 * (if month > 2 { month - 3 } else { month + 9 }) as u64 + 2) / 5 + (day - 1) as u64;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
-    let days_since_epoch = era as i64 * 146097 + doe as i64 - 719468;
+    let days_since_epoch = era * 146097 + doe as i64 - 719468;
     if days_since_epoch < 0 {
         return None;
     }

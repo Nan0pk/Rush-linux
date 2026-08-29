@@ -2,9 +2,11 @@
 //!
 //! The mechanical implementations live in `kernel_io_impl.rs`. This module
 //! keeps `RealKernel` as the production type consumed by the daemon while
-//! allowing binary-crate tests to replace that adapter on the current thread
-//! with a deterministic `KernelIo`. The override is compiled only for tests;
-//! release behavior remains direct delegation to the production implementation.
+//! allowing binary-crate tests, and the `test-simulation` evidence harness, to
+//! replace that adapter on the current thread with a deterministic `KernelIo`.
+//! The override is compiled only under `cfg(test)` or the non-default
+//! `test-simulation` feature; a normal release build has no override slot and
+//! delegates directly to the production implementation.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -74,7 +76,7 @@ impl RealKernel {
     }
 
     fn dispatch<R>(&self, call: impl Fn(&dyn KernelIo) -> R) -> R {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-simulation"))]
         {
             let overridden = REAL_KERNEL_OVERRIDE.with(|slot| {
                 let slot = slot.borrow();
@@ -149,24 +151,30 @@ impl EventSource for RealKernel {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 thread_local! {
     static REAL_KERNEL_OVERRIDE: std::cell::RefCell<Option<Box<dyn KernelIo>>> =
         std::cell::RefCell::new(None);
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 pub(crate) fn real_kernel_override_is_active() -> bool {
     REAL_KERNEL_OVERRIDE.with(|slot| slot.borrow().is_some())
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 const _: fn() -> bool = real_kernel_override_is_active;
+// Keep the override seam visible to both the binary and the library build
+// without a dead-code suppression, exactly as the F2 boundaries above do.
+#[cfg(any(test, feature = "test-simulation"))]
+type OverrideSeam = fn(Box<dyn KernelIo>, fn() -> bool) -> bool;
+#[cfg(any(test, feature = "test-simulation"))]
+const _: OverrideSeam = with_real_kernel_override::<bool, fn() -> bool>;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 struct OverrideGuard(Option<Box<dyn KernelIo>>);
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         REAL_KERNEL_OVERRIDE.with(|slot| {
@@ -175,13 +183,16 @@ impl Drop for OverrideGuard {
     }
 }
 
-/// Run a binary-crate test with all `RealKernel` construction on the current
-/// thread routed through `kernel`. The previous override is restored even if
-/// the test unwinds.
-#[cfg(test)]
-pub(crate) fn with_real_kernel_override<R>(
+/// Route every `RealKernel` call made on the current thread through `kernel`.
+/// The previous override is restored even if the closure unwinds.
+///
+/// Compiled for binary-crate tests and for the `test-simulation` feature, which
+/// drives the production `run()` loop against a simulated machine. It is absent
+/// from a normal build, so release behaviour stays direct delegation.
+#[cfg(any(test, feature = "test-simulation"))]
+pub(crate) fn with_real_kernel_override<R, F: FnOnce() -> R>(
     kernel: Box<dyn KernelIo>,
-    run: impl FnOnce() -> R,
+    run: F,
 ) -> R {
     let previous = REAL_KERNEL_OVERRIDE.with(|slot| slot.replace(Some(kernel)));
     let _guard = OverrideGuard(previous);

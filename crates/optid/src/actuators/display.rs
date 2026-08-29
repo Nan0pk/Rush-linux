@@ -10,8 +10,9 @@
 //! device among several (§1.1) and clamping the target so the panel never goes
 //! black — the §1.3 / Decision 6 user-safety floor.
 
-use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::kernel_io::KernelRead;
 
 /// Battery-idle backlight target as a percentage of `max_brightness`.
 pub(crate) const DEFAULT_TARGET_PCT: u8 = 40;
@@ -23,8 +24,12 @@ pub(crate) const DEFAULT_TARGET_PCT: u8 = 40;
 pub(crate) const MIN_FLOOR_PCT: u8 = 10;
 
 /// Read a backlight device's `max_brightness`, if present and parseable.
-pub(crate) fn read_max_brightness(device_dir: &Path) -> Option<u64> {
-    fs::read_to_string(device_dir.join("max_brightness"))
+///
+/// F2: reads go through the injected kernel seam, not `std::fs`, so the same
+/// code path serves production and a simulated machine. A direct `std::fs`
+/// read here was the one remaining backlight hole in that seam.
+pub(crate) fn read_max_brightness(read: &dyn KernelRead, device_dir: &Path) -> Option<u64> {
+    read.read_to_string(&device_dir.join("max_brightness"))
         .ok()?
         .trim()
         .parse()
@@ -37,7 +42,7 @@ pub(crate) fn read_max_brightness(device_dir: &Path) -> Option<u64> {
 /// `max_brightness` (the most granular control). Returns `None` if the only
 /// candidates are `acpi_video*` with no vendor device — still selecting the best
 /// available rather than nothing.
-pub(crate) fn select_backlight(candidates: &[PathBuf]) -> Option<PathBuf> {
+pub(crate) fn select_backlight(read: &dyn KernelRead, candidates: &[PathBuf]) -> Option<PathBuf> {
     fn is_acpi_video(dir: &Path) -> bool {
         dir.file_name()
             .and_then(|n| n.to_str())
@@ -49,7 +54,7 @@ pub(crate) fn select_backlight(candidates: &[PathBuf]) -> Option<PathBuf> {
     let mut best: Option<(PathBuf, u64)> = None;
     let mut best_acpi: Option<(PathBuf, u64)> = None;
     for dir in candidates {
-        let max = read_max_brightness(dir).unwrap_or(0);
+        let max = read_max_brightness(read, dir).unwrap_or(0);
         if is_acpi_video(dir) {
             if best_acpi.as_ref().map(|(_, m)| max > *m).unwrap_or(true) {
                 best_acpi = Some((dir.clone(), max));
@@ -76,6 +81,8 @@ pub(crate) fn compute_target_brightness(max_brightness: u64, target_pct: u8) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel_io::RealKernel;
+    use std::fs;
 
     fn mkdev(base: &Path, name: &str, max: &str) -> PathBuf {
         let d = base.join(name);
@@ -91,10 +98,11 @@ mod tests {
         fs::create_dir_all(&base).unwrap();
         let acpi = mkdev(&base, "acpi_video0", "100");
         let intel = mkdev(&base, "intel_backlight", "96000");
-        let sel = select_backlight(&[acpi.clone(), intel.clone()]).unwrap();
+        let kernel = RealKernel::new();
+        let sel = select_backlight(&kernel, &[acpi.clone(), intel.clone()]).unwrap();
         assert_eq!(sel, intel);
         // Only acpi_video present -> still selected (best available).
-        let sel2 = select_backlight(std::slice::from_ref(&acpi)).unwrap();
+        let sel2 = select_backlight(&kernel, std::slice::from_ref(&acpi)).unwrap();
         assert_eq!(sel2, acpi);
         let _ = fs::remove_dir_all(&base);
     }

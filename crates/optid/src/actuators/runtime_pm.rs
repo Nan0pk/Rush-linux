@@ -13,8 +13,9 @@
 //! surface a warning when autosuspending an input device whose wakeup is
 //! already disabled.
 
-use std::fs;
 use std::path::Path;
+
+use crate::kernel_io::KernelRead;
 
 /// Default battery-idle autosuspend delay (ms). The 0009 §1.2 table has tighter
 /// per-class targets (e.g. 500 ms for PCIe Wi-Fi), but those are `[HYPOTHESIS]`
@@ -26,14 +27,14 @@ pub(crate) const DEFAULT_AUTOSUSPEND_DELAY_MS: i32 = 2000;
 /// True if any network interface backed by this device has its link up
 /// (`carrier == 1`). Autosuspending a device with an active link would silently
 /// drop packets (§1.6), so the actuator skips these.
-pub(crate) fn network_carrier_up(device_dir: &Path) -> bool {
+pub(crate) fn network_carrier_up(read: &dyn KernelRead, device_dir: &Path) -> bool {
     let net_dir = device_dir.join("net");
-    let Ok(entries) = fs::read_dir(&net_dir) else {
+    let Ok(entries) = read.read_dir(&net_dir) else {
         return false; // not a network device
     };
-    for entry in entries.filter_map(Result::ok) {
-        let carrier = entry.path().join("carrier");
-        if let Ok(val) = fs::read_to_string(&carrier) {
+    for entry in entries {
+        let carrier = entry.join("carrier");
+        if let Ok(val) = read.read_to_string(&carrier) {
             if val.trim() == "1" {
                 return true;
             }
@@ -45,13 +46,13 @@ pub(crate) fn network_carrier_up(device_dir: &Path) -> bool {
 /// Heuristic: does this device expose a USB HID (interface class `03`) child?
 /// Used only to decide whether to emit the §1.3 wakeup warning — never to gate
 /// the write itself.
-pub(crate) fn is_hid_input(device_dir: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(device_dir) else {
+pub(crate) fn is_hid_input(read: &dyn KernelRead, device_dir: &Path) -> bool {
+    let Ok(entries) = read.read_dir(device_dir) else {
         return false;
     };
-    for entry in entries.filter_map(Result::ok) {
-        let class = entry.path().join("bInterfaceClass");
-        if let Ok(val) = fs::read_to_string(&class) {
+    for entry in entries {
+        let class = entry.join("bInterfaceClass");
+        if let Ok(val) = read.read_to_string(&class) {
             if val.trim() == "03" {
                 return true;
             }
@@ -62,9 +63,9 @@ pub(crate) fn is_hid_input(device_dir: &Path) -> bool {
 
 /// True if the device's `power/wakeup` attribute reads `disabled`. Absent
 /// attribute ⇒ false (nothing to warn about).
-pub(crate) fn wakeup_disabled(device_dir: &Path) -> bool {
+pub(crate) fn wakeup_disabled(read: &dyn KernelRead, device_dir: &Path) -> bool {
     matches!(
-        fs::read_to_string(device_dir.join("power").join("wakeup")),
+        read.read_to_string(&device_dir.join("power").join("wakeup")),
         Ok(v) if v.trim() == "disabled"
     )
 }
@@ -72,8 +73,8 @@ pub(crate) fn wakeup_disabled(device_dir: &Path) -> bool {
 /// If autosuspending this device would be questionable for wakeup reasons
 /// (it is an input device but wakeup is disabled), return a human-readable
 /// warning. The actuator logs it but proceeds — it does not modify wakeup.
-pub(crate) fn wakeup_warning(device_dir: &Path) -> Option<String> {
-    if is_hid_input(device_dir) && wakeup_disabled(device_dir) {
+pub(crate) fn wakeup_warning(read: &dyn KernelRead, device_dir: &Path) -> Option<String> {
+    if is_hid_input(read, device_dir) && wakeup_disabled(read, device_dir) {
         Some(format!(
             "input device {} has power/wakeup=disabled; autosuspending control only (wakeup left untouched)",
             device_dir.display()
@@ -86,6 +87,8 @@ pub(crate) fn wakeup_warning(device_dir: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel_io::RealKernel;
+    use std::fs;
 
     fn tmp(name: &str) -> std::path::PathBuf {
         let d = std::env::temp_dir().join(format!("optid_rpm_{name}_{}", std::process::id()));
@@ -100,7 +103,7 @@ mod tests {
         let iface = dev.join("net").join("enp0s31f6");
         fs::create_dir_all(&iface).unwrap();
         fs::write(iface.join("carrier"), "1\n").unwrap();
-        assert!(network_carrier_up(&dev));
+        assert!(network_carrier_up(&RealKernel::new(), &dev));
         let _ = fs::remove_dir_all(&dev);
     }
 
@@ -110,10 +113,10 @@ mod tests {
         let iface = dev.join("net").join("enp0s31f6");
         fs::create_dir_all(&iface).unwrap();
         fs::write(iface.join("carrier"), "0\n").unwrap();
-        assert!(!network_carrier_up(&dev));
+        assert!(!network_carrier_up(&RealKernel::new(), &dev));
         // A non-network device (no net/ dir) is also "not up".
         let dev2 = tmp("carrier_none");
-        assert!(!network_carrier_up(&dev2));
+        assert!(!network_carrier_up(&RealKernel::new(), &dev2));
         let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&dev2);
     }
@@ -125,19 +128,19 @@ mod tests {
         let iface = dev.join("1-1:1.0");
         fs::create_dir_all(&iface).unwrap();
         fs::write(iface.join("bInterfaceClass"), "03\n").unwrap();
-        assert!(is_hid_input(&dev));
+        assert!(is_hid_input(&RealKernel::new(), &dev));
 
         // wakeup disabled -> warning present.
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(power.join("wakeup"), "disabled\n").unwrap();
-        assert!(wakeup_disabled(&dev));
-        assert!(wakeup_warning(&dev).is_some());
+        assert!(wakeup_disabled(&RealKernel::new(), &dev));
+        assert!(wakeup_warning(&RealKernel::new(), &dev).is_some());
 
         // wakeup enabled -> no warning.
         fs::write(power.join("wakeup"), "enabled\n").unwrap();
-        assert!(!wakeup_disabled(&dev));
-        assert!(wakeup_warning(&dev).is_none());
+        assert!(!wakeup_disabled(&RealKernel::new(), &dev));
+        assert!(wakeup_warning(&RealKernel::new(), &dev).is_none());
         let _ = fs::remove_dir_all(&dev);
     }
 }

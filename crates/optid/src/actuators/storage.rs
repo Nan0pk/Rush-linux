@@ -11,8 +11,9 @@
 //! WP-N5 `runtime_pm` actuator already handles. N6 adds the two genuinely new
 //! knobs: per-device PCIe ASPM and SATA ALPM.
 
-use std::fs;
 use std::path::Path;
+
+use crate::kernel_io::KernelRead;
 
 /// The universally-safe SATA ALPM policy for flash storage (0008 §1.3 / §Decision C):
 /// HIPM + DIPM, letting the device vote for link L1 when its queue is empty.
@@ -22,9 +23,9 @@ pub(crate) const DEFAULT_ALPM_POLICY: &str = "med_power_with_dipm";
 /// not a standard PCIe endpoint — its link power is managed by the PCH/ME
 /// firmware, and `link/l1_aspm` writes do not apply — so the actuator skips ASPM
 /// for these devices (0008 §1.4).
-pub(crate) fn is_cnvi(device_dir: &Path) -> bool {
+pub(crate) fn is_cnvi(read: &dyn KernelRead, device_dir: &Path) -> bool {
     matches!(
-        fs::read_to_string(device_dir.join("class")),
+        read.read_to_string(&device_dir.join("class")),
         Ok(c) if c.trim_start_matches("0x").starts_with("0280")
     )
 }
@@ -32,6 +33,8 @@ pub(crate) fn is_cnvi(device_dir: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel_io::RealKernel;
+    use std::fs;
 
     fn tmp(name: &str) -> std::path::PathBuf {
         let d = std::env::temp_dir().join(format!("optid_stor_{name}_{}", std::process::id()));
@@ -44,7 +47,7 @@ mod tests {
     fn cnvi_detected_by_class() {
         let dev = tmp("cnvi");
         fs::write(dev.join("class"), "0x028000\n").unwrap();
-        assert!(is_cnvi(&dev));
+        assert!(is_cnvi(&RealKernel::new(), &dev));
         let _ = fs::remove_dir_all(&dev);
     }
 
@@ -52,10 +55,10 @@ mod tests {
     fn non_cnvi_not_flagged() {
         let dev = tmp("nvme");
         fs::write(dev.join("class"), "0x010802\n").unwrap(); // NVMe controller
-        assert!(!is_cnvi(&dev));
+        assert!(!is_cnvi(&RealKernel::new(), &dev));
         // Missing class attribute -> not CNVi.
         let dev2 = tmp("noclass");
-        assert!(!is_cnvi(&dev2));
+        assert!(!is_cnvi(&RealKernel::new(), &dev2));
         let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&dev2);
     }

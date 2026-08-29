@@ -1085,6 +1085,7 @@ device_resume_latency = 100000
         let mut actuator =
             Actuator::new_with_sink(temp_dir.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
         actuator.bypass_contract_gate = true;
@@ -1168,6 +1169,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
         actuator.bypass_contract_gate = true;
@@ -1288,7 +1290,10 @@ device_resume_latency = 100000
         let mut actuator =
             Actuator::new_with_sink(temp.to_path_buf(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             device_resume_latency: floor_us,
@@ -1452,7 +1457,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 100_000,
             device_resume_latency: 1_000_000,
@@ -1518,7 +1526,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 100_000,
             device_resume_latency: 2_000_000,
@@ -1608,7 +1619,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             device_resume_latency: 1_000,
@@ -1696,7 +1710,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             device_resume_latency: 0, // malformed
@@ -1741,7 +1758,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             device_resume_latency: -1, // malformed
@@ -1779,7 +1799,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         actuator.set_active_floors(crate::contracts::ContractFloors {
             cpu_wakeup_latency: 1_000,
             // i64::MAX fits in u64 (i64::MAX = 2^63-1 < u64::MAX = 2^64-1).
@@ -1828,7 +1851,10 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         let admin_dir = temp.join("admin");
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin_dir)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin_dir),
+        ));
         // No set_active_floors call.
         assert!(actuator.active_floors.is_none());
 
@@ -1961,7 +1987,10 @@ device_resume_latency = 100000
         .unwrap();
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
         actuator.bypass_contract_gate = true;
 
         // ── Tick 1: on battery, runtime PM is applied. ──
@@ -2068,7 +2097,10 @@ device_resume_latency = 100000
         .unwrap();
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
-        actuator.enable_allowlist(Allowlist::load_from(std::slice::from_ref(&admin)));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
         actuator.bypass_contract_gate = true;
 
         let action = Action::RuntimePm {
@@ -2243,6 +2275,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
         actuator.bypass_contract_gate = true;
@@ -2360,6 +2393,7 @@ device_resume_latency = 100000
         let mut actuator =
             Actuator::new_with_sink(temp.to_path_buf(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
         // Post-#338 review: these tests exercise the actuator's
@@ -2686,6 +2720,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
 
@@ -2767,6 +2802,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
 
@@ -2814,6 +2850,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
 
@@ -2923,6 +2960,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
 
@@ -2971,6 +3009,7 @@ device_resume_latency = 100000
 
         let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
         actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
             std::slice::from_ref(&admin),
         ));
         actuator
@@ -3530,8 +3569,10 @@ verified = true
         )
         .unwrap();
 
-        let (allowlist, allowlist_load_state) =
-            Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        let (allowlist, allowlist_load_state) = Allowlist::load_with_state(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&override_dir),
+        );
         assert_eq!(
             allowlist_load_state,
             LoadState::Partial,
@@ -3785,11 +3826,17 @@ verified = true
         let dir = test_dir("allowlist_ok_clean");
         let override_dir = dir.join("allowlist.d");
         fs::create_dir_all(&override_dir).unwrap();
-        let (_al, state) = Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        let (_al, state) = Allowlist::load_with_state(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&override_dir),
+        );
         assert_eq!(state, LoadState::Ok);
 
         let missing_dir = dir.join("does-not-exist");
-        let (_al2, state2) = Allowlist::load_with_state(std::slice::from_ref(&missing_dir));
+        let (_al2, state2) = Allowlist::load_with_state(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&missing_dir),
+        );
         assert_eq!(state2, LoadState::Ok);
 
         let _ = fs::remove_dir_all(&dir);
@@ -3811,7 +3858,10 @@ verified = true
         )
         .unwrap();
 
-        let (al, state) = Allowlist::load_with_state(std::slice::from_ref(&override_dir));
+        let (al, state) = Allowlist::load_with_state(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&override_dir),
+        );
         assert_eq!(state, LoadState::Partial);
         assert!(
             al.check(

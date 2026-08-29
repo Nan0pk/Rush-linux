@@ -84,7 +84,7 @@ pub(crate) fn systemd_is_active(service: &str) -> bool {
 /// `with_conflict_checker_override`). See `detect_conflicts_with` for the
 /// injectable-checker variant used directly by unit tests in this module.
 pub(crate) fn detect_conflicts(daemons: &[String]) -> ConflictReport {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-simulation"))]
     {
         let overridden = CONFLICT_CHECKER_OVERRIDE.with(|slot| *slot.borrow());
         if let Some(checker) = overridden {
@@ -101,7 +101,7 @@ pub(crate) fn detect_conflicts(daemons: &[String]) -> ConflictReport {
 // answer deterministically regardless of which policy daemon happens to be
 // active on the host running the suite — mirrors
 // `kernel_io::with_real_kernel_override`.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-simulation"))]
 thread_local! {
     static CONFLICT_CHECKER_OVERRIDE: std::cell::RefCell<Option<SystemdChecker>> =
         const { std::cell::RefCell::new(None) };
@@ -117,6 +117,16 @@ impl Drop for ConflictCheckerGuard {
             slot.replace(self.0.take());
         });
     }
+}
+
+/// Install a systemd-active checker for the current thread, returning the
+/// previous one. The simulated-evidence harness pins this so the daemon's
+/// conflict check answers deterministically without spawning `systemctl`.
+#[cfg(feature = "test-simulation")]
+pub(crate) fn set_conflict_checker_override(
+    checker: Option<SystemdChecker>,
+) -> Option<SystemdChecker> {
+    CONFLICT_CHECKER_OVERRIDE.with(|slot| slot.replace(checker))
 }
 
 /// Run a binary-crate test with `detect_conflicts`'s systemd check on the
