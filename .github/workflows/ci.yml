@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,8 +40,12 @@ jobs:
           PUSH_BASE: ${{ github.event.before }}
         run: |
           set -euo pipefail
+          FORCE_ALL=false
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             BASE="$PR_BASE"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            BASE="HEAD^"
+            FORCE_ALL=true
           elif [[ -n "$PUSH_BASE" && ! "$PUSH_BASE" =~ ^0+$ ]]; then
             BASE="$PUSH_BASE"
           else
@@ -51,7 +56,7 @@ jobs:
 
           classify() {
             local name="$1" pattern="$2"
-            if grep -Eq "$pattern" /tmp/rush-changed-files; then
+            if [[ "$FORCE_ALL" == true ]] || grep -Eq "$pattern" /tmp/rush-changed-files; then
               echo "$name=true" >> "$GITHUB_OUTPUT"
             else
               echo "$name=false" >> "$GITHUB_OUTPUT"
@@ -278,15 +283,16 @@ jobs:
         id: image_scope
         env:
           BASE: ${{ needs.classify.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           git diff --name-only "$BASE"...HEAD | tee /tmp/rush-image-paths
           echo "edition=false" >> "$GITHUB_OUTPUT"
           echo "testos=false" >> "$GITHUB_OUTPUT"
-          if grep -Eq '^(tools/(build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|mkosi/mkosi\.profiles/(desktop|laptop|realtime-audio|server)/|distro/editions/(desktop|laptop|realtime-audio|server)\.toml)' /tmp/rush-image-paths; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || grep -Eq '^\.github/workflows/ci\.yml$|^(tools/(build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|mkosi/mkosi\.profiles/(desktop|laptop|realtime-audio|server)/|distro/editions/(desktop|laptop|realtime-audio|server)\.toml)' /tmp/rush-image-paths; then
             echo "edition=true" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || grep -Eq '^\.github/workflows/ci\.yml$|^(testos/|mkosi/mkosi\.profiles/testos/)' /tmp/rush-image-paths; then
             echo "testos=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -391,7 +397,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf dosfstools
+          sudo apt-get install -y qemu-system-x86 ovmf dosfstools gdisk mtools
           if ! command -v systemd-dissect >/dev/null 2>&1; then
             sudo apt-get install -y systemd-container
           fi
@@ -488,6 +494,13 @@ jobs:
             exit 79
           fi
           RUSH_BOOT_TIMEOUT=180 bash tools/validate-uefi-boot.sh "$FINAL_IMAGE"
+
+      - name: Exercise update and rollback in QEMU
+        if: steps.image_scope.outputs.edition == 'true'
+        run: |
+          set -euo pipefail
+          RUSH_BOOT_TIMEOUT=180 bash tools/test-rollback.sh \
+            "$GITHUB_WORKSPACE/build/rush-linux-desktop.raw"
 
       - name: Confirm a real product image exists
         run: |
