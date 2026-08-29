@@ -221,13 +221,21 @@ TEST_DISK="${TEST_DIR}/test-disk.raw"
 rm -f "${TEST_DIR}/original.efi"
 echo y | mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "::/EFI/Linux/${MAIN_EFI}" "${TEST_DIR}/original.efi"
 
-# Ensure systemd-boot defaults to our main EFI.
-# systemd-boot matches the 'default' value against the UKI entry token,
-# which is the filename WITHOUT the .efi extension for Type 2 (UKI) entries.
-MAIN_EFI_STEM="${MAIN_EFI%.efi}"
-echo "  Setting default boot entry in loader.conf to: ${MAIN_EFI_STEM}"
+# Use an explicit Type 1 entry for the main UKI. Relying on Type 2 UKI
+# auto-discovery makes the default ambiguous once the simulated rollback
+# files are present.
+MAIN_ENTRY_ID="rush-linux-main"
+MAIN_ENTRY_CONF="${TEST_DIR}/${MAIN_ENTRY_ID}.conf"
+cat > "${MAIN_ENTRY_CONF}" <<EOF
+title Rush Linux
+efi /EFI/Linux/${MAIN_EFI}
+EOF
+echo y | mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "${MAIN_ENTRY_CONF}" \
+    "::/loader/entries/${MAIN_ENTRY_ID}.conf"
+
+echo "  Setting default boot entry in loader.conf to: ${MAIN_ENTRY_ID}"
 cat > "${TEST_DIR}/loader.conf" <<EOF
-default ${MAIN_EFI_STEM}
+default ${MAIN_ENTRY_ID}
 timeout 3
 EOF
 mcopy -o -i "${TEST_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/loader.conf" ::/loader/loader.conf
@@ -310,26 +318,17 @@ echo "  Restoring original.efi → ::/EFI/Linux/${MAIN_EFI}"
 echo y | mcopy -o -i "${BAD_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/original.efi" \
     "::/EFI/Linux/${MAIN_EFI}"
 
-# Purge any timestamp rollback entries that are smaller than 1 MB —
-# these are corrupted partial writes that confuse systemd-boot's auto-discovery.
-while IFS= read -r bad_entry; do
-    echo "  Removing corrupted rollback entry: ${bad_entry}"
-    mdel -i "${BAD_DISK}@@${ESP_OFFSET}" "::/EFI/Linux/${bad_entry}" 2>/dev/null || true
-done < <(
-    mdir -i "${BAD_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null \
-    | awk '/rush-linux-[0-9].*\.efi/ {
-        # mdir short line: size is field before the filename
-        for(i=1;i<=NF;i++) if($i~/\.efi$/) { fname=$i; size=$(i-1) }
-        if (fname != "" && size+0 < 1048576) print fname
-      }'
-)
+# Remove only the invalid stubs created by this test. A size or filename
+# heuristic can match and delete the real restored kernel.
+for i in 1 2 3; do
+    mdel -i "${BAD_DISK}@@${ESP_OFFSET}" \
+        "::/EFI/Linux/rush-linux-sim-rollback-${i}.efi" 2>/dev/null || true
+    mdel -i "${BAD_DISK}@@${ESP_OFFSET}" \
+        "::/loader/entries/rush-linux-rollback-${i}.conf" 2>/dev/null || true
+done
 
 # Refresh loader.conf on BAD_DISK so systemd-boot defaults to the restored main.
 echo y | mcopy -o -i "${BAD_DISK}@@${ESP_OFFSET}" "${TEST_DIR}/loader.conf" ::/loader/loader.conf
-
-if [ -n "$(mdir -i "${BAD_DISK}@@${ESP_OFFSET}" ::/EFI/Linux 2>/dev/null | grep -v "^${MAIN_EFI}$" | grep -o "rush-linux-[^ ]*\.efi" | grep -v -i "^BOOT" | head -1)" ]; then
-    echo "  Rollback entries still present on ESP (count verification preserved)"
-fi
 
 boot_and_log "t3-rollback-boot" "${BAD_DISK}"
 if log_has "${LOG_DIR}/t3-rollback-boot.log" "multi-user"; then
