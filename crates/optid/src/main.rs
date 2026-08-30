@@ -35,6 +35,7 @@ mod latency;
 mod load_state;
 mod policy;
 mod reconciler;
+mod runtime_observability;
 mod sensors;
 mod shim;
 // I2 — deterministic simulated-evidence harness. Compiled only under the
@@ -66,6 +67,7 @@ use io_util::{append_log, append_log_with, atomic_write_state_file_with};
 use kernel_io::{KernelIo, RealKernel};
 use load_state::{BootState, LoadState};
 use policy::{CapabilitySealingMode, Policy};
+use runtime_observability::{RuntimeObservabilityMode, RuntimeObservabilitySnapshot};
 use sensors::Snapshot;
 use shim::{GameModeServer, PpdServer};
 use workload::{
@@ -420,6 +422,7 @@ fn run(args: Args) -> io::Result<RunExit> {
     }
 
     let mut previous_thermal_budget: Option<thermal::ThermalBudget> = None;
+    let mut previous_runtime_observability: Option<RuntimeObservabilitySnapshot> = None;
     let startup_policy = Policy::load(&args.config_path);
     append_log(
         &args.state_dir.join("decisions.log"),
@@ -485,6 +488,15 @@ fn run(args: Args) -> io::Result<RunExit> {
             previous_thermal_budget.as_ref(),
         );
         previous_thermal_budget = Some(snapshot.thermal_budget.clone());
+        let runtime_observability_mode =
+            RuntimeObservabilityMode::from_policy_file(cycle_kernel.as_ref(), &args.config_path);
+        let runtime_observability = RuntimeObservabilitySnapshot::collect(
+            cycle_kernel.as_ref(),
+            cycle_kernel.as_ref(),
+            runtime_observability_mode,
+            previous_runtime_observability.as_ref(),
+        );
+        previous_runtime_observability = Some(runtime_observability.clone());
 
         match topology_debouncer.observe(topology_fingerprint(cycle_kernel.as_ref(), &snapshot)) {
             TopologyDecision::Stable => {}
@@ -853,11 +865,12 @@ fn run(args: Args) -> io::Result<RunExit> {
         };
         let circuit_status_json = circuit_breaker.public_json()?;
         let report = format!(
-            "correlation_id={}\nrestore_outcomes={}\ncircuit_state={}\n{}",
+            "correlation_id={}\nrestore_outcomes={}\ncircuit_state={}\n{}{}",
             correlation_id,
             restore_summary,
             circuit_breaker.summary(),
-            decision.render(&snapshot)
+            decision.render(&snapshot),
+            runtime_observability.render_summary(),
         );
 
         atomic_write_state_file_with(
