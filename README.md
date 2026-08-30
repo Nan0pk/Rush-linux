@@ -52,8 +52,8 @@ This table is generated from the repository's canonical version, build, and work
 | Project stage | Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready. |
 | Version | `0.7.0-beta.4` |
 | Active general repair | `T1` — Build thermal sensing and a pure budget model (`merged_incomplete`) |
-| Active safety repair | `C1` — Model contracts with measured latency and provenance (`merged_incomplete`) |
-| Other merged, incomplete packages | `F1`, `F2`, `F3`, `F4`, `I2`, `S2D`, `S3D`, `S4D`, `S5D` |
+| Active safety repair | `C1` — Model contracts with measured latency and provenance (`candidate`) |
+| Other merged, incomplete packages | `S2D`, `S3D`, `S4D`, `S5D` |
 | Build profiles | `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos` |
 | Safety architecture | [D2 fail-passive](docs/architecture/optid-d2-amendment.md) |
 | Canonical work state | [optid package ledger](docs/plans/optid-package-status.toml) |

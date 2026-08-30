@@ -4,26 +4,26 @@
 schema_version = 1
 package = "F1"
 implementation_pr = 332
-verification_pr = 444
-verified_commit = "7a8feaad5663dc67666001bd83e91d1c45efaddc"
+verification_pr = 445
+verified_commit = "63ce66de3d83bd97a730b71e216ccb4e296b2139"
 verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
 result = "pass"
 
 commands = [
-  "PR Gate run 33329508762 job 99305451364: cargo fmt --all -- --check -> PASS",
-  "PR Gate run 33329508762 job 99305451364: cargo test --workspace -> PASS; optid main 548 passed, 0 failed",
-  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --bin optid-simulation simulation:: -> PASS; 6 passed",
-  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --test i2_simulation_cli -> PASS; 3 passed",
-  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed",
-  "PR Gate run 33329508762 job 99305451364: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
-  "PR Gate run 33329508762 job 99305451364: cargo check --workspace --all-targets --all-features -> PASS",
-  "PR Gate run 33329508762 job 99305451364: python3 tools/validate-optid-packages.py --base 382a33c8cf80674c4aefb98c516bd22215fa3c8a -> PASS",
+  "PR Gate run 33329943185 job 99306613066: cargo fmt --all -- --check -> PASS",
+  "PR Gate run 33329943185 job 99306613066: cargo test --workspace -> PASS; optid main 548 passed, 0 failed",
+  "PR Gate run 33329943185 job 99306613066: cargo test -p optid --features test-simulation --bin optid-simulation simulation:: -> PASS; 6 passed",
+  "PR Gate run 33329943185 job 99306613066: cargo test -p optid --features test-simulation --test i2_simulation_cli -> PASS; 3 passed",
+  "PR Gate run 33329943185 job 99306613066: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed",
+  "PR Gate run 33329943185 job 99306613066: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
+  "PR Gate run 33329943185 job 99306613066: cargo check --workspace --all-targets --all-features -> PASS",
+  "PR Gate run 33329943185 job 99306613066: python3 tools/validate-optid-packages.py --base cab552f787cbcec595f3037e8535f63606a264fa -> PASS",
 ]
 
 runtime_proofs = [
   "All ledger-mapped F1 unit and production-pipeline tests passed in the 548-test optid main suite, including strict domain parsing, unknown-field rejection, domain gating, observe/off behavior, effective-config rendering, fail-closed unknown domains, and both production pipeline tests.",
-  "The newly required production CLI regression i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off passed in the six-test simulated-evidence suite, proving a failed policy reload cannot silently re-enable an operator-disabled domain.",
-  "The verified PR merge commit is based directly on main 382a33c8cf80674c4aefb98c516bd22215fa3c8a. Its sole non-main file was a temporary rush_collect CI-selection test; no optid production, test, policy, packaging, or declared F1 proof path differed from 382a33c.",
+  "The production CLI regression i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off passed in the six-test simulated-evidence suite, proving a failed policy reload cannot silently re-enable an operator-disabled domain.",
+  "GitHub Actions checked PR #445 merge-test commit 2304e097524581f9fef54d46d7f672fa5d23e5ac. Its Git tree af31c42d3cbdf067cc55bf4405c896a75e1c2e7e is exactly the tree of permanent integrated merge commit 63ce66de3d83bd97a730b71e216ccb4e296b2139, so this receipt names the permanent reachable commit for freshness validation.",
 ]
 
 unresolved = []
