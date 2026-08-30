@@ -192,6 +192,8 @@ malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
 
 partial_runtime_pm_restore_retry = "f4_partial_runtime_pm_restore_retries_confirmed_progress"
 partial_runtime_pm_restore_external_drift = "f4_partial_runtime_pm_restore_does_not_overwrite_external_change"
+unwritten_baseline_mixture_is_drift = "f4_runtime_pm_unwritten_baseline_mixture_is_external_drift"
+unconfirmed_partial_restore_keeps_undo = "f4_unconfirmed_partial_restore_keeps_undo_record"
 failed_restore_watchdog_and_bounded_retries = "f4_restore_failure_withholds_watchdog_through_retry_exhaustion"
 
 [[package]]

@@ -27,6 +27,28 @@ impl Reconciler {
             return Ok(outcome);
         }
         let expanded = self.expand_action(action, actuator)?;
+        if expanded.iter().any(|desired| {
+            self.targets.get(&desired.target_id).is_some_and(|state| {
+                state.ownership == OwnershipState::Optid
+                    && state.restore_pending
+                    && state.retries > 0
+            })
+        }) {
+            let mut outcome = active_action_outcome(action);
+            outcome.gates.push(GateEvaluation::denied(
+                GateStage::RecoveryJournal,
+                GateReasonCode::JournalFailed,
+                "previous restoration remains unresolved; reapply refused",
+            ));
+            for desired in expanded {
+                outcome.targets.push(TargetOutcome::denied(
+                    desired.target_id,
+                    PipelineStage::Journal,
+                    "previous restoration remains unresolved; reapply refused".to_string(),
+                ));
+            }
+            return Ok(outcome);
+        }
         if !matches!(action, Action::SystemdSetProperty { .. })
             && expanded.iter().any(|desired| {
                 self.targets
@@ -118,8 +140,21 @@ impl Reconciler {
     pub(crate) fn reconcile(&mut self, actuator: &mut Actuator) -> io::Result<Vec<RestoreOutcome>> {
         let plans = self.plan_restores();
         let mut outcomes = Vec::with_capacity(plans.len());
+        for state in self.targets.values().filter(|state| {
+            state.ownership == OwnershipState::Optid
+                && state.restore_pending
+                && state.retries >= MAX_RESTORE_RETRIES
+        }) {
+            // Keep unresolved restoration visible to diagnostics and circuit
+            // recovery gates even after automatic writes reach their limit.
+            outcomes.push(failed_restore(
+                &state.target_id,
+                false,
+                &io::Error::other("restore retry limit reached; independent recovery required"),
+            ));
+        }
         let mut first_error = None;
-        for plan in plans {
+        for mut plan in plans {
             let result = (|| -> io::Result<RestoreOutcome> {
                 let outcome = if self.mode == ReconcileMode::Shadow {
                     RestoreOutcome {
@@ -141,7 +176,7 @@ impl Reconciler {
                         .map_err(io::Error::from)?
                     {
                         HandbackTarget::Present => {
-                            actuator.execute_restore(&plan, self.systemd.as_ref())?
+                            actuator.execute_restore(&mut plan, self.systemd.as_ref())?
                         }
                         HandbackTarget::Removed => relinquished_outcome(
                             &plan.target_id,
@@ -163,8 +198,16 @@ impl Reconciler {
             // Attempt every handback, but never heartbeat a failed cycle.
             return Err(error);
         }
-        notify_cycle_complete(&self.transactions, actuator.kernel.as_ref())
-            .map_err(io::Error::from)?;
+        let unresolved_restore = self.mode != ReconcileMode::Shadow
+            && self.targets.values().any(|state| {
+                state.ownership == OwnershipState::Optid
+                    && state.desired.is_none()
+                    && state.restore_pending
+            });
+        if !unresolved_restore {
+            notify_cycle_complete(&self.transactions, actuator.kernel.as_ref())
+                .map_err(io::Error::from)?;
+        }
         Ok(outcomes)
     }
 
@@ -442,15 +485,14 @@ impl Reconciler {
                     finish_transaction = Some(true);
                 }
                 WriteOutcome::RestorationFailed { .. } => {
+                    state.last_confirmed = Some(plan.last_confirmed.clone());
+                    state.last_attempted = Some(plan.baseline.clone());
                     state.retries = state.retries.saturating_add(1);
+                    state.restore_pending = true;
                     if state.retries >= MAX_RESTORE_RETRIES {
-                        state.ownership = OwnershipState::Relinquished;
                         state.ownership_reason = Some(format!(
-                            "restore retry limit reached ({MAX_RESTORE_RETRIES})"
+                            "restore retry limit reached ({MAX_RESTORE_RETRIES}); independent recovery required"
                         ));
-                        state.restore_pending = false;
-                    } else {
-                        state.restore_pending = true;
                     }
                 }
                 _ => {}
@@ -479,6 +521,7 @@ impl Reconciler {
                     target: state.target.clone(),
                     baseline: state.baseline.clone()?,
                     last_confirmed: state.last_confirmed.clone()?,
+                    retry: state.retries > 0,
                     legacy_journal_key: state.legacy_journal_key.clone(),
                 })
             })

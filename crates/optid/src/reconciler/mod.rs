@@ -182,6 +182,7 @@ pub(crate) struct RestorePlan {
     target: TargetKind,
     baseline: StoredValue,
     last_confirmed: StoredValue,
+    retry: bool,
     legacy_journal_key: Option<String>,
 }
 
