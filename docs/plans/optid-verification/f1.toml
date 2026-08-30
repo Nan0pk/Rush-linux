@@ -1,276 +1,29 @@
-# Independent cold-verification receipt for:
-# Freeze capability states and domain configuration
-#
-# Historical provenance (preserved, invalidated):
-# - Original independent receipt: verified PR #332 at commit
-#   001515bef45a0a5f9842d9831154ae9d0573d361. Invalidated because later
-#   changes modified the declared F1 proof paths and removed the
-#   receipt-referenced integration test.
-# - Later fresh receipt: verified PR #332 at commit
-#   6403938e07cd1cf793fddc7e08d237ac77b0b4fc. Invalidated because PR #369
-#   modified the declared F1 proof paths (action.rs, actuator.rs, decision.rs,
-#   main.rs, and policy.rs).
-# - First post-#369 attempt (2026-08-01, prior verifier session): recorded
-#   result = "blocked" against verified_commit
-#   107a4330e2d0505a6b48b35c7d4148482a426f3d because the previous sandbox
-#   could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org
-#   and crates.io unreachable; rustup toolchain download failed). No runtime
-#   proof existed. Retained as historical provenance only.
-# - Post-#369 executable receipt (Arena.ai verifier, PR #370, 2026-08-02):
-#   verified PR #332 at commit 107a4330e2d0505a6b48b35c7d4148482a426f3d
-#   (merge commit of PR #369, HEAD of main at the time). All nine mapped F1
-#   acceptance tests passed individually with --exact. Invalidated because
-#   PR #371 modified the shared production entry point crates/optid/src/main.rs
-#   after that verification, truthfully demoting F1 to merged_incomplete until
-#   a fresh cold verifier re-ran the mapped F1 proofs against a commit
-#   containing the F4 cutover. The full prior receipt is preserved below in
-#   [historical_receipt.post_369_arena_370].
-#
-# This receipt records the executable independent cold-verification of the F1
-# production surface at implementation commit
-# 52919c2ac1582e56737d568a576899e10ae43d15 (HEAD of
-# fix/f4-complete-reconciliation, PR #371). The F4 cutover modified
-# crates/optid/src/main.rs to construct and consume the F4 Reconciler as the
-# sole production reconciliation authority, invalidating the prior F1 receipt
-# at 107a4330e2d0505a6b48b35c7d4148482a426f3d. This verifier session
-# re-executed every mapped F1 acceptance test against the exact F4
-# implementation commit and confirmed F1 still passes. The Rust toolchain ran
-# end-to-end (cargo fmt/clippy/check/test), all nine mapped F1 acceptance
-# tests were executed individually with `--exact`, and the containing optid
-# crate suite was executed in full. F1 is re-certified `pass` by this receipt.
-#
-# Independence boundary: this verifier is separate from the implementation
-# builder of PR #371 and separate from the prior Arena.ai verifier session
-# (PR #370). No production code, test, assertion, workflow, architecture,
-# policy, configuration, or packaging file was modified during verification.
-#
-# Environmental caveat (push only): the verifier sandbox had no GitHub write
-# credentials. The verification itself was complete and genuine — every
-# command recorded below was actually executed against the exact detached
-# implementation commit and observed to pass. The evidence commit was prepared
-# locally but could not be pushed from this sandbox.
+# Independent cold-verification receipt for F1.
+# Previous receipts remain preserved in Git history.
 
 schema_version = 1
 package = "F1"
 implementation_pr = 332
-# Commit under verification for this run: HEAD of fix/f4-complete-reconciliation
-# (PR #371), which contains the F4 cutover of the shared main.rs entry point.
-# All nine mapped F1 acceptance tests were executed against this commit.
-# `git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD`
-# returns 0 (the prior verified commit is an ancestor), confirming the F1
-# production surface added in PR #369 is still present and now exercised
-# through the F4-cutover main.rs.
-verified_commit = "791cd5364a8fd6e57717d5efc016b10eec64be69"
-verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
+verification_pr = 444
+verified_commit = "7a8feaad5663dc67666001bd83e91d1c45efaddc"
+verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
 result = "pass"
 
-# Exact commands this verifier executed, with their observed outcomes.
 commands = [
-  "git fetch origin --prune -> EXECUTED, fetched origin/fix/f4-complete-reconciliation and origin/main",
-  "git worktree add --detach ../Rush-linux-f4-verify 52919c2ac1582e56737d568a576899e10ae43d15 -> EXECUTED, HEAD=52919c2ac1582e56737d568a576899e10ae43d15, working tree clean",
-  "git rev-parse HEAD -> EXECUTED, 52919c2ac1582e56737d568a576899e10ae43d15",
-  "git status --short -> EXECUTED, empty (clean detached worktree)",
-  "git merge-base --is-ancestor 107a4330e2d0505a6b48b35c7d4148482a426f3d HEAD -> EXECUTED, exit 0 (PR #369 merge commit IS ancestor of the F4 implementation commit, so the F1 production surface is still present)",
-  "rustc --version --verbose -> EXECUTED, rustc 1.97.1 (8bab26f4f 2026-07-14), host x86_64-unknown-linux-gnu, LLVM 22.1.6",
-  "cargo --version -> EXECUTED, cargo 1.97.1 (c980f4866 2026-06-30)",
-  "python3 --version -> EXECUTED, Python 3.12.13",
-  "rustup component add rustfmt clippy -> EXECUTED, installed",
-  "cargo fmt --all -- --check -> EXECUTED, exit 0 (clean)",
-  "cargo check --workspace --all-targets --all-features -> EXECUTED, exit 0 (Finished dev profile in 36.08s)",
-  "cargo clippy --workspace --all-targets -- -D warnings -> EXECUTED, exit 0 (Finished dev profile in 7.49s, no warnings)",
-  "cargo test --workspace -> EXECUTED, exit 0; optid lib 6 passed, optid main 421 passed, optctl main 9 passed, optctl status_cli 3 passed, rushbench 13 passed, testos lib 51 passed, testos-ingest 16 passed; total 519 passed, 0 failed, 0 ignored",
-  "cargo test --bin optid policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_domains_config_rejects_unknown_domain_key -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_decision_render_includes_effective_config_block -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_production_pipeline_policy_to_render -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "cargo test --bin optid policy::f1_tests::f1_production_pipeline_rejects_unknown_domain -- --exact -> EXECUTED, 1 passed; 0 failed; 420 filtered out",
-  "python3 tools/validate-current-work.py -> EXECUTED, OK",
-  "python3 tools/validate-optid-packages.py -> EXECUTED, PASS",
-  "python3 tools/validate-optid-packages.py --base bc6d974857a69da88795db8feb6d3f8cb75b5e21 -> EXECUTED, PASS",
-  "python3 tools/render-frontpage.py --check -> EXECUTED, OK",
-  "bash tools/finish-work.sh --dry-run -> EXECUTED, 'Nothing to finish: the working tree is clean.'",
-  "bash tools/checks.sh --ci --changed-base bc6d974857a69da88795db8feb6d3f8cb75b5e21 -> EXECUTED, exit 0; pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7 installed; all sections passed including R4/R8 repository policy and R5 static analysis; final line 'PASS: selected Rush checks passed.'",
+  "PR Gate run 33329508762 job 99305451364: cargo fmt --all -- --check -> PASS",
+  "PR Gate run 33329508762 job 99305451364: cargo test --workspace -> PASS; optid main 548 passed, 0 failed",
+  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --bin optid-simulation simulation:: -> PASS; 6 passed",
+  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --test i2_simulation_cli -> PASS; 3 passed",
+  "PR Gate run 33329508762 job 99305451364: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed",
+  "PR Gate run 33329508762 job 99305451364: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
+  "PR Gate run 33329508762 job 99305451364: cargo check --workspace --all-targets --all-features -> PASS",
+  "PR Gate run 33329508762 job 99305451364: python3 tools/validate-optid-packages.py --base 382a33c8cf80674c4aefb98c516bd22215fa3c8a -> PASS",
 ]
 
-# Runtime proofs entered through the real production surfaces named by the
-# F1 ledger entry (crates/optid/src/main.rs, policy.rs, decision.rs,
-# action.rs, actuator.rs). All nine mapped F1 acceptance tests executed
-# successfully against the verified commit. The F4 cutover in main.rs does
-# not alter the F1 production surface (policy.rs, decision.rs, action.rs,
-# actuator.rs are unchanged in PR #371); main.rs still consumes the same
-# Policy::load -> decide_resolved -> Decision::render path that the F1 tests
-# target, and now also constructs and drives the F4 Reconciler alongside it.
 runtime_proofs = [
-  "Strict off/observe/actuate parsing: f1_domain_mode_serde_accepts_lowercase_off_observe_actuate (policy.rs:1609) parses each of \"off\", \"observe\", \"actuate\" via toml::from_str into DomainMode::{Off,Observe,Actuate}. EXECUTED: 1 passed; 0 failed.",
-  "Rejection of unknown configuration: f1_domains_config_rejects_unknown_domain_key (policy.rs:1799) confirms DomainsConfig's #[serde(deny_unknown_fields)] rejects an unknown [domains.<key>] table as a TOML parse error. EXECUTED: 1 passed; 0 failed.",
-  "Systemd domain gating: f1_systemd_set_property_is_domain_gated_by_default (policy.rs:2554) confirms SystemdSetProperty is mapped to Domain::CgroupReweight and is subject to the same per-domain gate as every other lever. EXECUTED: 1 passed; 0 failed.",
-  "Observe retains would-be actions without applying them: f1_decide_observe_mode_captures_would_be_action_for_render (policy.rs:2285) drives EffectiveConfig::from_policy -> decide_resolved -> Decision::render and confirms an observe domain retains the would-be action with GateReasonCode::DomainObserve and no write_attempted targets. EXECUTED: 1 passed; 0 failed.",
-  "Off suppresses actions: f1_decide_off_mode_suppresses_domain_actions_silently (policy.rs:2170) confirms an off domain produces no action entries. EXECUTED: 1 passed; 0 failed.",
-  "Effective configuration in rendered status: f1_decision_render_includes_effective_config_block (policy.rs:2729) confirms Decision::render emits an effective_config block naming every domain and its resolved DomainMode. EXECUTED: 1 passed; 0 failed.",
-  "Fail-closed unknown domains: f1_domain_default_mode_is_fail_closed_for_unknown_domains (policy.rs:1751) confirms Domain::default_mode returns DomainMode::Off for any domain not in the actuate closed set, and that the match is exhaustive (no _ arm). EXECUTED: 1 passed; 0 failed.",
-  "Production policy-to-decision-to-render flow: f1_production_pipeline_policy_to_render (policy.rs:2900) exercises Policy::load -> EffectiveConfig::from_policy -> decide_resolved -> Decision::render end-to-end through production functions on the curated policy.toml. EXECUTED: 1 passed; 0 failed.",
-  "Production rejects unknown domain: f1_production_pipeline_rejects_unknown_domain (policy.rs:2987) exercises toml::from_str on a policy containing an unknown [domains.<key>] table and confirms the parse error propagates. EXECUTED: 1 passed; 0 failed.",
-  "Containing optid crate suite: cargo test --workspace executed 519 tests (optid lib 6 + optid main 421 + optctl main 9 + optctl status_cli 3 + rushbench 13 + testos lib 51 + testos-ingest 16), 0 failed, 0 ignored. The nine F1 tests are part of the 421 optid main tests.",
-  "Workspace-wide baseline: cargo fmt --all -- --check exit 0; cargo clippy --workspace --all-targets -- -D warnings exit 0; cargo check --workspace --all-targets --all-features exit 0.",
-  "Repo tooling baseline: python3 tools/validate-current-work.py OK; python3 tools/validate-optid-packages.py PASS; python3 tools/validate-optid-packages.py --base bc6d974857a69da88795db8feb6d3f8cb75b5e21 PASS; python3 tools/render-frontpage.py --check OK; bash tools/finish-work.sh --dry-run OK; bash tools/checks.sh --ci --changed-base bc6d974857a69da88795db8feb6d3f8cb75b5e21 exit 0.",
+  "All ledger-mapped F1 unit and production-pipeline tests passed in the 548-test optid main suite, including strict domain parsing, unknown-field rejection, domain gating, observe/off behavior, effective-config rendering, fail-closed unknown domains, and both production pipeline tests.",
+  "The newly required production CLI regression i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off passed in the six-test simulated-evidence suite, proving a failed policy reload cannot silently re-enable an operator-disabled domain.",
+  "The verified PR merge commit is based directly on main 382a33c8cf80674c4aefb98c516bd22215fa3c8a. Its sole non-main file was a temporary rush_collect CI-selection test; no optid production, test, policy, packaging, or declared F1 proof path differed from 382a33c.",
 ]
 
-# Source inspection performed (NOT runtime proof by itself; preserved for
-# traceability). The runtime proofs above are the executable evidence.
-source_inspection_only = [
-  "crates/optid/src/policy.rs: all nine ledger-mapped F1 acceptance tests exist as real '#[test] fn' definitions inside 'mod f1_tests' (policy.rs:1518).",
-  "crates/optid/src/policy.rs: DomainMode serializes only as lowercase 'off' | 'observe' | 'actuate'; the match in Domain::default_mode is exhaustive (no _ arm).",
-  "crates/optid/src/policy.rs: DomainsConfig uses #[serde(deny_unknown_fields)].",
-  "crates/optid/src/policy.rs: SystemdSetProperty is mapped to Domain::CgroupReweight.",
-  "crates/optid/src/policy.rs + crates/optid/src/decision.rs: f1_production_pipeline_policy_to_render exercises EffectiveConfig::from_policy -> decide_resolved -> Decision::render through production functions; f1_production_pipeline_rejects_unknown_domain exercises rejection through toml::from_str.",
-  "crates/optid/src/main.rs (post-F4 cutover): the daemon loop still consumes Policy::load -> decide_resolved -> Decision::render (main.rs:231/285/400) and now also constructs and drives the F4 Reconciler (main.rs:203/311/336/369/436) alongside it. The F4 cutover does not bypass or short-circuit the F1 production surface.",
-]
-
-# All previously-blocking environment limitations have been resolved in this
-# verifier session. No unresolved findings remain.
 unresolved = []
-
-[historical_receipt]
-implementation_pr = 332
-verified_commit = "6403938e07cd1cf793fddc7e08d237ac77b0b4fc"
-verification_pr = ""
-status = "invalidated"
-reason = "PR #369 modified the declared F1 proof paths (action.rs, actuator.rs, decision.rs, main.rs, policy.rs), so the prior fresh receipt no longer covered the current branch. Retained as historical provenance only."
-
-[historical_receipt.original]
-implementation_pr = 332
-verified_commit = "001515bef45a0a5f9842d9831154ae9d0573d361"
-verification_pr = 335
-status = "invalidated"
-reason = "Later changes modified declared F1 proof paths and removed the original receipt-referenced integration test."
-
-[historical_receipt.blocked_2026_08_01]
-implementation_pr = 332
-verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
-verification_pr = 370
-status = "blocked"
-reason = "Prior verifier session on 2026-08-01 recorded result='blocked' against the same verified_commit because the verification sandbox could not execute the Rust toolchain (no cargo/rustc; static.rust-lang.org and crates.io unreachable; rustup toolchain download failed). No runtime proof existed. A later verifier session (Arena.ai, PR #370, 2026-08-02) installed rustup stable (rustc 1.97.1) and replaced the blocked attempt with an executable 'pass' result; the blocked attempt is retained here as historical provenance."
-
-# Prior post-#369 executable receipt (Arena.ai verifier, PR #370, 2026-08-02).
-# Invalidated by PR #371's F4 cutover of crates/optid/src/main.rs. Preserved
-# here in full per the prompt's requirement to "retain prior invalidated or
-# historical receipt information" when refreshing receipts.
-[historical_receipt.post_369_arena_370]
-implementation_pr = 332
-verified_commit = "107a4330e2d0505a6b48b35c7d4148482a426f3d"
-verification_pr = 370
-status = "invalidated"
-reason = "PR #371 modified the shared production entry point crates/optid/src/main.rs after this verification (constructing and consuming the F4 Reconciler as the sole production reconciliation authority), truthfully demoting F1 to merged_incomplete until a fresh cold verifier re-ran the mapped F1 proofs against a commit containing the F4 cutover. The current receipt above is that fresh re-verification at 52919c2ac1582e56737d568a576899e10ae43d15."
-prior_verifier = "Independent cold-verification agent session (Arena.ai agent on branch arena/019fbea1-rush-linux, PR #370), separate from the implementation builder; rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1, executed 2026-08-02"
-prior_result = "pass"
-prior_totals = "cargo test --workspace: 517 passed, 0 failed, 0 ignored (optid lib 6 + optid main 419 + optctl main 9 + optctl status_cli 3 + rushbench 13 + testos lib 51 + testos-ingest 16). All 9 mapped F1 acceptance tests passed individually with --exact."
-
-# PR #390 S4D shared-surface recertification.
-s4d_recertification_pr = 390
-s4d_recertification_implementation_head = "fd1658026b0399a801ba7355c34e7df3e46bdf32"
-s4d_prior_verified_commit = "52919c2ac1582e56737d568a576899e10ae43d15"
-s4d_prior_verifier = "Independent cold-verification agent session (Z.ai sandbox, separate from the implementation builder of PR #371 and from the prior Arena.ai verifier session that certified F1 at 107a4330e2d0505a6b48b35c7d4148482a426f3d on PR #370); rustc 1.97.1 (8bab26f4f 2026-07-14), cargo 1.97.1 (c980f4866 2026-06-30), pwsh 7.4.7, shellcheck 0.10.0, actionlint 1.7.7, Python 3.12.13, git 2.47.3; executed 2026-08-02 in a detached worktree at the exact PR head with a clean cargo state"
-s4d_recertified_at = "2026-08-04T16:23:29Z"
-s4d_recertification_workflow_run = 30928719936
-s4d_recertification_workflow_attempt = 1
-s4d_recertification_workflow_job = 92057652856
-s4d_recertification_artifact_id = 8900272552
-s4d_recertification_artifact_name = "s4d-shared-surface-verification-30928719936"
-s4d_recertification_artifact_digest = "sha256:6200dc41af35165844c92e8aff129e953cdb5bf41cfa59c6162a169abd22689a"
-s4d_recertification_artifact_size_bytes = 28350
-s4d_recertification_artifact_expires = "2026-09-03T16:23:43Z"
-s4d_recertification_kernel_release = "6.17.0-1020-azure"
-s4d_recertification_landlock_abi = 7
-
-s4d_recertification_commands = [
-  "all mapped acceptance tests for F1, F2, F3, F4, D0, S2D, S3D, and S4D executed by name and observed passing",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check -p optid --all-targets --all-features -> passed",
-  "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
-  "cargo test -p optid -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "live D0 Landlock proof on kernel 6.17.0-1020-azure, ABI 7 -> eight checks passed",
-  "D0 supervised status-75 two-cycle rebuild and non-75 suppression -> passed",
-  "S3D live required-recovery ordering, one replacement restart, and failed-recovery loop suppression -> passed",
-  "S4D static startup order, topology handback, descriptor identity, and cold-rebuild tests -> passed",
-]
-
-s4d_recertification_runtime_proofs = [
-  "S4D's shared actuator, main-loop, policy, kernel-I/O, restore, Landlock, and apply-unit changes preserved every mapped acceptance contract of this completed package.",
-  "No runtime source, test, service, policy, feature default, action envelope, or package claim was repaired during verification.",
-  "The immutable implementation head fd1658026b0399a801ba7355c34e7df3e46bdf32 was tested before any receipt or ledger mutation.",
-]
-
-# PR #392 S5D shared-surface candidate recertification.
-s5d_candidate_recertification_pr = 392
-s5d_candidate_source_head = "99204930d5677aa19cf64794852fd45034a4c9ee"
-s5d_candidate_prior_verified_commit = "4e01cf4e182b27d0ef966cc290b33e4b5f5db7bf"
-s5d_candidate_verified_at = "2026-08-06T14:22:32Z"
-s5d_candidate_workflow_run = 31110326738
-s5d_candidate_workflow_attempt = 1
-s5d_candidate_workflow_job = 92646125177
-s5d_candidate_artifact_id = 8971444870
-s5d_candidate_artifact_name = "s5d-candidate-verification-31110326738"
-s5d_candidate_artifact_digest = "sha256:1223210d42f5c52bcec170f332901e2165412e91c6768192b121043d2a603732"
-s5d_candidate_artifact_size_bytes = 28127
-s5d_candidate_artifact_expires = "2026-09-05T14:22:39Z"
-s5d_candidate_kernel_release = "6.17.0-1020-azure"
-s5d_candidate_landlock_abi = 7
-
-s5d_candidate_commands = [
-  "source-bound fresh verifier to immutable S5D implementation commit 99204930d5677aa19cf64794852fd45034a4c9ee",
-  "validator-derived affected completed packages were exactly F1, F2, F3, F4, S2D, S3D, and S4D",
-  "every mapped acceptance test for all affected completed packages and S5D was uniquely discovered and executed with --exact -> passed",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check --workspace --all-targets --all-features -> passed",
-  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "cargo test -p optid --all-features -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "packaged and mkosi apply/recovery units were byte-identical and passed systemd-analyze verify",
-  "live capability-sealing eight-check probe, status-75 cold rebuild, recovery ordering, and non-75 restart suppression -> passed",
-]
-
-s5d_candidate_runtime_proofs = [
-  "S5D evaluates persisted circuit state before desired-state reconciliation and before actuator entry.",
-  "Repeated scoped failures persist quarantine across restart, remove only the failed domain from desired state, and preserve unrelated domain actuation.",
-  "Cooldown cannot authorize re-entry without a successful observe-only recovery cycle; one canary is persisted in-flight, confirmed readback closes it, and failure reopens immediately.",
-  "Restore failures are attributed to their reconciler domain and counted; unisolatable shared failures open the process-wide observe-only circuit.",
-  "Canonical MODALIAS or a privacy-safe platform HWID token and a separate firmware token scope the persistent record without promoting hardware.",
-  "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
-  "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
-]
-
-# Builder recertification for the C1 contracts package (this PR).
-#
-# C1 modified declared proof paths of this completed package, which staled
-# the receipt above under tools/validate-optid-packages.py. Following the
-# established builder-recertification convention (precedent: T1's
-# blocking_reason clauses 13-15, and the F1-F4/S2D-S5D recertifications in
-# PRs #425-#428), every mapped F1 acceptance test was re-run individually
-# against the C1 implementation commit and the receipt's verified_commit was
-# bumped. This is builder self-checking under AGENTS.md section 9, NOT a new
-# independent cold verification: no package status changed and F1 remains
-# certified by the independent receipt above.
-c1_recertification_prior_verified_commit = "6bace508735c6758fc30bc9ac1918556060ba5f8"
-c1_recertification_implementation_head = "791cd5364a8fd6e57717d5efc016b10eec64be69"
-c1_recertified_at = "2026-08-28T17:46:14Z"
-c1_recertification_mapped_tests_total = 9
-c1_recertification_mapped_tests_passed = 9
-c1_recertification_commands = [
-  "cargo test --bin optid f1_domain_mode_serde_accepts_lowercase_off_observe_actuate -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_domains_config_rejects_unknown_domain_key -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_systemd_set_property_is_domain_gated_by_default -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_decide_observe_mode_captures_would_be_action_for_render -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_decide_off_mode_suppresses_domain_actions_silently -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_decision_render_includes_effective_config_block -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_domain_default_mode_is_fail_closed_for_unknown_domains -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_production_pipeline_policy_to_render -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid f1_production_pipeline_rejects_unknown_domain -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo fmt --all -- --check -> EXECUTED, exit 0",
-  "cargo clippy -p optid --all-targets -- -D warnings -> EXECUTED, exit 0",
-  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED on the committed diff",
-]
