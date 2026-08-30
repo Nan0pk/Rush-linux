@@ -329,3 +329,101 @@ fn f4_production_device_disappearance_relinquishes_ownership() {
     );
     assert!(!outcomes[0].write_attempted);
 }
+
+struct RuntimePmRestoreFixture {
+    reconciler: Reconciler,
+    actuator: Actuator,
+    memory: Arc<MemoryKernel>,
+    control: PathBuf,
+    delay: PathBuf,
+}
+
+impl RuntimePmRestoreFixture {
+    fn new(name: &str) -> Self {
+        let state_dir = PathBuf::from(format!("/run/optid-f4-{name}"));
+        let recovery_dir = PathBuf::from(format!("/var/lib/optid/recovery-f4-{name}"));
+        let device = PathBuf::from("/sys/bus/usb/devices/1-1");
+        let control = device.join("power/control");
+        let delay = device.join("power/autosuspend_delay_ms");
+        let memory = Arc::new(MemoryKernel::new());
+        memory.write_raw(&control, "on");
+        memory.write_raw(&delay, "1000");
+        let mut actuator = s2d_armed_actuator(
+            state_dir.clone(),
+            Box::new(S2dSharedKernel(Arc::clone(&memory))),
+        );
+        let mut reconciler = s2d_reconciler(
+            state_dir, recovery_dir, &mut actuator, "partial-restore-generation",
+        );
+        let action = runtime_pm_action(&device, 2000);
+        reconciler.prepare_cycle(std::slice::from_ref(&action), &mut actuator).unwrap();
+        reconciler.apply_action(&mut actuator, &action).unwrap();
+        reconciler.prepare_cycle(&[], &mut actuator).unwrap();
+        Self { reconciler, actuator, memory, control, delay }
+    }
+
+    fn fail_write_once(&mut self, path: PathBuf) {
+        let fault = FaultKernel::new(Box::new(S2dSharedKernel(Arc::clone(&self.memory))));
+        fault.fail_next_write(path, io::ErrorKind::PermissionDenied);
+        self.actuator.kernel = Box::new(fault);
+    }
+
+    fn records(&self) -> Vec<TransactionRecord> {
+        self.reconciler.transactions.active_records(self.actuator.kernel.as_ref()).unwrap()
+    }
+}
+
+#[test]
+fn f4_partial_runtime_pm_restore_retries_confirmed_progress() {
+    let mut fixture = RuntimePmRestoreFixture::new("partial-retry");
+    fixture.fail_write_once(fixture.delay.clone());
+    let first = fixture.reconciler.reconcile(&mut fixture.actuator).unwrap();
+    assert_eq!(first[0].reason, OutcomeReasonCode::RestoreFailed);
+    assert_eq!(fixture.memory.read_to_string(&fixture.control).unwrap(), "on");
+    assert_eq!(fixture.memory.read_to_string(&fixture.delay).unwrap(), "2000");
+    assert_eq!(fixture.records().len(), 1, "partial restore must keep its undo record");
+
+    let second = fixture.reconciler.reconcile(&mut fixture.actuator).unwrap();
+    assert_eq!(second[0].reason, OutcomeReasonCode::RestoreApplied);
+    assert_eq!(fixture.memory.read_to_string(&fixture.control).unwrap(), "on");
+    assert_eq!(fixture.memory.read_to_string(&fixture.delay).unwrap(), "1000");
+    assert!(fixture.records().is_empty(), "verified whole-target restore may compact");
+}
+
+#[test]
+fn f4_partial_runtime_pm_restore_does_not_overwrite_external_change() {
+    let mut fixture = RuntimePmRestoreFixture::new("partial-drift");
+    fixture.fail_write_once(fixture.delay.clone());
+    let first = fixture.reconciler.reconcile(&mut fixture.actuator).unwrap();
+    assert_eq!(first[0].reason, OutcomeReasonCode::RestoreFailed);
+    fixture.memory.write_raw(&fixture.delay, "3333");
+
+    let second = fixture.reconciler.reconcile(&mut fixture.actuator).unwrap();
+    assert_eq!(second[0].reason, OutcomeReasonCode::OwnershipRelinquished);
+    assert!(!second[0].write_attempted);
+    assert_eq!(fixture.memory.read_to_string(&fixture.delay).unwrap(), "3333");
+}
+
+#[test]
+fn f4_restore_failure_withholds_watchdog_through_retry_exhaustion() {
+    let mut fixture = RuntimePmRestoreFixture::new("failed-watchdog");
+    for _ in 0..MAX_RESTORE_RETRIES {
+        fixture.fail_write_once(fixture.control.clone());
+        let (result, messages) = capture_notifications(|| {
+            fixture.reconciler.reconcile(&mut fixture.actuator)
+        });
+        let outcomes = result.expect("typed restore failure must remain visible to the caller");
+        assert_eq!(outcomes[0].reason, OutcomeReasonCode::RestoreFailed);
+        assert!(messages.is_empty(), "failed restore must not report health");
+        assert_eq!(fixture.records().len(), 1);
+    }
+    let target = fixture.reconciler.targets.values().next().unwrap();
+    assert_eq!(target.ownership, OwnershipState::Optid);
+    assert!(target.restore_pending, "exhaustion is unresolved, not relinquishment");
+    let (result, messages) = capture_notifications(|| {
+        fixture.reconciler.reconcile(&mut fixture.actuator)
+    });
+    assert!(result.unwrap().is_empty(), "retry count must remain bounded");
+    assert!(messages.is_empty(), "exhausted retries must not resume heartbeats");
+    assert_eq!(fixture.records().len(), 1);
+}

@@ -150,7 +150,7 @@ id = "F4"
 lane = "foundation"
 title = "Reconcile complete desired state and restore on transitions"
 status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified the declared proof path crates/optid/src/main.rs after verified_commit 791cd5364a8f. The receipt at docs/plans/optid-verification/f4.toml is preserved as historical; a fresh cold verification is required before this package may return to completed."
+blocking_reason = "Fresh independent review at fabd3646d91b found partial runtime-PM restoration can be mistaken for external drift on retry, discarding undo, and typed restoration failure can still emit a watchdog heartbeat. The authorized follow-on repair adds production-path regression coverage for confirmed partial progress, external drift and exhausted retries. Existing receipt remains historical; no completion claim is made. Other foundation and safety gaps are recorded in docs/plans/optid-review-2026-08-30.md."
 depends = ["F2", "F3"]
 pr = "371"
 verification_receipt = "docs/plans/optid-verification/f4.toml"
@@ -189,6 +189,10 @@ systemd_partial_failure_is_independent = "f4_systemd_partial_property_failure_is
 systemd_readback_mismatch_denies_ownership = "f4_systemd_readback_mismatch_never_claims_ownership"
 transition_detection = "f4_transition_detection_covers_ac_workload_mode_and_domain_off"
 malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
+
+partial_runtime_pm_restore_retry = "f4_partial_runtime_pm_restore_retries_confirmed_progress"
+partial_runtime_pm_restore_external_drift = "f4_partial_runtime_pm_restore_does_not_overwrite_external_change"
+failed_restore_watchdog_and_bounded_retries = "f4_restore_failure_withholds_watchdog_through_retry_exhaustion"
 
 [[package]]
 id = "D0"
