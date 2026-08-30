@@ -570,7 +570,131 @@ fn s2d_path_reuse_identity_mismatch_is_rejected() {
         .prepare(&io, &action, &desired, &original)
         .expect_err("path reuse must be rejected");
     assert_eq!(error.kind, TransactionErrorKind::IdentityMismatch);
+    let error = engine
+        .validate_handback(&io, &desired.target_id)
+        .expect_err("path reuse must also block restoration");
+    assert_eq!(error.kind, TransactionErrorKind::IdentityMismatch);
+    engine
+        .finish_handback(&io, &desired.target_id, true)
+        .expect_err("replacement is not a removed target");
+    assert!(io.exists(&engine.record_path(&desired.target_id)));
     assert_eq!(memory.read_to_string(&path).expect("target unchanged"), "60");
+}
+
+#[test]
+fn s2d_removed_target_relinquishes_and_other_targets_restore() {
+    let state_dir = PathBuf::from("/run/optid-s2d-removal");
+    let recovery_dir = PathBuf::from("/var/lib/optid/recovery-removal");
+    let device = PathBuf::from("/sys/bus/pci/devices/0000:02:00.0");
+    let control = device.join("power/control");
+    let delay = device.join("power/autosuspend_delay_ms");
+    let vm = PathBuf::from("/proc/sys/vm/swappiness");
+    let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&control, "on");
+    memory.write_raw(&delay, "2000");
+    memory.write_raw(&vm, "60");
+    let mut actuator = s2d_armed_actuator(
+        state_dir.clone(),
+        Box::new(S2dSharedKernel(Arc::clone(&memory))),
+    );
+    let mut reconciler =
+        s2d_reconciler(state_dir, recovery_dir, &mut actuator, "removal-generation");
+    let actions = [runtime_pm_action(&device, 100), vm_action(&vm, "10")];
+    reconciler.prepare_cycle(&actions, &mut actuator).expect("prepare");
+    for action in &actions {
+        reconciler.apply_action(&mut actuator, action).expect("apply");
+    }
+    assert_eq!(memory.read_to_string(&control).expect("applied control"), "auto");
+    assert_eq!(memory.read_to_string(&vm).expect("applied VM value"), "10");
+
+    let removed = FaultKernel::new(Box::new(S2dSharedKernel(Arc::clone(&memory))));
+    removed.hide_path(control.clone()).hide_path(delay.clone());
+    actuator.kernel = Box::new(removed);
+    let outcomes = reconciler.restore_all_owned(&mut actuator).expect("hand back");
+    assert_eq!(outcomes.len(), 2);
+    let gone = outcomes.iter().find(|outcome| {
+        outcome.reason == OutcomeReasonCode::OwnershipRelinquished
+    }).expect("removed device explicitly relinquished");
+    assert!(!gone.write_attempted);
+    assert_eq!(gone.pending_restore, RestoreState::NotApplicable);
+    assert!(outcomes.iter().any(|outcome| outcome.reason == OutcomeReasonCode::RestoreApplied));
+    assert_eq!(memory.read_to_string(&vm).expect("surviving target restored"), "60");
+    assert_eq!(memory.read_to_string(&control).expect("no write to vanished control"), "auto");
+    assert_eq!(memory.read_to_string(&delay).expect("no write to vanished delay"), "100");
+    assert!(reconciler.transactions.active_records(actuator.kernel.as_ref())
+        .expect("records compacted").is_empty());
+    assert!(reconciler.restore_all_owned(&mut actuator).expect("idempotent handback").is_empty());
+}
+
+#[test]
+fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
+    let state_dir = PathBuf::from("/run/optid-s2d-partial-removal");
+    let recovery_dir = PathBuf::from("/var/lib/optid/recovery-partial-removal");
+    let device = PathBuf::from("/sys/bus/pci/devices/0000:02:00.0");
+    let control = device.join("power/control");
+    let delay = device.join("power/autosuspend_delay_ms");
+    let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&control, "on");
+    memory.write_raw(&delay, "2000");
+    let mut actuator = s2d_armed_actuator(
+        state_dir.clone(),
+        Box::new(S2dSharedKernel(Arc::clone(&memory))),
+    );
+    let mut reconciler = s2d_reconciler(
+        state_dir, recovery_dir, &mut actuator, "partial-removal-generation",
+    );
+    let action = runtime_pm_action(&device, 100);
+    reconciler.prepare_cycle(std::slice::from_ref(&action), &mut actuator).expect("prepare");
+    reconciler.apply_action(&mut actuator, &action).expect("apply");
+    let removed = FaultKernel::new(Box::new(S2dSharedKernel(Arc::clone(&memory))));
+    removed.hide_path(delay);
+    actuator.kernel = Box::new(removed);
+    reconciler.restore_all_owned(&mut actuator).expect_err("a surviving member is not removal");
+    let records = reconciler.transactions.active_records(actuator.kernel.as_ref()).expect("undo records");
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].phase, TransactionPhase::Committed);
+    assert_eq!(memory.read_to_string(&control).expect("no unverified write"), "auto");
+}
+
+#[test]
+fn s2d_removed_target_cannot_relinquish_another_generation() {
+    let path = PathBuf::from("/proc/sys/vm/swappiness");
+    let recovery_dir = PathBuf::from("/var/lib/optid/recovery-removed-stale");
+    let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&path, "60");
+    let shared = S2dSharedKernel(Arc::clone(&memory));
+    let desired = s2d_desired(&path, "10");
+    let old = TransactionEngine::new(recovery_dir.clone(), "old-generation".to_string());
+    let handle = old.prepare(&shared, &vm_action(&path, "10"), &desired,
+        &StoredValue::Scalar { value: "60".to_string() }).expect("prepare old record");
+    let removed = FaultKernel::new(Box::new(shared));
+    removed.hide_path(path);
+    let new = TransactionEngine::new(recovery_dir, "new-generation".to_string());
+    let error = new.validate_handback(&removed, &desired.target_id).expect_err("stale owner");
+    assert_eq!(error.kind, TransactionErrorKind::StaleGeneration);
+    new.finish_handback(&removed, &desired.target_id, true).expect_err("retain stale record");
+    assert!(removed.exists(&handle.path));
+}
+
+#[test]
+fn s2d_removed_target_sync_failure_preserves_the_undo_record() {
+    let path = PathBuf::from("/proc/sys/vm/swappiness");
+    let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&path, "60");
+    let shared = S2dSharedKernel(Arc::clone(&memory));
+    let desired = s2d_desired(&path, "10");
+    let engine = TransactionEngine::new(
+        PathBuf::from("/var/lib/optid/recovery-removed-sync"), "sync-generation".to_string(),
+    );
+    let handle = engine.prepare(&shared, &vm_action(&path, "10"), &desired,
+        &StoredValue::Scalar { value: "60".to_string() }).expect("prepare record");
+    let removed = FaultKernel::new(Box::new(shared));
+    removed.hide_path(path);
+    engine.fail_next_sync_file(engine.temp_path(&handle.path), io::ErrorKind::StorageFull);
+    engine.finish_handback(&removed, &desired.target_id, true).expect_err("failed durable relinquishment");
+    let record = engine.load_record(&removed, &handle.path).expect("undo record retained");
+    assert_eq!(record.phase, TransactionPhase::Prepared);
+    assert!(verify_journal_health(&engine, &removed).is_err());
 }
 
 #[test]

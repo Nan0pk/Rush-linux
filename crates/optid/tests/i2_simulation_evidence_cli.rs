@@ -279,3 +279,45 @@ fn i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off() {
 
     fs::remove_dir_all(&root).expect("clean up the simulation root");
 }
+
+#[test]
+fn removed_device_hands_back_before_one_clean_supervised_restart() {
+    let root = marked_root("hot-removal");
+    let bundle = run_matrix(&root);
+    let trials = bundle["trials"].as_array().expect("trials");
+    let affected: Vec<_> = trials
+        .iter()
+        .filter(|trial| {
+            trial["scenario"] == "hotplug_device_and_cpu"
+                && (trial["arm"] == "full_enabled" || trial["arm"] == "only_device_resume_latency")
+        })
+        .collect();
+    assert_eq!(
+        affected.len(),
+        4,
+        "both affected configurations must run twice"
+    );
+    for trial in affected {
+        assert_eq!(
+            trial["daemon_outcome"], "topologyrebuild",
+            "{}", trial["arm"]
+        );
+        assert_eq!(trial["recovery_outcome"], "clean", "{}", trial["arm"]);
+        let recovery = trial["s3d_recovery"].as_array().expect("supervised recovery");
+        assert_eq!(recovery.len(), 1, "extra restart needed: {}", trial["arm"]);
+        assert_eq!(recovery[0]["succeeded"], true);
+        assert_eq!(
+            recovery[0]["scanned"], 0,
+            "handback left a durable transaction behind"
+        );
+        for receipt in trial["receipts"].as_array().expect("receipts") {
+            if receipt["became_active"] == true {
+                assert_eq!(
+                    receipt["restored_value"], receipt["previous_value"],
+                    "{}: {}", trial["arm"], receipt["control_id"]
+                );
+            }
+        }
+    }
+    fs::remove_dir_all(&root).expect("clean up the simulation root");
+}

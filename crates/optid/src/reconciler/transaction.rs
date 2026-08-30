@@ -116,6 +116,12 @@ enum CompensationDisposition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HandbackTarget {
+    Present,
+    Removed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransactionErrorKind {
     JournalIo,
     InvalidRecord,
@@ -651,7 +657,18 @@ impl TransactionEngine {
         path: &Path,
         phase: TransactionPhase,
     ) -> Result<(), TransactionError> {
-        let record = self.load_record(io, path)?;
+        let mut record = self.load_record(io, path)?;
+        if phase == TransactionPhase::Relinquished
+            && self.validate_handback_record(io, &record)? == HandbackTarget::Removed
+        {
+            // The target no longer exists, so no hardware write or identity
+            // re-resolution is possible. Persist explicit relinquishment before
+            // compaction; never describe this as a verified restoration.
+            record.phase = TransactionPhase::Relinquished;
+            record.updated_at_unix = io.now_unix();
+            self.durable_store(io, &record)?;
+            return Ok(());
+        }
         self.validate_generation_and_identity(io, &record)?;
         let handle = TransactionHandle {
             path: path.to_path_buf(),
@@ -706,13 +723,52 @@ impl TransactionEngine {
         &self,
         io: &dyn KernelIo,
         target_id: &str,
-    ) -> Result<(), TransactionError> {
+    ) -> Result<HandbackTarget, TransactionError> {
         let path = self.record_path(target_id);
         if !io.exists(&path) {
-            return Ok(());
+            return Ok(HandbackTarget::Present);
         }
         let record = self.load_record(io, &path)?;
-        self.validate_generation_and_identity(io, &record)
+        self.validate_handback_record(io, &record)
+    }
+
+    fn validate_handback_record(
+        &self,
+        io: &dyn KernelIo,
+        record: &TransactionRecord,
+    ) -> Result<HandbackTarget, TransactionError> {
+        match self.validate_generation_and_identity(io, record) {
+            Ok(()) => Ok(HandbackTarget::Present),
+            Err(error) if error.kind == TransactionErrorKind::JournalIo => {
+                // Generation validation above must succeed before disappearance
+                // can relinquish a record. Require NotFound for every member of
+                // a compound target: one missing runtime-PM attribute does not
+                // authorize discarding the undo record for a surviving member.
+                let paths: Vec<&Path> = match &record.target {
+                    TargetKind::KernelValue { path } | TargetKind::PmqosDevice { path } => {
+                        vec![path.as_path()]
+                    }
+                    TargetKind::RuntimePm {
+                        control_path,
+                        delay_path,
+                    } => std::iter::once(control_path.as_path())
+                        .chain(delay_path.as_deref())
+                        .collect(),
+                    TargetKind::PmqosCpu | TargetKind::SystemdProperty { .. } => {
+                        return Err(error);
+                    }
+                };
+                for path in paths {
+                    match io.canonicalize(path) {
+                        Err(missing) if missing.kind() == io::ErrorKind::NotFound => {}
+                        // Permission errors and path replacements are not removal.
+                        _ => return Err(error),
+                    }
+                }
+                Ok(HandbackTarget::Removed)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn finish_handback(
