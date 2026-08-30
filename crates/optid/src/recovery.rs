@@ -183,12 +183,66 @@ fn machine_path(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
+// Injected write refusal for S3D recovery.
+//
+// A test that asserts recovery *retains* its undo record when the restoring
+// write is refused needs that refusal to be deterministic. Taking it from the
+// filesystem — marking the target read-only — only refuses an unprivileged
+// process: run as root the write succeeds, the record is compacted, and the
+// assertion fails. The refusal is injected on the current thread instead,
+// exactly as the machine root above is, and is compiled out of a shipped
+// build.
+#[cfg(any(test, feature = "test-simulation"))]
+thread_local! {
+    static DENIED_TARGET_WRITE: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(any(test, feature = "test-simulation"))]
+struct DeniedTargetWriteGuard(Option<PathBuf>);
+
+#[cfg(any(test, feature = "test-simulation"))]
+impl Drop for DeniedTargetWriteGuard {
+    fn drop(&mut self) {
+        DENIED_TARGET_WRITE.with(|slot| {
+            slot.replace(self.0.take());
+        });
+    }
+}
+
+/// Refuse every recovery write to `path` on the current thread for the
+/// duration of `run`. The previous refusal is restored even if `run` unwinds.
+/// `path` is matched after `target_path`, so a caller that installed a
+/// simulated machine root passes the rebased path.
+#[cfg(any(test, feature = "test-simulation"))]
+pub fn with_denied_target_write<R, F: FnOnce() -> R>(path: PathBuf, run: F) -> R {
+    let previous = DENIED_TARGET_WRITE.with(|slot| slot.replace(Some(path)));
+    let _guard = DeniedTargetWriteGuard(previous);
+    run()
+}
+
+// Keep the seam visible to both the daemon and the recovery binary without a
+// dead-code suppression, exactly as `set_simulated_machine_root` is.
+#[cfg(any(test, feature = "test-simulation"))]
+const _: fn(PathBuf, fn() -> bool) -> bool = with_denied_target_write::<bool, fn() -> bool>;
+
 fn read_trimmed(path: &Path) -> io::Result<String> {
     fs::read_to_string(target_path(path)).map(|value| value.trim().to_string())
 }
 
 fn write_value(path: &Path, value: &str) -> io::Result<()> {
-    fs::write(target_path(path), format!("{value}\n"))
+    let resolved = target_path(path);
+    #[cfg(any(test, feature = "test-simulation"))]
+    {
+        let denied = DENIED_TARGET_WRITE.with(|slot| slot.borrow().clone());
+        if denied.as_deref() == Some(resolved.as_path()) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("recovery write refused for test: {}", resolved.display()),
+            ));
+        }
+    }
+    fs::write(resolved, format!("{value}\n"))
 }
 
 fn systemd_output(args: &[&str]) -> io::Result<String> {
@@ -760,12 +814,17 @@ mod tests {
         let target = root.join("target");
         fs::write(&target, "intended\n").unwrap();
         let record = write_record(&root, &target, "original", "intended", "committed");
-        let mut permissions = fs::metadata(&target).unwrap().permissions();
-        permissions.set_readonly(true);
-        fs::set_permissions(&target, permissions).unwrap();
-        let summary = recover_directory(&root);
+        // The refusal is injected, not taken from the file mode: root ignores
+        // a read-only bit, and this test asserts what recovery does when the
+        // restoring write comes back refused.
+        let summary = with_denied_target_write(target.clone(), || recover_directory(&root));
         assert!(!summary.succeeded());
         assert_eq!(summary.failed, 1);
+        assert_eq!(
+            read_trimmed(&target).unwrap(),
+            "intended",
+            "a refused restore must leave the target where it was"
+        );
         assert!(record.exists());
         fs::remove_dir_all(root).unwrap();
     }
