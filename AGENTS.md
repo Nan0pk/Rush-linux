@@ -308,6 +308,52 @@ Do not produce walls of confusing text. Always make clear:
 - what is blocked;
 - whether the blocker is agent work or human-only.
 
+### Name things; do not speak in codes
+
+Package identifiers — `F1`, `S5D`, `C1`, `T1` and the rest — are database
+keys. They name a row in
+[`docs/plans/optid-package-status.toml`](docs/plans/optid-package-status.toml),
+and the validators, the receipt filenames, and the dependency graph are all
+built on them. Inside those files, inside tool code, and in filenames they
+stay exactly as they are. Nothing in this rule renames anything.
+
+But they are not names, and the human must never have to look one up to follow
+a sentence.
+
+In everything a human reads — chat replies, status updates, commit messages,
+pull-request titles and bodies, review comments, report prose — say what the
+thing *is* first, then the code in parentheses, and only where the reader may
+want to look it up:
+
+```text
+the thermal sensing and budget-model package (`T1`)
+```
+
+not:
+
+```text
+T1
+```
+
+Three rules follow:
+
+1. **Never lead with a bare code.** The first time a thing comes up in a
+   reply, name it.
+2. **A list of codes is not an answer.** "F1–F4 and S2D–S5D need
+   re-verification" tells the reader nothing at all. Name them, or describe
+   the set in words — "the four foundation packages and the four safety-lane
+   packages" — and then name the ones the human actually has to decide about.
+3. **Take the words from the ledger.** Every entry carries a `title`. Use it,
+   or a plainer paraphrase of it. Do not invent a second name for the same
+   thing, and do not guess a name you have not read.
+
+The same applies to any other internal shorthand the human did not choose:
+lane letters, gate names, milestone codes, check names. Expand it once, then
+use it.
+
+If the human has to ask "what is that?", the reply failed this section. Making
+them ask twice is a defect, not a matter of taste.
+
 ## 13. Repository and GitHub Safety
 
 - Work on a branch. Do not push directly to `main`.
