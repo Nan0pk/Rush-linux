@@ -285,14 +285,6 @@ Yes. The following individually harmful actions do not show as harmful once ever
 
 ## Findings the comparison table does not show
 
-### `owned_target_hot_removal_aborts_the_control_loop` — medium
-
-Removing a device optid owns makes the reconciler's transaction target canonicalisation fail, and the error propagates out of the control loop. The loop exits before its shutdown handback, so every owned target stays applied. The first supervised restart then refuses to start at all (StaleGeneration on the vanished target's record); only the S3D `optid-recover` pass that runs before the next restart clears it. Two restarts and one recovery pass are needed to hand the machine back, and `optid-apply.service` allows three starts per minute.
-
-- full_enabled / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba1c9e2bcf-000007dc, not 000000000000000018d07fba20cc0189-000007dc (Other) -> clean)
-- harmful_control / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba9b0dfdd9-000007dc, not 000000000000000018d07fba9e7c61d1-000007dc (Other) -> clean)
-- only_device_resume_latency / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fbb2b57cde4-000007dc, not 000000000000000018d07fbb2d50e154-000007dc (Other) -> clean)
-
 ### `controls_never_attempted_by_the_fully_enabled_arm` — informational
 
 The simulated machine exposes these controls and the fully enabled configuration never attempted to write any of them in any scenario.

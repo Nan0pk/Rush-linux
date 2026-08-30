@@ -5,7 +5,7 @@ testing work. It does not authorize implementation, change runtime defaults,
 advance a package, weaken a release gate, or substitute modeled results for
 physical hardware evidence.
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 
 ## Question
 
@@ -81,12 +81,13 @@ method have since been run end to end. The result is committed at
 It classifies every number by the evidence classes named above and makes no
 physical claim. The cloud virtual-machine lane and the gem5 lane remain unrun.
 
-That run found a high-severity defect — a failed `policy.toml` reload
-re-enabling domains an operator had switched off — which is now fixed. The
+That run found two defects, both now fixed: a failed `policy.toml` reload
+re-enabling domains an operator had switched off (high), and hot-removing a
+device optid owned aborting the control loop before its handback (medium). The
 after-fix re-run is committed alongside it at
 [`release/evidence/optid-simulated-evidence/2026-08-30-policy-reload-fix/`](../../release/evidence/optid-simulated-evidence/2026-08-30-policy-reload-fix/README.md),
 and the pair is the method's first worked example: a deterministic software
-proof finding a real defect that no physical measurement was needed to see.
+proof finding real defects that no physical measurement was needed to see.
 
 ## Proposed test system
 
