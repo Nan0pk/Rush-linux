@@ -20,12 +20,33 @@ use crate::contracts::{fits_contract, Contracts};
 use crate::io_util::{
     actuation_state, clear_journal, get_path_hash, mark_applied, revert_pm_qos, revert_sysctls,
 };
+use crate::kernel_io::{self, FaultKernel};
 use crate::load_state::{BootState, LoadState};
 use crate::policy::Policy;
 use crate::run;
 use crate::sensors::{Pressure, Snapshot};
 use crate::thermal::{ThermalBudget, ThermalBudgetState};
 use crate::workload::{Mode, WorkloadClass};
+
+/// The host sysctl the revert-journal tests below journal against.
+const HOST_SWAPPINESS: &str = "/proc/sys/vm/swappiness";
+
+/// Run `body` with every `RealKernel` call on this thread routed through a
+/// kernel that reaches the real filesystem but refuses every write to `path`.
+///
+/// The tests that use this assert what optid does when the kernel *refuses*
+/// a write: the revert journal must stay on disk so the restore can be
+/// retried. They used to take that refusal from the ambient process — an
+/// unprivileged CI runner cannot write `/proc/sys/vm/swappiness`. Run as root
+/// the write succeeds instead, the journal is cleared, and the assertions
+/// fail, after the host's real swappiness has already been changed. Injecting
+/// the refusal through the F2 seam makes the result the same for every user
+/// and takes the host out of the test entirely.
+fn with_write_denied<R>(path: &Path, body: impl FnOnce() -> R) -> R {
+    let kernel = FaultKernel::new(kernel_io::direct_kernel());
+    kernel.deny_writes(path.to_path_buf(), io::ErrorKind::PermissionDenied);
+    kernel_io::with_real_kernel_override(Box::new(kernel), body)
+}
 
 /// Test helper: budget that exposes `temp_c` via `thermal_c()` (non-Unavailable).
 fn budget_at_temp_c(temp_c: f32) -> ThermalBudget {
@@ -87,24 +108,29 @@ mod integration_tests {
         let config_path = temp_dir.join("policy.toml");
         fs::write(&config_path, "").unwrap();
 
-        let mut actuator = Actuator::new(temp_dir.clone());
-        let action = Action::vm_sysctl(
-            PathBuf::from("/proc/sys/vm/swappiness"),
-            "60".to_string(),
-            "test reason".to_string(),
-        );
-        let _ = actuator.apply(&action);
+        // The kernel refuses both the actuation and the restoring write. The
+        // journal, which lives in `temp_dir`, is written through the same
+        // injected kernel and reaches the real filesystem normally.
+        with_write_denied(Path::new(HOST_SWAPPINESS), || {
+            let mut actuator = Actuator::new(temp_dir.clone());
+            let action = Action::vm_sysctl(
+                PathBuf::from(HOST_SWAPPINESS),
+                "60".to_string(),
+                "test reason".to_string(),
+            );
+            let _ = actuator.apply(&action);
 
-        assert!(temp_dir.join("intended_vm_swappiness").exists());
+            assert!(temp_dir.join("intended_vm_swappiness").exists());
 
-        let actions_log = fs::read_to_string(temp_dir.join("actions.log")).unwrap();
-        assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
+            let actions_log = fs::read_to_string(temp_dir.join("actions.log")).unwrap();
+            assert!(actions_log.contains("vm.sysctl swappiness") || actions_log.contains("was"));
 
-        revert_sysctls(&temp_dir);
-        assert!(
-            temp_dir.join("intended_vm_swappiness").exists(),
-            "a denied restore must keep the journal retryable"
-        );
+            revert_sysctls(&temp_dir);
+            assert!(
+                temp_dir.join("intended_vm_swappiness").exists(),
+                "a denied restore must keep the journal retryable"
+            );
+        });
     }
 
     #[test]
@@ -1898,18 +1924,21 @@ device_resume_latency = 100000
         assert!(actuator.active_floors.is_none());
 
         // VmSysctl is an ungated variant; the contract gate must not
-        // block it even when no contract is installed. (We don't
-        // exercise a real write here — the test proves the gate returns
-        // Ok(true) for ungated variants before any I/O happens. The
-        // capability check + write happen after the gate; if the gate
-        // denied, the log would contain "contract gate BLOCKED".)
-        actuator
-            .apply(&Action::VmSysctl {
-                path: std::path::PathBuf::from("/proc/sys/vm/swappiness"),
-                value: "100".to_string(),
-                reason: "ungated variant".to_string(),
-            })
-            .unwrap();
+        // block it even when no contract is installed. The test proves the
+        // gate returns Ok(true) for ungated variants; the capability check
+        // and the write happen after it, and if the gate denied, the log
+        // would contain "contract gate BLOCKED". The write itself is
+        // refused through the F2 seam — without that a privileged run sets
+        // the host's real swappiness to 100.
+        with_write_denied(Path::new(HOST_SWAPPINESS), || {
+            actuator
+                .apply(&Action::VmSysctl {
+                    path: std::path::PathBuf::from(HOST_SWAPPINESS),
+                    value: "100".to_string(),
+                    reason: "ungated variant".to_string(),
+                })
+                .unwrap();
+        });
         let log = fs::read_to_string(temp.join("actions.log")).unwrap_or_default();
         assert!(
             !log.contains("contract gate BLOCKED"),
@@ -2550,31 +2579,21 @@ device_resume_latency = 100000
         ));
         let (dev, mut actuator) =
             phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
-        // Inject failure on write #2 (control) AND write #3 (rollback).
-        // We can only set one value, so we test the rollback-failure path
-        // by setting #3 — but #3 only runs if #2 fails first. So set #2
-        // to fail, then manually re-arm for #3 in a second apply? No —
-        // the test hook is consumed on first match. Instead, use #3 only:
-        // the rollback only runs after #2 fails, so setting #3 alone
-        // won't trigger (the #2 write succeeds and the action completes
-        // normally). We need both #2 and #3 to fail.
+        // Both write #2 (control) and write #3 (the rollback that only runs
+        // once #2 has failed) must fail. `fail_nth_runtime_pm_write` holds a
+        // single write number, so it takes #3, and the F2 kernel seam refuses
+        // #2 by denying every write to the control file.
         //
-        // Workaround: set #3, then make control_path unwritable via the
-        // filesystem (chmod the file read-only) so the real #2 write
-        // fails, which triggers the rollback path, where #3 then fails
-        // via the test hook.
+        // This used to chmod the control file read-only to make #2 fail
+        // through the real filesystem. Running as root, chmod does not stop
+        // the write, #2 succeeded, and the test failed. The injected refusal
+        // is the same for every user.
         actuator.fail_nth_runtime_pm_write = Some(3);
 
-        // Make control_path unwritable so the real guarded_write for #2
-        // fails naturally. The file was created by phase6_setup with
-        // content "on\n"; chmod it read-only.
         let control_path = dev.join("power").join("control");
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&control_path).unwrap().permissions();
-        perms.set_mode(0o444);
-        fs::set_permissions(&control_path, perms).unwrap();
-
-        actuator.apply(&phase6_action(&dev)).unwrap();
+        with_write_denied(&control_path, || {
+            actuator.apply(&phase6_action(&dev)).unwrap();
+        });
 
         let power = dev.join("power");
         // First write succeeded (delay=2000), second failed (control
@@ -3546,7 +3565,13 @@ verified = true
         let bs = boot_state(policy_load_state, LoadState::Ok, false, true, false);
         actuator.set_boot_state(bs);
 
-        actuator.apply_baseline().unwrap();
+        // `apply_baseline` is armed here, and the curated baseline writes
+        // vm.swappiness = 100. Refuse that write through the F2 seam; the
+        // assertion accepts either outcome, but a privileged run without
+        // the refusal changes the host's real swappiness.
+        with_write_denied(Path::new(HOST_SWAPPINESS), || {
+            actuator.apply_baseline().unwrap();
+        });
         let log = actions_log(&dir);
         assert!(
             log.contains("baseline: write") || log.contains("baseline: skip"),
@@ -3697,31 +3722,35 @@ verified = true
     fn crash_after_first_mutation_restart_restores() {
         let dir = test_dir("crash_after_mutation");
 
-        // Simulate: original journal written, applied marker written (write landed).
-        let orig_file = dir.join("original_vm_swappiness");
-        let applied_file = dir.join("applied_vm_swappiness");
-        fs::write(&orig_file, "100\n").unwrap();
-        mark_applied(&dir, "vm_swappiness", "60");
-        assert!(applied_file.exists(), "mark_applied must create the marker");
+        with_write_denied(Path::new(HOST_SWAPPINESS), || {
+            // Simulate: original journal written, applied marker written (write landed).
+            let orig_file = dir.join("original_vm_swappiness");
+            let applied_file = dir.join("applied_vm_swappiness");
+            fs::write(&orig_file, "100\n").unwrap();
+            mark_applied(&dir, "vm_swappiness", "60");
+            assert!(applied_file.exists(), "mark_applied must create the marker");
 
-        assert_eq!(
-            actuation_state(&dir, "vm_swappiness"),
-            Some(true),
-            "applied marker present ⇒ actuation_state = Some(true)"
-        );
+            assert_eq!(
+                actuation_state(&dir, "vm_swappiness"),
+                Some(true),
+                "applied marker present ⇒ actuation_state = Some(true)"
+            );
 
-        // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness.
-        // CI cannot write that path, so the journal must remain retryable.
-        revert_sysctls(&dir);
+            // revert_sysctls will try guarded_write to /proc/sys/vm/swappiness.
+            // The injected kernel refuses it, so the journal must remain
+            // retryable — and the host's own swappiness is never touched,
+            // whatever privileges this process happens to hold.
+            revert_sysctls(&dir);
 
-        assert!(
-            orig_file.exists(),
-            "original_vm_swappiness must remain after a failed revert"
-        );
-        assert!(
-            applied_file.exists(),
-            "applied_vm_swappiness must remain after a failed revert"
-        );
+            assert!(
+                orig_file.exists(),
+                "original_vm_swappiness must remain after a failed revert"
+            );
+            assert!(
+                applied_file.exists(),
+                "applied_vm_swappiness must remain after a failed revert"
+            );
+        });
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -3732,39 +3761,43 @@ verified = true
     fn stale_incomplete_journal_deterministic_recovery() {
         let dir = test_dir("stale_incomplete_journal");
 
-        // Simulate: original journal written, NO applied marker (crash mid-actuation).
-        let orig_file = dir.join("original_vm_swappiness");
-        let applied_file = dir.join("applied_vm_swappiness");
-        fs::write(&orig_file, "100\n").unwrap();
+        // Both restore attempts below are refused by the injected kernel; the
+        // denial is not consumed by the first one.
+        with_write_denied(Path::new(HOST_SWAPPINESS), || {
+            // Simulate: original journal written, NO applied marker (crash mid-actuation).
+            let orig_file = dir.join("original_vm_swappiness");
+            let applied_file = dir.join("applied_vm_swappiness");
+            fs::write(&orig_file, "100\n").unwrap();
 
-        assert_eq!(
-            actuation_state(&dir, "vm_swappiness"),
-            Some(false),
-            "original present + no applied marker ⇒ actuation_state = Some(false) (crash recovery)"
-        );
+            assert_eq!(
+                actuation_state(&dir, "vm_swappiness"),
+                Some(false),
+                "original present + no applied marker ⇒ actuation_state = Some(false) (crash recovery)"
+            );
 
-        revert_sysctls(&dir);
+            revert_sysctls(&dir);
 
-        assert!(
-            orig_file.exists(),
-            "original_vm_swappiness must remain when crash recovery cannot restore"
-        );
-        assert!(
-            !applied_file.exists(),
-            "applied_vm_swappiness must not exist (it was never created in the crash scenario)"
-        );
+            assert!(
+                orig_file.exists(),
+                "original_vm_swappiness must remain when crash recovery cannot restore"
+            );
+            assert!(
+                !applied_file.exists(),
+                "applied_vm_swappiness must not exist (it was never created in the crash scenario)"
+            );
 
-        // Repeat to verify the retained journal is retried deterministically.
-        assert_eq!(
-            actuation_state(&dir, "vm_swappiness"),
-            Some(false),
-            "second run: still crash recovery"
-        );
-        revert_sysctls(&dir);
-        assert!(
-            orig_file.exists(),
-            "second run: failed recovery remains retryable"
-        );
+            // Repeat to verify the retained journal is retried deterministically.
+            assert_eq!(
+                actuation_state(&dir, "vm_swappiness"),
+                Some(false),
+                "second run: still crash recovery"
+            );
+            revert_sysctls(&dir);
+            assert!(
+                orig_file.exists(),
+                "second run: failed recovery remains retryable"
+            );
+        });
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -3890,7 +3923,7 @@ verified = true
 #[cfg(test)]
 mod f2_fault_injection_tests {
     use super::*;
-    use crate::kernel_io::{FaultKernel, KernelWrite, RealKernel};
+    use crate::kernel_io::{FaultKernel, KernelWrite, MemoryKernel, RealKernel};
 
     /// Helper: create a temp state dir and an Actuator backed by a
     /// FaultKernel. Returns (actuator, fault_kernel_ptr, state_dir).
@@ -3923,15 +3956,16 @@ mod f2_fault_injection_tests {
     /// journal entries are written.
     #[test]
     fn f2_fault_missing_path_on_read_does_not_panic() {
+        let path = PathBuf::from(HOST_SWAPPINESS);
         let fk = FaultKernel::new(Box::new(RealKernel::new()));
-        // No fault rules — the path simply doesn't exist in the container.
+        // The sysctl exists on every Linux host, so "missing" has to be
+        // injected: hide it from reads and refuse the write. Without the
+        // refusal a privileged test run writes the host's real swappiness.
+        fk.hide_path(path.clone());
+        fk.deny_writes(path.clone(), std::io::ErrorKind::NotFound);
         let (mut actuator, temp_dir) = f2_actuator_with_faults(fk);
 
-        let action = Action::vm_sysctl(
-            PathBuf::from("/proc/sys/vm/swappiness"),
-            "60".to_string(),
-            "test: missing path".to_string(),
-        );
+        let action = Action::vm_sysctl(path, "60".to_string(), "test: missing path".to_string());
         // apply must not panic; it returns Ok(()) even when the write fails
         // (the actuator logs the failure and continues).
         let _ = actuator.apply(&action);
@@ -3979,9 +4013,13 @@ mod f2_fault_injection_tests {
     /// (empty string). This simulates hot-unplug between read and write.
     #[test]
     fn f2_fault_disappearing_path_on_read_returns_not_found() {
-        let path = PathBuf::from("/proc/sys/vm/swappiness");
+        let path = PathBuf::from(HOST_SWAPPINESS);
         let fk = FaultKernel::new(Box::new(RealKernel::new()));
         fk.hide_path(path.clone());
+        // `hide_path` only hides reads. The actuator still attempts the
+        // write, so refuse it too; otherwise a privileged run writes the
+        // host's real swappiness.
+        fk.deny_writes(path.clone(), std::io::ErrorKind::NotFound);
 
         let (mut actuator, temp_dir) = f2_actuator_with_faults(fk);
 
@@ -4024,8 +4062,11 @@ mod f2_fault_injection_tests {
     /// rule-consumption semantics.
     #[test]
     fn f2_fault_rule_fires_once_then_recovers() {
-        let path = PathBuf::from("/proc/sys/vm/swappiness");
-        let fk = FaultKernel::new(Box::new(RealKernel::new()));
+        let path = PathBuf::from(HOST_SWAPPINESS);
+        // Backed by memory, not the filesystem: the write that proves the
+        // rule was consumed must land somewhere, and that somewhere must
+        // never be the host's real sysctl.
+        let fk = FaultKernel::new(Box::new(MemoryKernel::new()));
         fk.fail_next_write(path.clone(), std::io::ErrorKind::Other);
 
         // First write: fault fires.
@@ -4033,16 +4074,11 @@ mod f2_fault_injection_tests {
         assert!(res1.is_err());
         assert_eq!(res1.unwrap_err().kind(), std::io::ErrorKind::Other);
 
-        // Second write: fault consumed. The write may still fail
-        // (PermissionDenied in non-root tests), but NOT with Other.
-        let res2 = fk.write(&path, "60");
-        if let Err(e) = res2 {
-            assert_ne!(
-                e.kind(),
-                std::io::ErrorKind::Other,
-                "second write must not fire the consumed fault rule"
-            );
-        }
+        // Second write: fault consumed, so the write succeeds.
+        assert!(
+            fk.write(&path, "60").is_ok(),
+            "second write must not fire the consumed fault rule"
+        );
     }
 
     /// F2 fault-injection: a hidden directory returns an empty listing,

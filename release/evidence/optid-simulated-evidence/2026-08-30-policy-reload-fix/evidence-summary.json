@@ -63,7 +63,7 @@
     {
       "allowlist_override": false,
       "control": null,
-      "description": "Fully enabled with the shipped seeded allowlist and no administrator override \u2014 the configuration a real installation starts in.",
+      "description": "Fully enabled with the shipped seeded allowlist and no administrator override — the configuration a real installation starts in.",
       "domains": {
         "backlight": "actuate",
         "cgroup_reweight": "off",
@@ -1707,9 +1707,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "off_all_domains",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -1892,11 +1892,11 @@
       ]
     },
     {
-      "absolute_delta": -1.9e-05,
+      "absolute_delta": -0.000019,
       "arm": "full_enabled",
-      "arm_value": 2.6000000000000002e-05,
+      "arm_value": 0.000026000000000000002,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2079,11 +2079,11 @@
       ]
     },
     {
-      "absolute_delta": -3.2000000000000005e-05,
+      "absolute_delta": -0.000032000000000000005,
       "arm": "full_stock_allowlist",
-      "arm_value": 1.3000000000000001e-05,
+      "arm_value": 0.000013000000000000001,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2268,9 +2268,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "full_observe",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2453,11 +2453,11 @@
       ]
     },
     {
-      "absolute_delta": -2.9000000000000004e-05,
+      "absolute_delta": -0.000029000000000000004,
       "arm": "harmful_control",
-      "arm_value": 1.6e-05,
+      "arm_value": 0.000016,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2642,9 +2642,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_cpu_epp",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2829,9 +2829,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_platform_profile",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -2895,7 +2895,7 @@
       ]
     },
     {
-      "absolute_delta": -7.124999999774673e-05,
+      "absolute_delta": -0.00007124999999774673,
       "arm": "only_platform_profile",
       "arm_value": 24.999330750000002,
       "baseline_below_floor": false,
@@ -3014,11 +3014,11 @@
       ]
     },
     {
-      "absolute_delta": -3.2000000000000005e-05,
+      "absolute_delta": -0.000032000000000000005,
       "arm": "only_vm_sysctl",
-      "arm_value": 1.3000000000000001e-05,
+      "arm_value": 0.000013000000000000001,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -3082,7 +3082,7 @@
       ]
     },
     {
-      "absolute_delta": 2.000000000279556e-05,
+      "absolute_delta": 0.00002000000000279556,
       "arm": "only_vm_sysctl",
       "arm_value": 24.999422000000003,
       "baseline_below_floor": false,
@@ -3203,9 +3203,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_cpu_dma_latency",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -3390,9 +3390,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_device_resume_latency",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -3577,9 +3577,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_runtime_pm",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -3764,9 +3764,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_pci_aspm",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -3949,11 +3949,11 @@
       ]
     },
     {
-      "absolute_delta": 1.1999999999999987e-05,
+      "absolute_delta": 0.000011999999999999987,
       "arm": "only_sata_alpm",
-      "arm_value": 5.699999999999999e-05,
+      "arm_value": 0.00005699999999999999,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -4138,9 +4138,9 @@
     {
       "absolute_delta": 0.0,
       "arm": "only_backlight",
-      "arm_value": 4.5e-05,
+      "arm_value": 0.000045,
       "baseline_below_floor": true,
-      "baseline_value": 4.5e-05,
+      "baseline_value": 0.000045,
       "direction": "no_meaningful_difference",
       "direction_stable": true,
       "metric": "io_stall_pct",
@@ -25248,16 +25248,6 @@
   "findings": [
     {
       "evidence": [
-        "full_enabled / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba1c9e2bcf-000007dc, not 000000000000000018d07fba20cc0189-000007dc (Other) -> clean)",
-        "harmful_control / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba9b0dfdd9-000007dc, not 000000000000000018d07fba9e7c61d1-000007dc (Other) -> clean)",
-        "only_device_resume_latency / hotplug_device_and_cpu: error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other) (recovery: error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fbb2b57cde4-000007dc, not 000000000000000018d07fbb2d50e154-000007dc (Other) -> clean)"
-      ],
-      "id": "owned_target_hot_removal_aborts_the_control_loop",
-      "severity": "medium",
-      "summary": "Removing a device optid owns makes the reconciler's transaction target canonicalisation fail, and the error propagates out of the control loop. The loop exits before its shutdown handback, so every owned target stays applied. The first supervised restart then refuses to start at all (StaleGeneration on the vanished target's record); only the S3D `optid-recover` pass that runs before the next restart clears it. Two restarts and one recovery pass are needed to hand the machine back, and `optid-apply.service` allows three starts per minute."
-    },
-    {
-      "evidence": [
         "device_resume_latency:0000:00:14.3",
         "device_resume_latency:1-4",
         "pci_aspm:0000:00:14.3",
@@ -25272,7 +25262,7 @@
       "summary": "The simulated machine exposes these controls and the fully enabled configuration never attempted to write any of them in any scenario."
     }
   ],
-  "full_bundle_bytes": 25568822,
+  "full_bundle_bytes": 25680303,
   "machine": {
     "backlight": "intel_backlight max=960",
     "cpus": 4,
@@ -25589,7 +25579,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -26729,7 +26719,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -28388,7 +28378,7 @@
         "energy_j": 105.34566900000002,
         "foreground_mean_latency_us": 804.0276857500002,
         "foreground_p99_latency_us": 811.570358375,
-        "io_stall_pct": 2.6000000000000002e-05,
+        "io_stall_pct": 0.000026000000000000002,
         "iterations": 40.0,
         "mean_die_temp_c": 36.11578975,
         "mean_power_w": 6.584104625000001,
@@ -30957,27 +30947,27 @@
     },
     {
       "aggregate": {
-        "completed_work_units": 3.0,
+        "completed_work_units": 3.6,
         "cpu_stall_pct": 0.0,
-        "cycles": 5.0,
-        "energy_j": 101.96987999999999,
-        "foreground_mean_latency_us": 1041.5534830000001,
-        "foreground_p99_latency_us": 1120.7791109999998,
-        "io_stall_pct": 0.0074789999999999995,
-        "iterations": 305.0,
-        "mean_die_temp_c": 42.1266804,
-        "mean_power_w": 10.196988,
+        "cycles": 6.0,
+        "energy_j": 115.73578900000001,
+        "foreground_mean_latency_us": 1045.7677048333333,
+        "foreground_p99_latency_us": 1139.476378,
+        "io_stall_pct": 0.005805,
+        "iterations": 366.0,
+        "mean_die_temp_c": 41.836599,
+        "mean_power_w": 9.644649166666667,
         "memory_stall_pct": 0.0,
         "peak_die_temp_c": 43.279743,
-        "throughput_ops_per_s": 298.4355272
+        "throughput_ops_per_s": 298.1562598333333
       },
       "arm": "full_enabled",
       "circuit_state": "global_open=false open_scopes=0",
       "containment_violations": [],
       "cycles_completed": 2,
-      "daemon_outcome": "error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other)",
+      "daemon_outcome": "topologyrebuild",
       "envelope": {
-        "cycles": 5,
+        "cycles": 6,
         "domain_modes": {
           "backlight": "actuate",
           "cgroup_reweight": "off",
@@ -30993,14 +30983,14 @@
         "domain_support": {
           "backlight": "not_evaluated",
           "cgroup_reweight": "not_evaluated",
-          "cpu_dma_latency": "unknown",
-          "cpu_epp": "unknown",
-          "device_resume_latency": "unknown",
-          "pci_aspm": "unknown",
-          "platform_profile": "unknown",
-          "runtime_pm": "unknown",
-          "sata_alpm": "unknown",
-          "vm_sysctl": "unknown"
+          "cpu_dma_latency": "supported",
+          "cpu_epp": "supported",
+          "device_resume_latency": "supported",
+          "pci_aspm": "supported",
+          "platform_profile": "supported",
+          "runtime_pm": "supported",
+          "sata_alpm": "supported",
+          "vm_sysctl": "supported"
         },
         "domains_seen": [
           "backlight",
@@ -31015,35 +31005,17 @@
           "vm_sysctl"
         ],
         "gate_denials": {
-          "cpu_dma_latency": "apply_disarmed_by_boot_state",
-          "cpu_epp": "apply_disarmed_by_boot_state",
-          "device_resume_latency": "apply_disarmed_by_boot_state",
-          "pci_aspm": "apply_disarmed_by_boot_state",
-          "platform_profile": "apply_disarmed_by_boot_state",
-          "runtime_pm": "apply_disarmed_by_boot_state",
-          "sata_alpm": "apply_disarmed_by_boot_state",
-          "vm_sysctl": "apply_disarmed_by_boot_state"
+          "device_resume_latency": "allowlist_denied",
+          "pci_aspm": "allowlist_denied",
+          "runtime_pm": "apply_disarmed_by_boot_state"
         },
         "parse_errors": [],
         "restore_targets": {
           "backlight:8a68d4d8179ea18a": "restore_applied",
-          "cpu-epp:26bee5a3a28d9ebe": "ownership_relinquished",
-          "cpu-epp:30eb8f0c02cdddef": "ownership_relinquished",
-          "cpu-epp:49c90ca679a19e05": "ownership_relinquished",
-          "cpu-epp:a1f9e3e40f1a8cb5": "ownership_relinquished",
-          "cpu:pm-qos-latency": "ownership_relinquished",
           "device-resume:20a110dbe1b89629": "ownership_relinquished",
-          "device-resume:49df2d55d938958a": "ownership_relinquished",
-          "device-resume:f98fad6d1b3f6595": "ownership_relinquished",
-          "pcie-aspm:dd8a05618f96299b": "ownership_relinquished",
-          "platform:profile": "ownership_relinquished",
           "runtime-pm:45c0a7e6cd81023e": "restore_applied",
           "runtime-pm:946a55ee4fa6f729": "restore_applied",
-          "runtime-pm:dd8a05618f96299b": "restore_applied",
-          "sata-alpm:abc4130132e47d44": "ownership_relinquished",
-          "vm-sysctl:dirty_background_bytes": "ownership_relinquished",
-          "vm-sysctl:dirty_bytes": "ownership_relinquished",
-          "vm-sysctl:swappiness": "restore_applied"
+          "runtime-pm:dd8a05618f96299b": "restore_applied"
         },
         "schema_versions": [
           2
@@ -31054,30 +31026,33 @@
           "cpu-epp:30eb8f0c02cdddef": "redundant_value",
           "cpu-epp:49c90ca679a19e05": "redundant_value",
           "cpu-epp:a1f9e3e40f1a8cb5": "redundant_value",
-          "cpu:epp": "gate_denied",
-          "cpu:pm-qos-latency": "gate_denied",
-          "device-resume:20a110dbe1b89629": "gate_denied",
-          "device-resume:49df2d55d938958a": "gate_denied",
+          "cpu:pm-qos-latency": "redundant_value",
+          "device-resume:20a110dbe1b89629": "ownership_relinquished",
+          "device-resume:49df2d55d938958a": "redundant_value",
           "device-resume:67cd4bb938c49583": "gate_denied",
-          "device-resume:f98fad6d1b3f6595": "gate_denied",
+          "device-resume:f98fad6d1b3f6595": "redundant_value",
           "pcie-aspm:4baa82a20e832fa9": "gate_denied",
-          "pcie-aspm:946a55ee4fa6f729": "gate_denied",
+          "pcie-aspm:946a55ee4fa6f729": "ownership_relinquished",
           "pcie-aspm:bcc3129f1e80a48d": "gate_denied",
-          "pcie-aspm:dd8a05618f96299b": "gate_denied",
-          "platform:profile": "gate_denied",
+          "pcie-aspm:dd8a05618f96299b": "redundant_value",
+          "platform:profile": "redundant_value",
           "runtime-pm:418c6b6804c6752a": "gate_denied",
-          "runtime-pm:45c0a7e6cd81023e": "gate_denied",
+          "runtime-pm:45c0a7e6cd81023e": "redundant_value",
           "runtime-pm:4baa82a20e832fa9": "gate_denied",
-          "runtime-pm:946a55ee4fa6f729": "gate_denied",
-          "runtime-pm:bcc3129f1e80a48d": "gate_denied",
-          "runtime-pm:dd8a05618f96299b": "gate_denied",
-          "sata-alpm:abc4130132e47d44": "gate_denied",
-          "vm-sysctl:dirty_background_bytes": "gate_denied",
-          "vm-sysctl:dirty_bytes": "gate_denied",
-          "vm-sysctl:swappiness": "gate_denied"
+          "runtime-pm:946a55ee4fa6f729": "redundant_value",
+          "runtime-pm:bcc3129f1e80a48d": "network_carrier_up",
+          "runtime-pm:dd8a05618f96299b": "redundant_value",
+          "sata-alpm:abc4130132e47d44": "redundant_value",
+          "vm-sysctl:dirty_background_bytes": "redundant_value",
+          "vm-sysctl:dirty_bytes": "redundant_value",
+          "vm-sysctl:swappiness": "redundant_value"
         },
         "targets_written": [
           "backlight:8a68d4d8179ea18a",
+          "cpu-epp:26bee5a3a28d9ebe",
+          "cpu-epp:30eb8f0c02cdddef",
+          "cpu-epp:49c90ca679a19e05",
+          "cpu-epp:a1f9e3e40f1a8cb5",
           "cpu:pm-qos-latency",
           "device-resume:20a110dbe1b89629",
           "device-resume:49df2d55d938958a",
@@ -31119,7 +31094,7 @@
           "requested_value": "100000",
           "restored_correctly": true,
           "restored_value": "unconstrained",
-          "write_attempts": 3
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -31131,7 +31106,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 1
+          "write_attempts": 2
         },
         {
           "became_active": true,
@@ -31143,7 +31118,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 1
+          "write_attempts": 2
         },
         {
           "became_active": true,
@@ -31155,7 +31130,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 1
+          "write_attempts": 2
         },
         {
           "became_active": true,
@@ -31167,7 +31142,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 1
+          "write_attempts": 2
         },
         {
           "became_active": true,
@@ -31179,7 +31154,7 @@
           "requested_value": "1000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -31191,7 +31166,7 @@
           "requested_value": "1000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -31215,7 +31190,7 @@
           "requested_value": "1",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": false,
@@ -31239,7 +31214,7 @@
           "requested_value": "low-power",
           "restored_correctly": true,
           "restored_value": "balanced",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": false,
@@ -31263,7 +31238,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31275,7 +31250,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31287,7 +31262,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31311,7 +31286,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31323,7 +31298,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31335,7 +31310,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31347,7 +31322,7 @@
           "requested_value": "med_power_with_dipm",
           "restored_correctly": true,
           "restored_value": "max_performance",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31359,7 +31334,7 @@
           "requested_value": "67108864",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31371,7 +31346,7 @@
           "requested_value": "134217728",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -31383,50 +31358,22 @@
           "requested_value": "100",
           "restored_correctly": true,
           "restored_value": "60",
-          "write_attempts": 3
+          "write_attempts": 5
         }
       ],
-      "recovery_outcome": "error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba1c9e2bcf-000007dc, not 000000000000000018d07fba20cc0189-000007dc (Other) -> clean",
+      "recovery_outcome": "clean",
       "rejections": [],
       "repeat": 0,
       "s3d_recovery": [
         {
-          "already_restored": 2,
+          "already_restored": 0,
           "available": true,
-          "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: failed \u2014 validate canonical identity: No such file or directory (os error 2)",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
-          ],
-          "exit_code": 78,
-          "failed": 1,
-          "relinquished": 0,
-          "restored": 11,
-          "scanned": 14,
-          "succeeded": false
-        },
-        {
-          "already_restored": 1,
-          "available": true,
-          "events": [
-            "device-resume:20a110dbe1b89629: already_restored \u2014 captured original already present"
-          ],
+          "events": [],
           "exit_code": 0,
           "failed": 0,
           "relinquished": 0,
           "restored": 0,
-          "scanned": 1,
+          "scanned": 0,
           "succeeded": true
         }
       ],
@@ -32115,16 +32062,16 @@
           "already_restored": 2,
           "available": true,
           "events": [
-            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift \u2014 current value no longer matches optid's intended state; ownership relinquished",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
+            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift — current value no longer matches optid's intended state; ownership relinquished",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "device-resume:20a110dbe1b89629: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:49df2d55d938958a: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:f98fad6d1b3f6595: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "pcie-aspm:dd8a05618f96299b: restored — verified exact rollback via restore the captured PCIe link state",
+            "sata-alpm:abc4130132e47d44: restored — verified exact rollback via restore the captured SCSI-host policy",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -32564,20 +32511,20 @@
           "already_restored": 2,
           "available": true,
           "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
+            "cpu-epp:26bee5a3a28d9ebe: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:30eb8f0c02cdddef: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:49c90ca679a19e05: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:a1f9e3e40f1a8cb5: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "device-resume:20a110dbe1b89629: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:49df2d55d938958a: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:f98fad6d1b3f6595: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "pcie-aspm:dd8a05618f96299b: restored — verified exact rollback via restore the captured PCIe link state",
+            "platform:profile: restored — verified exact rollback via restore the captured advertised platform profile",
+            "sata-alpm:abc4130132e47d44: restored — verified exact rollback via restore the captured SCSI-host policy",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -33105,7 +33052,7 @@
         "energy_j": 174.209669,
         "foreground_mean_latency_us": 803.6968263749998,
         "foreground_p99_latency_us": 810.496920875,
-        "io_stall_pct": 1.3000000000000001e-05,
+        "io_stall_pct": 0.000013000000000000001,
         "iterations": 40.0,
         "mean_die_temp_c": 36.553521375,
         "mean_power_w": 10.888104624999999,
@@ -35760,11 +35707,11 @@
           "already_restored": 2,
           "available": true,
           "events": [
-            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift \u2014 current value no longer matches optid's intended state; ownership relinquished",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
+            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift — current value no longer matches optid's intended state; ownership relinquished",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -36026,15 +35973,15 @@
           "already_restored": 2,
           "available": true,
           "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
+            "cpu-epp:26bee5a3a28d9ebe: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:30eb8f0c02cdddef: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:49c90ca679a19e05: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:a1f9e3e40f1a8cb5: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "platform:profile: restored — verified exact rollback via restore the captured advertised platform profile",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -36505,7 +36452,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -38499,7 +38446,7 @@
         "energy_j": 105.503181,
         "foreground_mean_latency_us": 803.9188270000001,
         "foreground_p99_latency_us": 811.3453076249998,
-        "io_stall_pct": 1.6e-05,
+        "io_stall_pct": 0.000016,
         "iterations": 40.0,
         "mean_die_temp_c": 36.116049625,
         "mean_power_w": 6.593949,
@@ -41260,27 +41207,27 @@
     },
     {
       "aggregate": {
-        "completed_work_units": 3.0,
+        "completed_work_units": 3.6,
         "cpu_stall_pct": 0.0,
-        "cycles": 5.0,
-        "energy_j": 100.71207900000002,
-        "foreground_mean_latency_us": 1042.997197,
-        "foreground_p99_latency_us": 1126.8318035999998,
-        "io_stall_pct": 0.006100799999999999,
-        "iterations": 305.0,
-        "mean_die_temp_c": 42.115218,
-        "mean_power_w": 10.071208200000001,
+        "cycles": 6.0,
+        "energy_j": 114.36354500000002,
+        "foreground_mean_latency_us": 1046.758829,
+        "foreground_p99_latency_us": 1144.8473131666667,
+        "io_stall_pct": 0.0035080000000000003,
+        "iterations": 366.0,
+        "mean_die_temp_c": 41.826616,
+        "mean_power_w": 9.530295833333334,
         "memory_stall_pct": 0.0,
         "peak_die_temp_c": 43.274619,
-        "throughput_ops_per_s": 297.8588162
+        "throughput_ops_per_s": 297.5438503333333
       },
       "arm": "harmful_control",
       "circuit_state": "global_open=false open_scopes=0",
       "containment_violations": [],
       "cycles_completed": 2,
-      "daemon_outcome": "error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other)",
+      "daemon_outcome": "topologyrebuild",
       "envelope": {
-        "cycles": 5,
+        "cycles": 6,
         "domain_modes": {
           "backlight": "actuate",
           "cgroup_reweight": "off",
@@ -41296,14 +41243,14 @@
         "domain_support": {
           "backlight": "not_evaluated",
           "cgroup_reweight": "not_evaluated",
-          "cpu_dma_latency": "unknown",
-          "cpu_epp": "unknown",
-          "device_resume_latency": "unknown",
-          "pci_aspm": "unknown",
-          "platform_profile": "unknown",
-          "runtime_pm": "unknown",
-          "sata_alpm": "unknown",
-          "vm_sysctl": "unknown"
+          "cpu_dma_latency": "supported",
+          "cpu_epp": "supported",
+          "device_resume_latency": "supported",
+          "pci_aspm": "supported",
+          "platform_profile": "supported",
+          "runtime_pm": "supported",
+          "sata_alpm": "supported",
+          "vm_sysctl": "supported"
         },
         "domains_seen": [
           "backlight",
@@ -41318,35 +41265,17 @@
           "vm_sysctl"
         ],
         "gate_denials": {
-          "cpu_dma_latency": "apply_disarmed_by_boot_state",
-          "cpu_epp": "apply_disarmed_by_boot_state",
-          "device_resume_latency": "apply_disarmed_by_boot_state",
-          "pci_aspm": "apply_disarmed_by_boot_state",
-          "platform_profile": "apply_disarmed_by_boot_state",
-          "runtime_pm": "apply_disarmed_by_boot_state",
-          "sata_alpm": "apply_disarmed_by_boot_state",
-          "vm_sysctl": "apply_disarmed_by_boot_state"
+          "device_resume_latency": "allowlist_denied",
+          "pci_aspm": "allowlist_denied",
+          "runtime_pm": "apply_disarmed_by_boot_state"
         },
         "parse_errors": [],
         "restore_targets": {
           "backlight:8a68d4d8179ea18a": "restore_applied",
-          "cpu-epp:26bee5a3a28d9ebe": "ownership_relinquished",
-          "cpu-epp:30eb8f0c02cdddef": "ownership_relinquished",
-          "cpu-epp:49c90ca679a19e05": "ownership_relinquished",
-          "cpu-epp:a1f9e3e40f1a8cb5": "ownership_relinquished",
-          "cpu:pm-qos-latency": "ownership_relinquished",
           "device-resume:20a110dbe1b89629": "ownership_relinquished",
-          "device-resume:49df2d55d938958a": "ownership_relinquished",
-          "device-resume:f98fad6d1b3f6595": "ownership_relinquished",
-          "pcie-aspm:dd8a05618f96299b": "ownership_relinquished",
-          "platform:profile": "ownership_relinquished",
           "runtime-pm:45c0a7e6cd81023e": "restore_applied",
           "runtime-pm:946a55ee4fa6f729": "restore_applied",
-          "runtime-pm:dd8a05618f96299b": "restore_applied",
-          "sata-alpm:abc4130132e47d44": "ownership_relinquished",
-          "vm-sysctl:dirty_background_bytes": "ownership_relinquished",
-          "vm-sysctl:dirty_bytes": "ownership_relinquished",
-          "vm-sysctl:swappiness": "ownership_relinquished"
+          "runtime-pm:dd8a05618f96299b": "restore_applied"
         },
         "schema_versions": [
           2
@@ -41357,27 +41286,26 @@
           "cpu-epp:30eb8f0c02cdddef": "redundant_value",
           "cpu-epp:49c90ca679a19e05": "redundant_value",
           "cpu-epp:a1f9e3e40f1a8cb5": "redundant_value",
-          "cpu:epp": "gate_denied",
-          "cpu:pm-qos-latency": "gate_denied",
-          "device-resume:20a110dbe1b89629": "gate_denied",
-          "device-resume:49df2d55d938958a": "gate_denied",
+          "cpu:pm-qos-latency": "redundant_value",
+          "device-resume:20a110dbe1b89629": "ownership_relinquished",
+          "device-resume:49df2d55d938958a": "redundant_value",
           "device-resume:67cd4bb938c49583": "gate_denied",
-          "device-resume:f98fad6d1b3f6595": "gate_denied",
+          "device-resume:f98fad6d1b3f6595": "redundant_value",
           "pcie-aspm:4baa82a20e832fa9": "gate_denied",
-          "pcie-aspm:946a55ee4fa6f729": "gate_denied",
+          "pcie-aspm:946a55ee4fa6f729": "ownership_relinquished",
           "pcie-aspm:bcc3129f1e80a48d": "gate_denied",
-          "pcie-aspm:dd8a05618f96299b": "gate_denied",
-          "platform:profile": "gate_denied",
+          "pcie-aspm:dd8a05618f96299b": "redundant_value",
+          "platform:profile": "redundant_value",
           "runtime-pm:418c6b6804c6752a": "gate_denied",
-          "runtime-pm:45c0a7e6cd81023e": "gate_denied",
+          "runtime-pm:45c0a7e6cd81023e": "redundant_value",
           "runtime-pm:4baa82a20e832fa9": "gate_denied",
-          "runtime-pm:946a55ee4fa6f729": "gate_denied",
-          "runtime-pm:bcc3129f1e80a48d": "gate_denied",
-          "runtime-pm:dd8a05618f96299b": "gate_denied",
-          "sata-alpm:abc4130132e47d44": "gate_denied",
-          "vm-sysctl:dirty_background_bytes": "gate_denied",
-          "vm-sysctl:dirty_bytes": "gate_denied",
-          "vm-sysctl:swappiness": "gate_denied"
+          "runtime-pm:946a55ee4fa6f729": "redundant_value",
+          "runtime-pm:bcc3129f1e80a48d": "network_carrier_up",
+          "runtime-pm:dd8a05618f96299b": "redundant_value",
+          "sata-alpm:abc4130132e47d44": "redundant_value",
+          "vm-sysctl:dirty_background_bytes": "redundant_value",
+          "vm-sysctl:dirty_bytes": "redundant_value",
+          "vm-sysctl:swappiness": "redundant_value"
         },
         "targets_written": [
           "backlight:8a68d4d8179ea18a",
@@ -41426,7 +41354,7 @@
           "requested_value": "2000000",
           "restored_correctly": true,
           "restored_value": "unconstrained",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41438,7 +41366,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -41450,7 +41378,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -41462,7 +41390,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -41474,7 +41402,7 @@
           "requested_value": "power",
           "restored_correctly": true,
           "restored_value": "balance_performance",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -41486,7 +41414,7 @@
           "requested_value": "2000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41498,7 +41426,7 @@
           "requested_value": "2000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41522,7 +41450,7 @@
           "requested_value": "1",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": false,
@@ -41546,7 +41474,7 @@
           "requested_value": "low-power",
           "restored_correctly": true,
           "restored_value": "balanced",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": false,
@@ -41570,7 +41498,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41582,7 +41510,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41594,7 +41522,7 @@
           "requested_value": "auto",
           "restored_correctly": true,
           "restored_value": "on",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41618,7 +41546,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41630,7 +41558,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41642,7 +41570,7 @@
           "requested_value": "2000",
           "restored_correctly": true,
           "restored_value": "-1",
-          "write_attempts": 2
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41654,7 +41582,7 @@
           "requested_value": "med_power_with_dipm",
           "restored_correctly": true,
           "restored_value": "max_performance",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41666,7 +41594,7 @@
           "requested_value": "1048576",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41678,7 +41606,7 @@
           "requested_value": "2097152",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 1
+          "write_attempts": 4
         },
         {
           "became_active": true,
@@ -41690,50 +41618,22 @@
           "requested_value": "0",
           "restored_correctly": true,
           "restored_value": "60",
-          "write_attempts": 1
+          "write_attempts": 4
         }
       ],
-      "recovery_outcome": "error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fba9b0dfdd9-000007dc, not 000000000000000018d07fba9e7c61d1-000007dc (Other) -> clean",
+      "recovery_outcome": "clean",
       "rejections": [],
       "repeat": 0,
       "s3d_recovery": [
         {
-          "already_restored": 1,
+          "already_restored": 0,
           "available": true,
-          "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: failed \u2014 validate canonical identity: No such file or directory (os error 2)",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value"
-          ],
-          "exit_code": 78,
-          "failed": 1,
-          "relinquished": 0,
-          "restored": 12,
-          "scanned": 14,
-          "succeeded": false
-        },
-        {
-          "already_restored": 1,
-          "available": true,
-          "events": [
-            "device-resume:20a110dbe1b89629: already_restored \u2014 captured original already present"
-          ],
+          "events": [],
           "exit_code": 0,
           "failed": 0,
           "relinquished": 0,
           "restored": 0,
-          "scanned": 1,
+          "scanned": 0,
           "succeeded": true
         }
       ],
@@ -42484,17 +42384,17 @@
           "already_restored": 1,
           "available": true,
           "events": [
-            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift \u2014 current value no longer matches optid's intended state; ownership relinquished",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "platform:profile: relinquished_drift \u2014 current value no longer matches optid's intended state; ownership relinquished",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value"
+            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift — current value no longer matches optid's intended state; ownership relinquished",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "device-resume:20a110dbe1b89629: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:49df2d55d938958a: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:f98fad6d1b3f6595: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "pcie-aspm:dd8a05618f96299b: restored — verified exact rollback via restore the captured PCIe link state",
+            "platform:profile: relinquished_drift — current value no longer matches optid's intended state; ownership relinquished",
+            "sata-alpm:abc4130132e47d44: restored — verified exact rollback via restore the captured SCSI-host policy",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: restored — verified exact rollback via restore every captured boot/startup VM sysctl value"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -42938,20 +42838,20 @@
           "already_restored": 1,
           "available": true,
           "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present",
-            "device-resume:20a110dbe1b89629: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state",
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile",
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy",
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value"
+            "cpu-epp:26bee5a3a28d9ebe: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:30eb8f0c02cdddef: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:49c90ca679a19e05: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:a1f9e3e40f1a8cb5: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu:pm-qos-latency: already_restored — captured original already present",
+            "device-resume:20a110dbe1b89629: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:49df2d55d938958a: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:f98fad6d1b3f6595: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "pcie-aspm:dd8a05618f96299b: restored — verified exact rollback via restore the captured PCIe link state",
+            "platform:profile: restored — verified exact rollback via restore the captured advertised platform profile",
+            "sata-alpm:abc4130132e47d44: restored — verified exact rollback via restore the captured SCSI-host policy",
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: restored — verified exact rollback via restore every captured boot/startup VM sysctl value"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -43527,7 +43427,7 @@
         "energy_j": 174.238819,
         "foreground_mean_latency_us": 804.007776375,
         "foreground_p99_latency_us": 811.1134202499999,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.553647125,
         "mean_power_w": 10.889925875000001,
@@ -45223,7 +45123,7 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift \u2014 current value no longer matches optid's intended state; ownership relinquished"
+            "cpu-epp:a1f9e3e40f1a8cb5: relinquished_drift — current value no longer matches optid's intended state; ownership relinquished"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -45396,10 +45296,10 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "cpu-epp:26bee5a3a28d9ebe: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:30eb8f0c02cdddef: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:49c90ca679a19e05: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value",
-            "cpu-epp:a1f9e3e40f1a8cb5: restored \u2014 verified exact rollback via restore each captured CPU-policy startup value"
+            "cpu-epp:26bee5a3a28d9ebe: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:30eb8f0c02cdddef: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:49c90ca679a19e05: restored — verified exact rollback via restore each captured CPU-policy startup value",
+            "cpu-epp:a1f9e3e40f1a8cb5: restored — verified exact rollback via restore each captured CPU-policy startup value"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -45726,7 +45626,7 @@
         "energy_j": 174.31805400000002,
         "foreground_mean_latency_us": 804.004507,
         "foreground_p99_latency_us": 811.1025221250001,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.553989625,
         "mean_power_w": 10.894878375000001,
@@ -47333,7 +47233,7 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "platform:profile: restored \u2014 verified exact rollback via restore the captured advertised platform profile"
+            "platform:profile: restored — verified exact rollback via restore the captured advertised platform profile"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -47637,7 +47537,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 803.6867519999998,
         "foreground_p99_latency_us": 810.463339,
-        "io_stall_pct": 1.3000000000000001e-05,
+        "io_stall_pct": 0.000013000000000000001,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -49582,9 +49482,9 @@
           "already_restored": 1,
           "available": true,
           "events": [
-            "vm-sysctl:dirty_background_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:dirty_bytes: restored \u2014 verified exact rollback via restore every captured boot/startup VM sysctl value",
-            "vm-sysctl:swappiness: already_restored \u2014 captured original already present"
+            "vm-sysctl:dirty_background_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:dirty_bytes: restored — verified exact rollback via restore every captured boot/startup VM sysctl value",
+            "vm-sysctl:swappiness: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -49936,7 +49836,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -51551,7 +51451,7 @@
           "already_restored": 1,
           "available": true,
           "events": [
-            "cpu:pm-qos-latency: already_restored \u2014 captured original already present"
+            "cpu:pm-qos-latency: already_restored — captured original already present"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -51856,7 +51756,7 @@
         "energy_j": 174.349424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.55412525,
         "mean_power_w": 10.896839,
@@ -53236,16 +53136,16 @@
     },
     {
       "aggregate": {
-        "completed_work_units": 3.0,
+        "completed_work_units": 3.6,
         "cpu_stall_pct": 0.0,
-        "cycles": 5.0,
-        "energy_j": 122.52588,
+        "cycles": 6.0,
+        "energy_j": 146.131056,
         "foreground_mean_latency_us": 1040.094733,
         "foreground_p99_latency_us": 1111.524111,
         "io_stall_pct": 0.00999,
-        "iterations": 305.0,
-        "mean_die_temp_c": 42.3332048,
-        "mean_power_w": 12.252588,
+        "iterations": 366.0,
+        "mean_die_temp_c": 42.07809683333334,
+        "mean_power_w": 12.177588,
         "memory_stall_pct": 0.0,
         "peak_die_temp_c": 43.410619,
         "throughput_ops_per_s": 298.610705
@@ -53254,9 +53154,9 @@
       "circuit_state": "global_open=false open_scopes=0",
       "containment_violations": [],
       "cycles_completed": 2,
-      "daemon_outcome": "error: JournalIo: canonicalize transaction target: NotFound: No such file or directory (os error 2) (Other)",
+      "daemon_outcome": "topologyrebuild",
       "envelope": {
-        "cycles": 5,
+        "cycles": 6,
         "domain_modes": {
           "backlight": "off",
           "cgroup_reweight": "off",
@@ -53274,7 +53174,7 @@
           "cgroup_reweight": "not_evaluated",
           "cpu_dma_latency": "not_evaluated",
           "cpu_epp": "not_evaluated",
-          "device_resume_latency": "unknown",
+          "device_resume_latency": "supported",
           "pci_aspm": "not_evaluated",
           "platform_profile": "not_evaluated",
           "runtime_pm": "not_evaluated",
@@ -53294,22 +53194,20 @@
           "vm_sysctl"
         ],
         "gate_denials": {
-          "device_resume_latency": "apply_disarmed_by_boot_state"
+          "device_resume_latency": "allowlist_denied"
         },
         "parse_errors": [],
         "restore_targets": {
-          "device-resume:20a110dbe1b89629": "ownership_relinquished",
-          "device-resume:49df2d55d938958a": "ownership_relinquished",
-          "device-resume:f98fad6d1b3f6595": "ownership_relinquished"
+          "device-resume:20a110dbe1b89629": "ownership_relinquished"
         },
         "schema_versions": [
           2
         ],
         "target_reasons": {
-          "device-resume:20a110dbe1b89629": "gate_denied",
-          "device-resume:49df2d55d938958a": "gate_denied",
+          "device-resume:20a110dbe1b89629": "ownership_relinquished",
+          "device-resume:49df2d55d938958a": "redundant_value",
           "device-resume:67cd4bb938c49583": "gate_denied",
-          "device-resume:f98fad6d1b3f6595": "gate_denied"
+          "device-resume:f98fad6d1b3f6595": "redundant_value"
         },
         "targets_written": [
           "device-resume:20a110dbe1b89629",
@@ -53329,7 +53227,7 @@
           "requested_value": "1000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -53341,7 +53239,7 @@
           "requested_value": "1000000",
           "restored_correctly": true,
           "restored_value": "0",
-          "write_attempts": 2
+          "write_attempts": 5
         },
         {
           "became_active": true,
@@ -53356,36 +53254,19 @@
           "write_attempts": 2
         }
       ],
-      "recovery_outcome": "error: StaleGeneration: device-resume:20a110dbe1b89629 belongs to generation 000000000000000018d07fbb2b57cde4-000007dc, not 000000000000000018d07fbb2d50e154-000007dc (Other) -> clean",
+      "recovery_outcome": "clean",
       "rejections": [],
       "repeat": 0,
       "s3d_recovery": [
         {
           "already_restored": 0,
           "available": true,
-          "events": [
-            "device-resume:20a110dbe1b89629: failed \u2014 validate canonical identity: No such file or directory (os error 2)",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request"
-          ],
-          "exit_code": 78,
-          "failed": 1,
-          "relinquished": 0,
-          "restored": 2,
-          "scanned": 3,
-          "succeeded": false
-        },
-        {
-          "already_restored": 1,
-          "available": true,
-          "events": [
-            "device-resume:20a110dbe1b89629: already_restored \u2014 captured original already present"
-          ],
+          "events": [],
           "exit_code": 0,
           "failed": 0,
           "relinquished": 0,
           "restored": 0,
-          "scanned": 1,
+          "scanned": 0,
           "succeeded": true
         }
       ],
@@ -53859,9 +53740,9 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "device-resume:20a110dbe1b89629: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:49df2d55d938958a: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request",
-            "device-resume:f98fad6d1b3f6595: restored \u2014 verified exact rollback via restore the captured request or remove only the optid-owned request"
+            "device-resume:20a110dbe1b89629: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:49df2d55d938958a: restored — verified exact rollback via restore the captured request or remove only the optid-owned request",
+            "device-resume:f98fad6d1b3f6595: restored — verified exact rollback via restore the captured request or remove only the optid-owned request"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -54219,7 +54100,7 @@
         "energy_j": 171.949424,
         "foreground_mean_latency_us": 804.195111375,
         "foreground_p99_latency_us": 811.8667765,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.52897037500001,
         "mean_power_w": 10.746839,
@@ -56413,7 +56294,7 @@
         "energy_j": 168.749424,
         "foreground_mean_latency_us": 804.014252,
         "foreground_p99_latency_us": 811.1433390000001,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.519362,
         "mean_power_w": 10.546839,
@@ -57972,7 +57853,7 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "pcie-aspm:dd8a05618f96299b: restored \u2014 verified exact rollback via restore the captured PCIe link state"
+            "pcie-aspm:dd8a05618f96299b: restored — verified exact rollback via restore the captured PCIe link state"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -58241,7 +58122,7 @@
         "energy_j": 167.629424,
         "foreground_mean_latency_us": 804.126752,
         "foreground_p99_latency_us": 811.343339,
-        "io_stall_pct": 5.699999999999999e-05,
+        "io_stall_pct": 0.00005699999999999999,
         "iterations": 40.0,
         "mean_die_temp_c": 36.51240975,
         "mean_power_w": 10.476839,
@@ -59714,7 +59595,7 @@
           "already_restored": 0,
           "available": true,
           "events": [
-            "sata-alpm:abc4130132e47d44: restored \u2014 verified exact rollback via restore the captured SCSI-host policy"
+            "sata-alpm:abc4130132e47d44: restored — verified exact rollback via restore the captured SCSI-host policy"
           ],
           "exit_code": 0,
           "failed": 0,
@@ -59984,7 +59865,7 @@
         "energy_j": 120.205424,
         "foreground_mean_latency_us": 804.001752,
         "foreground_p99_latency_us": 811.093339,
-        "io_stall_pct": 4.5e-05,
+        "io_stall_pct": 0.000045,
         "iterations": 40.0,
         "mean_die_temp_c": 36.21802425,
         "mean_power_w": 7.512839,
@@ -61791,47 +61672,47 @@
       "9 of 10 optid domains produced an action that actually became active on the simulated machine; the rest are reported unsupported."
     ],
     "uncertain": [
-      "interactive_ac / foreground_p99_latency_us (+2.7%, range +0.0%..+21.7%) \u2014 assumption-sensitive",
-      "interactive_ac / foreground_mean_latency_us (+1.9%, range +0.0%..+12.4%) \u2014 assumption-sensitive",
-      "interactive_ac / energy_j (+0.0%, range -8.6%..+0.0%) \u2014 assumption-sensitive",
-      "interactive_ac / mean_power_w (+0.0%, range -8.6%..+0.0%) \u2014 assumption-sensitive",
-      "latency_critical_ac / foreground_p99_latency_us (+4.3%, range +0.6%..+26.4%) \u2014 assumption-sensitive",
-      "latency_critical_ac / foreground_mean_latency_us (+4.0%, range +0.0%..+20.4%) \u2014 assumption-sensitive",
-      "latency_critical_ac / io_stall_pct (+66.2%, range +0.0%..+66.2%) \u2014 assumption-sensitive",
-      "latency_critical_ac / energy_j (+0.0%, range -3.4%..+0.0%) \u2014 assumption-sensitive",
-      "latency_critical_ac / mean_power_w (+0.0%, range -3.4%..+0.0%) \u2014 assumption-sensitive",
-      "throughput_ac / foreground_p99_latency_us (+4.1%, range +0.6%..+4.3%) \u2014 assumption-sensitive",
-      "throughput_ac / foreground_mean_latency_us (+3.6%, range +0.5%..+3.7%) \u2014 assumption-sensitive",
-      "throughput_ac / cpu_stall_pct (+5.3%, range +0.0%..+10.6%) \u2014 assumption-sensitive",
-      "throughput_ac / io_stall_pct (+62.4%, range +0.0%..+62.4%) \u2014 assumption-sensitive",
-      "throughput_ac / energy_j (-5.5%, range -11.7%..-1.0%) \u2014 assumption-sensitive",
-      "throughput_ac / mean_power_w (-5.5%, range -11.7%..-1.0%) \u2014 assumption-sensitive",
-      "throughput_ac / completed_work_units (+3.1%, range +0.5%..+7.8%) \u2014 assumption-sensitive",
-      "memory_pressure_ac / foreground_p99_latency_us (+8.6%, range +1.3%..+19.3%) \u2014 assumption-sensitive",
-      "memory_pressure_ac / foreground_mean_latency_us (+7.7%, range +1.2%..+15.0%) \u2014 assumption-sensitive",
-      "memory_pressure_ac / memory_stall_pct (+9.1%, range +0.0%..+9.1%) \u2014 assumption-sensitive",
-      "memory_pressure_ac / throughput_ops_per_s (+3.0%, range +0.4%..+3.1%) \u2014 assumption-sensitive",
-      "memory_pressure_ac / completed_work_units (+3.7%, range +0.6%..+3.7%) \u2014 assumption-sensitive",
-      "storage_pressure_ac / energy_j (+0.0%, range -4.8%..+0.0%) \u2014 assumption-sensitive",
-      "storage_pressure_ac / mean_power_w (+0.0%, range -4.8%..+0.0%) \u2014 assumption-sensitive",
-      "storage_pressure_ac / throughput_ops_per_s (+7.0%, range +1.0%..+7.1%) \u2014 assumption-sensitive",
-      "mixed_foreground_background_battery / foreground_p99_latency_us (+1.0%, range -3.2%..+7.2%) \u2014 assumption-sensitive",
-      "mixed_foreground_background_battery / foreground_mean_latency_us (+2.0%, range -1.6%..+6.4%) \u2014 assumption-sensitive",
-      "mixed_foreground_background_battery / cpu_stall_pct (+9.679 in metric units; the baseline 0.000 is below the noise floor, so a percentage would be misleading) \u2014 assumption-sensitive",
-      "mixed_foreground_background_battery / io_stall_pct (+56.9%, range +0.0%..+62.0%) \u2014 assumption-sensitive",
-      "mixed_foreground_background_battery / completed_work_units (-9.7%, range -20.5%..+0.0%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / foreground_p99_latency_us (+3.1%, range +0.5%..+3.3%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / foreground_mean_latency_us (+2.8%, range +0.4%..+3.0%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / cpu_stall_pct (+14.3%, range +0.0%..+26.3%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / io_stall_pct (+64.8%, range +0.0%..+64.8%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / energy_j (-5.2%, range -10.6%..-1.0%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / mean_power_w (-5.2%, range -10.6%..-1.0%) \u2014 assumption-sensitive",
-      "thermal_rise_and_recovery_ac / completed_work_units (+4.7%, range +0.8%..+11.7%) \u2014 assumption-sensitive",
-      "ac_to_battery_and_back / foreground_p99_latency_us (+0.0%, range -4.6%..+21.4%) \u2014 assumption-sensitive",
-      "ac_to_battery_and_back / foreground_mean_latency_us (+0.7%, range -1.2%..+11.7%) \u2014 assumption-sensitive",
-      "ac_to_battery_and_back / energy_j (+1.4%, range -9.8%..+1.8%) \u2014 assumption-sensitive",
-      "ac_to_battery_and_back / mean_power_w (+1.4%, range -9.8%..+1.8%) \u2014 assumption-sensitive",
-      "ac_to_battery_and_back / throughput_ops_per_s (-0.5%, range -2.2%..+0.0%) \u2014 assumption-sensitive"
+      "interactive_ac / foreground_p99_latency_us (+2.7%, range +0.0%..+21.7%) — assumption-sensitive",
+      "interactive_ac / foreground_mean_latency_us (+1.9%, range +0.0%..+12.4%) — assumption-sensitive",
+      "interactive_ac / energy_j (+0.0%, range -8.6%..+0.0%) — assumption-sensitive",
+      "interactive_ac / mean_power_w (+0.0%, range -8.6%..+0.0%) — assumption-sensitive",
+      "latency_critical_ac / foreground_p99_latency_us (+4.3%, range +0.6%..+26.4%) — assumption-sensitive",
+      "latency_critical_ac / foreground_mean_latency_us (+4.0%, range +0.0%..+20.4%) — assumption-sensitive",
+      "latency_critical_ac / io_stall_pct (+66.2%, range +0.0%..+66.2%) — assumption-sensitive",
+      "latency_critical_ac / energy_j (+0.0%, range -3.4%..+0.0%) — assumption-sensitive",
+      "latency_critical_ac / mean_power_w (+0.0%, range -3.4%..+0.0%) — assumption-sensitive",
+      "throughput_ac / foreground_p99_latency_us (+4.1%, range +0.6%..+4.3%) — assumption-sensitive",
+      "throughput_ac / foreground_mean_latency_us (+3.6%, range +0.5%..+3.7%) — assumption-sensitive",
+      "throughput_ac / cpu_stall_pct (+5.3%, range +0.0%..+10.6%) — assumption-sensitive",
+      "throughput_ac / io_stall_pct (+62.4%, range +0.0%..+62.4%) — assumption-sensitive",
+      "throughput_ac / energy_j (-5.5%, range -11.7%..-1.0%) — assumption-sensitive",
+      "throughput_ac / mean_power_w (-5.5%, range -11.7%..-1.0%) — assumption-sensitive",
+      "throughput_ac / completed_work_units (+3.1%, range +0.5%..+7.8%) — assumption-sensitive",
+      "memory_pressure_ac / foreground_p99_latency_us (+8.6%, range +1.3%..+19.3%) — assumption-sensitive",
+      "memory_pressure_ac / foreground_mean_latency_us (+7.7%, range +1.2%..+15.0%) — assumption-sensitive",
+      "memory_pressure_ac / memory_stall_pct (+9.1%, range +0.0%..+9.1%) — assumption-sensitive",
+      "memory_pressure_ac / throughput_ops_per_s (+3.0%, range +0.4%..+3.1%) — assumption-sensitive",
+      "memory_pressure_ac / completed_work_units (+3.7%, range +0.6%..+3.7%) — assumption-sensitive",
+      "storage_pressure_ac / energy_j (+0.0%, range -4.8%..+0.0%) — assumption-sensitive",
+      "storage_pressure_ac / mean_power_w (+0.0%, range -4.8%..+0.0%) — assumption-sensitive",
+      "storage_pressure_ac / throughput_ops_per_s (+7.0%, range +1.0%..+7.1%) — assumption-sensitive",
+      "mixed_foreground_background_battery / foreground_p99_latency_us (+1.0%, range -3.2%..+7.2%) — assumption-sensitive",
+      "mixed_foreground_background_battery / foreground_mean_latency_us (+2.0%, range -1.6%..+6.4%) — assumption-sensitive",
+      "mixed_foreground_background_battery / cpu_stall_pct (+9.679 in metric units; the baseline 0.000 is below the noise floor, so a percentage would be misleading) — assumption-sensitive",
+      "mixed_foreground_background_battery / io_stall_pct (+56.9%, range +0.0%..+62.0%) — assumption-sensitive",
+      "mixed_foreground_background_battery / completed_work_units (-9.7%, range -20.5%..+0.0%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / foreground_p99_latency_us (+3.1%, range +0.5%..+3.3%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / foreground_mean_latency_us (+2.8%, range +0.4%..+3.0%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / cpu_stall_pct (+14.3%, range +0.0%..+26.3%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / io_stall_pct (+64.8%, range +0.0%..+64.8%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / energy_j (-5.2%, range -10.6%..-1.0%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / mean_power_w (-5.2%, range -10.6%..-1.0%) — assumption-sensitive",
+      "thermal_rise_and_recovery_ac / completed_work_units (+4.7%, range +0.8%..+11.7%) — assumption-sensitive",
+      "ac_to_battery_and_back / foreground_p99_latency_us (+0.0%, range -4.6%..+21.4%) — assumption-sensitive",
+      "ac_to_battery_and_back / foreground_mean_latency_us (+0.7%, range -1.2%..+11.7%) — assumption-sensitive",
+      "ac_to_battery_and_back / energy_j (+1.4%, range -9.8%..+1.8%) — assumption-sensitive",
+      "ac_to_battery_and_back / mean_power_w (+1.4%, range -9.8%..+1.8%) — assumption-sensitive",
+      "ac_to_battery_and_back / throughput_ops_per_s (-0.5%, range -2.2%..+0.0%) — assumption-sensitive"
     ],
     "worse": [
       "mixed_foreground_background_battery / throughput_ops_per_s (-11.5%, range -21.3%..-2.5%)"
