@@ -1,0 +1,32 @@
+# Independent cold-verification receipt for C1.
+# Verification ran before this receipt was written. Historical implementation
+# provenance remains in Git history and the canonical package ledger.
+
+schema_version = 1
+package = "C1"
+implementation_pr = 431
+verification_pr = 447
+verified_commit = "b673c0e185639c556a69e88e806ed11946f526d1"
+verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
+result = "pass"
+workflow_run = 33332810449
+workflow_job = 99314354620
+
+commands = [
+  "PR Gate run 33332810449 job 99314354620: cargo fmt --all -- --check -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo test --workspace -> PASS; optid main 548 passed, optid lib 14 passed, recovery and systemd integration suites passed",
+  "PR Gate run 33332810449 job 99314354620: cargo test -p optid --features test-simulation --bin optid-simulation simulation:: -> PASS; 6 passed",
+  "PR Gate run 33332810449 job 99314354620: cargo test -p optid --features test-simulation --test i2_simulation_cli -> PASS; 3 passed",
+  "PR Gate run 33332810449 job 99314354620: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed",
+  "PR Gate run 33332810449 job 99314354620: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo check --workspace --all-targets --all-features -> PASS",
+  "PR Gate run 33332810449 job 99314354620: python3 tools/validate-optid-packages.py --base 99069058ede92065083c39e408b7803b6aca0f8c -> PASS",
+]
+
+runtime_proofs = [
+  "All 22 ledger-mapped C1 acceptance tests passed, covering strictest-contract composition, provenance and confidence handling, firmware invalidation, observe-mode non-relaxation, boundary equality, property tightening, and fail-closed unknown latency.",
+  "Every mapped production runtime-PM gate passed: verified latency within the floor may actuate, excessive latency denies, unverified entry latency is not evidence, unreadable pinned firmware denies, and missing latency denies.",
+  "The exact verified commit contains current main plus only the temporary rush_collect CI-selection test; no optid production, test, policy, packaging, or declared C1 proof path differed from main 99069058ede92065083c39e408b7803b6aca0f8c.",
+]
+
+unresolved = []

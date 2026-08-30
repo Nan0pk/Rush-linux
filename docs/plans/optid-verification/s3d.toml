@@ -1,155 +1,30 @@
-# Independent post-merge cold-verification receipt for S3D:
-# Add independent recovery, watchdog, and boot ordering.
-#
-# Verification was read-only before this state transition. No S3D
-# implementation, test, service, dependency, feature default, or runtime
-# actuation path was repaired by the verifier.
+# Independent cold-verification receipt for S3D.
+# Previous receipts and builder recertifications remain preserved in Git history.
 
 schema_version = 1
 package = "S3D"
 implementation_pr = 388
-verification_pr = 389
-# PR #426 builder recertification. Commit 0d7ae31319a1 extracted
-# is_unset_placeholder/assigns_a_value out of crates/optid/src/recovery.rs (a
-# declared S3D proof path) into a new shared systemd_placeholder.rs, included
-# by #[path] instead of hand-duplicated with the daemon's own copy in
-# reconciler/mod.rs; recovery.rs's own recovery logic and its test assertions
-# are unchanged. All twelve mapped S3D acceptance tests (six in-crate via
-# optid-recover's recovery::tests, two in-crate via optid's
-# reconciler::tests, two in tests/s3d_systemd.rs, two in
-# tests/recovery_cli.rs) were re-run individually with `--exact` against
-# 0d7ae31319a1 and passed. This is a builder re-run of the mapped contract
-# only -- no independent cold verification was performed for it, and the
-# `verifier`, `verified_at`, and workflow fields below still describe the
-# original independent job at c616f3079792.
-verified_commit = "0d7ae31319a1384483131cf6441626df2854d3c8"
-systemd_verified_commit = "88c9b38a5c24477495f61d3226998e9d8834def8"
-implementation_head = "32bdd7143862ad326ddc56d07076136cd5d5857a"
-integrated_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
-source_base_commit = "ce6ef8bc0df13c1fcf70529b23471cbb38a28789"
-publication_commit = "c7ac54b917c6311e0c463ec796c4cf095c829812"
-verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
+verification_pr = 447
+verified_commit = "b673c0e185639c556a69e88e806ed11946f526d1"
+verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
 result = "pass"
-verified_at = "2026-08-04T14:45:03Z"
-
-acceptance_workflow_run = 30919973311
-acceptance_workflow_attempt = 1
-acceptance_workflow_job = 92027711233
-acceptance_artifact_id = 8896710596
-acceptance_artifact_name = "s3d-post-merge-cold-verification-30919973311"
-acceptance_artifact_digest = "sha256:d74e9a8c3b1f6c71ef2b18210f7ba4f105a03ff86a17bbcdcc7e88cb5ac0e7f0"
-acceptance_artifact_size_bytes = 19934
-acceptance_artifact_expires = "2026-09-03"
-
-systemd_workflow_run = 30920471765
-systemd_workflow_attempt = 1
-systemd_workflow_job = 92029435963
-systemd_artifact_id = 8896870258
-systemd_artifact_name = "s3d-post-merge-systemd-verification-30920471765"
-systemd_artifact_digest = "sha256:d530f046fd1ba94645524728d415c91c5f7038d1460b9f94519e08321c331ad8"
-systemd_artifact_size_bytes = 4708
-systemd_artifact_expires = "2026-09-03"
+workflow_run = 33332810449
+workflow_job = 99314354620
 
 commands = [
-  "implementation ancestry and byte binding to merge commit ce6ef8bc0df13c1fcf70529b23471cbb38a28789 -> passed",
-  "current-work, package-ledger, generated README, and whitespace checks -> passed before transition",
-  "cargo fmt, all-target/all-feature check, and warning-free clippy -> passed",
-  "all twelve mapped S3D tests executed individually with --exact -> passed",
-  "cargo test -p optid -> 440 daemon tests plus all integration tests passed",
-  "cargo test --workspace --all-features -> passed",
-  "production optid-recover success and malformed-record fault injections -> passed",
-  "cargo test -p optid --test s3d_systemd -> 2 passed",
-  "packaged and mkosi apply/recovery units -> byte-identical",
-  "live cold restart and forced recovery failure lifecycle -> passed",
+  "PR Gate run 33332810449 job 99314354620: cargo fmt --all -- --check -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo test --workspace -> PASS; optid main 548 passed, optid-recover 14 passed, recovery_cli 4 passed, s3d_systemd 2 passed",
+  "PR Gate run 33332810449 job 99314354620: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed including supervised restart recovery",
+  "PR Gate run 33332810449 job 99314354620: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo check --workspace --all-targets --all-features -> PASS",
+  "PR Gate run 33332810449 job 99314354620: python3 tools/validate-optid-packages.py --base 99069058ede92065083c39e408b7803b6aca0f8c -> PASS",
 ]
 
 runtime_proofs = [
-  "Production recovery restored the exact captured original, verified readback, durably recorded the outcome, and compacted the resolved record.",
-  "Malformed transaction evidence made production optid-recover exit 78 while retaining the unresolved record and writing a failed status summary.",
-  "Mapped watchdog tests emitted READY/WATCHDOG only after complete healthy reconciliation and withheld the heartbeat for an unsafe journal.",
-  "A live Ubuntu 24.04 manager ran recovery-1 before apply-1, scheduled exactly one restart, then ran recovery-2 before apply-2.",
-  "Forced recovery exit 78 failed the required dependency, executed no apply process, left apply inactive, and kept NRestarts at zero.",
-  "The lifecycle proof installed the merged packaged units, confirmed mkosi mirrors, preserved the shipped dependency graph and restart policies, and changed only hosted-runner executable/notify/hardware-sandbox details through drop-ins.",
-]
-
-evidence_notes = [
-  "Run 30919973311 supplied source binding, exact acceptance, full regression, watchdog, and production recovery-binary evidence. Its hosted hardware-sandbox start was inconclusive and is not used as lifecycle pass evidence.",
-  "Run 30920471765 separately bound the merged unit files to effective systemd properties and supplied the successful cold lifecycle evidence.",
+  "All mapped S3D recovery tests passed: intended-value restore, prepared-record idempotence, failure retention, external-drift handback, identity-reuse refusal, and repeated recovery idempotence.",
+  "Production recovery CLI tests proved recovery occurs before successful exit, unresolved records are retained, removed or replaced targets are not touched, and the recovery binary has no policy or async surface.",
+  "Watchdog tests emitted readiness and heartbeat only after a complete healthy cycle and withheld heartbeat on journal failure; systemd tests ordered recovery before apply and prevented an automatic actuation restart loop after failed recovery.",
+  "The exact verified commit differs from main only by the temporary rush_collect CI-selection test and changes no S3D production, test, service, packaging, or declared proof path.",
 ]
 
 unresolved = []
-
-# PR #390 S4D shared-surface recertification.
-s4d_recertification_pr = 390
-s4d_recertification_implementation_head = "fd1658026b0399a801ba7355c34e7df3e46bdf32"
-s4d_prior_verified_commit = "59b5cb3d01a9093e2296e458be8f0e681f8eac17"
-s4d_prior_verifier = "Independent ChatGPT GitHub verifier session, separate from the PR #388 implementation builder; Linux X64 ubuntu-24.04"
-s4d_recertified_at = "2026-08-04T16:23:29Z"
-s4d_recertification_workflow_run = 30928719936
-s4d_recertification_workflow_attempt = 1
-s4d_recertification_workflow_job = 92057652856
-s4d_recertification_artifact_id = 8900272552
-s4d_recertification_artifact_name = "s4d-shared-surface-verification-30928719936"
-s4d_recertification_artifact_digest = "sha256:6200dc41af35165844c92e8aff129e953cdb5bf41cfa59c6162a169abd22689a"
-s4d_recertification_artifact_size_bytes = 28350
-s4d_recertification_artifact_expires = "2026-09-03T16:23:43Z"
-s4d_recertification_kernel_release = "6.17.0-1020-azure"
-s4d_recertification_landlock_abi = 7
-
-s4d_recertification_commands = [
-  "all mapped acceptance tests for F1, F2, F3, F4, D0, S2D, S3D, and S4D executed by name and observed passing",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check -p optid --all-targets --all-features -> passed",
-  "cargo clippy -p optid --all-targets --all-features -- -D warnings -> passed",
-  "cargo test -p optid -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "live D0 Landlock proof on kernel 6.17.0-1020-azure, ABI 7 -> eight checks passed",
-  "D0 supervised status-75 two-cycle rebuild and non-75 suppression -> passed",
-  "S3D live required-recovery ordering, one replacement restart, and failed-recovery loop suppression -> passed",
-  "S4D static startup order, topology handback, descriptor identity, and cold-rebuild tests -> passed",
-]
-
-s4d_recertification_runtime_proofs = [
-  "S4D's shared actuator, main-loop, policy, kernel-I/O, restore, Landlock, and apply-unit changes preserved every mapped acceptance contract of this completed package.",
-  "No runtime source, test, service, policy, feature default, action envelope, or package claim was repaired during verification.",
-  "The immutable implementation head fd1658026b0399a801ba7355c34e7df3e46bdf32 was tested before any receipt or ledger mutation.",
-]
-
-# PR #392 S5D shared-surface candidate recertification.
-s5d_candidate_recertification_pr = 392
-s5d_candidate_source_head = "99204930d5677aa19cf64794852fd45034a4c9ee"
-s5d_candidate_prior_verified_commit = "4e01cf4e182b27d0ef966cc290b33e4b5f5db7bf"
-s5d_candidate_verified_at = "2026-08-06T14:22:32Z"
-s5d_candidate_workflow_run = 31110326738
-s5d_candidate_workflow_attempt = 1
-s5d_candidate_workflow_job = 92646125177
-s5d_candidate_artifact_id = 8971444870
-s5d_candidate_artifact_name = "s5d-candidate-verification-31110326738"
-s5d_candidate_artifact_digest = "sha256:1223210d42f5c52bcec170f332901e2165412e91c6768192b121043d2a603732"
-s5d_candidate_artifact_size_bytes = 28127
-s5d_candidate_artifact_expires = "2026-09-05T14:22:39Z"
-s5d_candidate_kernel_release = "6.17.0-1020-azure"
-s5d_candidate_landlock_abi = 7
-
-s5d_candidate_commands = [
-  "source-bound fresh verifier to immutable S5D implementation commit 99204930d5677aa19cf64794852fd45034a4c9ee",
-  "validator-derived affected completed packages were exactly F1, F2, F3, F4, S2D, S3D, and S4D",
-  "every mapped acceptance test for all affected completed packages and S5D was uniquely discovered and executed with --exact -> passed",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check --workspace --all-targets --all-features -> passed",
-  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "cargo test -p optid --all-features -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "packaged and mkosi apply/recovery units were byte-identical and passed systemd-analyze verify",
-  "live capability-sealing eight-check probe, status-75 cold rebuild, recovery ordering, and non-75 restart suppression -> passed",
-]
-
-s5d_candidate_runtime_proofs = [
-  "S5D evaluates persisted circuit state before desired-state reconciliation and before actuator entry.",
-  "Repeated scoped failures persist quarantine across restart, remove only the failed domain from desired state, and preserve unrelated domain actuation.",
-  "Cooldown cannot authorize re-entry without a successful observe-only recovery cycle; one canary is persisted in-flight, confirmed readback closes it, and failure reopens immediately.",
-  "Restore failures are attributed to their reconciler domain and counted; unisolatable shared failures open the process-wide observe-only circuit.",
-  "Canonical MODALIAS or a privacy-safe platform HWID token and a separate firmware token scope the persistent record without promoting hardware.",
-  "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
-  "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
-]

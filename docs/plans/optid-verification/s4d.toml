@@ -1,131 +1,30 @@
-# Independent post-merge cold-verification receipt for S4D:
-# Move writes to a sealed typed capability table.
-#
-# Verification was read-only before this state transition. No S4D runtime
-# implementation, test, service, policy, action envelope, or safety default was
-# repaired by the verifier.
+# Independent cold-verification receipt for S4D.
+# Previous receipts and builder recertifications remain preserved in Git history.
 
 schema_version = 1
 package = "S4D"
 implementation_pr = 390
-verification_pr = 391
-verified_commit = "791cd5364a8fd6e57717d5efc016b10eec64be69"
-implementation_head = "57582752084bab2d1c0f1555f5b13e08fbfa074a"
-integrated_commit = "a0d5b12a815496a32f39aa2ae8b67a57a9b57338"
-source_base_commit = "a0d5b12a815496a32f39aa2ae8b67a57a9b57338"
-verifier = "Independent ChatGPT GitHub verifier job for S5D shared surfaces; Linux X64 ubuntu-24.04"
+verification_pr = 447
+verified_commit = "b673c0e185639c556a69e88e806ed11946f526d1"
+verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
 result = "pass"
-verified_at = "2026-08-04T17:17:07Z"
-
-acceptance_workflow_run = 30933044397
-acceptance_workflow_attempt = 1
-acceptance_workflow_job = 92072204769
-acceptance_artifact_id = 8901985180
-acceptance_artifact_name = "s4d-post-merge-cold-verification-30933044397"
-acceptance_artifact_digest = "sha256:67d2a2dbdc1a7b9656b27c47b423e6c0f75fcebab2c050784e41f7763b6945e3"
-acceptance_artifact_size_bytes = 22188
-acceptance_artifact_expires = "2026-09-03T17:17:14Z"
-kernel_release = "6.17.0-1020-azure"
-landlock_abi = 7
+workflow_run = 33332810449
+workflow_job = 99314354620
 
 commands = [
-  "source-bound verifier tree to merged commit a0d5b12a815496a32f39aa2ae8b67a57a9b57338; only the temporary verifier workflow and receipt writer differed before proof",
-  "pre-transition current-work, package ledger, generated README, and whitespace validation -> passed",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check --workspace --all-targets --all-features -> passed",
-  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "all eleven mapped S4D acceptance tests were discovered uniquely and executed individually with --exact -> passed",
-  "cargo test -p optid --all-features -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "packaged and mkosi optid-apply units were byte-identical; packaged apply/recovery units passed systemd-analyze verify",
-  "live D0 capability-sealing probe on kernel 6.17.0-1020-azure, Landlock ABI 7 -> eight checks passed",
-  "supervised status-75 two-cycle cold rebuild and non-75 restart suppression -> passed",
+  "PR Gate run 33332810449 job 99314354620: cargo fmt --all -- --check -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo test --workspace -> PASS; optid main 548 passed and s4d_systemd 3 passed",
+  "PR Gate run 33332810449 job 99314354620: cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> PASS; 6 passed including hot-removal handback and one clean supervised restart",
+  "PR Gate run 33332810449 job 99314354620: cargo clippy --workspace --all-targets -- -D warnings -> PASS",
+  "PR Gate run 33332810449 job 99314354620: cargo check --workspace --all-targets --all-features -> PASS",
+  "PR Gate run 33332810449 job 99314354620: python3 tools/validate-optid-packages.py --base 99069058ede92065083c39e408b7803b6aca0f8c -> PASS",
 ]
 
 runtime_proofs = [
-  "The production startup acceptance path completed discovery and capability construction, installed sealing, and proved sealing precedes worker and D-Bus input startup.",
-  "Typed operation/path mismatches, symlink replacement, stale device/inode identity, removed targets, and descriptor inheritance hazards all failed closed.",
-  "Every pre-opened hardware descriptor remained CLOEXEC and the live Landlock proof denied new write opens while preserving pre-opened descriptor writes and explicitly allowed state-root writes.",
-  "The topology lifecycle debounced a changed fingerprint, handed owned targets back through the existing reconciliation/transaction path before status 75, and a fresh process opened the replacement identity.",
-  "The shipped apply unit retained required recovery ordering and the supervisor restarted exactly once for status 75 while refusing to restart a non-75 failure.",
-  "S2D durable transactions, S3D independent recovery/watchdog ordering, F4 handback authority, the observe-safe default, and every existing action envelope remained unchanged.",
-]
-
-evidence_notes = [
-  "The hosted live proof uses synthetic filesystem targets and the repository's D0 Landlock probe; it does not promote any physical HWID or expand hardware support.",
-  "S4D completion unlocks S5D construction only. It does not implement circuit breakers or canary re-entry.",
+  "All eleven mapped S4D acceptance tests passed: typed operation mismatch, permission tightening with pre-opened descriptors, symlink replacement, stale identity, removed device, CLOEXEC, topology debounce, cold rebuild, and all three systemd lifecycle checks.",
+  "Capability-table tests failed closed for stale, replaced, removed, or operation-mismatched targets while preserving already-opened authorized descriptor behavior.",
+  "Systemd tests proved startup sealing occurs before worker or D-Bus input, topology rebuild hands back before status 75, and restart happens only through the supervised recovery graph; simulated hot removal completed handback before one clean restart.",
+  "The exact verified commit differs from main only by the temporary rush_collect CI-selection test and changes no S4D production, test, service, policy, packaging, or declared proof path.",
 ]
 
 unresolved = []
-
-# PR #392 S5D shared-surface candidate recertification.
-s5d_candidate_recertification_pr = 392
-s5d_candidate_source_head = "99204930d5677aa19cf64794852fd45034a4c9ee"
-s5d_candidate_prior_verified_commit = "7a83eaac34808ee71eb04e34b2b1e89e9b360804"
-s5d_candidate_verified_at = "2026-08-06T14:22:32Z"
-s5d_candidate_workflow_run = 31110326738
-s5d_candidate_workflow_attempt = 1
-s5d_candidate_workflow_job = 92646125177
-s5d_candidate_artifact_id = 8971444870
-s5d_candidate_artifact_name = "s5d-candidate-verification-31110326738"
-s5d_candidate_artifact_digest = "sha256:1223210d42f5c52bcec170f332901e2165412e91c6768192b121043d2a603732"
-s5d_candidate_artifact_size_bytes = 28127
-s5d_candidate_artifact_expires = "2026-09-05T14:22:39Z"
-s5d_candidate_kernel_release = "6.17.0-1020-azure"
-s5d_candidate_landlock_abi = 7
-
-s5d_candidate_commands = [
-  "source-bound fresh verifier to immutable S5D implementation commit 99204930d5677aa19cf64794852fd45034a4c9ee",
-  "validator-derived affected completed packages were exactly F1, F2, F3, F4, S2D, S3D, and S4D",
-  "every mapped acceptance test for all affected completed packages and S5D was uniquely discovered and executed with --exact -> passed",
-  "cargo fmt --all -- --check -> passed",
-  "cargo check --workspace --all-targets --all-features -> passed",
-  "cargo clippy --workspace --all-targets --all-features -- -D warnings -> passed",
-  "cargo test -p optid --all-features -> passed",
-  "cargo test --workspace --all-features -> passed",
-  "packaged and mkosi apply/recovery units were byte-identical and passed systemd-analyze verify",
-  "live capability-sealing eight-check probe, status-75 cold rebuild, recovery ordering, and non-75 restart suppression -> passed",
-]
-
-s5d_candidate_runtime_proofs = [
-  "S5D evaluates persisted circuit state before desired-state reconciliation and before actuator entry.",
-  "Repeated scoped failures persist quarantine across restart, remove only the failed domain from desired state, and preserve unrelated domain actuation.",
-  "Cooldown cannot authorize re-entry without a successful observe-only recovery cycle; one canary is persisted in-flight, confirmed readback closes it, and failure reopens immediately.",
-  "Restore failures are attributed to their reconciler domain and counted; unisolatable shared failures open the process-wide observe-only circuit.",
-  "Canonical MODALIAS or a privacy-safe platform HWID token and a separate firmware token scope the persistent record without promoting hardware.",
-  "Root-only one-shot clear commands never start the daemon loop and refuse invalid/non-private state evidence.",
-  "No new daemon, helper service, IPC path, write ABI, environment bypass, hardware allowlist promotion, or default actuation expansion was introduced.",
-]
-
-# Builder recertification for the C1 contracts package (this PR).
-#
-# C1 modified declared proof paths of this completed package, which staled
-# the receipt above under tools/validate-optid-packages.py. Following the
-# established builder-recertification convention (precedent: T1's
-# blocking_reason clauses 13-15, and the F1-F4/S2D-S5D recertifications in
-# PRs #425-#428), every mapped S4D acceptance test was re-run individually
-# against the C1 implementation commit and the receipt's verified_commit was
-# bumped. This is builder self-checking under AGENTS.md section 9, NOT a new
-# independent cold verification: no package status changed and S4D remains
-# certified by the independent receipt above.
-c1_recertification_prior_verified_commit = "6bace508735c6758fc30bc9ac1918556060ba5f8"
-c1_recertification_implementation_head = "791cd5364a8fd6e57717d5efc016b10eec64be69"
-c1_recertified_at = "2026-08-28T17:46:14Z"
-c1_recertification_mapped_tests_total = 11
-c1_recertification_mapped_tests_passed = 11
-c1_recertification_commands = [
-  "cargo test --bin optid s4d_operation_type_mismatch_is_rejected -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_preopened_descriptor_survives_permission_tightening -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_symlink_path_replacement_is_rejected -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_stale_identity_is_rejected -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_removed_device_fails_closed -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_capability_descriptors_are_cloexec -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_topology_change_is_debounced -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test --bin optid s4d_cold_rebuild_opens_fresh_identity -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test -p optid --test s4d_systemd s4d_apply_unit_restarts_only_through_supervised_recovery_graph -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test -p optid --test s4d_systemd s4d_startup_seals_before_any_worker_or_dbus_input -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo test -p optid --test s4d_systemd s4d_topology_rebuild_hands_back_before_status_75 -- --exact -> EXECUTED, 1 passed; 0 failed",
-  "cargo fmt --all -- --check -> EXECUTED, exit 0",
-  "cargo clippy -p optid --all-targets -- -D warnings -> EXECUTED, exit 0",
-  "python3 tools/validate-optid-packages.py --base origin/main -> EXECUTED on the committed diff",
-]
