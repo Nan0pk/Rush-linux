@@ -123,8 +123,9 @@ fn f4_retry_policy_is_bounded() {
         .record_restore_outcome(&plan, &outcome, &io)
         .expect("record restore outcome");
     let state = reconciler.targets.get("a").expect("state");
-    assert_eq!(state.ownership, OwnershipState::Relinquished);
-    assert!(!state.restore_pending);
+    assert_eq!(state.ownership, OwnershipState::Optid);
+    assert!(state.restore_pending);
+    assert!(reconciler.plan_restores().is_empty());
 }
 
 #[test]

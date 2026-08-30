@@ -157,6 +157,14 @@ impl Reconciler {
                 if may_capture_baseline && state.baseline.is_none() {
                     state.baseline = baseline;
                 }
+                if state.ownership == OwnershipState::Optid
+                    && state.restore_pending
+                    && state.retries > 0
+                {
+                    // Renewed demand must not cancel a failed handback or
+                    // reset its bounded retry count. Restore before reapply.
+                    continue;
+                }
                 if state.desired.as_ref() != Some(&desired.desired) {
                     state.retries = 0;
                 }

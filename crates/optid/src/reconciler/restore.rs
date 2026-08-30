@@ -1,7 +1,7 @@
 impl Actuator {
     pub(crate) fn execute_restore(
         &mut self,
-        plan: &RestorePlan,
+        plan: &mut RestorePlan,
         systemd: &dyn SystemdIo,
     ) -> io::Result<RestoreOutcome> {
         let current = read_target_for_restore(self, systemd, &plan.target);
@@ -15,7 +15,18 @@ impl Actuator {
             }
             Err(error) => return Ok(failed_restore(&plan.target_id, false, &error)),
         };
-        if current != plan.last_confirmed {
+        let write_attempted = current != plan.baseline;
+        if write_attempted && current != plan.last_confirmed {
+            if plan.retry {
+                // A failed write or readback may have changed the target
+                // without a confirmed result. We cannot attribute that change
+                // to another owner and discard the undo record.
+                return Ok(failed_restore(
+                    &plan.target_id,
+                    false,
+                    &io::Error::other("unconfirmed restoration state; independent recovery required"),
+                ));
+            }
             return Ok(RestoreOutcome {
                 target_id: plan.target_id.clone(),
                 pipeline_stage: PipelineStage::Restore,
@@ -33,19 +44,27 @@ impl Actuator {
             });
         }
 
-        if let Err(error) = write_target_for_restore(self, systemd, &plan.target, &plan.baseline) {
-            return Ok(failed_restore(&plan.target_id, true, &error));
+        if write_attempted {
+            if let Err(error) = write_target_for_restore(
+                self,
+                systemd,
+                &plan.target,
+                &plan.baseline,
+                Some(&mut plan.last_confirmed),
+            ) {
+                return Ok(failed_restore(&plan.target_id, true, &error));
+            }
         }
         let readback = match read_target_for_restore(self, systemd, &plan.target) {
             Ok(readback) => readback,
-            Err(error) => return Ok(failed_restore(&plan.target_id, true, &error)),
+            Err(error) => return Ok(failed_restore(&plan.target_id, write_attempted, &error)),
         };
         if readback != plan.baseline {
             return Ok(RestoreOutcome {
                 target_id: plan.target_id.clone(),
                 pipeline_stage: PipelineStage::Readback,
                 reason: OutcomeReasonCode::RestoreFailed,
-                write_attempted: true,
+                write_attempted,
                 write_outcome: WriteOutcome::RestorationFailed {
                     error_kind: ErrorKindCode::Other,
                 },
@@ -63,7 +82,7 @@ impl Actuator {
             target_id: plan.target_id.clone(),
             pipeline_stage: PipelineStage::Restore,
             reason: OutcomeReasonCode::RestoreApplied,
-            write_attempted: true,
+            write_attempted,
             write_outcome: WriteOutcome::Restored,
             readback: ReadbackOutcome::Confirmed {
                 value: readback.public_value(),
@@ -135,6 +154,7 @@ fn write_target_for_restore(
     systemd: &dyn SystemdIo,
     target: &TargetKind,
     value: &StoredValue,
+    mut confirmed: Option<&mut StoredValue>,
 ) -> io::Result<()> {
     match (target, value) {
         (TargetKind::KernelValue { path }, StoredValue::Scalar { value }) => {
@@ -163,8 +183,25 @@ fn write_target_for_restore(
             StoredValue::RuntimePm { control, delay },
         ) => {
             actuator.kernel.write(control_path, control)?;
+            if let Some(StoredValue::RuntimePm { control: previous, .. }) = confirmed.as_deref_mut() {
+                let observed = actuator.kernel.read_to_string(control_path)?;
+                if observed.trim() != control.as_str() {
+                    return Err(io::Error::other("runtime-PM control restore readback mismatch"));
+                }
+                // Advance only the component written and verified by this
+                // attempt. An arbitrary baseline/intended mixture is not proof
+                // of ownership, and the original baseline remains unchanged.
+                *previous = control.clone();
+            }
             if let (Some(path), Some(delay)) = (delay_path, delay) {
                 actuator.kernel.write(path, delay)?;
+                if let Some(StoredValue::RuntimePm { delay: previous, .. }) = confirmed {
+                    let observed = actuator.kernel.read_to_string(path)?;
+                    if observed.trim() != delay.as_str() {
+                        return Err(io::Error::other("runtime-PM delay restore readback mismatch"));
+                    }
+                    *previous = Some(delay.clone());
+                }
             }
             Ok(())
         }
