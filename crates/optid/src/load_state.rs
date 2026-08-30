@@ -122,15 +122,21 @@ impl fmt::Display for LoadState {
     }
 }
 
-/// The boot-time decision surface: which load states were observed, and
-/// which write classes are armed as a result. Computed once at startup (see
-/// `main.rs::compute_boot_state`) and consulted by the actuator on every
-/// cycle.
+/// The decision surface for one cycle: which load states were observed, and
+/// which write classes are armed as a result. The allowlist half is decided
+/// once at startup; the policy half is re-decided every cycle, because the run
+/// loop re-reads `policy.toml` on each pass and a reload that stops returning
+/// `Ok` must disarm dynamic writes for as long as it keeps failing.
 ///
-/// `BootState` is immutable after construction. The actuator reads it; it
-/// does not mutate it. If the operator wants to change the armed state
-/// mid-run, they must restart the daemon (which is the documented behavior
-/// for `policy.toml` changes — the file is read at startup, not watched).
+/// A single value is immutable — the actuator reads it and never mutates it —
+/// but the run loop hands the actuator a fresh one per cycle, so a stale
+/// `policy_load_state` can never keep writes armed after the configuration
+/// behind them became unreadable.
+///
+/// This used to say `policy.toml` was read only at startup. It is not, and
+/// believing it was is what let a failed reload fall back to
+/// `Policy::curated_baseline()` — whose per-domain default is `actuate` —
+/// while `apply_armed` still said `true` from startup.
 #[derive(Debug, Clone)]
 pub(crate) struct BootState {
     /// The load state of `config/optid/policy.toml`.

@@ -81,6 +81,13 @@ method have since been run end to end. The result is committed at
 It classifies every number by the evidence classes named above and makes no
 physical claim. The cloud virtual-machine lane and the gem5 lane remain unrun.
 
+That run found a high-severity defect — a failed `policy.toml` reload
+re-enabling domains an operator had switched off — which is now fixed. The
+after-fix re-run is committed alongside it at
+[`release/evidence/optid-simulated-evidence/2026-08-30-policy-reload-fix/`](../../release/evidence/optid-simulated-evidence/2026-08-30-policy-reload-fix/README.md),
+and the pair is the method's first worked example: a deterministic software
+proof finding a real defect that no physical measurement was needed to see.
+
 ## Proposed test system
 
 ### Cloud virtual-machine laboratory

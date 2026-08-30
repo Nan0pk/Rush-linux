@@ -6,6 +6,11 @@ this directory is a measured guest outcome or a physical measurement. It makes
 no claim about laptop watts, battery life, temperature, fan behaviour, suspend
 and resume, firmware compatibility, or support for any named machine.
 
+> **Superseded in part.** The high-severity finding this run produced has
+> since been fixed. The after-fix re-run is
+> [`../2026-08-30-policy-reload-fix/`](../2026-08-30-policy-reload-fix/README.md).
+> This directory is kept as the evidence that found the defect.
+
 ## The question
 
 > When optid is fully enabled, does it theoretically improve the modelled

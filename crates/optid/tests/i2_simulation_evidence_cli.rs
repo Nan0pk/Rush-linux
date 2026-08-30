@@ -223,3 +223,59 @@ fn i2_evidence_rejects_a_symlinked_root() {
     fs::remove_file(&link).expect("remove root symlink");
     fs::remove_dir_all(&real).expect("clean up");
 }
+
+#[test]
+fn i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off() {
+    // Regression guard for the finding this harness first surfaced: the run
+    // loop re-reads `policy.toml` every cycle, and `Policy::load` answers an
+    // unreadable file with `curated_baseline()`, whose per-domain default is
+    // `actuate`. Because `apply_armed` was computed once at startup, an
+    // operator's `mode = "off"` silently became actuation mid-run — eight
+    // kernel controls moved in the run that found it.
+    //
+    // The matrix injects exactly that: `config_reload_failure_and_recovery`
+    // replaces the policy with unparseable TOML under a running daemon. The
+    // detector that found the escalation is still live, so if the fix is ever
+    // undone the finding reappears and this test fails.
+    let root = marked_root("reload");
+    let bundle = run_matrix(&root);
+
+    let findings = bundle["findings"].as_array().expect("findings array");
+    let escalation = findings
+        .iter()
+        .find(|finding| finding["id"] == "policy_reload_fallback_escalates_domain_modes");
+    assert!(
+        escalation.is_none(),
+        "a failed policy reload escalated a domain that was switched off: {}",
+        escalation
+            .map(|finding| finding["evidence"].to_string())
+            .unwrap_or_default()
+    );
+
+    // The finding above is derived, so assert the underlying fact directly too:
+    // an arm that configures every domain `off` or `observe` must never leave
+    // an active action behind, in any scenario, including the reload one.
+    let mut checked_reload_scenario = false;
+    for trial in bundle["trials"].as_array().expect("trial array") {
+        let arm = trial["arm"].as_str().unwrap_or_default();
+        if arm != "off_all_domains" && arm != "full_observe" {
+            continue;
+        }
+        if trial["scenario"] == "config_reload_failure_and_recovery" {
+            checked_reload_scenario = true;
+        }
+        for receipt in trial["receipts"].as_array().expect("receipt array") {
+            assert_eq!(
+                receipt["became_active"], false,
+                "{arm} / {} actuated {} while every domain was switched off or observe-only",
+                trial["scenario"], receipt["control_id"]
+            );
+        }
+    }
+    assert!(
+        checked_reload_scenario,
+        "the matrix no longer exercises a failed policy reload, so this guard proves nothing"
+    );
+
+    fs::remove_dir_all(&root).expect("clean up the simulation root");
+}
