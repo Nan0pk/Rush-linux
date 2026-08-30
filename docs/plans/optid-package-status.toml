@@ -277,10 +277,14 @@ runtime_entrypoints = [
   "crates/optid/src/reconciler/apply.rs",
   "crates/optid/src/reconciler/restore.rs",
   "crates/optid/src/reconciler/transaction.rs",
+  "crates/optid/src/recovery.rs",
+  "crates/optid/src/bin/optid-recover.rs",
 ]
 integration_tests = [
   "crates/optid/src/reconciler/tests/s2d.rs",
   "crates/optid/src/reconciler/tests/production.rs",
+  "crates/optid/tests/recovery_cli.rs",
+  "crates/optid/tests/i2_simulation_evidence_cli.rs",
 ]
 completion_evidence = [
   "crates/optid/src/reconciler/transaction.rs",

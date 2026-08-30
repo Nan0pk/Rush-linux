@@ -300,10 +300,13 @@ fn removed_device_hands_back_before_one_clean_supervised_restart() {
     for trial in affected {
         assert_eq!(
             trial["daemon_outcome"], "topologyrebuild",
-            "{}", trial["arm"]
+            "{}",
+            trial["arm"]
         );
         assert_eq!(trial["recovery_outcome"], "clean", "{}", trial["arm"]);
-        let recovery = trial["s3d_recovery"].as_array().expect("supervised recovery");
+        let recovery = trial["s3d_recovery"]
+            .as_array()
+            .expect("supervised recovery");
         assert_eq!(recovery.len(), 1, "extra restart needed: {}", trial["arm"]);
         assert_eq!(recovery[0]["succeeded"], true);
         assert_eq!(
@@ -314,7 +317,8 @@ fn removed_device_hands_back_before_one_clean_supervised_restart() {
             if receipt["became_active"] == true {
                 assert_eq!(
                     receipt["restored_value"], receipt["previous_value"],
-                    "{}: {}", trial["arm"], receipt["control_id"]
+                    "{}: {}",
+                    trial["arm"], receipt["control_id"]
                 );
             }
         }

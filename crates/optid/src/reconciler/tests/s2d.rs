@@ -653,7 +653,9 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     let removed = FaultKernel::new(Box::new(S2dSharedKernel(Arc::clone(&memory))));
     removed.hide_path(delay);
     actuator.kernel = Box::new(removed);
-    reconciler.restore_all_owned(&mut actuator).expect_err("a surviving member is not removal");
+    let (result, messages) = capture_notifications(|| reconciler.restore_all_owned(&mut actuator));
+    result.expect_err("a surviving member is not removal");
+    assert!(messages.is_empty(), "failed handback must not notify the watchdog");
     let records = reconciler.transactions.active_records(actuator.kernel.as_ref()).expect("undo records");
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].phase, TransactionPhase::Committed);
@@ -699,6 +701,9 @@ fn s2d_removed_target_sync_failure_preserves_the_undo_record() {
     engine.finish_handback(&removed, &desired.target_id, true).expect_err("failed durable relinquishment");
     let record = engine.load_record(&removed, &handle.path).expect("undo record retained");
     assert_eq!(record.phase, TransactionPhase::Prepared);
+    // MemoryKernel keeps directory listings separate from file writes.
+    memory.add_dir_entry(&engine.root, &handle.path);
+    memory.add_dir_entry(&engine.root, &engine.temp_path(&handle.path));
     assert!(verify_journal_health(&engine, &removed).is_err());
 }
 
