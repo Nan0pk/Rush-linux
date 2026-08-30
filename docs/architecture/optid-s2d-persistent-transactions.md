@@ -96,6 +96,18 @@ ownership relinquishment, and the recovery directory is synced after removal.
   present.
 - External drift during handback: relinquish and compact without overwriting
   the external owner.
+- Device removal during handback: validate the transaction generation, require
+  every attribute of the target to return `NotFound`, and relinquish without a
+  hardware write. Durably record relinquishment before compaction, then continue
+  restoring the surviving targets. This is not reported as an exact restore.
+  A partially missing runtime-PM target, changed identity, permission error, or
+  journal failure still fails closed and retains the undo record. Other
+  handbacks are attempted before the error is returned, and no successful
+  watchdog heartbeat is emitted for that failed cycle.
+- Crash after durable relinquishment but before deletion: standalone recovery
+  validates the record schema and owner, records the completed relinquishment,
+  and compacts without accessing the old target. It never writes to a replacement
+  device. Unresolved records still require identity validation and recovery.
 - Compensation failure: retain the non-terminal record for S3D recovery and
   fail the control path visibly.
 
@@ -104,6 +116,12 @@ S2D compensation verifies the exact original. They remain migration inputs for
 F4 until later packages remove the compatibility path.
 
 ## Verification matrix
+
+The production enabled-versus-off matrix is also executed by `tools/checks.sh`
+with the non-default `test-simulation` feature. Its device-removal regression
+requires a planned topology restart, a completed handback before recovery runs,
+and one clean supervised restart. Its configuration-reload regression must run
+as well; compiling the feature alone does not execute either test.
 
 The package tests cover:
 
@@ -121,6 +139,10 @@ The package tests cover:
 - committed-record cleanup after verified restore;
 - stable record naming across process generations and toolchain upgrades;
 - stale-generation handback preserving recovery evidence;
+- removed-device relinquishment with restoration of surviving controls;
+- a partially missing runtime-PM target retaining its complete undo record;
+- stale-generation rejection even when the target has disappeared;
+- failed durable relinquishment preserving the original recovery record;
 - process restart refusing handback before mutation until S3D recovers the
   previous generation;
 - compensation continuing across every target after an earlier failure; and

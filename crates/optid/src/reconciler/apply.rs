@@ -118,30 +118,51 @@ impl Reconciler {
     pub(crate) fn reconcile(&mut self, actuator: &mut Actuator) -> io::Result<Vec<RestoreOutcome>> {
         let plans = self.plan_restores();
         let mut outcomes = Vec::with_capacity(plans.len());
+        let mut first_error = None;
         for plan in plans {
-            let outcome = if self.mode == ReconcileMode::Shadow {
-                RestoreOutcome {
-                    target_id: plan.target_id.clone(),
-                    pipeline_stage: PipelineStage::Restore,
-                    reason: OutcomeReasonCode::NotEvaluated,
-                    write_attempted: false,
-                    write_outcome: WriteOutcome::NotEvaluated,
-                    readback: ReadbackOutcome::NotPerformed,
-                    ownership: OwnershipState::Optid,
-                    pending_restore: RestoreState::Pending,
-                    responsible_subsystem: ResponsibleSubsystem::Restoration,
-                    detail: Some("shadow restore plan; no write executed".to_string()),
-                }
-            } else {
-                self.transactions
-                    .validate_handback(actuator.kernel.as_ref(), &plan.target_id)
-                    .map_err(io::Error::from)?;
-                actuator.execute_restore(&plan, self.systemd.as_ref())?
-            };
-            self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref())?;
-            outcomes.push(outcome);
+            let result = (|| -> io::Result<RestoreOutcome> {
+                let outcome = if self.mode == ReconcileMode::Shadow {
+                    RestoreOutcome {
+                        target_id: plan.target_id.clone(),
+                        pipeline_stage: PipelineStage::Restore,
+                        reason: OutcomeReasonCode::NotEvaluated,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::NotEvaluated,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Optid,
+                        pending_restore: RestoreState::Pending,
+                        responsible_subsystem: ResponsibleSubsystem::Restoration,
+                        detail: Some("shadow restore plan; no write executed".to_string()),
+                    }
+                } else {
+                    match self
+                        .transactions
+                        .validate_handback(actuator.kernel.as_ref(), &plan.target_id)
+                        .map_err(io::Error::from)?
+                    {
+                        HandbackTarget::Present => {
+                            actuator.execute_restore(&plan, self.systemd.as_ref())?
+                        }
+                        HandbackTarget::Removed => relinquished_outcome(
+                            &plan.target_id,
+                            "target disappeared before restoration; no write attempted",
+                        ),
+                    }
+                };
+                self.record_restore_outcome(&plan, &outcome, actuator.kernel.as_ref())?;
+                Ok(outcome)
+            })();
+            match result {
+                Ok(outcome) => outcomes.push(outcome),
+                Err(error) if first_error.is_none() => first_error = Some(error),
+                Err(_) => {},
+            }
         }
         self.persist(actuator.kernel.as_ref())?;
+        if let Some(error) = first_error {
+            // Attempt every handback, but never heartbeat a failed cycle.
+            return Err(error);
+        }
         notify_cycle_complete(&self.transactions, actuator.kernel.as_ref())
             .map_err(io::Error::from)?;
         Ok(outcomes)

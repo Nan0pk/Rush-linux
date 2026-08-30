@@ -83,3 +83,88 @@ fn s3d_recovery_binary_has_no_policy_or_async_surface() {
         );
     }
 }
+
+#[test]
+fn recovery_relinquished_records_never_touch_removed_or_replaced_targets() {
+    for replacement in [false, true] {
+        let root = temp_root("relinquished");
+        let records = root.join("records");
+        let target = root.join("device");
+        let status = root.join("status.json");
+        fs::create_dir_all(&records).unwrap();
+        fs::write(&target, "intended\n").unwrap();
+        write_record(&records, &target);
+        let record_path = records.join("cli-record.json");
+        let mut record: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&record_path).unwrap()).unwrap();
+        record["phase"] = json!("relinquished");
+        fs::write(&record_path, serde_json::to_vec(&record).unwrap()).unwrap();
+        fs::remove_file(&target).unwrap();
+        if replacement {
+            // Matching the old intended value must not transfer ownership of
+            // this new device back to the old transaction.
+            fs::write(&target, "intended\n").unwrap();
+        }
+
+        for expected_scanned in [1, 0] {
+            let output = Command::new(env!("CARGO_BIN_EXE_optid-recover"))
+                .arg("--recovery-dir")
+                .arg(&records)
+                .arg("--status-file")
+                .arg(&status)
+                .output()
+                .expect("run standalone recovery");
+            assert!(output.status.success(), "{output:?}");
+            let summary: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(&status).unwrap()).unwrap();
+            assert_eq!(summary["scanned"], expected_scanned);
+            assert_eq!(summary["relinquished"], expected_scanned);
+            assert_eq!(summary["restored"], 0);
+            assert_eq!(summary["failed"], 0);
+            assert!(!record_path.exists());
+            if replacement {
+                assert_eq!(fs::read_to_string(&target).unwrap(), "intended\n");
+            } else {
+                assert!(!target.exists());
+            }
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
+fn recovery_retains_unresolved_or_invalid_records_for_missing_targets() {
+    for (field, value) in [
+        ("phase", json!("committed")),
+        ("owner", json!("another-owner")),
+        ("schema_version", json!(999)),
+    ] {
+        let root = temp_root("missing-unresolved");
+        let records = root.join("records");
+        let target = root.join("device");
+        fs::create_dir_all(&records).unwrap();
+        fs::write(&target, "intended\n").unwrap();
+        write_record(&records, &target);
+        let record_path = records.join("cli-record.json");
+        let mut record: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&record_path).unwrap()).unwrap();
+        record["phase"] = json!("relinquished");
+        record[field] = value;
+        fs::write(&record_path, serde_json::to_vec(&record).unwrap()).unwrap();
+        fs::remove_file(&target).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_optid-recover"))
+            .arg("--recovery-dir")
+            .arg(&records)
+            .arg("--status-file")
+            .arg(root.join("status.json"))
+            .output()
+            .expect("run standalone recovery");
+        assert!(!output.status.success(), "{field}: {output:?}");
+        let summary: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("recovery failure summary");
+        assert_eq!(summary["failed"], 1);
+        assert!(record_path.exists(), "{field}: unresolved evidence lost");
+        assert!(!target.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+}
