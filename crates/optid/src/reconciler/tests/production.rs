@@ -466,7 +466,11 @@ fn f4_unconfirmed_partial_restore_keeps_undo_record() {
         fail_read: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     };
     fixture.actuator.kernel = Box::new(kernel.clone());
-    kernel.fail_read.store(true, std::sync::atomic::Ordering::SeqCst);
+    // The fault must not be armed here. `execute_restore` reads the target
+    // before it writes it, and `fail_read` is a one-shot: pre-arming spends it
+    // on that pre-write read, so the restore aborts before writing and the
+    // post-write readback this test exists to exercise never happens. The
+    // kernel's own `write` arms it after the control write lands.
     let first = fixture.reconciler.reconcile(&mut fixture.actuator).unwrap();
     assert_eq!(first[0].reason, OutcomeReasonCode::RestoreFailed);
     assert_eq!(fixture.memory.read_to_string(&fixture.control).unwrap(), "on");
@@ -524,7 +528,7 @@ fn f4_restore_failure_withholds_watchdog_through_retry_exhaustion() {
         .and_then(Path::parent)
         .expect("runtime-PM device path");
     let action = runtime_pm_action(device, 2000);
-    fixture.reconciler.prepare_cycle(&[action.clone()], &mut fixture.actuator).unwrap();
+    fixture.reconciler.prepare_cycle(std::slice::from_ref(&action), &mut fixture.actuator).unwrap();
     let reapply = fixture.reconciler.apply_action(&mut fixture.actuator, &action).unwrap();
     assert!(reapply.targets.iter().all(|target| !target.write_attempted));
     assert_eq!(fixture.reconciler.targets.values().next().unwrap().retries, MAX_RESTORE_RETRIES);
