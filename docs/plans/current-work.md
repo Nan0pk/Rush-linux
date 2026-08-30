@@ -12,25 +12,26 @@ Read these before implementation:
 
 1. [`AGENTS.md`](../../AGENTS.md)
 2. [`OPTID-COMPLETION-PLAN.md`](../../OPTID-COMPLETION-PLAN.md)
-3. [`optid D2 fail-passive amendment`](../architecture/optid-d2-amendment.md) for safety work
+3. [`optid D2 fail-passive amendment`](../architecture/optid-d2-amendment.md) for D2 safety work
 4. [`optid-package-status.toml`](optid-package-status.toml)
 
 <!-- RUSH_CURRENT_WORK:START -->
 ```toml
 active_general = "T1"
-active_safety = "C1"
+active_safety = "O1"
 ready_parallel = ["R1", "R2", "R3"]
-other_merged_incomplete = ["S2D", "S3D", "S4D", "S5D"]
+other_merged_incomplete = []
 unlocks_after_active_general = ["T2"]
-unlocks_after_active_safety = []
+unlocks_after_active_safety = ["D1", "D2"]
 ```
 <!-- RUSH_CURRENT_WORK:END -->
 
 ## How to use the selector
 
 - `active_general` is the package to repair in the general construction lane.
-- `active_safety` is the package to repair in the safety lane. Read the D2
-  amendment before touching it.
+- `active_safety` is the next package on the safety-critical software path. The
+  key name is retained for compatibility even after the D2 safety sequence is
+  complete; read the D2 amendment when the selected package is D2 safety work.
 - `ready_parallel` packages may proceed without replacing either active lane.
 - `other_merged_incomplete` records unfinished landed work; it is not a second
   task queue.
