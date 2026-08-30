@@ -1,0 +1,39 @@
+# Independent cold-verification receipt for the full-system simulation and fault matrix.
+#
+# The verifier changed no I2 runtime, simulation, test, model, fixture, or evidence
+# path before this run. GitHub tested the exact merge commit below during PR #447;
+# that commit was then made a permanent ancestor of the branch before receipts were
+# written.
+
+schema_version = 1
+package = "I2"
+implementation_pr = 435
+verification_pr = 447
+verified_commit = "b673c0e185639c556a69e88e806ed11946f526d1"
+verifier = "Independent ChatGPT GitHub verifier session; Linux X64 ubuntu-24.04"
+result = "pass"
+workflow_run = 33332810449
+workflow_attempt = 1
+workflow_job = 99314354620
+
+commands = [
+  "cargo fmt --all -- --check -> passed",
+  "cargo test --workspace -> passed, including 548 optid daemon tests and all workspace targets",
+  "cargo test -p optid --features test-simulation --bin optid-simulation simulation:: -> 6 passed",
+  "cargo test -p optid --features test-simulation --test i2_simulation_cli -> 3 passed",
+  "cargo test -p optid --features test-simulation --test i2_simulation_evidence_cli -> 6 passed",
+  "cargo clippy --workspace --all-targets -- -D warnings -> passed",
+  "cargo check --workspace --all-targets --all-features -> passed",
+  "repository integrity, documentation truth, optid package contract, evidence integrity, and repository policy checks -> passed",
+]
+
+runtime_proofs = [
+  "The deterministic full-system simulation matrix completed with its declared mode, event, fault, crash, recovery, circuit, reboot, and negative-control coverage intact.",
+  "The production simulation CLI rejected real-root, mutation-flag, and symlink-escape inputs while running the complete matrix through the feature-gated executable surface.",
+  "The enabled-versus-off evidence harness drove the real optid control loop against a contained simulated machine and remained deterministic across the committed matrix.",
+  "The evidence receipts retained previous, requested, read-back, and restored values and did not treat an inert unsupported control as a passing result.",
+  "The failed-policy-reload scenario preserved operator-disabled domains without actuation, and the hot-removal scenario handed back the removed device before one clean supervised restart.",
+  "The evidence-root safety guards rejected unsafe and symlinked roots; no physical-hardware or release-readiness claim is inferred from this software-only verification.",
+]
+
+unresolved = []
