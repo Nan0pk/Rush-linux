@@ -186,6 +186,7 @@ impl Snapshot {
             pcie_aspm_device_paths: discover_pcie_aspm_device_paths_with(read),
             sata_alpm_host_paths: discover_sata_alpm_host_paths_with(read),
             selected_backlight: crate::actuators::display::select_backlight(
+                read,
                 &discover_backlight_devices_with(read),
             ),
             is_vm_guest: detect_vm_guest_with(read),

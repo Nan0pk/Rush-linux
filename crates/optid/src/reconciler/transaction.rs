@@ -252,6 +252,12 @@ impl TransactionEngine {
                     format!("injected transaction file-sync fault for {}", path.display()),
                 ));
             }
+        }
+        // Durability is checked through the injected I/O seam under `cfg(test)`
+        // and under the `test-simulation` feature: a simulated machine has no
+        // host file descriptor to fsync. A shipped build always fsyncs for real.
+        #[cfg(any(test, feature = "test-simulation"))]
+        {
             if io.exists(path) {
                 Ok(())
             } else {
@@ -261,7 +267,7 @@ impl TransactionEngine {
                 ))
             }
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-simulation")))]
         {
             let _ = io;
             std::fs::File::open(path)?.sync_all()
@@ -277,6 +283,9 @@ impl TransactionEngine {
                     .expect("S2D transaction trace mutex poisoned")
                     .push(format!("sync_dir:{}", path.display()));
             }
+        }
+        #[cfg(any(test, feature = "test-simulation"))]
+        {
             if io.exists(path) {
                 Ok(())
             } else {
@@ -286,7 +295,7 @@ impl TransactionEngine {
                 ))
             }
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-simulation")))]
         {
             let _ = io;
             std::fs::File::open(path)?.sync_all()

@@ -49,6 +49,35 @@ pub(crate) trait PmqosSink {
 
 pub(crate) const SEALED_CPU_PM_QOS_SLOTS: usize = 8;
 
+// The CPU PM QoS lever is the one actuation target that is not a filesystem
+// path: `RealPmqosSink` holds an open descriptor on `/dev/cpu_dma_latency`, so
+// `KernelIo` cannot model it. Tests and the `test-simulation` evidence harness
+// install a sink factory on the current thread; `run()` consumes it in place of
+// `RealPmqosSink`. A normal build has no slot and always uses the real sink.
+#[cfg(feature = "test-simulation")]
+type PmqosSinkFactory = Box<dyn Fn() -> Box<dyn PmqosSink>>;
+
+#[cfg(feature = "test-simulation")]
+thread_local! {
+    static PMQOS_SINK_FACTORY: std::cell::RefCell<Option<PmqosSinkFactory>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Install a PM QoS sink factory for the current thread, returning the previous
+/// one so the caller can restore it.
+#[cfg(feature = "test-simulation")]
+pub(crate) fn set_pmqos_sink_factory(
+    factory: Option<PmqosSinkFactory>,
+) -> Option<PmqosSinkFactory> {
+    PMQOS_SINK_FACTORY.with(|slot| slot.replace(factory))
+}
+
+/// Build a sink from the current thread's factory, if one is installed.
+#[cfg(feature = "test-simulation")]
+pub(crate) fn overridden_pmqos_sink() -> Option<Box<dyn PmqosSink>> {
+    PMQOS_SINK_FACTORY.with(|slot| slot.borrow().as_ref().map(|factory| factory()))
+}
+
 pub(crate) struct RealPmqosSink {
     cpu_fd: Option<fs::File>,
     cpu_spares: Vec<fs::File>,
@@ -456,7 +485,8 @@ impl Actuator {
                 contract_gate_device_resume_constraint(value.map(i64::from), floor_us, &label)
             }
             Action::RuntimePm { device_dir, .. } => {
-                let resolution = self.runtime_pm_latency(hwid_from_device_dir(device_dir));
+                let resolution =
+                    self.runtime_pm_latency(hwid_from_device_dir(self.kernel.as_ref(), device_dir));
                 // A real write is armed unless boot state says otherwise. An
                 // actuator with no boot state may still write, so it counts
                 // as applying — observe mode must not relax a gate it cannot
@@ -1137,8 +1167,12 @@ impl Actuator {
                     GateStage::CapabilityValidation,
                     GateReasonCode::CapabilityAllowed,
                 ));
-                let allowlist =
-                    self.allowlist_gate("runtime_pm", hwid_from_attr_path(path), 0, path)?;
+                let allowlist = self.allowlist_gate(
+                    "runtime_pm",
+                    hwid_from_attr_path(self.kernel.as_ref(), path),
+                    0,
+                    path,
+                )?;
                 let denied = allowlist.disposition == GateDisposition::Denied;
                 outcome.gates.push(allowlist);
                 if denied {
@@ -1265,7 +1299,7 @@ impl Actuator {
                 ));
                 let allowlist = self.allowlist_gate(
                     "runtime_pm",
-                    hwid_from_device_dir(device_dir),
+                    hwid_from_device_dir(self.kernel.as_ref(), device_dir),
                     0,
                     device_dir,
                 )?;
@@ -1279,7 +1313,7 @@ impl Actuator {
                     ));
                     return Ok(outcome);
                 }
-                if runtime_pm::network_carrier_up(device_dir) {
+                if runtime_pm::network_carrier_up(self.kernel.as_ref(), device_dir) {
                     self.log(&format!(
                         "skip runtime_pm {}: network carrier up",
                         device_dir.display()
@@ -1299,7 +1333,8 @@ impl Actuator {
                     });
                     return Ok(outcome);
                 }
-                if let Some(warning) = runtime_pm::wakeup_warning(device_dir) {
+                if let Some(warning) = runtime_pm::wakeup_warning(self.kernel.as_ref(), device_dir)
+                {
                     self.log(&format!("warn runtime_pm: {warning}"))?;
                 }
                 if self.last_runtime_pm.get(device_dir) == Some(autosuspend_delay_ms) {
@@ -1488,7 +1523,7 @@ impl Actuator {
                 ));
                 let allowlist = self.allowlist_gate(
                     "pci_aspm",
-                    hwid_from_device_dir(device_dir),
+                    hwid_from_device_dir(self.kernel.as_ref(), device_dir),
                     0,
                     device_dir,
                 )?;
@@ -1502,7 +1537,7 @@ impl Actuator {
                     ));
                     return Ok(outcome);
                 }
-                if storage::is_cnvi(device_dir) {
+                if storage::is_cnvi(self.kernel.as_ref(), device_dir) {
                     self.log(&format!(
                         "skip pcie_aspm {}: CNVi device (link PM is firmware-managed)",
                         device_dir.display()
@@ -1604,8 +1639,12 @@ impl Actuator {
                     GateStage::CapabilityValidation,
                     GateReasonCode::CapabilityAllowed,
                 ));
-                let allowlist =
-                    self.allowlist_gate("sata_alpm", hwid_from_ancestors(host_dir), 0, host_dir)?;
+                let allowlist = self.allowlist_gate(
+                    "sata_alpm",
+                    hwid_from_ancestors(self.kernel.as_ref(), host_dir),
+                    0,
+                    host_dir,
+                )?;
                 let denied = allowlist.disposition == GateDisposition::Denied;
                 outcome.gates.push(allowlist);
                 if denied {
@@ -1699,7 +1738,7 @@ impl Actuator {
                 ));
                 let allowlist = self.allowlist_gate(
                     "backlight",
-                    hwid_from_ancestors(device_dir),
+                    hwid_from_ancestors(self.kernel.as_ref(), device_dir),
                     0,
                     device_dir,
                 )?;
@@ -1713,7 +1752,7 @@ impl Actuator {
                     ));
                     return Ok(outcome);
                 }
-                let max = match display::read_max_brightness(device_dir) {
+                let max = match display::read_max_brightness(self.kernel.as_ref(), device_dir) {
                     Some(max) if max > 0 => max,
                     _ => {
                         self.log(&format!(

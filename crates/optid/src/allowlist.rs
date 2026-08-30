@@ -25,9 +25,9 @@
 //! reason `hwid_not_in_allowlist`. This is the safe failure mode (§1.2).
 
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
+use crate::kernel_io::KernelRead;
 use crate::latency::{LatencyConfidence, LatencyEstimate, LatencyResolution, LatencySource};
 use crate::load_state::LoadState;
 
@@ -281,7 +281,7 @@ impl Allowlist {
     /// (distro then admin), applied in precedence order.
     #[allow(dead_code)]
     pub(crate) fn load() -> Self {
-        Self::load_with_state(DEFAULT_OVERRIDE_DIRS).0
+        Self::load_with_state(&crate::kernel_io::RealKernel::new(), DEFAULT_OVERRIDE_DIRS).0
     }
 
     /// Production load with explicit `LoadState`. Returns the loaded allowlist
@@ -304,12 +304,15 @@ impl Allowlist {
     /// The allowlist gate is consulted by the run loop's `BootState`
     /// computation: if `allowlist_load_state != Ok`, `apply_armed` is
     /// disarmed even if the policy loaded cleanly.
-    pub(crate) fn load_with_state<P: AsRef<Path>>(dirs: &[P]) -> (Self, LoadState) {
+    pub(crate) fn load_with_state<P: AsRef<Path>>(
+        read: &dyn KernelRead,
+        dirs: &[P],
+    ) -> (Self, LoadState) {
         let mut al = Self::seeded();
         let mut saw_partial = false;
         for dir in dirs {
             let p = dir.as_ref();
-            let partial = al.apply_dir_tracking(p);
+            let partial = al.apply_dir_tracking(read, p);
             if partial {
                 saw_partial = true;
             }
@@ -326,8 +329,8 @@ impl Allowlist {
     /// Later directories (and lexicographically later files within a directory)
     /// win. Exposed for tests so they can point at temp dirs.
     #[allow(dead_code)]
-    pub(crate) fn load_from<P: AsRef<Path>>(dirs: &[P]) -> Self {
-        Self::load_with_state(dirs).0
+    pub(crate) fn load_from<P: AsRef<Path>>(read: &dyn KernelRead, dirs: &[P]) -> Self {
+        Self::load_with_state(read, dirs).0
     }
 
     /// Apply every `*.toml` file in `dir` in lexicographic order. Missing dirs
@@ -340,20 +343,19 @@ impl Allowlist {
     /// or contained invalid entries (the `Partial` load state). The seeded
     /// baseline and any parseable overrides are still applied; only the
     /// malformed file is skipped.
-    fn apply_dir_tracking(&mut self, dir: &Path) -> bool {
-        let Ok(read) = fs::read_dir(dir) else {
+    fn apply_dir_tracking(&mut self, read: &dyn KernelRead, dir: &Path) -> bool {
+        let Ok(entries) = read.read_dir(dir) else {
             return false;
         };
-        let mut files: Vec<_> = read
-            .filter_map(Result::ok)
-            .map(|e| e.path())
+        let mut files: Vec<_> = entries
+            .into_iter()
             .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("toml"))
             .collect();
         files.sort();
         let mut saw_partial = false;
         for path in files {
             let source = path.display().to_string();
-            let text = match fs::read_to_string(&path) {
+            let text = match read.read_to_string(&path) {
                 Ok(t) => t,
                 Err(e) => {
                     eprintln!("optid: skipping allowlist override {source}: {e}");
@@ -406,8 +408,8 @@ impl Allowlist {
     /// outside this module referenced it (nothing does today, but the
     /// function is `pub(crate)`-adjacent and the rename is mechanical).
     #[allow(dead_code)]
-    fn apply_dir(&mut self, dir: &Path) {
-        let _ = self.apply_dir_tracking(dir);
+    fn apply_dir(&mut self, read: &dyn KernelRead, dir: &Path) {
+        let _ = self.apply_dir_tracking(read, dir);
     }
 
     /// The effective allowlist version (the seeded baseline's version string).
@@ -478,17 +480,17 @@ impl Allowlist {
 /// `modalias` attribute holds the canonical form (`pci:v…`, `usb:…`, `acpi:…`)
 /// per 0006 §1.1. Returns `None` if the modalias cannot be read (unbound driver,
 /// slow-bus race, or a non-device path) — the caller treats that as default-deny.
-pub(crate) fn hwid_from_attr_path(attr_path: &Path) -> Option<String> {
+pub(crate) fn hwid_from_attr_path(read: &dyn KernelRead, attr_path: &Path) -> Option<String> {
     // attr file -> `power` dir -> device dir
     let device_dir = attr_path.parent()?.parent()?;
-    read_modalias(device_dir)
+    read_modalias(read, device_dir)
 }
 
 /// Resolve a device's canonical HWID directly from its sysfs device directory
 /// (e.g. `/sys/bus/usb/devices/1-1`). Used by the WP-N5 runtime-PM actuator,
 /// which works at device-directory granularity rather than per-attribute.
-pub(crate) fn hwid_from_device_dir(device_dir: &Path) -> Option<String> {
-    read_modalias(device_dir)
+pub(crate) fn hwid_from_device_dir(read: &dyn KernelRead, device_dir: &Path) -> Option<String> {
+    read_modalias(read, device_dir)
 }
 
 /// Resolve an HWID by walking up from `start` toward the filesystem root,
@@ -496,14 +498,16 @@ pub(crate) fn hwid_from_device_dir(device_dir: &Path) -> Option<String> {
 /// `modalias`. Used by the WP-N6 SATA ALPM path: a `scsi_host` directory has no
 /// modalias of its own, but its backing AHCI/PCI controller (an ancestor) does.
 /// The walk is bounded by the path depth, so it always terminates.
-pub(crate) fn hwid_from_ancestors(start: &Path) -> Option<String> {
+pub(crate) fn hwid_from_ancestors(read: &dyn KernelRead, start: &Path) -> Option<String> {
     // Resolve symlinks first: `/sys/class/scsi_host/hostN` is a symlink farm;
     // the real controller (with the modalias) is the canonical path's ancestor.
     // canonicalize is a no-op on the plain directory trees tests use.
-    let real = fs::canonicalize(start).unwrap_or_else(|_| start.to_path_buf());
+    let real = read
+        .canonicalize(start)
+        .unwrap_or_else(|_| start.to_path_buf());
     let mut cur = Some(real.as_path());
     while let Some(dir) = cur {
-        if let Some(hwid) = read_modalias(dir) {
+        if let Some(hwid) = read_modalias(read, dir) {
             return Some(hwid);
         }
         cur = dir.parent();
@@ -511,8 +515,8 @@ pub(crate) fn hwid_from_ancestors(start: &Path) -> Option<String> {
     None
 }
 
-fn read_modalias(device_dir: &Path) -> Option<String> {
-    let raw = fs::read_to_string(device_dir.join("modalias")).ok()?;
+fn read_modalias(read: &dyn KernelRead, device_dir: &Path) -> Option<String> {
+    let raw = read.read_to_string(&device_dir.join("modalias")).ok()?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         None
@@ -524,6 +528,8 @@ fn read_modalias(device_dir: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel_io::RealKernel;
+    use std::fs;
 
     #[test]
     fn default_deny_on_unknown_hwid() {
@@ -560,7 +566,7 @@ mod tests {
             format!("[[entry]]\ndomain=\"nvme_apst\"\nhwid=\"{hwid}\"\naction=\"allow\"\nmax_state=3\nverified=true\n"),
         )
         .unwrap();
-        let al = Allowlist::load_from(std::slice::from_ref(&base));
+        let al = Allowlist::load_from(&RealKernel::new(), std::slice::from_ref(&base));
         assert!(al.check("nvme_apst", hwid, 3).is_allow());
         let v = al.check("nvme_apst", hwid, 4);
         match v {
@@ -613,7 +619,7 @@ mod tests {
         .unwrap();
 
         // With only distro applied, state 0 is allowed, state 2 exceeds max.
-        let distro_only = Allowlist::load_from(std::slice::from_ref(&distro));
+        let distro_only = Allowlist::load_from(&RealKernel::new(), std::slice::from_ref(&distro));
         assert!(distro_only.check("nvme_apst", hwid, 0).is_allow());
         assert!(matches!(
             distro_only.check("nvme_apst", hwid, 2),
@@ -628,7 +634,7 @@ mod tests {
         )
         .unwrap();
 
-        let effective = Allowlist::load_from(&[distro.clone(), admin.clone()]);
+        let effective = Allowlist::load_from(&RealKernel::new(), &[distro.clone(), admin.clone()]);
         let v = effective.check("nvme_apst", hwid, 0);
         assert!(matches!(v, Verdict::Deny { .. }), "admin deny must win");
         let entry = effective.lookup("nvme_apst", hwid).unwrap();
@@ -655,7 +661,7 @@ mod tests {
         )
         .unwrap();
 
-        let al = Allowlist::load_from(std::slice::from_ref(&base));
+        let al = Allowlist::load_from(&RealKernel::new(), std::slice::from_ref(&base));
         assert!(al.check("nvme_apst", hwid, 0).is_allow(), "later file wins");
         assert_eq!(al.entries().filter(|e| e.hwid == hwid).count(), 1);
 
@@ -671,12 +677,12 @@ mod tests {
         fs::write(dev.join("modalias"), "pci:v0000144Dp00009A36\n").unwrap();
         let attr = power.join("pm_qos_resume_latency_us");
         assert_eq!(
-            hwid_from_attr_path(&attr).as_deref(),
+            hwid_from_attr_path(&RealKernel::new(), &attr).as_deref(),
             Some("pci:v0000144Dp00009A36")
         );
         // Missing modalias -> None (caller default-denies).
         let other = base.join("nodev").join("power").join("attr");
-        assert_eq!(hwid_from_attr_path(&other), None);
+        assert_eq!(hwid_from_attr_path(&RealKernel::new(), &other), None);
 
         let _ = fs::remove_dir_all(&base);
     }
@@ -688,7 +694,7 @@ mod tests {
         fs::write(base.join("00-broken.toml"), "this is not valid toml = = =").unwrap();
         // Should not panic; seeded baseline still loads, but its candidate is
         // intentionally not trusted for writes.
-        let al = Allowlist::load_from(std::slice::from_ref(&base));
+        let al = Allowlist::load_from(&RealKernel::new(), std::slice::from_ref(&base));
         let hwid = "pci:v0000144Dp00009A36sv0000144Dsd0000A801bc01sc08i02";
         assert_eq!(
             al.check("nvme_apst", hwid, 0).deny_reason().unwrap(),

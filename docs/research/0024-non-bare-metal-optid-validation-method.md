@@ -73,6 +73,14 @@ The repository already contains the right starting boundary:
 This paper extends the research basis for I2. It does not change I2 from
 `planned` and does not modify those release requirements.
 
+### Applied result
+
+The deterministic-software-proof and model-conditional-estimate lanes of this
+method have since been run end to end. The result is committed at
+[`release/evidence/optid-simulated-evidence/2026-08-29/`](../../release/evidence/optid-simulated-evidence/2026-08-29/README.md).
+It classifies every number by the evidence classes named above and makes no
+physical claim. The cloud virtual-machine lane and the gem5 lane remain unrun.
+
 ## Proposed test system
 
 ### Cloud virtual-machine laboratory

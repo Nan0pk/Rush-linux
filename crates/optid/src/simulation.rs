@@ -880,7 +880,7 @@ fn validate_metrics(scenario: &Scenario) -> Option<Diagnosis> {
             if !number.is_finite() {
                 return Some(invalid(ReasonCode::MetricNan));
             }
-            if number < 0.0 || number > 1.0e15 {
+            if !(0.0..=1.0e15).contains(&number) {
                 return Some(invalid(ReasonCode::MetricImpossible));
             }
             if number == 0.0 && scenario.metrics.primary.contains("latency") {
