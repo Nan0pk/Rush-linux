@@ -475,6 +475,23 @@ fn recover_record(root: &Path, path: &Path) -> Result<RecoveryEvent, RecoveryEve
         ));
     }
 
+    if record.phase == TransactionPhase::Relinquished {
+        // A crash can occur after durable relinquishment but before deletion.
+        // Ownership already ended: do not reopen an absent or replacement
+        // device, even if its current value happens to match the old intent.
+        return finish_recovery_record(
+            root,
+            path,
+            RecoveryEvent {
+                target_id: record.target_id,
+                disposition: RecoveryDisposition::RelinquishedDrift,
+                detail: "durable ownership relinquishment completed without target access"
+                    .to_string(),
+                timestamp_unix: now_unix(),
+            },
+        );
+    }
+
     let identity = canonical_identity(&record.target).map_err(|error| {
         fail_event(
             record.target_id.clone(),
@@ -540,6 +557,14 @@ fn recover_record(root: &Path, path: &Path) -> Result<RecoveryEvent, RecoveryEve
         detail,
         timestamp_unix: now_unix(),
     };
+    finish_recovery_record(root, path, event)
+}
+
+fn finish_recovery_record(
+    root: &Path,
+    path: &Path,
+    event: RecoveryEvent,
+) -> Result<RecoveryEvent, RecoveryEvent> {
     append_event(root, &event).map_err(|error| {
         fail_event(
             event.target_id.clone(),

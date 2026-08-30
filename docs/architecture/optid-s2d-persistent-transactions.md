@@ -101,7 +101,13 @@ ownership relinquishment, and the recovery directory is synced after removal.
   hardware write. Durably record relinquishment before compaction, then continue
   restoring the surviving targets. This is not reported as an exact restore.
   A partially missing runtime-PM target, changed identity, permission error, or
-  journal failure still fails closed and retains the undo record.
+  journal failure still fails closed and retains the undo record. Other
+  handbacks are attempted before the error is returned, and no successful
+  watchdog heartbeat is emitted for that failed cycle.
+- Crash after durable relinquishment but before deletion: standalone recovery
+  validates the record schema and owner, records the completed relinquishment,
+  and compacts without accessing the old target. It never writes to a replacement
+  device. Unresolved records still require identity validation and recovery.
 - Compensation failure: retain the non-terminal record for S3D recovery and
   fail the control path visibly.
 

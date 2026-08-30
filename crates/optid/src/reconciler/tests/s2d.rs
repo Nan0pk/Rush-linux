@@ -633,7 +633,9 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     let device = PathBuf::from("/sys/bus/pci/devices/0000:02:00.0");
     let control = device.join("power/control");
     let delay = device.join("power/autosuspend_delay_ms");
+    let vm = PathBuf::from("/proc/sys/vm/swappiness");
     let memory = Arc::new(MemoryKernel::new());
+    memory.write_raw(&vm, "60");
     memory.write_raw(&control, "on");
     memory.write_raw(&delay, "2000");
     let mut actuator = s2d_armed_actuator(
@@ -643,9 +645,11 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     let mut reconciler = s2d_reconciler(
         state_dir, recovery_dir, &mut actuator, "partial-removal-generation",
     );
-    let action = runtime_pm_action(&device, 100);
-    reconciler.prepare_cycle(std::slice::from_ref(&action), &mut actuator).expect("prepare");
-    reconciler.apply_action(&mut actuator, &action).expect("apply");
+    let actions = [runtime_pm_action(&device, 100), vm_action(&vm, "10")];
+    reconciler.prepare_cycle(&actions, &mut actuator).expect("prepare");
+    for action in &actions {
+        reconciler.apply_action(&mut actuator, action).expect("apply");
+    }
     let removed = FaultKernel::new(Box::new(S2dSharedKernel(Arc::clone(&memory))));
     removed.hide_path(delay);
     actuator.kernel = Box::new(removed);
@@ -653,6 +657,7 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     let records = reconciler.transactions.active_records(actuator.kernel.as_ref()).expect("undo records");
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].phase, TransactionPhase::Committed);
+    assert_eq!(memory.read_to_string(&vm).expect("unrelated target restored despite failure"), "60");
     assert_eq!(memory.read_to_string(&control).expect("no unverified write"), "auto");
 }
 

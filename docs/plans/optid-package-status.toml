@@ -316,6 +316,8 @@ partial_target_retains_undo = "s2d_missing_runtime_pm_member_keeps_the_whole_und
 removed_target_stale_generation = "s2d_removed_target_cannot_relinquish_another_generation"
 removed_target_durable_retirement = "s2d_removed_target_sync_failure_preserves_the_undo_record"
 production_hot_removal_recovery = "removed_device_hands_back_before_one_clean_supervised_restart"
+relinquishment_crash_recovery = "recovery_relinquished_records_never_touch_removed_or_replaced_targets"
+invalid_or_unresolved_recovery_record = "recovery_retains_unresolved_or_invalid_records_for_missing_targets"
 
 [[package]]
 id = "S3D"
