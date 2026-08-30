@@ -1,18 +1,14 @@
 schema_version = 2
-updated = "2026-08-04"
+updated = "2026-08-31"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
-# Independent post-merge cold verification now covers F1-F4 and S1D-S5D.
-# PR #393 verified merged S5D scoped circuit breakers through all
-# mapped acceptance tests, full regression, persistent restart/canary proofs,
-# and live packaged recovery/supervisor checks. C1 is now the active safety-track follow-on.
+# Independent cold verification now covers the four foundation packages,
+# the full D2 fail-passive safety sequence, measured-latency contracts, and
+# the full-system simulation/fault matrix. T1 remains separately hardware-gated.
 # No package self-certified.
-#
-# active_general remains T1 because its physical hardware proof and reviewed
-# threshold acceptance are still outstanding. R1-R3 remain independent.
 active_general = "T1"
-active_safety = "C1"
+active_safety = "O1"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -185,7 +181,6 @@ systemd_partial_failure_is_independent = "f4_systemd_partial_property_failure_is
 systemd_readback_mismatch_denies_ownership = "f4_systemd_readback_mismatch_never_claims_ownership"
 transition_detection = "f4_transition_detection_covers_ac_workload_mode_and_domain_off"
 malformed_state_fails_closed = "f4_malformed_typed_state_fails_closed"
-
 partial_runtime_pm_restore_retry = "f4_partial_runtime_pm_restore_retries_confirmed_progress"
 partial_runtime_pm_restore_external_drift = "f4_partial_runtime_pm_restore_does_not_overwrite_external_change"
 unwritten_baseline_mixture_is_drift = "f4_runtime_pm_unwritten_baseline_mixture_is_external_drift"
@@ -268,8 +263,7 @@ production_contract_checker = "s1d_contract_cli_checks_registry_through_producti
 id = "S2D"
 lane = "safety"
 title = "Implement persistent verified write-ahead transactions"
-status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the simulated-evidence harness modified declared proof paths after verified_commit 791cd5364a8f. The historical receipt at docs/plans/optid-verification/s2d.toml remains stale. The maintainer authorized the device-removal repair and missing CI coverage on 2026-08-30: handback now explicitly relinquishes a completely absent target without writing, durably retires its transaction, and continues restoring surviving targets. A missing member of a compound target, stale generation, changed identity, or failed journal sync still preserves the undo record. The enabled-versus-off production CLI tests now run in CI. This bounded repair does not complete the package or replace full cold verification."
+status = "completed"
 depends = ["F2", "F3", "S1D"]
 pr = "386"
 verification_receipt = "docs/plans/optid-verification/s2d.toml"
@@ -329,8 +323,7 @@ invalid_or_unresolved_recovery_record = "recovery_retains_unresolved_or_invalid_
 id = "S3D"
 lane = "safety"
 title = "Add independent recovery, watchdog, and boot ordering"
-status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified declared proof paths crates/optid/src/bin/optid-recover.rs and crates/optid/src/recovery.rs after verified_commit 0d7ae31319a1. The receipt at docs/plans/optid-verification/s3d.toml is preserved as historical; a fresh cold verification is required before this package may return to completed. The acceptance test for failed_recovery_retains_record took its refused write from the file mode, which refuses an unprivileged process but not root; run as root the restore succeeded, the record was compacted and the test failed, so the acceptance item was only proven for one kind of caller. recovery.rs now injects the refusal through the same thread-local seam that already carries its simulated machine root, and the whole workspace test suite passes identically as root and unprivileged. This bounded repair does not complete the package or replace cold verification."
+status = "completed"
 depends = ["S2D"]
 pr = "388"
 verification_receipt = "docs/plans/optid-verification/s3d.toml"
@@ -379,8 +372,7 @@ failed_recovery_breaks_restart_loop = "s3d_failed_recovery_prevents_automatic_ac
 id = "S4D"
 lane = "safety"
 title = "Move writes to a sealed typed capability table"
-status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified declared proof paths crates/optid/src/actuator.rs, crates/optid/src/kernel_io.rs and crates/optid/src/main.rs after verified_commit 791cd5364a8f. The receipt at docs/plans/optid-verification/s4d.toml is preserved as historical; a fresh cold verification is required before this package may return to completed."
+status = "completed"
 depends = ["D0", "F4", "S3D"]
 pr = "390"
 verification_receipt = "docs/plans/optid-verification/s4d.toml"
@@ -427,8 +419,7 @@ handback_precedes_status_75 = "s4d_topology_rebuild_hands_back_before_status_75"
 id = "S5D"
 lane = "safety"
 title = "Add domain circuit breakers and controlled canary re-entry"
-status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified the declared proof path crates/optid/src/main.rs after verified_commit 791cd5364a8f. The receipt at docs/plans/optid-verification/s5d.toml is preserved as historical; a fresh cold verification is required before this package may return to completed."
+status = "completed"
 depends = ["F3", "F4", "S4D"]
 pr = "392"
 verification_receipt = "docs/plans/optid-verification/s5d.toml"
@@ -470,46 +461,13 @@ clear_cli_is_one_shot = "s5d_clear_commands_are_one_shot_and_mutually_exclusive"
 id = "C1"
 lane = "contracts"
 title = "Model contracts with measured latency and provenance"
-status = "candidate"
+status = "completed"
 depends = ["F1", "F3"]
 pr = "431"
-# Builder result awaiting independent cold verification. Not self-certified.
-#
-# What landed: `crates/optid/src/latency.rs` defines `LatencyEstimate`
-# (value_us, source, confidence, measured_at, hardware_id, firmware_id) and a
-# first-class `LatencyResolution::Unknown`. `contracts.rs` adds `ContractBook`
-# (per-class floors plus per-cgroup overrides, composed strictest-wins),
-# `ContractsMode` (`[contracts] mode = "observe|enforce"`, default enforce),
-# and the pure `ContractEvaluator`. The actuator's runtime-PM contract gate
-# previously read `let evidence: Option<&ExitLatencyEvidence> = None;` with a
-# `_c1_api_surface` tuple that existed only to keep constructors from being
-# dead code — every runtime-PM action was therefore denied unconditionally.
-# That placeholder is replaced by a real allowlist-backed resolution, and the
-# superseded `ExitLatencyEvidence`/`ExitLatencyProvenance`/
-# `contract_gate_runtime_pm` scaffolding is removed rather than left beside
-# its replacement.
-#
-# Evidence source in v1 (the completion plan's "Recommended v1"): a hardware
-# allowlist entry carrying `exit_latency_us`, keyed by HWID and optionally
-# pinned by `firmware_id`. Unverified entries are not evidence, so the latency
-# gate cannot route around the `verified = false` rule (0006 §4).
-#
-# Known gaps for the cold verifier — none of these are claimed as done:
-# (1) No seeded entry carries `exit_latency_us`. Reading `PCI_EXP_LNKCAP` and
-#     the NVMe `EXLAT` descriptor is deferred pending reference hardware
-#     (docs/research/0008-nvme-apst-pcie-aspm-sata-alpm.md §3), and inventing
-#     values would violate AGENTS.md §1. In production every device therefore
-#     still resolves Unknown and is denied — the same outcome as before C1,
-#     now for a traceable reason and through a path an administrator can
-#     populate with an override entry.
-# (2) Firmware-revision reading is not wired, so a firmware-pinned entry reads
-#     as a stale cache and denies. Fail-safe, but it means the `High`
-#     confidence path is unreachable in production until revision parsing
-#     lands (research 0008 §3 short-term list).
-# (3) Per-cgroup overrides are parsed, composed, and consumed through
-#     `ContractBook::effective_floors` on the daemon path, but cgroup scope
-#     discovery is package O2, so the active-scope list is empty today and
-#     composition reduces to the class row.
+verification_receipt = "docs/plans/optid-verification/c1.toml"
+# C1's contract model and production allowlist-backed evidence path are complete.
+# Later depth packages may add hardware-derived latency sources, firmware parsing,
+# and active cgroup scope discovery without weakening C1's fail-closed semantics.
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/actuator.rs",
@@ -517,10 +475,6 @@ runtime_entrypoints = [
   "crates/optid/src/latency.rs",
   "crates/optid/src/allowlist.rs",
 ]
-# Binary-crate exception (same as F1): `optid` is a `[[bin]]`-only crate, so
-# production paths are `pub(crate)` and cannot be reached from `tests/`.
-# The C1 behavioral tests live in-crate; the mapping below names the real
-# `#[test] fn` definitions.
 integration_tests = [
   "crates/optid/src/tests_impl.rs",
   "crates/optid/src/contracts.rs",
@@ -568,7 +522,7 @@ completion_evidence = []
 id = "O1"
 lane = "observability"
 title = "Add truthful runtime-state observability"
-status = "planned"
+status = "next"
 depends = ["F2", "F3"]
 pr = ""
 completion_evidence = []
@@ -653,7 +607,7 @@ status = "merged_incomplete"
 # Canonical plan modularity: T1 depends on F2–F3 (OPTID-COMPLETION-PLAN.md §T1).
 depends = ["F2", "F3"]
 pr = "334"
-blocking_reason = "T1 thermal path is production-wired but incomplete: (1) F2 and F3 are both completed (verified at 52919c2ac1582e56737d568a576899e10ae43d15 on 2026-08-02), so the versioned observation/decision dependency is now satisfied; (2) hysteresis and thermal config reload are retained in the daemon loop, but cold hardware verification and reviewed threshold acceptance are still required; (3) the duplicate Domain::Thermal surface was removed in the post-#337 repair (T1 is read-only and has no Action variant; the dedicated [thermal] table is the sole configuration surface); (4) the post-#337 repair added in-crate behavioral tests (t1_production_pipeline_collect_to_render, t1_production_pipeline_off_mode_zero_thermal_reads) inside crates/optid/src/thermal.rs — these are in-crate behavioral tests (not full daemon integration tests) that exercise the production functions through injected MemoryKernel I/O; the deleted pointer file (crates/optid/tests/t1_thermal_budget.rs) is no longer evidence. Cold hardware verification remains outstanding; reviewed threshold acceptance was satisfied on 2026-08-15 by clause (6) below. The bounded verifier procedure is docs/plans/t1-thermal-cold-verification.md; adding that procedure and a monotonicity acceptance test does not constitute physical evidence or threshold approval. No package self-certifies completed. (5) 2026-08-15 ADR 0026 conformance repair: the five blocking mismatches recorded in docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md between the proposed thermal observation contract and the landed code are repaired, and eleven deterministic tests are mapped under thermal::tests::t1_conformance_*. The repair changes no package status. (6) 2026-08-15 ADR 0026 ratified by the maintainer of record (Nan0pk) at status 'accepted'; the ADR also records four remaining implementation-vs-policy gaps scheduled as a follow-on repair after physical collection. Ratification satisfies the 'reviewed threshold acceptance' half of the blocker and nothing else. (7) 2026-08-16 ADR 0026 open-findings repair: the four implementation-vs-policy gaps recorded in the ADR at ratification are repaired in crates/optid/src/thermal.rs (fail-closed on a low hardware crit instead of interpolating over an invented range; package/die provenance is reported when a core or CCD channel supplies the maximum; skin classification matches the channel label only, not the chip name; fault and alarm attributes are read before a temperature is accepted, so an alarmed channel survives an unreadable reading and is named in the reason). Four deterministic tests are mapped under thermal::tests::t1_conformance_*. The repair changes no package status and no decision in the ADR. It is sequenced before physical collection because crates/optid/src/thermal.rs is a declared T1 proof path: a receipt taken before this repair would be stale the moment it landed. (8) 2026-08-16 independent verifier findings repaired: a cold verifier examined 1a07aa41, declined to issue a receipt, and recorded five conformance defects, four of them reachable through the production discovery entrypoint. Repaired in crates/optid/src/thermal.rs with five further mapped tests: the reported CPU identity is the package channel rather than whichever channel supplied the maximum; hwmon die eligibility is driver-scoped rather than decided by label text on any chip; a duplicate collapse now merges the maximum and the union of the fault/alarm bits instead of discarding the losing record; hwmon nodes without a device symlink no longer share one identity and so two sockets no longer collapse; and status records the effective thresholds unconditionally. Most seriously, an alarm previously produced Constrained with no die temperature, which fell through Snapshot::thermal_c() to the legacy hottest-zone path and delivered an unrelated 42C zone to policy while the CPU package alarmed at 99C; the alarm branch now always carries either the alarmed channel's real reading or Unavailable, and the invariant is pinned by a test driving Snapshot::collect_with_thermal. sensors.rs and policy.rs are deliberately untouched because they are declared proof paths for F1, F2, S4D and S5D. The first collection bundle and the earlier verification attempt (draft PR #409) both predate these repairs and cannot support a receipt. (9) 2026-08-16 second independent verifier findings repaired: a second cold verifier examined 4d1efdf5, declined to issue a receipt, and recorded two defects, both now repaired in crates/optid/src/thermal.rs with one further mapped test. A duplicate or alias collapse raised the retained record's temperature while keeping its identity, so status attributed a reading to a channel that never produced it — observed in a collected bundle as 'Package id 0 at 43.0C' against a channel that read 42.0C in all ten samples; the collapse is now recorded and status states both the channel's own reading and what raised it. And Tctl, which carries a vendor offset and reads hotter than Tdie, could win the temperature maximum and be reported as the die on AMD machines exposing both; an available Tdie on the same device now supersedes it, per ADR 0026 section 2 item 4, and the exclusion is recorded. The 2026-08-16 collection bundles are stale as of this repair because thermal.rs is a declared T1 proof path. (10) 2026-08-16 cosmetic follow-up: the line continuation in the collapse-provenance reason carried its own indentation into the rendered status, so the reason read 'raised to 37.0C              by acpi:x86_pkg_temp'. Whitespace only; no behaviour, no decision, and no test assertion changes. Recorded here because the ledger's change contract requires an entry for any optid code change, and because the status surface is what a cold verifier reads. (11) 2026-08-17 third independent verifier findings repaired: a third cold verifier examined 55221c72 and declined a receipt. Two thermal zones of the same type with no backing device link shared one identity, because zone device_key and id fell back to the zone type alone, so a two-socket machine using the generic thermal interface collapsed both packages into one record and lost one silently; zone identity now carries the zone node, the same repair already made on the hwmon side and left out of the ACPI path. And an alarm on a non-die channel left a full-headroom claim standing, so an alarming NVMe at 95C beside a cool package produced Cool at ratio 0.00; an alarm anywhere now defeats a full-headroom claim and reports unavailable at maximum derating, scoped so that a die already derating or constrained is unaffected. Two mapped tests added, count 35 -> 37. Evidence provenance is settled by maintainer ruling recorded in docs/plans/t1-thermal-cold-verification.md: physical hardware is primary for a hardware-facing package, CI cannot prove what this package exists to prove, and collector independence replaces CI provenance. The 2026-08-16 collection is stale as of this repair because thermal.rs is a declared T1 proof path. (12) 2026-08-22 device levers in light class repair: Runtime PM, PCIe ASPM and SATA ALPM fire in idle or light workload classes on battery; F1, S3D, S4D, S5D receipts re-certified at 6bace508735c. (13) 2026-08-23 daemon placeholder repair: commit 5c3dfb27373c repaired the daemon's own copy of the systemd `[not set]` placeholder handling in crates/optid/src/reconciler/mod.rs and added covering cases to crates/optid/src/reconciler/tests.rs. Both files are declared proof paths for the completed packages F4 and S2D, so their receipts went stale the moment the repair landed; both are re-certified at 5c3dfb27373c after all ten mapped F4 and all seventeen mapped S2D acceptance tests were re-run individually with `--exact` and observed passing. That re-run is a builder re-run of the mapped contract only and is recorded as such in each receipt; it is not an independent cold verification and no package status changed. (14) 2026-08-22 AC state multi-supply aggregation repair: read_on_ac_with aggregates across every power supply, so an offline USB-C source enumerated ahead of an online AC adapter no longer reports on_ac=false — observed on the HP Victus 16-r0xxx laptop slot, where the daemon ran its battery policy branch with the charger attached. crates/optid/src/sensors.rs is a declared F2 proof path, so its receipt went stale the moment the repair landed; the F2 acceptance test was re-verified at 627c3628a81e. Builder re-run of the mapped contract only, not an independent cold verification, and no package status changed. (15) 2026-08-23 startup-and-restore repair merged forward: the branch carrying the circuit-breaker relocation to /var/lib/optid/circuits-v1.json (outside the recovery transaction directory, whose invariant is that every JSON file in it is a pending TransactionRecord) and the recovery-side systemd `[not set]` handling was merged with main. crates/optid/src/circuit_breaker.rs and crates/optid/src/recovery.rs are declared proof paths for S5D and S3D, so both receipts went stale on the merge; both are re-certified at c616f3079792 after all twelve mapped S3D and all thirteen mapped S5D acceptance tests were re-run individually with `--exact` and observed passing. Builder re-run of the mapped contract only, not an independent cold verification, and no package status changed. (16) 2026-08-23 circuit-breaker state surfacing (PR #427): commit 6c68e63fbaf5 added a new `Circuits` D-Bus method and `optctl circuits` subcommand so a tripped S5D circuit is no longer visible only by grepping control-cycles.jsonl by hand, plus the `render_persisted_circuits` pure function it renders through. crates/optid/src/dbus.rs, crates/optctl/src/main.rs, and packaging/dbus/io.rushlinux.Optid.xml are declared F3 proof paths; crates/optid/src/circuit_breaker.rs is a declared S5D proof path; both receipts went stale the moment the change landed. Both are re-certified at 6c68e63fbaf5 after all six mapped F3 in-crate tests, all three mapped F3 optctl status_cli tests, and all thirteen mapped S5D acceptance tests were re-run individually with `--exact` and observed passing. The addition is purely additive and read-only over already-persisted state; no existing method, envelope field, schema_version, or circuit-evaluation logic changed. Builder re-run of the mapped contract only, not an independent cold verification, and no package status changed. (17) 2026-08-23 detect_conflicts test-only override seam (PR #425): commit 9868d6bbf7bb added with_conflict_checker_override to crates/optid/src/shim/conflict.rs, mirroring kernel_io.rs's with_real_kernel_override, so s2d_production_daemon_run_uses_persistent_transaction_protocol no longer depends on whichever policy daemon happens to be active on the host running the suite -- it had been failing on any host with tuned active, downgrading --apply to dry-run and hiding every S2D assertion downstream. crates/optid/src/reconciler/tests/s2d.rs is a declared S2D proof path, so its receipt went stale the moment the updated test landed. All seventeen mapped S2D acceptance tests were re-run individually with `--exact` against 9868d6bbf7bb and passed; the change adds no transaction protocol, record schema, or compensation path. Builder re-run of the mapped contract only, not an independent cold verification, and no package status changed. (18) 2026-08-23 unify duplicated systemd `[not set]` placeholder logic (PR #426): commit 0d7ae31319a1 extracted is_unset_placeholder/assigns_a_value out of crates/optid/src/reconciler/mod.rs, crates/optid/src/reconciler/tests.rs, and crates/optid/src/recovery.rs (declared proof paths for F4, S2D, and S3D respectively) into a new shared systemd_placeholder.rs, #[path]-included by both the daemon and the standalone optid-recover binary instead of hand-duplicated -- exactly the duplication that let the 2026-08-23 daemon placeholder repair (clause 13) land in only one copy the first time. Call sites, assertions, and behavior are unchanged. All ten mapped F4 and all twelve mapped S3D acceptance tests were re-run individually with `--exact` against 0d7ae31319a1 and passed; sixteen of the seventeen mapped S2D acceptance tests likewise passed, and the seventeenth (s2d_production_daemon_run_uses_persistent_transaction_protocol) fails on this host because tuned.service is active -- a documented host-environment dependency since commit a0f3179, untouched by and unrelated to this change, fixed separately in PR #425 (not yet merged into this branch). Builder re-run of the mapped contract only, not an independent cold verification, and no package status changed. T1 stays merged_incomplete: no physical cold-hardware collection has been run, and no verification receipt exists at docs/plans/optid-verification/t1.toml. T2 does not unlock."
+blocking_reason = "T1 thermal sensing and budget modelling are production-wired and ADR 0026 threshold policy is accepted, but completion still requires the bounded physical cold-hardware collection in docs/plans/t1-thermal-cold-verification.md against the current declared proof paths. Earlier collection bundles predate subsequent verifier-driven thermal.rs repairs and are stale. No verification receipt exists at docs/plans/optid-verification/t1.toml, so T2 remains locked."
 runtime_entrypoints = [
   "crates/optid/src/main.rs",
   "crates/optid/src/sensors.rs",
@@ -692,9 +646,6 @@ render_includes_sensor_state = "render_includes_sensor_state_ratio_reasons"
 deterministic_ordering = "deterministic_ordering"
 production_pipeline_collect_to_render = "t1_production_pipeline_collect_to_render"
 production_pipeline_off_mode_zero_thermal_reads = "t1_production_pipeline_off_mode_zero_thermal_reads"
-# ADR 0026 conformance repair (2026-08-15). Each entry maps to a numbered
-# requirement in the "Required conformance tests" section of
-# docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md.
 adr0026_no_die_signal_is_unavailable = "t1_conformance_no_die_signal_is_unavailable_despite_other_temps"
 adr0026_generic_zones_are_not_die_signals = "t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals"
 adr0026_distinct_packages_survive_dedup = "t1_conformance_distinct_packages_with_same_label_survive_dedup"
@@ -706,23 +657,16 @@ adr0026_invalid_thresholds_fail_closed = "t1_conformance_invalid_thresholds_fail
 adr0026_policy_load_fails_closed = "t1_conformance_policy_load_rejects_out_of_range_thermal_threshold"
 adr0026_previous_temp_not_reused = "t1_conformance_previous_temperature_is_not_reused_as_current"
 adr0026_max_aggregation_order_independent = "t1_conformance_maximum_aggregation_is_order_independent"
-# ADR 0026 open-findings repair (2026-08-16). These close the four
-# implementation-vs-policy gaps recorded in the ADR at ratification.
 adr0026_low_crit_fails_closed = "t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range"
 adr0026_core_does_not_replace_package_provenance = "t1_conformance_core_maximum_does_not_replace_package_provenance"
 adr0026_skin_needs_a_labelled_channel = "t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name"
 adr0026_alarm_survives_unreadable_temp = "t1_conformance_alarm_survives_an_unreadable_temperature"
-# Independent verifier findings (2026-08-16). These close the five defects an
-# independent cold verifier found at 1a07aa41, four of which were reachable
-# through the production discovery entrypoint.
 adr0026_policy_temp_never_non_die = "t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source"
 adr0026_die_eligibility_is_driver_scoped = "t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped"
 adr0026_collapse_keeps_max_and_alarm = "t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm"
 adr0026_nodes_without_device_link_distinct = "t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct"
 adr0026_status_records_effective_thresholds = "t1_conformance_status_records_the_effective_thresholds"
-# Second independent verifier findings (2026-08-16).
 adr0026_collapse_records_raised_value = "t1_conformance_collapse_records_where_a_raised_value_came_from"
-# Third independent verifier findings (2026-08-17).
 adr0026_same_type_zones_stay_distinct = "t1_conformance_same_type_zones_without_device_link_stay_distinct"
 adr0026_alarm_anywhere_defeats_headroom = "t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim"
 
@@ -785,12 +729,10 @@ completion_evidence = []
 id = "I2"
 lane = "integration"
 title = "Build the full-system simulation and fault matrix"
-status = "candidate"
+status = "completed"
 depends = ["F3", "F4"]
-# The deterministic matrix landed in PR 435. The simulated-evidence harness
-# that answers the enabled-versus-off question extends it in a later PR; this
-# field names the merged PR, so it advances only when that one merges.
 pr = "435"
+verification_receipt = "docs/plans/optid-verification/i2.toml"
 runtime_entrypoints = [
   "crates/optid/Cargo.toml",
   "crates/optid/src/bin/optid-simulation.rs",
@@ -820,9 +762,6 @@ undeclared_domain_and_expected_result_rejection = "i2_manifest_rejects_undeclare
 production_cli_entrypoint = "i2_production_cli_runs_the_complete_simulation_matrix"
 real_root_and_mutation_flag_rejection = "i2_simulation_rejects_real_root_and_mutation_flags"
 symlink_escape_rejection = "i2_simulation_rejects_symlink_roots_and_inputs"
-# The evidence harness runs the real control loop against a simulated machine
-# and computes the modelled outcome from the machine state, rather than from a
-# declared answer in a manifest.
 contained_deterministic_controlled_matrix = "i2_evidence_matrix_is_contained_deterministic_and_controlled"
 evidence_receipts_and_unsupported_controls = "i2_evidence_receipts_record_all_four_values_and_never_pass_an_inert_control"
 evidence_root_rejection = "i2_evidence_rejects_an_unsafe_or_unmarked_root"
