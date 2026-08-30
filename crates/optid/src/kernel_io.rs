@@ -46,6 +46,8 @@ const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel 
     FaultKernel::fail_next_remove;
 const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
     FaultKernel::fail_next_create_dir;
+const _: for<'a> fn(&'a FaultKernel, PathBuf, io::ErrorKind) -> &'a FaultKernel =
+    FaultKernel::deny_writes;
 
 #[cfg(any(test, feature = "test-utils"))]
 const _: fn() -> MemoryKernel = MemoryKernel::new;
@@ -170,6 +172,21 @@ const _: fn() -> bool = real_kernel_override_is_active;
 type OverrideSeam = fn(Box<dyn KernelIo>, fn() -> bool) -> bool;
 #[cfg(any(test, feature = "test-simulation"))]
 const _: OverrideSeam = with_real_kernel_override::<bool, fn() -> bool>;
+
+/// A `KernelIo` that reaches the filesystem directly, without consulting the
+/// thread-local override slot.
+///
+/// Tests that must keep real state-directory I/O working while a single host
+/// path is sealed off wrap this in a `FaultKernel` and install the result with
+/// `with_real_kernel_override`. Wrapping the `RealKernel` facade instead would
+/// re-enter the override on every call and recurse until the stack is gone.
+#[cfg(any(test, feature = "test-simulation"))]
+pub(crate) fn direct_kernel() -> Box<dyn KernelIo> {
+    Box::new(implementation::RealKernel::new())
+}
+
+#[cfg(any(test, feature = "test-simulation"))]
+const _: fn() -> Box<dyn KernelIo> = direct_kernel;
 
 #[cfg(any(test, feature = "test-simulation"))]
 struct OverrideGuard(Option<Box<dyn KernelIo>>);
