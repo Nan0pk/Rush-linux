@@ -429,10 +429,55 @@ fn run(args: Args) -> io::Result<RunExit> {
         ),
     )?;
 
+    // The policy file is re-read on every cycle, so a reload that fails is a
+    // runtime event, not a startup one. `Policy::load` answers a failed read
+    // with `curated_baseline()`, whose per-domain default is `actuate`; taking
+    // that at face value would turn an operator's `mode = "off"` into
+    // actuation the moment the file became unreadable. Two things prevent
+    // that: the last policy that loaded cleanly is retained and keeps driving
+    // decisions, and dynamic writes are disarmed for any cycle whose reload
+    // did not come back `Ok`.
+    let mut last_good_policy: Option<Policy> = policy_load_state
+        .permits_dynamic_writes()
+        .then(|| policy_for_conflicts.clone());
+    let mut last_reload_state = policy_load_state;
+
     let mut legacy_active_keys = BTreeSet::new();
     loop {
         let override_mode = read_mode_override(&args.state_dir).unwrap_or(Mode::Auto);
-        let policy = Policy::load(&args.config_path);
+        let (reloaded_policy, reload_state) = Policy::load_with_state(&args.config_path);
+        let policy = if reload_state.permits_dynamic_writes() {
+            last_good_policy = Some(reloaded_policy.clone());
+            reloaded_policy
+        } else {
+            // Prefer the operator's last known-good configuration over the
+            // loader's fallback. With no known-good policy the fallback is all
+            // there is, and `cycle_apply_armed` below keeps it from writing.
+            last_good_policy.clone().unwrap_or(reloaded_policy)
+        };
+        let cycle_apply_armed = apply_armed && reload_state.permits_dynamic_writes();
+        if reload_state != last_reload_state {
+            let message = if reload_state.permits_dynamic_writes() {
+                format!(
+                    "optid: policy reload recovered (load_state={reload_state}); dynamic writes re-armed={cycle_apply_armed}\n"
+                )
+            } else {
+                format!(
+                    "optid: policy reload failed (load_state={reload_state}); retaining the last known-good policy and disarming dynamic writes for this cycle\n"
+                )
+            };
+            eprint!("{message}");
+            append_log(&args.state_dir.join("decisions.log"), &message)?;
+            last_reload_state = reload_state;
+        }
+        // The gate the actuator and the envelope report must describe this
+        // cycle, not the startup that happened arbitrarily long ago.
+        let cycle_boot_state = BootState {
+            policy_load_state: reload_state,
+            apply_armed: cycle_apply_armed,
+            ..boot_state.clone()
+        };
+        actuator.set_boot_state(cycle_boot_state.clone());
         let mut snapshot = Snapshot::collect_with_thermal(
             cycle_kernel.as_ref(),
             cycle_kernel.as_ref(),
@@ -555,7 +600,7 @@ fn run(args: Args) -> io::Result<RunExit> {
 
         let mut circuit_plans = Vec::new();
         let mut circuit_suppressed = Vec::new();
-        if apply_armed {
+        if cycle_apply_armed {
             for action in &decision.actions {
                 let scope = CircuitScope::from_action(action, cycle_kernel.as_ref());
                 match circuit_breaker.decide(&scope, snapshot.timestamp) {
@@ -620,7 +665,7 @@ fn run(args: Args) -> io::Result<RunExit> {
 
         let mut action_outcomes: Vec<ActionOutcome> = Vec::new();
         let mut opened_domains = BTreeSet::new();
-        if apply_armed {
+        if cycle_apply_armed {
             for (action, scope, permit) in circuit_plans {
                 if opened_domains.contains(&scope.domain) || circuit_breaker.is_global_open() {
                     let detail = if circuit_breaker.is_global_open() {
@@ -784,7 +829,7 @@ fn run(args: Args) -> io::Result<RunExit> {
             correlation_id.clone(),
             &snapshot,
             &decision,
-            &boot_state,
+            &cycle_boot_state,
             action_outcomes,
             restore_outcomes.clone(),
         );

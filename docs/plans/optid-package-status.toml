@@ -34,7 +34,7 @@ id = "F1"
 lane = "foundation"
 title = "Freeze capability states and domain configuration"
 status = "merged_incomplete"
-blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified declared proof paths crates/optid/src/actuator.rs and crates/optid/src/main.rs after verified_commit 791cd5364a8f. The receipt at docs/plans/optid-verification/f1.toml is preserved as historical; a fresh cold verification is required before this package may return to completed."
+blocking_reason = "Cold receipt stale: the I2 simulated-evidence harness modified declared proof paths crates/optid/src/actuator.rs and crates/optid/src/main.rs after verified_commit 791cd5364a8f. The receipt at docs/plans/optid-verification/f1.toml is preserved as historical; a fresh cold verification is required before this package may return to completed. That harness also found a real F1 defect, now fixed: the run loop re-reads policy.toml every cycle, Policy::load answers an unreadable file with curated_baseline() whose per-domain default is actuate, and apply_armed was computed only at startup, so an operator's mode=\"off\" silently became actuation mid-run. The loop now retains the last cleanly-loaded policy and disarms dynamic writes for any cycle whose reload is not Ok. The re-verification must cover that path."
 depends = []
 pr = "332"
 verification_receipt = "docs/plans/optid-verification/f1.toml"
@@ -52,6 +52,7 @@ runtime_entrypoints = [
 # below names the real `#[test] fn` definitions that live there.
 integration_tests = [
   "crates/optid/src/policy.rs",
+  "crates/optid/tests/i2_simulation_evidence_cli.rs",
 ]
 completion_evidence = [
   "crates/optid/src/policy.rs",
@@ -64,6 +65,10 @@ completion_evidence = [
 # files. The validator confirms the named function exists as a
 # `#[test] fn` (not just any `fn`); a pointer file cannot satisfy this.
 [package.acceptance_tests]
+# A failed policy reload must not re-enable a domain the operator switched
+# off. The guard enters through the real `optid` binary and the production
+# control loop; it was confirmed to fail with the fix reverted.
+failed_policy_reload_does_not_escalate_domain_modes = "i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off"
 domain_mode_parsing = "f1_domain_mode_serde_accepts_lowercase_off_observe_actuate"
 unknown_field_rejection = "f1_domains_config_rejects_unknown_domain_key"
 systemd_action_domain_gating = "f1_systemd_set_property_is_domain_gated_by_default"
