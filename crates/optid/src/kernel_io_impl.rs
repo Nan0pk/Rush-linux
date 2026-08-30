@@ -247,6 +247,10 @@ enum FaultRule {
         path: PathBuf,
         error: io::ErrorKind,
     },
+    DenyWrites {
+        path: PathBuf,
+        error: io::ErrorKind,
+    },
 }
 
 /// Deterministic one-shot and persistent fault injector.
@@ -267,6 +271,20 @@ impl FaultKernel {
         self.rules
             .borrow_mut()
             .push(FaultRule::FailWrite { path, error });
+        self
+    }
+
+    /// Refuse every `write` to `path`, for the lifetime of this kernel.
+    ///
+    /// Unlike `fail_next_write`, the rule is not consumed on the first match.
+    /// A test that must guarantee a host control is never written — rather
+    /// than merely scripting a known number of attempts — uses this, so an
+    /// unexpected extra attempt is refused instead of reaching the real
+    /// kernel.
+    pub fn deny_writes(&self, path: PathBuf, error: io::ErrorKind) -> &Self {
+        self.rules
+            .borrow_mut()
+            .push(FaultRule::DenyWrites { path, error });
         self
     }
 
@@ -396,6 +414,16 @@ impl FaultKernel {
         )
     }
 
+    fn write_denied(&self, path: &Path) -> Option<io::ErrorKind> {
+        self.rules.borrow().iter().find_map(|rule| match rule {
+            FaultRule::DenyWrites {
+                path: candidate,
+                error,
+            } if candidate == path => Some(*error),
+            _ => None,
+        })
+    }
+
     fn is_hidden(&self, path: &Path) -> bool {
         self.rules.borrow().iter().any(
             |rule| matches!(rule, FaultRule::HidePath { path: candidate } if candidate == path),
@@ -471,6 +499,12 @@ impl KernelRead for FaultKernel {
 impl KernelWrite for FaultKernel {
     fn write(&self, path: &Path, value: &str) -> io::Result<()> {
         is_allowlisted_write_path(path)?;
+        if let Some(error) = self.write_denied(path) {
+            return Err(io::Error::new(
+                error,
+                format!("FaultKernel: writes denied for {}", path.display()),
+            ));
+        }
         if let Some(error) = self.take_write_fault(path) {
             return Err(io::Error::new(
                 error,
