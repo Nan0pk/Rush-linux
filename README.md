@@ -52,8 +52,7 @@ This table is generated from the repository's canonical version, build, and work
 | Project stage | Early beta: dry-run is the safe default; automatic hardware actuation is not release-ready. |
 | Version | `0.7.0-beta.4` |
 | Active general repair | `T1` — Build thermal sensing and a pure budget model (`merged_incomplete`) |
-| Active safety repair | `C1` — Model contracts with measured latency and provenance (`candidate`) |
-| Other merged, incomplete packages | `S2D`, `S3D`, `S4D`, `S5D` |
+| Active safety repair | `O1` — Add truthful runtime-state observability (`next`) |
 | Build profiles | `desktop`, `laptop`, `livedev`, `realtime-audio`, `server`, `testos` |
 | Safety architecture | [D2 fail-passive](docs/architecture/optid-d2-amendment.md) |
 | Canonical work state | [optid package ledger](docs/plans/optid-package-status.toml) |
@@ -164,9 +163,10 @@ Every control-loop iteration follows the same basic path:
 5. report support, skip, failure, and recovery outcomes.
 
 Implemented paths include core CPU controls and initial runtime-PM, PCIe ASPM,
-SATA ALPM, backlight, VM-sysctl, PM QoS, and cgroup controls. The packaged apply
-service cannot yet reach all dynamic device paths, and the persistent verified
-D2 recovery protocol is not complete. Treat apply mode as experimental.
+SATA ALPM, backlight, VM-sysctl, PM QoS, and cgroup controls. The fail-passive
+write/recovery foundation is independently verified in software, but automatic
+depth actuation still needs the remaining domain work and matching hardware
+evidence. Treat apply mode as experimental.
 
 See [adaptive engine](docs/adaptive-engine.md) for the control model and
 [implementation status](docs/IMPLEMENTATION_STATUS.md) for the detailed
