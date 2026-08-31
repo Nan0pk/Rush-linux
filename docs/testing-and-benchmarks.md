@@ -15,6 +15,13 @@ The runner invokes Rust format, tests, and Clippy when Rust changed. Pull-reques
 CI supplies missing local tools. See `docs/project-workflow.md` for why each
 check exists and what it is allowed to block.
 
+Rust changes are also tested by the `Root Rust workspace` workflow with
+`cargo test --workspace` under elevated privileges. This complements the normal
+unprivileged lane and catches tests whose behavior changes when permission
+checks no longer fail naturally. The root run uses a separate Cargo target
+directory so it does not leave root-owned build artifacts in the normal
+workspace.
+
 ## Host Benchmark Harness
 
 `tools/bench-optid-host.sh` benchmarks `optid` on a real Linux host (for
