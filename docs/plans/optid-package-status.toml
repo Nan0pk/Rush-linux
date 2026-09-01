@@ -55,14 +55,7 @@ completion_evidence = [
   "crates/optid/src/action.rs",
   "crates/optid/src/actuator.rs",
 ]
-# Post-#337: explicit acceptance_tests mapping. Each value names a real
-# `#[test] fn` in the declared integration_tests / completion_evidence
-# files. The validator confirms the named function exists as a
-# `#[test] fn` (not just any `fn`); a pointer file cannot satisfy this.
 [package.acceptance_tests]
-# A failed policy reload must not re-enable a domain the operator switched
-# off. The guard enters through the real `optid` binary and the production
-# control loop; it was confirmed to fail with the fix reverted.
 failed_policy_reload_does_not_escalate_domain_modes = "i2_a_failed_policy_reload_never_actuates_a_domain_that_is_switched_off"
 domain_mode_parsing = "f1_domain_mode_serde_accepts_lowercase_off_observe_actuate"
 unknown_field_rejection = "f1_domains_config_rejects_unknown_domain_key"
@@ -522,10 +515,45 @@ completion_evidence = []
 id = "O1"
 lane = "observability"
 title = "Add truthful runtime-state observability"
-status = "next"
+status = "candidate"
 depends = ["F2", "F3"]
-pr = ""
-completion_evidence = []
+pr = "450"
+# Ownership boundary (maintainer direction on PR #450): observability is split
+# from the control-loop proof surface. The reporter is its own read-only
+# binary, so a diagnostic never edits crates/optid/src/main.rs, crates/optctl,
+# or any safety file, and therefore cannot stale the cold receipts of the
+# foundation, safety, contract, and simulation packages. The F3 machine JSON
+# schema is unchanged and no actuation path is touched.
+#
+# Known gap for the cold verifier — not claimed as done: the completion plan's
+# desired end state surfaces this report through `optctl status`. That surface
+# is deliberately not wired here, because crates/optctl/src/main.rs is a
+# declared F3 proof path and wiring it would reintroduce the receipt churn this
+# split exists to prevent. Choosing when to pay that cost is the maintainer's
+# call, not the builder's.
+runtime_entrypoints = [
+  "crates/optid/src/bin/optid-observe.rs",
+  "crates/optid/src/runtime_observability.rs",
+]
+integration_tests = [
+  "crates/optid/src/runtime_observability.rs",
+  "crates/optid/tests/o1_runtime_status.rs",
+]
+completion_evidence = [
+  "crates/optid/src/runtime_observability.rs",
+  "crates/optid/tests/o1_runtime_status.rs",
+]
+[package.acceptance_tests]
+config_defaults_and_off_mode = "o1_runtime_mode_defaults_to_observe_and_parses_off"
+deterministic_full_snapshot = "o1_mock_full_state_snapshot_is_deterministic"
+monotonic_counter_deltas = "o1_monotonic_counters_produce_real_deltas"
+reset_or_wrap_handling = "o1_counter_reset_or_wrap_never_becomes_a_huge_delta"
+disappearing_devices_are_stale = "o1_disappearing_devices_are_reported_stale"
+error_states_are_distinct = "o1_permission_error_is_distinct_from_unsupported_and_malformed"
+nonadvancing_clock_is_stale = "o1_nonadvancing_clock_marks_snapshot_stale_and_suppresses_deltas"
+off_mode_has_zero_runtime_reads = "o1_off_mode_performs_no_runtime_reads"
+production_status_surface = "o1_production_status_surfaces_runtime_observability"
+production_off_mode = "o1_production_off_mode_reports_zero_runtime_reads"
 
 [[package]]
 id = "O2"
@@ -615,11 +643,6 @@ runtime_entrypoints = [
   "crates/optid/src/thermal.rs",
   "crates/optid/src/decision.rs",
 ]
-# Binary-crate exception: `optid` is a `[[bin]]`-only crate, so production paths
-# are `pub(crate)` and cannot be reached from `tests/` integration tests.
-# T1 behavioral coverage lives inside `crates/optid/src/thermal.rs`
-# under `#[cfg(test)] mod tests`. The `acceptance_tests` mapping below
-# names the real `#[test] fn` definitions that live there.
 integration_tests = [
   "crates/optid/src/thermal.rs",
 ]
@@ -627,10 +650,6 @@ completion_evidence = [
   "crates/optid/src/thermal.rs",
   "crates/optid/src/sensors.rs",
 ]
-# Post-#337: explicit acceptance_tests mapping. Each value names a real
-# `#[test] fn` in the declared integration_tests / completion_evidence
-# files. The pipeline test exercises Snapshot::collect_with_thermal →
-# discover → compute_thermal_budget → render_thermal_status.
 [package.acceptance_tests]
 sensor_discovery_hwmon = "discover_hwmon_cpu_temp"
 sensor_discovery_acpi_thermal_zone = "discover_acpi_thermal_zone"
