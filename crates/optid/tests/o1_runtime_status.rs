@@ -71,13 +71,21 @@ fn o1_production_off_mode_reports_zero_runtime_reads() {
 }
 
 #[test]
-fn o1_production_reporter_never_writes_to_the_daemon_state_surface() {
-    // The reporter takes no state directory and owns no write path. Running it
-    // twice must produce one summary line per sample and leave nothing behind.
+fn o1_production_repeated_sampling_reports_live_state_not_stale() {
+    // The reporter takes no state directory and owns no write path; it keeps
+    // one previous snapshot in memory. Each sample must report exactly once,
+    // and the second must cover real elapsed time rather than being suppressed
+    // as stale, which is what the default one-second interval buys.
     let report = observe("observe", &["--samples", "2"]);
-    let summaries = report
+    let summaries: Vec<&str> = report
         .lines()
         .filter(|line| line.starts_with("observability.runtime="))
-        .count();
-    assert_eq!(summaries, 2, "each sample must report exactly once");
+        .collect();
+    assert_eq!(summaries.len(), 2, "each sample must report exactly once");
+    for summary in &summaries {
+        assert!(
+            summary.contains("status=observed"),
+            "sample must report observed state, got: {summary}"
+        );
+    }
 }
