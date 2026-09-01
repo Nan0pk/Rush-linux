@@ -518,8 +518,21 @@ title = "Add truthful runtime-state observability"
 status = "candidate"
 depends = ["F2", "F3"]
 pr = "450"
+# Ownership boundary (maintainer direction on PR #450): observability is split
+# from the control-loop proof surface. The reporter is its own read-only
+# binary, so a diagnostic never edits crates/optid/src/main.rs, crates/optctl,
+# or any safety file, and therefore cannot stale the cold receipts of the
+# foundation, safety, contract, and simulation packages. The F3 machine JSON
+# schema is unchanged and no actuation path is touched.
+#
+# Known gap for the cold verifier — not claimed as done: the completion plan's
+# desired end state surfaces this report through `optctl status`. That surface
+# is deliberately not wired here, because crates/optctl/src/main.rs is a
+# declared F3 proof path and wiring it would reintroduce the receipt churn this
+# split exists to prevent. Choosing when to pay that cost is the maintainer's
+# call, not the builder's.
 runtime_entrypoints = [
-  "crates/optid/src/main.rs",
+  "crates/optid/src/bin/optid-observe.rs",
   "crates/optid/src/runtime_observability.rs",
 ]
 integration_tests = [

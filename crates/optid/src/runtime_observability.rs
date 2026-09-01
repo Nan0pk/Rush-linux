@@ -11,7 +11,10 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::kernel_io::{Clock, KernelRead};
+// O1 consumes the frozen F2 read seam through the `optid` library target.
+// Reaching for the module directly would pull the write and fault paths
+// into this read-only reporter, which owns neither.
+use optid::{Clock, KernelRead};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -461,7 +464,11 @@ fn collect_wakeup_sources(
         output.push(WakeupSourceObservation {
             id,
             name,
-            status: if stale { ObservationStatus::Stale } else { status },
+            status: if stale {
+                ObservationStatus::Stale
+            } else {
+                status
+            },
             event_count,
             event_delta: CounterDelta::between(
                 event_count,
@@ -582,7 +589,11 @@ fn collect_runtime_pm(
             let prior = previous_runtime_pm(previous, &id);
             output.push(RuntimePmObservation {
                 id,
-                status: if stale { ObservationStatus::Stale } else { status },
+                status: if stale {
+                    ObservationStatus::Stale
+                } else {
+                    status
+                },
                 runtime_status,
                 control,
                 active_time_us,
@@ -676,7 +687,11 @@ fn collect_cpu_idle(
             output.push(CpuIdleObservation {
                 cpu,
                 state,
-                status: if stale { ObservationStatus::Stale } else { status },
+                status: if stale {
+                    ObservationStatus::Stale
+                } else {
+                    status
+                },
                 time_us,
                 time_delta_us: CounterDelta::between(
                     time_us,
@@ -927,18 +942,100 @@ fn collect_backlights(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel_io::{FaultKernel, MemoryKernel};
+    use std::cell::{Cell, RefCell};
+    use std::collections::BTreeMap;
 
-    fn add_file(kernel: &MemoryKernel, path: &str, value: &str) {
+    /// Read-only fixture kernel.
+    ///
+    /// O1 never writes, so its tests need only the read seam and a clock. A
+    /// local fixture keeps the reporter's test build free of the write and
+    /// fault-injection machinery it does not own.
+    #[derive(Default)]
+    struct ObserverKernel {
+        files: RefCell<BTreeMap<PathBuf, String>>,
+        directories: RefCell<BTreeMap<PathBuf, Vec<PathBuf>>>,
+        read_faults: RefCell<BTreeMap<PathBuf, io::ErrorKind>>,
+        now: Cell<u64>,
+    }
+
+    impl ObserverKernel {
+        fn new() -> Self {
+            Self {
+                now: Cell::new(1_000),
+                ..Self::default()
+            }
+        }
+
+        fn write_raw(&self, path: &Path, value: &str) {
+            self.files
+                .borrow_mut()
+                .insert(path.to_path_buf(), value.to_string());
+        }
+
+        fn add_dir_entry(&self, directory: &Path, entry: &Path) {
+            self.directories
+                .borrow_mut()
+                .entry(directory.to_path_buf())
+                .or_default()
+                .push(entry.to_path_buf());
+        }
+
+        fn advance_clock(&self, seconds: u64) {
+            self.now.set(self.now.get() + seconds);
+        }
+
+        /// Make the next read of `path` fail. Used to prove that a refused
+        /// read is reported as `permission_denied` rather than folded into
+        /// `unsupported` or a fabricated value.
+        fn fail_next_read(&self, path: PathBuf, error: io::ErrorKind) {
+            self.read_faults.borrow_mut().insert(path, error);
+        }
+    }
+
+    impl KernelRead for ObserverKernel {
+        fn read_to_string(&self, path: &Path) -> io::Result<String> {
+            if let Some(error) = self.read_faults.borrow_mut().remove(path) {
+                return Err(io::Error::new(error, "injected read fault"));
+            }
+            self.files
+                .borrow()
+                .get(path)
+                .cloned()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such fixture file"))
+        }
+
+        fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+            if let Some(error) = self.read_faults.borrow_mut().remove(path) {
+                return Err(io::Error::new(error, "injected read fault"));
+            }
+            self.directories
+                .borrow()
+                .get(path)
+                .cloned()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such fixture directory"))
+        }
+
+        fn exists(&self, path: &Path) -> bool {
+            self.files.borrow().contains_key(path) || self.directories.borrow().contains_key(path)
+        }
+    }
+
+    impl Clock for ObserverKernel {
+        fn now_unix(&self) -> u64 {
+            self.now.get()
+        }
+    }
+
+    fn add_file(kernel: &ObserverKernel, path: &str, value: &str) {
         kernel.write_raw(Path::new(path), value);
     }
 
-    fn add_dir(kernel: &MemoryKernel, directory: &str, entry: &str) {
+    fn add_dir(kernel: &ObserverKernel, directory: &str, entry: &str) {
         kernel.add_dir_entry(Path::new(directory), Path::new(entry));
     }
 
-    fn fixture() -> MemoryKernel {
-        let kernel = MemoryKernel::new();
+    fn fixture() -> ObserverKernel {
+        let kernel = ObserverKernel::new();
         add_dir(&kernel, "/sys/class/wakeup", "/sys/class/wakeup/wakeup0");
         add_file(&kernel, "/sys/class/wakeup/wakeup0/name", "XHC\n");
         add_file(&kernel, "/sys/class/wakeup/wakeup0/event_count", "10\n");
@@ -981,7 +1078,11 @@ mod tests {
             "1\n",
         );
 
-        add_dir(&kernel, "/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0");
+        add_dir(
+            &kernel,
+            "/sys/devices/system/cpu",
+            "/sys/devices/system/cpu/cpu0",
+        );
         add_dir(
             &kernel,
             "/sys/devices/system/cpu/cpu0/cpuidle",
@@ -1009,7 +1110,11 @@ mod tests {
             "101 audio 100\n202 game 50\n",
         );
 
-        add_dir(&kernel, "/sys/class/scsi_host", "/sys/class/scsi_host/host0");
+        add_dir(
+            &kernel,
+            "/sys/class/scsi_host",
+            "/sys/class/scsi_host/host0",
+        );
         add_file(
             &kernel,
             "/sys/class/scsi_host/host0/link_power_management_policy",
@@ -1048,11 +1153,13 @@ mod tests {
 
     #[test]
     fn o1_runtime_mode_defaults_to_observe_and_parses_off() {
-        assert_eq!(RuntimeConfig::default().mode, RuntimeObservabilityMode::Observe);
-        let parsed: PolicyFragment = toml::from_str(
-            "[observability.runtime]\nmode = \"off\"\n[unrelated]\nvalue = 1\n",
-        )
-        .unwrap();
+        assert_eq!(
+            RuntimeConfig::default().mode,
+            RuntimeObservabilityMode::Observe
+        );
+        let parsed: PolicyFragment =
+            toml::from_str("[observability.runtime]\nmode = \"off\"\n[unrelated]\nvalue = 1\n")
+                .unwrap();
         assert_eq!(
             parsed.observability.runtime.mode,
             RuntimeObservabilityMode::Off
@@ -1151,7 +1258,7 @@ mod tests {
             RuntimeObservabilityMode::Observe,
             None,
         );
-        let second = MemoryKernel::new();
+        let second = ObserverKernel::new();
         second.advance_clock(2);
         let current = RuntimeObservabilitySnapshot::collect(
             &second,
@@ -1175,8 +1282,7 @@ mod tests {
 
     #[test]
     fn o1_permission_error_is_distinct_from_unsupported_and_malformed() {
-        let memory = fixture();
-        let fault = FaultKernel::new(Box::new(memory));
+        let fault = fixture();
         fault.fail_next_read(
             PathBuf::from("/sys/class/wakeup/wakeup0/event_count"),
             io::ErrorKind::PermissionDenied,
@@ -1192,7 +1298,7 @@ mod tests {
             ObservationStatus::PermissionDenied
         );
 
-        let empty = MemoryKernel::new();
+        let empty = ObserverKernel::new();
         let unsupported = RuntimeObservabilitySnapshot::collect(
             &empty,
             &empty,
