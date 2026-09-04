@@ -3,7 +3,7 @@
 Status: research disposition for package R2. This paper does not override an
 accepted decision, the Northstar, the D2 amendment, or the package ledger.
 
-Updated: 2026-08-03
+Updated: 2026-09-04
 
 ## Question
 
@@ -22,18 +22,18 @@ evidence that fits the package model.
 |---|---|---|---|
 | Apple-style dual-loop thermal control | **Translate, do not port** | T1, T2, F4 | The useful idea is layered control and anti-windup. Linux already supplies thermal, powercap, cpufreq, and device-control contracts; no Apple ABI should be copied. |
 | Clutch/Edge scheduler policy | **Reject for v1** | Accepted scheduler-scope decision | Rush should not ship a custom scheduler or `sched_ext` policy in the first product. Workload classes remain inputs to existing kernel policy. |
-| AMD Dynamic Preferred Core / AMD HFI and Intel HFI | **Observe kernel-owned behavior** | O1 observation; no writer | HFI is consumed by the scheduler or surfaced as hints. Optid should not invent a competing core-ranking writer. |
-| Frequency-invariant capacity | **Kernel-owned; use as interpretation context** | O1/F2 observation quality | Linux computes scheduler capacity from architecture callbacks and counters. There is no optid control surface to own. |
-| Intel DPTF workload hints, power-floor state, and bounds | **Observe only by default** | O1; T2 may consume bounds | Read-only hints and limits are useful context. Workload requests and enable switches create firmware/daemon ownership conflicts and need a separate accepted contract before any write. |
+| AMD Dynamic Preferred Core / AMD HFI and Intel HFI | **Observe kernel-owned behavior** | O1 observation; no writer | HFI is consumed by the scheduler or surfaced as hints. Optid should not invent a competing core-ranking writer. *Corrected 2026-09-04: CPPC performance scales are observable as sysfs files; Intel HFI has no file interface, so O1's read seam cannot reach it.* |
+| Frequency-invariant capacity | **Kernel-owned; use as interpretation context** | O1/F2 observation quality | Linux computes scheduler capacity from architecture callbacks and counters. There is no optid control surface to own. *Measured 2026-09-04: on `intel_pstate`, paper 0001's proposed `scaling_cur_freq` cross-check is a no-op, and the scale factor is not exposed at all.* |
+| Intel DPTF workload hints, power-floor state, and bounds | **Observe only by default** | O1; T2 may consume bounds | Read-only hints and limits are useful context. Workload requests and enable switches create firmware/daemon ownership conflicts and need a separate accepted contract before any write. *Measured 2026-09-04: no DPTF hint or bound attribute exists on Raptor Lake-HX, so this row cannot be closed on the nominated laptop.* |
 | Generic devfreq state | **Observe generic state; defer generic writes** | O1 observation; device-specific future package for writes | Devfreq is a framework, not one semantic device. Current frequency and limits can be observed, but governors and min/max controls are device- and driver-specific. |
-| S0ix / low-power-idle residency | **Implement read-only observation** | O1 | ACPI LPIT exposes stable residency counters. The metric is useful for diagnosis and validation without changing platform policy. |
+| S0ix / low-power-idle residency | **Implement read-only observation** | O1 | ACPI LPIT exposes stable residency counters. The metric is useful for diagnosis and validation without changing platform policy. *Verified 2026-09-04: both LPIT counters present, world-readable and non-zero.* |
 | PCIe Latency Tolerance Reporting overrides | **Reject generic writes** | Existing PCIe/device packages may observe | LTR is topology- and firmware-sensitive. No generic Rush contract currently proves safe ownership, rollback, or platform-wide effects. |
 | PSI threshold triggers | **Implement through the event reactor** | E1 | `/proc/pressure/*` and cgroup pressure files support descriptor-scoped poll/epoll triggers with bounded windows. This is a stable event source, not another polling loop. |
 | Arm AMU and generic MPMM control | **Use kernel-derived signals; reject direct userspace AMU access; defer MPMM** | O1 observation; future accepted device-specific package only | The kernel intentionally keeps AMU registers out of userspace. Generic MPMM control lacks a stable cross-platform Linux ABI and firmware proof. |
-| Memory-controller and uncore frequency | **Observe where stable; reject generic writes** | O1; a future device-specific package may own a proven writer | Some platforms expose devfreq or Intel uncore sysfs, but scope and semantics differ by driver, package, die, and fabric cluster. |
-| Intel LPMD coexistence | **Detect and yield; do not compete** | C1 contracts and F1 domain ownership | LPMD can hotplug CPUs and change EPP based on HFI/WLT. Running a second autonomous policy owner would violate single-owner safety. |
-| Broad idle injection | **Reject as a generic optid lever** | Possible future hardware-specific thermal package only | Intel powerclamp is an active cooling mechanism with visible performance impact. It needs hardware-specific thermal proof, bounds, and rollback, not a generic platform primitive. |
-| Adaptive IRQ affinity steering | **Observe; reject autonomous writes for v1** | O1 observation | `/proc/irq/*/smp_affinity*` is writable for some IRQs, while managed interrupts and irqbalance may own placement. The conflict and device-locality risks outweigh current evidence. |
+| Memory-controller and uncore frequency | **Observe where stable; reject generic writes** | O1; a future device-specific package may own a proven writer | Some platforms expose devfreq or Intel uncore sysfs, but scope and semantics differ by driver, package, die, and fabric cluster. *Corrected 2026-09-04: uncore sysfs is present on consumer mobile silicon too, and its `current_freq_khz` is root-only, so an unprivileged observer sees the limits but not the state.* |
+| Intel LPMD coexistence | **Detect and yield; do not compete** | C1 contracts and F1 domain ownership | LPMD can hotplug CPUs and change EPP based on HFI/WLT. Running a second autonomous policy owner would violate single-owner safety. *Corrected 2026-09-04: LPMD ships enabled and active on stock Fedora 44, so this is load-bearing on the default target, not hypothetical.* |
+| Broad idle injection | **Reject as a generic optid lever** | Possible future hardware-specific thermal package only | Intel powerclamp is an active cooling mechanism with visible performance impact. It needs hardware-specific thermal proof, bounds, and rollback, not a generic platform primitive. *Verified 2026-09-04: present as a 100-step thermal cooling device, in a domain `thermald` already occupies by default.* |
+| Adaptive IRQ affinity steering | **Observe; reject autonomous writes for v1** | O1 observation | `/proc/irq/*/smp_affinity*` is writable for some IRQs, while managed interrupts and irqbalance may own placement. The conflict and device-locality risks outweigh current evidence. *Verified 2026-09-04: `irqbalance` is enabled and active by default, so the ownership conflict is real on the nominated laptop.* |
 | IBM OCC and Qualcomm AOSS state-machine patterns | **Keep as design inspiration only** | F4/S2D/S3D/S5D architecture | The reusable lesson is explicit state, recovery, and verification. Their platform protocols are not portable optid ABIs. |
 
 ## Detailed design notes
@@ -372,9 +372,197 @@ ownership facts used above:
 
 ## Rush measurements
 
-No new hardware measurement was performed for this research disposition. The
-paper classifies interfaces and ownership; it does not claim performance,
-power, thermal, or latency improvement.
+**2026-08-03: none.** The original disposition classified interfaces from
+upstream documentation only.
+
+**2026-09-04: every "observe" disposition above was checked against real
+hardware.** Host: the nominated laptop slot — HP Victus 16-r0086TX, 13th Gen
+Intel Core i7-13700HX (Raptor Lake-HX), Fedora 44, kernel
+`7.1.12-200.fc44.x86_64`. All probes were run **unprivileged**, because that is
+how the O1 reporter runs. Reads only; nothing was written.
+
+This still claims no performance, power, thermal, or latency improvement. It
+claims only which interfaces exist, who owns them, and what an unprivileged
+reader can see.
+
+Four dispositions above are confirmed as written, four need the correction
+recorded below, and one interface an "observe" row depends on turns out to be
+root-only.
+
+### Confirmed as written
+
+**S0ix / low-power-idle residency.** The LPIT counters exist in the cpuidle
+sysfs group exactly as the row claims, are world-readable, and are non-zero:
+
+```
+$ ls -l /sys/devices/system/cpu/cpuidle/low_power_idle_*
+-r--r--r--. 1 root root 4096 low_power_idle_cpu_residency_us
+-r--r--r--. 1 root root 4096 low_power_idle_system_residency_us
+$ cat /sys/devices/system/cpu/cpuidle/low_power_idle_system_residency_us
+9423875122
+```
+
+O1 can implement this row with no privilege and no debugfs. `/sys/power/suspend_stats/total_hw_sleep`
+(kernel 6.7+) is a second, generic, world-readable source, but it is **not the
+same measurement** and the two must not be compared: the LPIT counters
+accumulate platform low-power idle during runtime, while `total_hw_sleep`
+accumulates hardware sleep across suspend. On this host they read 9423 s and
+4.9 s respectively, and neither number contradicts the other.
+
+**Idle injection.** `intel_powerclamp` is present as a thermal cooling device
+with `max_state = 100`, confirming the row's premise that it is an active
+cooling mechanism with a graduated throttle rather than a bounded knob. Nothing
+here weakens the "rejected as a generic v1 lever" disposition.
+
+**Arm AMU / MPMM.** Not testable — no ARM64 hardware is available to the
+project. The row stands on upstream documentation alone, and this paper should
+keep saying so rather than implying it was verified.
+
+**Frequency invariance.** The row's conclusion ("kernel-owned; no optid control
+surface to own") is correct, and hardware supplies the concrete reason that
+paper 0001 lacked. 0001 proposes comparing `scaling_cur_freq` against an
+APERF/MPERF-derived frequency. On `intel_pstate` both numbers come from the same
+sample, so the comparison is a no-op — eight paired reads under load on cpu0:
+
+```
+avg=1499984 cur=1499984    avg=1600016 cur=1600016    avg=1399985 cur=1399985
+avg=1500000 cur=1500000    avg=1100969 cur=1100969    avg=1201059 cur=1201059
+avg=1572560 cur=1572560    avg=1499984 cur=1499984
+equal in 8 of 8 paired reads
+```
+
+The scale factor that would actually reveal an invariance error is not exposed
+in sysfs at all. 0001's proposed check cannot detect the fault it was proposed
+to detect, which is a stronger argument for this row than "kernel-owned".
+
+### Corrections
+
+**Intel LPMD is enabled and active by default on the target distribution.** The
+LPMD row says it "is disabled by default in template configurations but may be
+enabled by the owner." On stock Fedora 44 it ships enabled and is running:
+
+```
+$ systemctl is-enabled intel_lpmd.service && systemctl is-active intel_lpmd.service
+enabled
+active
+```
+
+The C1 coexistence contract this row defers to is therefore not a
+forward-looking safeguard on the nominated laptop; it is load-bearing on the
+default install. See the coverage gap in
+[`docs/inbox/2026-09-04-c1-competing-daemon-coverage.md`](../inbox/2026-09-04-c1-competing-daemon-coverage.md).
+
+**Three policy owners run concurrently, and one is detected only by a name the
+distribution does not use.** Measured with the exact question optid's conflict
+check asks:
+
+```
+$ for u in tlp power-profiles-daemon tuned intel_lpmd thermald irqbalance; do
+    printf '%-30s %s\n' "$u.service" "$(systemctl is-active $u.service)"; done
+tlp.service                    inactive
+power-profiles-daemon.service  inactive
+tuned.service                  active
+intel_lpmd.service             active
+thermald.service               active
+irqbalance.service             active
+```
+
+`power-profiles-daemon.service` reads `inactive` while the power-profiles D-Bus
+interface **is** being served — by a differently named unit:
+
+```
+$ busctl --system list | grep PowerProfiles
+net.hadess.PowerProfiles              76845 tuned-ppd root :1.281 tuned-ppd.service
+org.freedesktop.UPower.PowerProfiles  76845 tuned-ppd root :1.281 tuned-ppd.service
+$ busctl --system get-property net.hadess.PowerProfiles \
+    /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile
+s "power-saver"
+```
+
+This answers the paper's own question about identifying ownership without
+service-name assumptions: **ask the bus, not the unit name.** A unit-name probe
+produces a false negative for an interface that is live and, on this host,
+actively holding a `power-saver` profile.
+
+**Intel uncore frequency is present on consumer mobile silicon, not only
+servers.** The memory-controller/uncore row says "Intel *server* platforms may
+expose ... uncore frequency". This laptop exposes it:
+
+```
+$ ls /sys/devices/system/cpu/intel_uncore_frequency/
+package_00_die_00
+$ cat .../package_00_die_00/initial_min_freq_khz .../initial_max_freq_khz
+800000
+4600000
+```
+
+**But that row's "observe current frequency" is not available unprivileged.**
+`current_freq_khz` is root-only, while the four limit files are world-readable:
+
+```
+$ cat .../package_00_die_00/current_freq_khz
+cat: .../current_freq_khz: Permission denied
+```
+
+So O1, which runs unprivileged, can observe the uncore *envelope* but not the
+uncore *state*. The row should promise the limits and report the current
+frequency as `permission_denied` rather than implying both are observable.
+
+**Intel DPTF workload hints are absent on this generation.** The DPTF row
+disposition ("observe only by default") is sound, but there is nothing to
+observe here. No workload-hint, power-floor, RAPL-bound or TCC-offset attribute
+exists anywhere under the platform devices or thermal classes:
+
+```
+$ find /sys/bus/platform/devices /sys/class/thermal -maxdepth 3 \
+    \( -name 'workload_*' -o -name '*_hint*' -o -name 'power_floor*' \
+       -o -name 'rapl_*' -o -name 'tcc_offset*' \)
+(no output)
+$ ls /sys/devices/system/cpu/intel_pstate/
+hwp_dynamic_boost  max_perf_pct  min_perf_pct  no_turbo  status
+```
+
+The only DPTF-adjacent surface is `thermal_zone2` of type `INT3400 Thermal`,
+which exposes the generic thermal-zone PID attributes (`k_po`, `k_pu`, `k_i`,
+`k_d`, `sustainable_power`, `slope`, `offset`, `policy`, `mode`) — not workload
+hints. Workload Type Hints are a Meteor Lake and later feature; this host is
+Raptor Lake-HX. An O1 implementation of this row must therefore be able to
+report the whole surface absent, and the row cannot be closed by evidence from
+this laptop.
+
+**Intel HFI has no file interface to observe.** The scheduler-feedback row
+allows optid to "record available rankings ... when a documented read interface
+exists". This CPU advertises HFI (`hfi` appears in `/proc/cpuinfo` flags,
+alongside `hwp`, `hwp_notify`, `hwp_epp` and `aperfmperf`), and no HFI file
+exists for an unprivileged reader to open — the `find` above covers the hint
+namespace and returns nothing. Whatever transport the kernel uses to deliver
+HFI to its consumers, it is not a file, so O1 cannot reach it through the
+file-based F2 read seam that the observability lane is built on. Treat the row
+as "no observable interface on this host" rather than "observe when present".
+
+**CPPC per-CPU rankings, by contrast, are observable.** The same row's AMD
+Dynamic Preferred Core half has a real unprivileged file surface here:
+
+```
+$ ls /sys/devices/system/cpu/cpu0/acpi_cppc/
+feedback_ctrs  guaranteed_perf  highest_perf  lowest_freq  lowest_nonlinear_perf
+lowest_perf    nominal_freq     nominal_perf  reference_perf  wraparound_time
+```
+
+Note that paper 0001's proposal to "subscribe to CPPC `highest_perf` change
+notifications" has no counterpart here: these are plain sysfs files with no
+event channel, so an observer polls them or does without. There are also no
+"thread classes" under `acpi_cppc`, which 0001 refers to; the directory holds
+performance-scale values only.
+
+### What these measurements do not settle
+
+- No ARM64 hardware, so the AMU/MPMM row remains documentation-only.
+- No Meteor Lake or later host, so the DPTF row cannot be closed either way.
+- `intel_pstate` was the only cpufreq driver exercised; the frequency-invariance
+  no-op result may not hold for `acpi-cpufreq` or `amd-pstate`.
+- One host, one kernel. The paper's original question about a secondary Intel
+  laptop is still open.
 
 ## Assumptions
 
@@ -399,23 +587,63 @@ power, thermal, or latency improvement.
 5. Require a new accepted package with S1D/S4D contracts and physical evidence
    before promoting any deferred writer.
 
+## Questions answered on hardware, 2026-09-04
+
+**Which O1 observations are available on the HP Victus, and which are absent by
+hardware generation?** Answered for the Victus. Available unprivileged: LPIT
+low-power-idle residency, per-CPU CPPC performance scales, IRQ affinity and
+effective-affinity masks, uncore frequency *limits*, cpuidle per-state
+residency, and the thermal cooling-device state for `intel_powerclamp`. Absent
+or unreachable: Intel HFI (no file interface), Intel DPTF workload hints
+(Meteor Lake and later; this is Raptor Lake-HX), generic devfreq (no
+`/sys/class/devfreq` entries on this host), and uncore *current* frequency
+(root-only). The secondary Intel laptop half of this question is still open.
+
+**Does the target Fedora configuration run irqbalance or Intel LPMD by default,
+and how should C1 identify active ownership without service-name assumptions?**
+Yes to both, and to `thermald` and `tuned`/`tuned-ppd` as well — four
+autonomous policy owners are enabled and active on a stock Fedora 44 install.
+Ownership must be identified **by D-Bus name ownership rather than by unit
+name**: on this host `power-profiles-daemon.service` is `inactive` while
+`net.hadess.PowerProfiles` and `org.freedesktop.UPower.PowerProfiles` are both
+owned by `tuned-ppd.service`, which is holding a `power-saver` profile. A
+unit-name probe reports no owner for an interface that has one. Measurements and
+the resulting coverage gap in optid's shipped daemon list are recorded in
+[`docs/inbox/2026-09-04-c1-competing-daemon-coverage.md`](../inbox/2026-09-04-c1-competing-daemon-coverage.md).
+
+**Which DPTF attributes are present on the HP Victus, and are workload hints
+firmware-generated, userspace-requested, or unavailable?** **Unavailable.** No
+workload-hint, power-floor, RAPL-bound or TCC-offset attribute exists under the
+platform devices or thermal classes, and `intel_pstate` exposes only
+`hwp_dynamic_boost`, `max_perf_pct`, `min_perf_pct`, `no_turbo` and `status`.
+The question of whether hints are firmware-generated or userspace-requested
+cannot be answered from this generation and needs a Meteor Lake or later host.
+
 ## Unanswered questions
 
-- Which O1 observations are available on the HP Victus and the secondary Intel
-  laptop, and which are absent by hardware generation?
-- Does the target Fedora configuration run irqbalance or Intel LPMD by default,
-  and how should C1 identify active ownership without service-name assumptions?
-- Which DPTF attributes are present on the HP Victus, and are workload hints
-  firmware-generated, userspace-requested, or unavailable?
 - Is there a maintained upstream userspace ABI for a future vendor MPMM control
-  on any intended ARM target? None was established in this review.
+  on any intended ARM target? None was established in this review, and no ARM64
+  hardware is available to test one.
 - Would an Intel-specific idle-injection package ever provide enough value over
-  T2's safer actuators to justify its latency and verification cost?
+  T2's safer actuators to justify its latency and verification cost? Still an
+  owner judgement. Hardware adds only that `intel_powerclamp` is present with a
+  100-step range, and that `thermald` — itself a potential powerclamp
+  consumer — is active by default, so a future package would be entering an
+  occupied domain.
+- Which of these observations are available on the secondary Intel laptop, and
+  on a Meteor Lake or later host?
 
 ## Package-state consequence
 
 This paper supplies the written implement/defer/reject disposition requested by
-R2. It deliberately does not promote R2 in the ledger. Acceptance of this
-research as the package outcome is a maintainer decision, and any resulting
-runtime implementation must still follow the normal builder and independent-
-verification contract.
+R2, and since 2026-09-04 the hardware evidence for the dispositions that a
+single Intel laptop can settle. It deliberately does not promote R2 in the
+ledger. Acceptance of this research as the package outcome is a maintainer
+decision, and any resulting runtime implementation must still follow the normal
+builder and independent-verification contract.
+
+Two items above are findings against other packages rather than R2 content, and
+neither was repaired here, because R2's packet forbids bundling unrelated
+writes: the shipped `competing_policy_daemons` coverage gap (C1's domain) and
+the O1 rows whose promises need narrowing to what an unprivileged reader can
+actually see (uncore current frequency, HFI, DPTF).

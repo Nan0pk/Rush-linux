@@ -753,7 +753,31 @@ title = "Specify remaining platform primitives before implementation"
 status = "ready_parallel"
 depends = []
 pr = ""
-completion_evidence = []
+# The written implement/defer/reject disposition R2 asks for exists as
+# docs/research/0022-platform-primitives-disposition.md: every paper-0001
+# primitive is mapped to an existing package, deferred, or rejected with a
+# rationale, and the paper's own closing section declines to promote R2 because
+# acceptance is a maintainer decision.
+#
+# As of 2026-09-04 that paper also carries hardware evidence. It previously
+# recorded "No new hardware measurement was performed"; every disposition a
+# single Intel laptop can settle has now been checked unprivileged on the
+# nominated laptop slot, four rows are confirmed, five are corrected, and three
+# of the paper's five open questions are answered. Two findings that surfaced
+# during that check belong to other packages and were deliberately not repaired
+# here, because R2's packet forbids bundling unrelated writes:
+# docs/inbox/2026-09-04-c1-competing-daemon-coverage.md (C1/F1), and the O1 rows
+# whose observability promises need narrowing to what an unprivileged reader can
+# see.
+#
+# R2 stays `ready_parallel`, not `candidate`: it ships no code, so it has no
+# acceptance tests to map, and the ledger reserves proof statuses for packages
+# that do. What it needs next is a maintainer accepting or rejecting the
+# disposition, plus a second Intel host and one Meteor Lake or later host for
+# the rows this laptop cannot close.
+completion_evidence = [
+  "docs/research/0022-platform-primitives-disposition.md",
+]
 
 [[package]]
 id = "R3"
