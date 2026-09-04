@@ -1,0 +1,28 @@
+{
+  "captured_at_utc": "2026-09-04T14:16:17.269146Z",
+  "checkout_dirty": false,
+  "checks_passed": 48,
+  "checks_run": 48,
+  "collector": "tools/collect-t1-thermal-proof.py",
+  "kernel_release": "7.1.12-200.fc44.x86_64",
+  "live_sys_root": true,
+  "package": "T1",
+  "production_status_captured": true,
+  "result": "pass",
+  "safety": {
+    "fan_writes": false,
+    "hardware_writes": false,
+    "powercap_writes": false,
+    "read_only": true
+  },
+  "sample_count": 10,
+  "schema_version": 1,
+  "source_commit": "54f6d68351b7fb192e2627d4c1095d6010ad889e",
+  "threshold_decision": {
+    "path": "docs/decisions/0026-optid-t1-thermal-sensor-and-threshold-policy.md",
+    "provided": true,
+    "sha256": "f146a40b6144c118d2e19e479cd962dd66f9f47edb3284b405e8fc78f324279c"
+  },
+  "unresolved": [],
+  "usable_temperature_observations": 320
+}

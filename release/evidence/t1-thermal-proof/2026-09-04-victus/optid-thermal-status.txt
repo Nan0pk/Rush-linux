@@ -1,0 +1,14 @@
+thermal_c=Some(37.0)
+thermal_state=Cool
+thermal_derating_ratio=0.00
+thermal_die_sensor=hwmon:coretemp.0:coretemp:Package id 0
+thermal_die_temp_c=37.0
+thermal_skin_sensor=none
+thermal_skin_temp_c=none
+thermal_max_fan_rpm=2700
+thermal_reasons:
+- selected die signal hwmon:coretemp.0:coretemp:Package id 0 (package) at 37.0°C
+- clamped thermal_hi to 90.0°C based on hardware T_crit 100.0°C - 10°C
+- effective thresholds: lo=60.0°C hi=90.0°C
+- die temp 37.0°C <= lo threshold 60.0°C; state = cool (sensor=hwmon:coretemp.0:coretemp:Package id 0)
+thermal_sensor_count=31
