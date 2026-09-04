@@ -89,3 +89,80 @@ fn o1_production_repeated_sampling_reports_live_state_not_stale() {
         );
     }
 }
+
+/// Both defects O1's first cold verification found were invisible to the
+/// module's own fixture and visible in the first snapshot on real hardware: a
+/// wakeup file name the kernel does not export, and a documented
+/// `runtime_status` value treated as corruption. Neither can be pinned by a
+/// test that supplies its own sysfs, so pin them here, on the production
+/// binary, against whatever kernel runs the suite.
+#[test]
+fn o1_production_reports_real_kernel_surfaces_without_degrading_them() {
+    let report = observe("observe", &["--samples", "2", "--interval-seconds", "1"]);
+    let mut samples: Vec<Vec<&str>> = Vec::new();
+    for line in report.lines() {
+        if line.starts_with("observability.runtime=") {
+            samples.push(Vec::new());
+        }
+        if let Some(current) = samples.last_mut() {
+            current.push(line);
+        }
+    }
+    assert_eq!(samples.len(), 2, "each sample must report exactly once");
+    let second = &samples[1];
+
+    // Finding 1: the reporter read `total_time`, which no kernel exports, so
+    // every wakeup source on a working machine degraded to `unsupported` with
+    // its deltas suppressed. A source that vanished between the two samples is
+    // correctly `stale` and is not evidence of that defect.
+    for line in second.iter().filter(|line| line.starts_with("wakeup.")) {
+        assert!(
+            !line.contains("status=unsupported"),
+            "a wakeup source on a live kernel must not report unsupported: {line}"
+        );
+    }
+
+    // A source present in both samples must produce a real total-time delta.
+    // Zero is a valid delta on an idle host; `unavailable` is not, unless the
+    // source only appeared for the second sample.
+    let first_sources = samples[0]
+        .iter()
+        .filter(|line| line.starts_with("wakeup."))
+        .count();
+    if first_sources > 0 {
+        assert!(
+            second.iter().any(|line| {
+                line.starts_with("wakeup.")
+                    && line.split_whitespace().any(|field| {
+                        matches!(
+                            field.strip_prefix("total_time_delta_us="),
+                            Some(value) if value.chars().all(|c| c.is_ascii_digit())
+                        )
+                    })
+            }),
+            "no wakeup source produced a total-time delta across two samples"
+        );
+    }
+
+    // Finding 2: `unsupported` is the kernel's documented answer for a device
+    // whose driver implements no runtime PM. Reporting it is truthful;
+    // reporting it as corrupt data is the failure the package title forbids.
+    // Asserted as "no device is malformed" rather than "unsupported devices
+    // are not applicable", because the pre-repair code dropped the value it
+    // rejected — so a test that only inspects lines already reporting
+    // `unsupported` would pass against the defect it exists to catch. A real
+    // malformed device would fail this, which is the correct outcome: it is a
+    // finding, not a flake.
+    for line in second.iter().filter(|line| line.starts_with("runtime_pm.")) {
+        assert!(
+            !line.contains("status=malformed"),
+            "a documented kernel value must not be reported as corrupt data: {line}"
+        );
+        if line.contains("=unsupported ") {
+            assert!(
+                line.contains("status=not_applicable"),
+                "a runtime_status of unsupported is not applicable, not observed: {line}"
+            );
+        }
+    }
+}

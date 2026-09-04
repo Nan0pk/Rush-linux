@@ -531,6 +531,28 @@ pr = "450"
 # declared F3 proof path and wiring it would reintroduce the receipt churn this
 # split exists to prevent. Choosing when to pay that cost is the maintainer's
 # call, not the builder's.
+#
+# Repair round after the first cold verification failed
+# (docs/inbox/2026-09-04-o1-cold-verification-findings.md, PR #453). Three
+# defects of one class — the reporter trusted docs/research/0018 about the
+# kernel interface instead of the kernel — plus the fixture that hid them:
+#   1. Read `/sys/class/wakeup/wakeupN/total_time`, a debugfs column name that
+#      is not a sysfs file. All 57 wakeup sources on real hardware degraded to
+#      `unsupported`. Now reads `total_time_ms`.
+#   2. `power/runtime_status = unsupported` is the kernel's documented answer
+#      for a device with no runtime PM, not corruption. 53 of 85 devices were
+#      labelled `malformed`. Now a distinct `NotApplicable` observation.
+#   3. Found during the repair, same class: `runtime_active_time` and
+#      `runtime_suspended_time` are milliseconds, not the microseconds
+#      docs/research/0018 claimed, so every `_delta_us` was 1000x too small.
+#      Measured on hardware — a 2 s sampling interval reported 2005 us. All
+#      three kernel millisecond counters now convert once at the read.
+# The hand-written fixture asserted the same wrong layout as the code, which is
+# why a green suite reached `candidate`. It is now pinned to a real capture
+# (tools/capture-o1-sysfs.sh, crates/optid/tests/fixtures/), and the production
+# binary is asserted against the live kernel it runs on.
+#
+# Still `candidate`: the worker who wrote this repair may not verify it.
 runtime_entrypoints = [
   "crates/optid/src/bin/optid-observe.rs",
   "crates/optid/src/runtime_observability.rs",
@@ -554,6 +576,12 @@ nonadvancing_clock_is_stale = "o1_nonadvancing_clock_marks_snapshot_stale_and_su
 off_mode_has_zero_runtime_reads = "o1_off_mode_performs_no_runtime_reads"
 production_status_surface = "o1_production_status_surfaces_runtime_observability"
 production_off_mode = "o1_production_off_mode_reports_zero_runtime_reads"
+wakeup_total_time_unit = "o1_wakeup_total_time_comes_from_the_kernel_ms_file_in_microseconds"
+runtime_pm_residency_unit = "o1_runtime_pm_residency_is_converted_from_kernel_milliseconds"
+unsupported_state_is_not_malformed = "o1_unsupported_runtime_status_is_not_applicable_not_malformed"
+captured_real_kernel_layout = "o1_captured_real_sysfs_layout_reports_no_read_failure"
+fixture_matches_real_kernel = "o1_synthetic_fixture_uses_only_file_names_the_real_kernel_exports"
+live_kernel_surfaces_are_not_degraded = "o1_production_reports_real_kernel_surfaces_without_degrading_them"
 
 [[package]]
 id = "O2"
