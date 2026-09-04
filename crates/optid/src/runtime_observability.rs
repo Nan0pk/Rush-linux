@@ -61,6 +61,13 @@ impl RuntimeObservabilityMode {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum ObservationStatus {
     Observed,
+    /// The kernel answered, and the answer is that the surface does not apply
+    /// to this device — a `power/runtime_status` of `unsupported`, meaning the
+    /// driver implements no runtime PM. Nothing is missing and nothing is
+    /// wrong, so this is neither `Unsupported` (the interface is absent) nor
+    /// `Malformed` (the value is corrupt). Kept distinct so an operator can
+    /// tell "this device has no runtime PM" from "optid could not read it".
+    NotApplicable,
     #[default]
     Unsupported,
     PermissionDenied,
@@ -73,6 +80,7 @@ impl ObservationStatus {
     fn as_str(self) -> &'static str {
         match self {
             Self::Observed => "observed",
+            Self::NotApplicable => "not_applicable",
             Self::Unsupported => "unsupported",
             Self::PermissionDenied => "permission_denied",
             Self::Malformed => "malformed",
@@ -85,11 +93,15 @@ impl ObservationStatus {
         fn rank(status: ObservationStatus) -> u8 {
             match status {
                 ObservationStatus::Observed => 0,
-                ObservationStatus::Unsupported => 1,
-                ObservationStatus::Stale => 2,
-                ObservationStatus::Malformed => 3,
-                ObservationStatus::PermissionDenied => 4,
-                ObservationStatus::Disabled => 5,
+                // Ranked just above `Observed` so a not-applicable device
+                // still surfaces a real fault found on any of its other
+                // files, and does not itself mask one.
+                ObservationStatus::NotApplicable => 1,
+                ObservationStatus::Unsupported => 2,
+                ObservationStatus::Stale => 3,
+                ObservationStatus::Malformed => 4,
+                ObservationStatus::PermissionDenied => 5,
+                ObservationStatus::Disabled => 6,
             }
         }
         if rank(other) > rank(self) {
@@ -413,6 +425,29 @@ fn read_u64(
         .map_err(|_| ObservationStatus::Malformed)
 }
 
+/// Several kernel duration counters are exported in milliseconds while the
+/// rest of this snapshot is in microseconds. Convert once, at the read, so a
+/// single canonical unit reaches every consumer: `cpuidle/state*/time` and
+/// `power/pm_qos_resume_latency_us` are genuinely microseconds, and D1
+/// reconciles runtime-PM residency against both.
+///
+/// Milliseconds is also all the resolution the kernel has here, so a converted
+/// value is always a whole multiple of 1000. That is a real property of the
+/// source, not lost precision introduced by the conversion.
+fn read_ms_as_us(
+    read: &dyn KernelRead,
+    counter: &mut ReadCounter,
+    path: &Path,
+) -> Result<u64, ObservationStatus> {
+    read_u64(read, counter, path)
+        .map(|milliseconds| milliseconds.saturating_mul(MICROSECONDS_PER_MILLISECOND))
+}
+
+/// Saturating rather than wrapping: a counter close to `u64::MAX` milliseconds
+/// is not reachable on real hardware, and pinning the ceiling is safer than
+/// reporting a wrapped duration as a small one.
+const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
+
 fn read_i64(
     read: &dyn KernelRead,
     counter: &mut ReadCounter,
@@ -457,7 +492,11 @@ fn collect_wakeup_sources(
         let wakeup_count = read_u64(read, counter, &path.join("wakeup_count"))
             .map_err(|failure| status = status.merge(failure))
             .ok();
-        let total_time_us = read_u64(read, counter, &path.join("total_time"))
+        // `/sys/class/wakeup/wakeupN/total_time_ms`, in milliseconds. The
+        // debugfs `wakeup_sources` table has a column called `total_time` and
+        // that name was mistaken for the sysfs file name; no `total_time` file
+        // has ever existed here, so there is nothing to fall back to.
+        let total_time_us = read_ms_as_us(read, counter, &path.join("total_time_ms"))
             .map_err(|failure| status = status.merge(failure))
             .ok();
         let prior = previous_wakeup(previous, &id);
@@ -559,13 +598,17 @@ fn collect_runtime_pm(
             let runtime_status = read_text(read, counter, &runtime_status_path)
                 .map_err(|failure| status = status.merge(failure))
                 .ok()
-                .and_then(|value| {
-                    if matches!(
-                        value.as_str(),
-                        "active" | "suspended" | "suspending" | "resuming" | "error"
-                    ) {
+                .and_then(|value| match value.as_str() {
+                    "active" | "suspended" | "suspending" | "resuming" | "error" => Some(value),
+                    // The sixth documented value. Report it as given: an
+                    // operator needs to tell a device with no runtime PM apart
+                    // from one whose sysfs could not be read, and dropping the
+                    // string would erase exactly that distinction.
+                    "unsupported" => {
+                        status = status.merge(ObservationStatus::NotApplicable);
                         Some(value)
-                    } else {
+                    }
+                    _ => {
                         status = status.merge(ObservationStatus::Malformed);
                         None
                     }
@@ -573,11 +616,17 @@ fn collect_runtime_pm(
             let control = read_text(read, counter, &path.join("power/control"))
                 .map_err(|failure| status = status.merge(failure))
                 .ok();
-            let active_time_us = read_u64(read, counter, &path.join("power/runtime_active_time"))
-                .map_err(|failure| status = status.merge(failure))
-                .ok();
+            // Both residency counters are milliseconds
+            // (`drivers/base/power/sysfs.c` divides by `NSEC_PER_MSEC`), even
+            // though the neighbouring `pm_qos_resume_latency_us` is
+            // microseconds. Measured on hardware: a 5.001 s wall-clock wait
+            // advanced `runtime_active_time` by 5001.
+            let active_time_us =
+                read_ms_as_us(read, counter, &path.join("power/runtime_active_time"))
+                    .map_err(|failure| status = status.merge(failure))
+                    .ok();
             let suspended_time_us =
-                read_u64(read, counter, &path.join("power/runtime_suspended_time"))
+                read_ms_as_us(read, counter, &path.join("power/runtime_suspended_time"))
                     .map_err(|failure| status = status.merge(failure))
                     .ok();
             let qos_path = path.join("power/pm_qos_resume_latency_us");
@@ -955,6 +1004,10 @@ mod tests {
         files: RefCell<BTreeMap<PathBuf, String>>,
         directories: RefCell<BTreeMap<PathBuf, Vec<PathBuf>>>,
         read_faults: RefCell<BTreeMap<PathBuf, io::ErrorKind>>,
+        /// Paths that exist but that the invoking user may not read. A real
+        /// capture taken without root records these, so the fixture can show
+        /// the reporter the same wall it meets in production.
+        unreadable: RefCell<BTreeSet<PathBuf>>,
         now: Cell<u64>,
     }
 
@@ -970,6 +1023,16 @@ mod tests {
             self.files
                 .borrow_mut()
                 .insert(path.to_path_buf(), value.to_string());
+        }
+
+        /// Drop a file so a test can show the reporter a kernel that does not
+        /// export it.
+        fn remove_raw(&self, path: &Path) {
+            self.files.borrow_mut().remove(path);
+        }
+
+        fn add_unreadable(&self, path: &Path) {
+            self.unreadable.borrow_mut().insert(path.to_path_buf());
         }
 
         fn add_dir_entry(&self, directory: &Path, entry: &Path) {
@@ -997,6 +1060,12 @@ mod tests {
             if let Some(error) = self.read_faults.borrow_mut().remove(path) {
                 return Err(io::Error::new(error, "injected read fault"));
             }
+            if self.unreadable.borrow().contains(path) {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "captured as unreadable by an unprivileged reader",
+                ));
+            }
             self.files
                 .borrow()
                 .get(path)
@@ -1016,7 +1085,9 @@ mod tests {
         }
 
         fn exists(&self, path: &Path) -> bool {
-            self.files.borrow().contains_key(path) || self.directories.borrow().contains_key(path)
+            self.files.borrow().contains_key(path)
+                || self.directories.borrow().contains_key(path)
+                || self.unreadable.borrow().contains(path)
         }
     }
 
@@ -1034,13 +1105,70 @@ mod tests {
         kernel.add_dir_entry(Path::new(directory), Path::new(entry));
     }
 
+    fn remove_file(kernel: &ObserverKernel, path: &str) {
+        kernel.remove_raw(Path::new(path));
+    }
+
+    /// A real `/sys` layout, taken from a physical host by
+    /// `tools/capture-o1-sysfs.sh` and committed verbatim. Both defects O1's
+    /// cold verification found were fixture bugs before they were code bugs:
+    /// the hand-written fixture asserted a sysfs layout that does not exist,
+    /// so the tests proved the arithmetic and never the interface. A captured
+    /// layout cannot make that mistake, because nobody typed it.
+    const CAPTURED_SYSFS: &str =
+        include_str!("../tests/fixtures/o1-sysfs-capture-victus-2026-09-04.txt");
+
+    /// Rebuild the captured host in the read-only fixture kernel.
+    ///
+    /// Format, one record per line: `D<TAB>dir<TAB>entry`,
+    /// `F<TAB>path<TAB>value` (with `\n` for an embedded newline), or
+    /// `U<TAB>path` for a path that exists but that an unprivileged reader
+    /// cannot open. Lines starting with `#` are provenance.
+    fn captured_fixture() -> ObserverKernel {
+        let kernel = ObserverKernel::new();
+        for (number, line) in CAPTURED_SYSFS.lines().enumerate() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut fields = line.split('\t');
+            match (fields.next(), fields.next(), fields.next()) {
+                (Some("D"), Some(directory), Some(entry)) => {
+                    kernel.add_dir_entry(Path::new(directory), Path::new(entry));
+                }
+                (Some("F"), Some(path), Some(value)) => {
+                    // Restore the trailing newline every sysfs read carries;
+                    // the capture strips it so one file is one line.
+                    let value = format!("{}\n", value.replace("\\n", "\n"));
+                    kernel.write_raw(Path::new(path), &value);
+                }
+                (Some("U"), Some(path), None) => {
+                    kernel.add_unreadable(Path::new(path));
+                }
+                _ => panic!(
+                    "captured fixture line {} is not a D/F/U record: {line:?}",
+                    number + 1
+                ),
+            }
+        }
+        kernel
+    }
+
+    fn observe(kernel: &ObserverKernel) -> RuntimeObservabilitySnapshot {
+        RuntimeObservabilitySnapshot::collect(
+            kernel,
+            kernel,
+            RuntimeObservabilityMode::Observe,
+            None,
+        )
+    }
+
     fn fixture() -> ObserverKernel {
         let kernel = ObserverKernel::new();
         add_dir(&kernel, "/sys/class/wakeup", "/sys/class/wakeup/wakeup0");
         add_file(&kernel, "/sys/class/wakeup/wakeup0/name", "XHC\n");
         add_file(&kernel, "/sys/class/wakeup/wakeup0/event_count", "10\n");
         add_file(&kernel, "/sys/class/wakeup/wakeup0/wakeup_count", "3\n");
-        add_file(&kernel, "/sys/class/wakeup/wakeup0/total_time", "1200\n");
+        add_file(&kernel, "/sys/class/wakeup/wakeup0/total_time_ms", "1200\n");
 
         add_dir(
             &kernel,
@@ -1215,9 +1343,11 @@ mod tests {
             Some(&previous),
         );
         assert_eq!(current.wakeup_sources[0].event_delta.value, Some(4));
+        // 800 ms -> 900 ms of suspended residency is 100_000 microseconds.
+        // The kernel counter is milliseconds; the field is microseconds.
         assert_eq!(
             current.runtime_pm[0].suspended_time_delta_us.value,
-            Some(100)
+            Some(100_000)
         );
     }
 
@@ -1341,6 +1471,239 @@ mod tests {
         );
         assert_eq!(current.status, ObservationStatus::Stale);
         assert_eq!(current.wakeup_sources[0].event_delta.value, None);
+    }
+
+    #[test]
+    fn o1_wakeup_total_time_comes_from_the_kernel_ms_file_in_microseconds() {
+        // `/sys/class/wakeup/wakeupN/total_time_ms` is milliseconds; the field
+        // is microseconds. 1200 ms is 1_200_000 us, and the entry stays fully
+        // observed because nothing failed to read.
+        let kernel = fixture();
+        let snapshot = observe(&kernel);
+        assert_eq!(snapshot.wakeup_sources[0].total_time_us, Some(1_200_000));
+        assert_eq!(
+            snapshot.wakeup_sources[0].status,
+            ObservationStatus::Observed
+        );
+
+        // A kernel that exports only the name the pre-repair code used must
+        // degrade, not silently succeed. No `total_time` file has ever existed
+        // under /sys/class/wakeup, so there is deliberately no fallback: a
+        // fallback would let the wrong name keep working and hide the unit.
+        let legacy = fixture();
+        remove_file(&legacy, "/sys/class/wakeup/wakeup0/total_time_ms");
+        add_file(&legacy, "/sys/class/wakeup/wakeup0/total_time", "1200\n");
+        let degraded = observe(&legacy);
+        assert_eq!(degraded.wakeup_sources[0].total_time_us, None);
+        assert_eq!(
+            degraded.wakeup_sources[0].status,
+            ObservationStatus::Unsupported
+        );
+    }
+
+    #[test]
+    fn o1_runtime_pm_residency_is_converted_from_kernel_milliseconds() {
+        let first = fixture();
+        let previous = observe(&first);
+        // 200 ms active and 800 ms suspended, reported in microseconds.
+        assert_eq!(previous.runtime_pm[0].active_time_us, Some(200_000));
+        assert_eq!(previous.runtime_pm[0].suspended_time_us, Some(800_000));
+        // The neighbouring per-device PM QoS file really is microseconds and
+        // is not converted, which is why the conversion has to be per-file.
+        assert_eq!(
+            previous.runtime_pm[0].resume_latency_constraint_us,
+            Some(5000)
+        );
+
+        let second = fixture();
+        second.advance_clock(2);
+        add_file(
+            &second,
+            "/sys/bus/pci/devices/0000:00:1f.0/power/runtime_suspended_time",
+            "900\n",
+        );
+        let current = RuntimeObservabilitySnapshot::collect(
+            &second,
+            &second,
+            RuntimeObservabilityMode::Observe,
+            Some(&previous),
+        );
+        assert_eq!(
+            current.runtime_pm[0].suspended_time_delta_us.value,
+            Some(100_000)
+        );
+    }
+
+    #[test]
+    fn o1_unsupported_runtime_status_is_not_applicable_not_malformed() {
+        let kernel = captured_fixture();
+        let snapshot = observe(&kernel);
+        let device = snapshot
+            .runtime_pm
+            .iter()
+            .find(|entry| entry.id == "i2c:11-0050")
+            .expect("captured host has an i2c device with no runtime PM");
+
+        // The kernel answered the question. Report its answer, do not call it
+        // corrupt and do not drop it.
+        assert_eq!(device.runtime_status.as_deref(), Some("unsupported"));
+        assert_eq!(device.status, ObservationStatus::NotApplicable);
+        // And do not mask the fields that read cleanly.
+        assert_eq!(device.control.as_deref(), Some("auto"));
+        assert_eq!(device.active_time_us, Some(0));
+        assert_eq!(device.suspended_time_us, Some(0));
+
+        let rendered = snapshot.render_summary();
+        let line = rendered
+            .lines()
+            .find(|line| line.starts_with("runtime_pm.i2c:11-0050="))
+            .expect("the device appears in the summary");
+        assert!(
+            line.contains("runtime_pm.i2c:11-0050=unsupported"),
+            "{line}"
+        );
+        assert!(line.contains("control=auto"), "{line}");
+        assert!(line.contains("status=not_applicable"), "{line}");
+
+        // A value the kernel does not document is still malformed, and a
+        // malformed value still outranks not-applicable in the merge.
+        let corrupt = captured_fixture();
+        add_file(
+            &corrupt,
+            "/sys/bus/i2c/devices/11-0050/power/runtime_status",
+            "wedged\n",
+        );
+        let corrupt = observe(&corrupt);
+        let device = corrupt
+            .runtime_pm
+            .iter()
+            .find(|entry| entry.id == "i2c:11-0050")
+            .expect("the device is still enumerated");
+        assert_eq!(device.status, ObservationStatus::Malformed);
+        assert_eq!(device.runtime_status, None);
+    }
+
+    #[test]
+    fn o1_captured_real_sysfs_layout_reports_no_read_failure() {
+        let kernel = captured_fixture();
+        let snapshot = observe(&kernel);
+
+        // Every wakeup source on the captured host reads cleanly. Before the
+        // repair all of them reported `unsupported` with every delta
+        // suppressed, because the code read a file name that does not exist.
+        assert_eq!(snapshot.wakeup_sources.len(), 3);
+        let degraded: Vec<&str> = snapshot
+            .wakeup_sources
+            .iter()
+            .filter(|entry| entry.status != ObservationStatus::Observed)
+            .map(|entry| entry.id.as_str())
+            .collect();
+        assert!(degraded.is_empty(), "degraded wakeup sources: {degraded:?}");
+        assert!(snapshot
+            .wakeup_sources
+            .iter()
+            .all(|entry| entry.total_time_us.is_some()));
+
+        // No device on a healthy host is malformed. The three that report
+        // `unsupported` are not applicable; the other five are observed.
+        assert_eq!(snapshot.runtime_pm.len(), 8);
+        let malformed: Vec<&str> = snapshot
+            .runtime_pm
+            .iter()
+            .filter(|entry| entry.status == ObservationStatus::Malformed)
+            .map(|entry| entry.id.as_str())
+            .collect();
+        assert!(malformed.is_empty(), "malformed devices: {malformed:?}");
+        assert_eq!(
+            snapshot
+                .runtime_pm
+                .iter()
+                .filter(|entry| entry.status == ObservationStatus::NotApplicable)
+                .count(),
+            3
+        );
+        assert_eq!(
+            snapshot
+                .runtime_pm
+                .iter()
+                .filter(|entry| entry.status == ObservationStatus::Observed)
+                .count(),
+            5
+        );
+
+        assert_eq!(snapshot.cpu_idle.len(), 4);
+        assert_eq!(snapshot.storage.len(), 11);
+        assert_eq!(snapshot.backlights.len(), 1);
+        assert_eq!(snapshot.status, ObservationStatus::Observed);
+
+        // `/sys/kernel/debug` is root-only, so an unprivileged reporter
+        // genuinely cannot see the PM QoS constraint list. That is a correct
+        // `unsupported`, and the capture preserves it rather than inventing a
+        // readable file.
+        assert_eq!(snapshot.pm_qos.status, ObservationStatus::Unsupported);
+        assert_eq!(snapshot.pm_qos.effective_cpu_latency_us, None);
+    }
+
+    #[test]
+    fn o1_synthetic_fixture_uses_only_file_names_the_real_kernel_exports() {
+        // Names the reporter reads that an unprivileged capture on this host
+        // cannot contain: no device here publishes a per-device PM QoS
+        // constraint, and /sys/kernel/debug is root-only. Both are real kernel
+        // ABI and both carry their unit in the file name.
+        //
+        // This allowlist is the one hole in the fence, so it is fenced too: it
+        // is pinned to exactly these two entries, and each is asserted absent
+        // from the capture. A capture that does grow one of them invalidates
+        // its own exemption and this test fails until the entry is dropped —
+        // so the way to get a new name past the fence is to capture it, which
+        // is the whole point.
+        const UNREACHABLE_BY_CAPTURE: [&str; 2] =
+            ["pm_qos_resume_latency_us", "cpu_latency_constraints"];
+
+        // Compared as (parent directory, file name) pairs rather than bare
+        // file names. A bare-name check would accept a real name under the
+        // wrong directory — `/sys/class/wakeup/wakeup0/runtime_status`, say —
+        // which is the same class of mistake as the defect this fences.
+        fn shapes(kernel: &ObserverKernel) -> BTreeSet<(String, String)> {
+            kernel
+                .files
+                .borrow()
+                .keys()
+                .map(|path| {
+                    let parent = path
+                        .parent()
+                        .map(basename)
+                        .unwrap_or_else(|| "unknown".to_string());
+                    (parent, basename(path))
+                })
+                .collect()
+        }
+
+        let captured = shapes(&captured_fixture());
+        assert_eq!(UNREACHABLE_BY_CAPTURE.len(), 2);
+        for name in UNREACHABLE_BY_CAPTURE {
+            assert!(
+                !captured.iter().any(|(_, file)| file == name),
+                "{name} is in the capture now, so its exemption is obsolete: \
+                 remove it from UNREACHABLE_BY_CAPTURE"
+            );
+        }
+
+        let mut invented: Vec<String> = shapes(&fixture())
+            .into_iter()
+            .filter(|shape| {
+                !captured.contains(shape) && !UNREACHABLE_BY_CAPTURE.contains(&shape.1.as_str())
+            })
+            .map(|(parent, file)| format!("{parent}/{file}"))
+            .collect();
+        invented.sort();
+
+        assert!(
+            invented.is_empty(),
+            "the synthetic fixture reads paths the captured kernel layout does \
+             not export, which is how O1's wakeup defect survived a green \
+             suite: {invented:?}"
+        );
     }
 
     #[test]

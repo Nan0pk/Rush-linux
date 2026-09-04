@@ -106,12 +106,37 @@ debugfs for the complete picture.
 Devices that never fire wakeup events are candidates for `power/wakeup=disabled`
 (optid recommends but does not write this — it is an admin decision per §5).
 
-**Stable sysfs alternative: `/sys/class/wakeup/`** **[PROVEN — kernel 5.6+]**
+**Stable sysfs alternative: `/sys/class/wakeup/`** **[PROVEN — kernel 5.6+; file names
+and units corrected 2026-09-04 against kernel 7.1.12 hardware]**
 
-Since kernel 5.6, each wakeup source has a sysfs directory:
-`/sys/class/wakeup/wakeup<N>/` with individual files: `name`, `active_count`, `event_count`,
-`wakeup_count`, `expire_count`, `active_since`, `total_time`, `max_time`, `last_change`,
-`prevent_suspend_time`.
+Since kernel 5.6, each wakeup source has a sysfs directory
+`/sys/class/wakeup/wakeup<N>/`. **The sysfs file names are not the debugfs column names
+above.** Every duration file carries its unit as a suffix, and the durations are
+**milliseconds** — not the nanoseconds the debugfs table reports:
+
+| File | Unit | Note |
+|------|------|------|
+| `name` | — | Wakeup source name |
+| `active_count` | — | Times the source became active |
+| `event_count` | — | Wakeup events generated |
+| `wakeup_count` | — | Times the source aborted a suspend |
+| `expire_count` | — | Times a timed wakeup expired |
+| `relax_count` | — | Times the source was deactivated |
+| `active_time_ms` | ms | Time active in the current activation |
+| `total_time_ms` | ms | Cumulative active time |
+| `max_time_ms` | ms | Longest single activation |
+| `last_change_ms` | ms | Monotonic timestamp of the last state change |
+| `prevent_suspend_time_ms` | ms | Time spent preventing suspend |
+
+Verified in `drivers/base/power/wakeup_stats.c` and by `ls /sys/class/wakeup/wakeup0/`
+on a Fedora 44 host running kernel 7.1.12. There is no `total_time`, `max_time`,
+`last_change`, `prevent_suspend_time` or `active_since` file — those are debugfs
+`wakeup_sources` **columns**, and reading them as sysfs file names yields `ENOENT`. O1's
+first cold verification failed on exactly that conflation: the reporter read `total_time`,
+so all 57 wakeup sources on a working machine reported `status=unsupported`.
+
+A consumer that reports microseconds must multiply by 1000. A rename alone is a 1000x
+error.
 
 Prefer this stable ABI over debugfs for production optid code. Debugfs is root-only and
 not guaranteed to be mounted. The sysfs interface is always available.
@@ -124,16 +149,50 @@ Every device registered with the Linux PM core has these attributes:
 
 | File | Type | Values | Notes |
 |------|------|--------|-------|
-| `runtime_status` | ro | `active`, `suspended`, `suspending`, `resuming`, `error` | Current runtime PM state |
+| `runtime_status` | ro | `active`, `suspended`, `suspending`, `resuming`, `error`, `unsupported` | Current runtime PM state |
 | `runtime_usage` | ro | integer ≥ 0 | Active-use refcount; 0 = suspendable |
-| `runtime_active_time` | ro | µs | Total time spent active since last boot |
-| `runtime_suspended_time` | ro | µs | Total time spent suspended since last boot |
+| `runtime_active_time` | ro | **ms** | Total time spent active since last boot |
+| `runtime_suspended_time` | ro | **ms** | Total time spent suspended since last boot |
 | `runtime_active_kids` | ro | integer | Number of child devices currently active |
 | `control` | rw | `auto`, `on` | PM control (optid writes here) |
 | `autosuspend_delay_ms` | rw | integer | Delay before autosuspend |
-| `pm_qos_resume_latency_us` | rw | integer | Per-device PM QoS constraint |
+| `pm_qos_resume_latency_us` | rw | µs | Per-device PM QoS constraint |
 
 Verified in `drivers/base/power/sysfs.c` and `Documentation/power/runtime_pm.rst`.
+
+**Two corrections made 2026-09-04, after O1's first cold verification failed on them.**
+
+*`unsupported` is a sixth valid `runtime_status`.* The kernel returns it for a device whose
+driver implements no runtime PM. It is the kernel answering the question, not corrupt data,
+and it is the common case: on a 13th-gen Intel laptop running kernel 7.1.12, 713 of 791
+device nodes report it.
+
+```
+$ for f in /sys/bus/*/devices/*/power/runtime_status; do cat "$f"; done | sort | uniq -c
+    713 unsupported
+     60 suspended
+     18 active
+```
+
+A consumer must be able to tell "this device has no runtime PM" from "optid could not read
+this device", so `unsupported` needs its own state rather than being folded into either a
+successful observation or a malformed one. Treating it as malformed labelled 53 of 85
+devices on that host as corrupt.
+
+*The two residency counters are milliseconds, not microseconds.* `sysfs.c` divides the
+device's accumulated `ktime` by `NSEC_PER_MSEC` before printing. Measured directly, which
+is the cheapest way to settle a unit question:
+
+```
+$ p=/sys/bus/pci/devices/0000:00:00.0/power/runtime_active_time
+$ a=$(cat $p); sleep 5; b=$(cat $p); echo $((b - a))
+5001
+```
+
+5001 over a 5.001 s wait. A field named `_us` fed straight from this file is 1000x too
+small — the same class of error as the wakeup file names above, and from the same cause:
+this document was written from the debugfs table and the code was written from this
+document.
 
 **Failure surfacing** **[PROVEN]**
 
