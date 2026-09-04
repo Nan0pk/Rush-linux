@@ -1650,33 +1650,58 @@ mod tests {
         // cannot contain: no device here publishes a per-device PM QoS
         // constraint, and /sys/kernel/debug is root-only. Both are real kernel
         // ABI and both carry their unit in the file name.
+        //
+        // This allowlist is the one hole in the fence, so it is fenced too: it
+        // is pinned to exactly these two entries, and each is asserted absent
+        // from the capture. A capture that does grow one of them invalidates
+        // its own exemption and this test fails until the entry is dropped —
+        // so the way to get a new name past the fence is to capture it, which
+        // is the whole point.
         const UNREACHABLE_BY_CAPTURE: [&str; 2] =
             ["pm_qos_resume_latency_us", "cpu_latency_constraints"];
 
-        let captured = captured_fixture();
-        let mut real_names: BTreeSet<String> = captured
-            .files
-            .borrow()
-            .keys()
-            .map(|path| basename(path))
-            .collect();
-        real_names.extend(UNREACHABLE_BY_CAPTURE.iter().map(|name| name.to_string()));
+        // Compared as (parent directory, file name) pairs rather than bare
+        // file names. A bare-name check would accept a real name under the
+        // wrong directory — `/sys/class/wakeup/wakeup0/runtime_status`, say —
+        // which is the same class of mistake as the defect this fences.
+        fn shapes(kernel: &ObserverKernel) -> BTreeSet<(String, String)> {
+            kernel
+                .files
+                .borrow()
+                .keys()
+                .map(|path| {
+                    let parent = path
+                        .parent()
+                        .map(basename)
+                        .unwrap_or_else(|| "unknown".to_string());
+                    (parent, basename(path))
+                })
+                .collect()
+        }
 
-        let synthetic = fixture();
-        let mut invented: Vec<String> = synthetic
-            .files
-            .borrow()
-            .keys()
-            .map(|path| basename(path))
-            .filter(|name| !real_names.contains(name))
+        let captured = shapes(&captured_fixture());
+        assert_eq!(UNREACHABLE_BY_CAPTURE.len(), 2);
+        for name in UNREACHABLE_BY_CAPTURE {
+            assert!(
+                !captured.iter().any(|(_, file)| file == name),
+                "{name} is in the capture now, so its exemption is obsolete: \
+                 remove it from UNREACHABLE_BY_CAPTURE"
+            );
+        }
+
+        let mut invented: Vec<String> = shapes(&fixture())
+            .into_iter()
+            .filter(|shape| {
+                !captured.contains(shape) && !UNREACHABLE_BY_CAPTURE.contains(&shape.1.as_str())
+            })
+            .map(|(parent, file)| format!("{parent}/{file}"))
             .collect();
         invented.sort();
-        invented.dedup();
 
         assert!(
             invented.is_empty(),
-            "the synthetic fixture reads file names the captured kernel layout \
-             does not export, which is how O1's wakeup defect survived a green \
+            "the synthetic fixture reads paths the captured kernel layout does \
+             not export, which is how O1's wakeup defect survived a green \
              suite: {invented:?}"
         );
     }

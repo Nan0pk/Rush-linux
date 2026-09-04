@@ -67,10 +67,18 @@ inventing a readable one; the reporter correctly calls that `unsupported`.
 
 The synthetic fixture is kept for the counter arithmetic and error paths, and is now
 **fenced** by `o1_synthetic_fixture_uses_only_file_names_the_real_kernel_exports`: every
-file name it reads must appear in the real capture. Two names cannot appear in an
-unprivileged capture on this host — `pm_qos_resume_latency_us` (no device here publishes
-one) and `cpu_latency_constraints` (root-only) — and are allowlisted in the test with that
-reason. An invented path like `total_time` now fails there instead of shipping.
+path it reads must appear in the real capture, compared as a (parent directory, file name)
+pair rather than a bare file name — a bare-name check would accept a real name under the
+wrong directory, which is the same class of mistake as the defect being fenced. An invented
+path like `total_time`, or a real name in the wrong place like
+`/sys/class/wakeup/wakeup0/runtime_status`, now fails there instead of shipping.
+
+The allowlist is the one hole in that fence, so it is fenced too. Two names cannot appear in
+an unprivileged capture on this host — `pm_qos_resume_latency_us` (no device here publishes
+one) and `cpu_latency_constraints` (root-only) — and the test pins the allowlist to exactly
+those two **and asserts each is absent from the capture**. A capture that grows one of them
+invalidates its own exemption and the test fails until the entry is dropped, so the only way
+to get a new file name past the fence is to capture it.
 
 ## Hardware evidence
 
@@ -150,3 +158,9 @@ would have passed against the defect it exists to catch.
   debugfs `wakeup_sources` nanosecond column, `runtime_usage`, `runtime_active_kids`) were
   not re-verified against hardware. Three of its **[PROVEN]** claims turned out to be
   unproven, so the rest of the document deserves the same suspicion.
+- `docs/research/0009` is also corrected here. It had the units right ("cumulative ms") —
+  which is how the third defect was caught, by noticing 0009 and 0018 disagree — but listed
+  the same five-value `runtime_status` set as 0018. Its open follow-up "wire `runtime_status`,
+  `runtime_suspended_time`, `runtime_active_time` into 0018 telemetry" is the exact provenance
+  of these defects, and a builder reading 0009 instead of 0018 would otherwise have landed
+  back where O1 started.

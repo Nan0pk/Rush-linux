@@ -565,6 +565,7 @@ completion_evidence = [
   "crates/optid/src/runtime_observability.rs",
   "crates/optid/tests/o1_runtime_status.rs",
 ]
+blocking_reason = "O1's first cold verification failed on real hardware (docs/inbox/2026-09-04-o1-cold-verification-findings.md, PR #453): the reporter read a wakeup file the kernel does not export, and treated a documented runtime_status value as corruption. Both are repaired, along with a third defect of the same class found during the repair, and the fixture is now pinned to a captured real sysfs layout (docs/inbox/2026-09-04-o1-repair-record.md). Completion still requires a fresh cold verification by a worker who did not write the repair, and no receipt exists at docs/plans/optid-verification/o1.toml, so D1 and D2 remain locked. The optctl status surface named in the completion plan is separately unwired by maintainer direction."
 [package.acceptance_tests]
 config_defaults_and_off_mode = "o1_runtime_mode_defaults_to_observe_and_parses_off"
 deterministic_full_snapshot = "o1_mock_full_state_snapshot_is_deterministic"

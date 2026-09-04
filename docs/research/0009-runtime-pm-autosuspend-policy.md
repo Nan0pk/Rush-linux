@@ -44,9 +44,16 @@ Every device that supports runtime PM exposes these sysfs attributes under
 control                  # "auto" | "on"  — enables/disables autosuspend
 autosuspend_delay_ms     # idle countdown before ->runtime_suspend() is called
 runtime_status           # "active" | "suspended" | "suspending" | "resuming" | "error"
+                         #   | "unsupported" — the driver implements no runtime PM.
+                         #   Corrected 2026-09-04: this is the common case (713 of
+                         #   791 device nodes on a 13th-gen Intel laptop) and it is
+                         #   the kernel answering, not corrupt data. A consumer must
+                         #   tell it apart from an unreadable device; see
+                         #   docs/research/0018 §1.2 and
+                         #   docs/inbox/2026-09-04-o1-cold-verification-findings.md.
 runtime_usage            # reference count; >0 means in use, cannot suspend
-runtime_active_time      # cumulative ms spent active since boot
-runtime_suspended_time   # cumulative ms spent suspended since boot
+runtime_active_time      # cumulative ms spent active since boot   [ms, not us]
+runtime_suspended_time   # cumulative ms spent suspended since boot [ms, not us]
 wakeup                   # "enabled" | "disabled" — whether device can wake system
 ```
 
