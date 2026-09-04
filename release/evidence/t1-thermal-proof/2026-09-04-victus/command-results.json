@@ -1,0 +1,761 @@
+[
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  {
+    "command": [
+      "cargo",
+      "check",
+      "--workspace",
+      "--all-targets",
+      "--all-features"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "   Compiling proc-macro2 v1.0.106\n   Compiling serde_core v1.0.229\n   Compiling quote v1.0.45\n   Compiling unicode-ident v1.0.24\n   Compiling serde v1.0.229\n   Compiling autocfg v1.5.1\n   Compiling zmij v1.0.21\n   Compiling serde_json v1.0.151\n    Checking winnow v1.0.3\n    Checking memchr v2.8.1\n    Checking itoa v1.0.18\n    Checking pin-project-lite v0.2.17\n    Checking parking v2.2.1\n    Checking futures-core v0.3.32\n   Compiling crossbeam-utils v0.8.21\n   Compiling equivalent v1.0.2\n   Compiling hashbrown v0.17.1\n    Checking fastrand v2.4.1\n    Checking futures-io v0.3.32\n   Compiling libc v0.2.189\n   Compiling rustix v1.1.4\n    Checking toml_writer v1.1.2+spec-1.1.0\n    Checking linux-raw-sys v0.12.1\n    Checking bitflags v2.12.1\n    Checking event-listener v5.4.2\n    Checking slab v0.4.12\n    Checking cfg-if v1.0.4\n    Checking async-task v4.7.1\n   Compiling endi v1.1.1\n    Checking once_cell v1.21.4\n    Checking atomic-waker v1.1.2\n    Checking futures-lite v2.6.1\n    Checking ordered-stream v0.2.0\n    Checking hex v0.4.3\n    Checking piper v0.2.5\n   Compiling signal-hook v0.4.4\n    Checking iana-time-zone v0.1.65\n    Checking tracing-core v0.1.36\n    Checking event-listener-strategy v0.5.4\n   Compiling async-io v2.6.0\n   Compiling num-traits v0.2.19\n    Checking async-lock v3.4.2\n    Checking async-broadcast v0.7.2\n    Checking concurrent-queue v2.5.0\n    Checking async-channel v2.5.0\n    Checking syn v3.0.0\n    Checking async-executor v1.14.0\n    Checking blocking v1.6.2\n   Compiling indexmap v2.14.0\n   Compiling syn v2.0.117\n    Checking errno v0.3.14\n    Checking signal-hook-registry v1.4.8\n   Compiling toml_parser v1.1.3+spec-1.1.0\n    Checking serde_spanned v1.1.1\n    Checking toml_datetime v1.1.1+spec-1.1.0\n    Checking uuid v1.23.3\n    Checking toml v1.1.4+spec-1.1.0\n   Compiling toml_edit v0.25.12+spec-1.1.0\n   Compiling proc-macro-crate v3.5.0\n   Compiling serde_derive v1.0.229\n   Compiling enumflags2_derive v0.7.12\n   Compiling tracing-attributes v0.1.31\n   Compiling async-trait v0.1.89\n   Compiling async-recursion v1.1.1\n   Compiling serde_repr v0.1.20\n    Checking polling v3.11.0\n    Checking tracing v0.1.44\n    Checking async-signal v0.2.14\n    Checking async-process v2.5.0\n    Checking zcheapstr v1.1.0\n    Checking enumflags2 v0.7.12\n    Checking zvariant_utils v4.2.0\n    Checking chrono v0.4.45\n    Checking rushbench v0.7.0-beta.4 (<repo>/crates/rushbench)\n    Checking rush-collect v0.7.0-beta.4 (<repo>/crates/rush_collect)\n   Compiling optid v0.7.0-beta.4 (<repo>/crates/optid)\n   Compiling zvariant_derive v5.15.0\n    Checking testos v0.7.0-beta.4 (<repo>/crates/testos)\n   Compiling zvariant v5.15.0\n    Checking zbus_names v4.3.4\n   Compiling zbus_macros v5.19.0\n    Checking zbus v5.19.0\n    Checking optctl v0.7.0-beta.4 (<repo>/crates/optctl)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.66s\n",
+    "stdout": ""
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "   Compiling optid v0.7.0-beta.4 (<repo>/crates/optid)\n    Checking rush-collect v0.7.0-beta.4 (<repo>/crates/rush_collect)\n    Checking rushbench v0.7.0-beta.4 (<repo>/crates/rushbench)\n    Checking testos v0.7.0-beta.4 (<repo>/crates/testos)\n    Checking optctl v0.7.0-beta.4 (<repo>/crates/optctl)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.09s\n",
+    "stdout": ""
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--workspace"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "   Compiling unicode-ident v1.0.24\n   Compiling winnow v1.0.3\n   Compiling pin-project-lite v0.2.17\n   Compiling parking v2.2.1\n   Compiling futures-core v0.3.32\n   Compiling memchr v2.8.1\n   Compiling itoa v1.0.18\n   Compiling toml_writer v1.1.2+spec-1.1.0\n   Compiling futures-io v0.3.32\n   Compiling fastrand v2.4.1\n   Compiling bitflags v2.12.1\n   Compiling endi v1.1.1\n   Compiling linux-raw-sys v0.12.1\n   Compiling slab v0.4.12\n   Compiling cfg-if v1.0.4\n   Compiling serde_core v1.0.229\n   Compiling zmij v1.0.21\n   Compiling crossbeam-utils v0.8.21\n   Compiling libc v0.2.189\n   Compiling async-task v4.7.1\n   Compiling once_cell v1.21.4\n   Compiling atomic-waker v1.1.2\n   Compiling hex v0.4.3\n   Compiling num-traits v0.2.19\n   Compiling iana-time-zone v0.1.65\n   Compiling proc-macro2 v1.0.106\n   Compiling event-listener v5.4.2\n   Compiling ordered-stream v0.2.0\n   Compiling futures-lite v2.6.1\n   Compiling piper v0.2.5\n   Compiling tracing-core v0.1.36\n   Compiling event-listener-strategy v0.5.4\n   Compiling concurrent-queue v2.5.0\n   Compiling async-lock v3.4.2\n   Compiling async-broadcast v0.7.2\n   Compiling async-channel v2.5.0\n   Compiling quote v1.0.45\n   Compiling syn v3.0.0\n   Compiling syn v2.0.117\n   Compiling errno v0.3.14\n   Compiling blocking v1.6.2\n   Compiling async-executor v1.14.0\n   Compiling signal-hook-registry v1.4.8\n   Compiling signal-hook v0.4.4\n   Compiling rustix v1.1.4\n   Compiling toml_parser v1.1.3+spec-1.1.0\n   Compiling toml_datetime v1.1.1+spec-1.1.0\n   Compiling serde_json v1.0.151\n   Compiling serde_spanned v1.1.1\n   Compiling uuid v1.23.3\n   Compiling toml_edit v0.25.12+spec-1.1.0\n   Compiling toml v1.1.4+spec-1.1.0\n   Compiling proc-macro-crate v3.5.0\n   Compiling enumflags2_derive v0.7.12\n   Compiling tracing-attributes v0.1.31\n   Compiling async-trait v0.1.89\n   Compiling async-recursion v1.1.1\n   Compiling serde_repr v0.1.20\n   Compiling serde_derive v1.0.229\n   Compiling polling v3.11.0\n   Compiling async-io v2.6.0\n   Compiling tracing v0.1.44\n   Compiling async-signal v0.2.14\n   Compiling async-process v2.5.0\n   Compiling serde v1.0.229\n   Compiling zvariant_utils v4.2.0\n   Compiling enumflags2 v0.7.12\n   Compiling zcheapstr v1.1.0\n   Compiling chrono v0.4.45\n   Compiling optid v0.7.0-beta.4 (<repo>/crates/optid)\n   Compiling rushbench v0.7.0-beta.4 (<repo>/crates/rushbench)\n   Compiling rush-collect v0.7.0-beta.4 (<repo>/crates/rush_collect)\n   Compiling zvariant_derive v5.15.0\n   Compiling testos v0.7.0-beta.4 (<repo>/crates/testos)\n   Compiling zvariant v5.15.0\n   Compiling zbus_names v4.3.4\n   Compiling zbus_macros v5.19.0\n   Compiling zbus v5.19.0\n   Compiling optctl v0.7.0-beta.4 (<repo>/crates/optctl)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.46s\n     Running unittests src/main.rs (target/debug/deps/optctl-0fe21ac1377f8fea)\n     Running tests/status_cli.rs (target/debug/deps/status_cli-06f054a7d7c4d14a)\n     Running unittests src/lib.rs (target/debug/deps/optid-6488edd739727065)\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n     Running unittests src/bin/optid-lever-contracts.rs (target/debug/deps/optid_lever_contracts-bc838f94a0db0e3f)\n     Running unittests src/bin/optid-observe.rs (target/debug/deps/optid_observe-02678d2d110aa64e)\n     Running unittests src/bin/optid-recover.rs (target/debug/deps/optid_recover-a6206af98ba1c64c)\n     Running tests/capability_sealing_cli.rs (target/debug/deps/capability_sealing_cli-fa9d0e7240026e39)\n     Running tests/i2_simulation_cli.rs (target/debug/deps/i2_simulation_cli-e19ccfbba89a3436)\n     Running tests/i2_simulation_evidence_cli.rs (target/debug/deps/i2_simulation_evidence_cli-c1274fcc0d079966)\n     Running tests/lever_contract_cli.rs (target/debug/deps/lever_contract_cli-f537e6b3f2d6266d)\n     Running tests/o1_runtime_status.rs (target/debug/deps/o1_runtime_status-e57804e4bca87c82)\n     Running tests/recovery_cli.rs (target/debug/deps/recovery_cli-d3fbc67c82d478a6)\n     Running tests/s3d_systemd.rs (target/debug/deps/s3d_systemd-3f33ca283adec5df)\n     Running tests/s4d_systemd.rs (target/debug/deps/s4d_systemd-2adacceac84dadd7)\n     Running unittests src/main.rs (target/debug/deps/rush_collect-532f9606c395a9ca)\n     Running unittests src/main.rs (target/debug/deps/rushbench-cc70e013fc1fa4a3)\n     Running unittests src/lib.rs (target/debug/deps/testos-6a74d5b30d0b92ea)\n... |\n... |\n... |\n\n                    \n... /\n\n                    \n\n                    \n     Running unittests src/bin/testos-ingest.rs (target/debug/deps/testos_ingest-5205081cb0865dc9)\n     Running unittests src/bin/testos-launcher.rs (target/debug/deps/testos_launcher-831d47e0b5b854f2)\n     Running unittests src/bin/testos-runner.rs (target/debug/deps/testos_runner-ffcbf556442a8188)\n   Doc-tests optid\n   Doc-tests testos\n",
+    "stdout": "\nrunning 11 tests\ntest allow::tests::format_entry_includes_fields ... ok\ntest tests::f3_missing_json_never_reconstructs_from_text ... ok\ntest tests::circuit_state_path_keeps_a_non_production_state_dir_self_contained ... ok\ntest allow::tests::resolve_hwid_reads_sysfs_dir ... ok\ntest tests::f3_offline_status_json_reads_daemon_file_without_mutation ... ok\ntest allow::tests::write_entry_appends_to_admin_file ... ok\ntest tests::f3_status_json_tolerates_unknown_fields ... ok\ntest tests::f3_status_json_passes_through_daemon_schema ... ok\ntest allow::tests::resolve_hwid_passthrough_modalias ... ok\ntest tests::circuit_state_path_uses_the_production_path_for_the_default_state_dir ... ok\ntest tests::f3_malformed_status_json_fails_clearly ... ok\n\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 3 tests\ntest f3_optctl_human_status_remains_backward_compatible_and_read_only ... ok\ntest f3_optctl_status_json_passthrough_uses_state_fallback_and_is_read_only ... ok\ntest f3_optctl_status_json_rejects_malformed_and_missing_machine_state ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n\nrunning 14 tests\ntest kernel_io::implementation::tests::persistent_hide_and_malformed_rules_apply ... ok\ntest kernel_io::implementation::tests::fault_rules_are_deterministic_and_one_shot ... ok\ntest kernel_io::implementation::tests::memory_kernel_round_trip_and_clock ... ok\ntest kernel_io::implementation::tests::short_write_truncates_once ... ok\ntest kernel_io::implementation::tests::allowlist_preserves_expected_boundaries ... ok\ntest kernel_io::adapter_tests::f2_real_kernel_override_is_visible_to_library_target ... ok\ntest lever_contract::tests::s1d_each_lever_has_exact_rollback_and_distinct_stabilization ... ok\ntest lever_contract::tests::s1d_current_defaults_are_allowed_and_unknown_values_fail_closed ... ok\ntest lever_contract::tests::s1d_missing_identity_original_envelope_or_verification_denies_actuation ... ok\ntest lever_contract::tests::s1d_missing_stabilization_evidence_fails_closed ... ok\ntest lever_contract::tests::s1d_planned_levers_remain_fail_closed_until_their_write_packages_exist ... ok\ntest lever_contract::tests::s1d_tightening_an_envelope_never_authorizes_a_denied_value ... ok\ntest lever_contract::tests::s1d_registry_contains_all_eleven_complete_lever_contracts ... ok\ntest lever_contract::tests::s1d_fixture_requires_every_field_for_every_lever ... ok\n\ntest result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 548 tests\ntest action::tests::journal_key_matches_actuator_key_shapes ... ok\ntest action::tests::test_t5_explainability ... ok\ntest action::tests::every_action_variant_has_a_defined_journal_key_decision ... ok\ntest action::tests::describe_handles_none_latency_values ... ok\ntest actuators::display::tests::target_clamps_to_floor_and_never_zero ... ok\ntest actuators::storage::tests::non_cnvi_not_flagged ... ok\ntest actuators::display::tests::prefers_vendor_over_acpi_video ... ok\ntest actuators::storage::tests::default_alpm_policy_is_safe_dipm ... ok\ntest actuators::runtime_pm::tests::hid_input_and_wakeup_warning ... ok\ntest actuators::runtime_pm::tests::carrier_up_detected ... ok\ntest actuators::storage::tests::cnvi_detected_by_class ... ok\ntest actuators::runtime_pm::tests::carrier_down_or_absent_not_up ... ok\ntest allowlist::tests::default_deny_on_unknown_hwid ... ok\ntest allowlist::tests::hwid_from_attr_path_reads_modalias ... ok\ntest args::tests::allowlist_default_is_enabled ... ok\ntest allowlist::tests::seeded_version_is_non_empty ... ok\ntest args::tests::allowlist_disabled_form_also_requires_single_run ... ok\ntest allowlist::tests::seeded_deny_entry_is_denied ... ok\ntest allowlist::tests::unverified_seeded_candidate_is_denied ... ok\ntest args::tests::allowlist_enabled_form_is_idempotent ... ok\ntest allowlist::tests::malformed_override_is_skipped_not_fatal ... ok\ntest args::tests::foreground_default_is_off ... ok\ntest args::tests::foreground_missing_value_rejected ... ok\ntest args::tests::foreground_invalid_value_rejected ... ok\ntest allowlist::tests::max_state_denies_with_reason ... ok\ntest allowlist::tests::last_file_wins_within_dir ... ok\ntest args::tests::no_allowlist_requires_single_run ... ok\ntest args::tests::no_allowlist_can_be_combined_with_other_flags ... ok\ntest args::tests::version_flag_is_recognized ... ok\ntest capability::tests::all_capabilities_are_service_deployable ... ok\ntest capability::tests::capability_target_validation_rejects_traversal ... ok\ntest capability::tests::capability_target_validation_rejects_out_of_root ... ok\ntest capability::tests::capability_target_validation_rejects_symlink_tree_confusion ... ok\ntest capability::tests::capability_target_validation_rejects_wrong_file_name ... ok\ntest args::tests::foreground_auto_enables_detection ... ok\ntest allowlist::tests::override_precedence_admin_beats_distro_beats_seeded ... ok\ntest capability::tests::all_capabilities_cover_every_action_variant ... ok\ntest args::tests::foreground_space_separated_value ... ok\ntest args::tests::foreground_auto_composes_with_other_flags ... ok\ntest capability::tests::parse_read_write_paths_handles_continuations ... ok\ntest capability::tests::parse_read_write_paths_extracts_entries ... ok\ntest capability::tests::no_general_sys_write_permission ... ok\ntest capability::tests::parse_read_write_paths_returns_empty_when_absent ... ok\ntest capability::tests::required_read_write_paths_is_nonempty_and_deduped ... ok\ntest capability_table::landlock::tests::abi_one_excludes_newer_rights ... ok\ntest capability_table::landlock::tests::abi_three_adds_truncate ... ok\ntest capability_table::landlock::tests::abi_two_adds_refer_only ... ok\ntest capability_table::landlock::tests::abi_zero_is_rejected ... ok\ntest capability::tests::dynamic_capability_paths_are_declared ... ok\ntest capability::tests::systemd_apply_service_grants_every_capability ... ok\ntest args::tests::foreground_off_disables_detection ... ok\ntest capability::tests::mkosi_mirror_matches_packaging ... ok\ntest capability_table::tests::s4d_capability_descriptors_are_cloexec ... ok\ntest capability_table::tests::s4d_operation_type_mismatch_is_rejected ... ok\ntest capability_table::tests::s4d_topology_change_is_debounced ... ok\ntest circuit_breaker::tests::a_non_production_state_dir_keeps_its_own_circuit_file ... ok\ntest circuit_breaker::tests::production_circuit_file_is_outside_the_recovery_directory ... ok\ntest capability_table::tests::s4d_preopened_descriptor_survives_permission_tightening ... ok\ntest capability_table::tests::s4d_removed_device_fails_closed ... ok\ntest capability_table::tests::s4d_stale_identity_is_rejected ... ok\ntest capability_table::tests::s4d_cold_rebuild_opens_fresh_identity ... ok\ntest circuit_breaker::tests::migration_only_touches_the_production_path ... ok\ntest capability_table::tests::s4d_symlink_path_replacement_is_rejected ... ok\ntest capability::tests::systemd_apply_service_has_protect_kernel_tunables ... ok\ntest circuit_breaker::tests::render_persisted_circuits_reports_the_global_circuit ... ok\ntest circuit_breaker::tests::s5d_backward_clock_jump_never_shortens_cooldown ... ok\ntest capability::tests::systemd_dry_run_service_does_not_grant_apply_capabilities ... ok\ntest circuit_breaker::tests::render_persisted_circuits_rejects_malformed_json ... ok\ntest circuit_breaker::tests::s5d_production_gate_emits_scoped_diagnostic_and_firmware_identity ... ok\ntest circuit_breaker::tests::s5d_firmware_change_uses_independent_scope ... ok\ntest circuit_breaker::tests::s5d_clear_commands_are_one_shot_and_mutually_exclusive ... ok\ntest circuit_breaker::tests::render_persisted_circuits_lists_open_records_and_counts_closed_ones ... ok\ntest circuit_breaker::tests::s5d_cooldown_requires_recovery_before_one_canary ... ok\ntest contracts::tests::c1_boundary_equality_permits_exactly_at_the_floor ... ok\ntest capability::tests::capability_target_validation_accepts_legitimate_paths ... ok\ntest contracts::tests::c1_a_looser_override_cannot_relax_the_class_floor ... ok\ntest contracts::tests::c1_denial_reason_names_the_provenance_and_the_floor ... ok\ntest contracts::tests::c1_contract_book_parses_per_cgroup_overrides ... ok\ntest circuit_breaker::tests::render_persisted_circuits_reports_closed_when_nothing_is_open ... ok\ntest circuit_breaker::tests::s5d_canary_success_closes_circuit ... ok\ntest circuit_breaker::tests::s5d_unknown_process_corruption_forces_global_observe_only ... ok\ntest circuit_breaker::tests::s5d_restore_failures_open_only_the_affected_domain ... ok\ntest contracts::tests::c1_inactive_scope_override_does_not_apply ... ok\ntest contracts::tests::c1_observe_mode_reports_but_never_relaxes_a_real_write ... ok\ntest contracts::tests::c1_property_tightening_a_floor_never_authorizes_a_deeper_state ... ok\ntest contracts::tests::c1_contracts_mode_defaults_to_enforce_and_parses_observe ... ok\ntest contracts::tests::c1_multiple_active_contracts_compose_to_the_strictest ... ok\ntest circuit_breaker::tests::s5d_multi_domain_failure_isolation ... ok\ntest contracts::tests::c1_property_unknown_is_denied_at_every_floor ... ok\ntest circuit_breaker::tests::s5d_manual_clear_requires_root_authorization ... ok\ntest contracts::tests::c1_unknown_denial_reason_rejects_the_two_lookalike_values ... ok\ntest contracts::tests::default_contracts_match_config_optid_contracts_toml ... ok\ntest contracts::tests::device_resume_constraint_above_floor_denies ... ok\ntest contracts::tests::device_resume_constraint_huge_positive_denied_as_above_floor ... ok\ntest contracts::tests::device_resume_constraint_is_not_selected_state_latency ... ok\ntest contracts::tests::device_resume_constraint_large_negative_denies ... ok\ntest circuit_breaker::tests::s5d_repeated_failure_opens_persistent_scope ... ok\ntest contracts::tests::device_resume_constraint_missing_value_denies ... ok\ntest contracts::tests::device_resume_constraint_negative_requested_value_denies ... ok\ntest circuit_breaker::tests::s5d_restart_preserves_open_circuit ... ok\ntest contracts::tests::device_resume_constraint_valid_tighter_than_floor_passes ... ok\ntest contracts::tests::fits_contract_basic_predicate ... ok\ntest contracts::tests::large_autosuspend_delay_does_not_imply_large_exit_latency ... ok\ntest contracts::tests::latency_critical_floors_are_one_millisecond ... ok\ntest contracts::tests::load_missing_file_returns_default ... ok\ntest contracts::tests::proven_latency_below_floor_passes ... ok\ntest contracts::tests::proven_latency_above_floor_fails ... ok\ntest contracts::tests::resolve_maps_each_class ... ok\ntest contracts::tests::runtime_pm_hardware_proven_latency_above_floor_denies ... ok\ntest contracts::tests::runtime_pm_hardware_proven_latency_below_floor_passes ... ok\ntest contracts::tests::load_published_contracts_toml_matches_default ... ok\ntest contracts::tests::runtime_pm_measured_latency_above_floor_denies ... ok\ntest contracts::tests::runtime_pm_measured_latency_below_floor_passes ... ok\ntest contracts::tests::runtime_pm_without_evidence_denies ... ok\ntest contracts::tests::small_autosuspend_delay_does_not_prove_compliance ... ok\ntest contracts::tests::units_cannot_be_mixed ... ok\ntest contracts::tests::unknown_latency_fails_closed ... ok\ntest contracts::tests::vm_guest_resolve_does_not_return_latency_critical_floors ... ok\ntest contracts::tests::vm_guest_resolve_returns_interactive_floors ... ok\ntest dbus::tests::validate_app_id_accepts_max_length ... ok\ntest dbus::tests::validate_app_id_accepts_valid_ids ... ok\ntest dbus::tests::pin_application_allowed_env_var_semantics ... ok\ntest dbus::tests::validate_app_id_blocks_audit_attack_vector ... ok\ntest dbus::tests::validate_app_id_rejects_backslash ... ok\ntest dbus::tests::validate_app_id_rejects_empty ... ok\ntest dbus::tests::validate_app_id_rejects_forward_slash ... ok\ntest dbus::tests::validate_app_id_rejects_global_token ... ok\ntest dbus::tests::validate_app_id_rejects_leading_dot ... ok\ntest dbus::tests::validate_app_id_rejects_nul ... ok\ntest circuit_breaker::tests::s5d_canary_failure_reopens_immediately ... ok\ntest dbus::tests::validate_app_id_rejects_overlong ... ok\ntest dbus::tests::validate_app_id_rejects_spaces_and_special_chars ... ok\ntest dbus::tests::validate_app_id_rejects_single_dot ... ok\ntest dbus::tests::validate_app_id_rejects_traversal_dot_dot ... ok\ntest envelope::tests::f3_correlation_ids_are_deterministic_and_distinct ... ok\ntest envelope::tests::f3_outcomes_remain_machine_distinct ... ok\ntest envelope::tests::f3_future_enum_values_fail_clearly ... ok\ntest envelope::tests::f3_readback_detects_mismatch ... ok\ntest envelope::tests::f3_public_action_identity_does_not_leak_raw_path ... ok\ntest envelope::tests::f3_missing_optional_fields_use_defaults ... ok\ntest foreground::tests::foreground_config_defaults_game_class_to_latency_critical ... ok\ntest foreground::tests::foreground_config_parses_empty_toml_uses_default ... ok\ntest foreground::tests::foreground_config_parses_custom_game_class ... ok\ntest envelope::tests::f3_unknown_fields_are_tolerated ... ok\ntest foreground::tests::foreground_config_parses_missing_game_class_uses_default ... ok\ntest io_util::tests::append_log_fault_is_injected_through_kernel_seam ... ok\ntest io_util::tests::append_log_creates_and_appends ... ok\ntest io_util::tests::atomic_state_write_fault_does_not_publish_target ... ok\ntest io_util::tests::get_path_hash_differs_for_different_paths ... ok\ntest io_util::tests::get_path_hash_is_stable ... ok\ntest kernel_io::adapter_tests::f2_real_kernel_override_is_visible_to_library_target ... ok\ntest io_util::tests::guarded_write_rejects_directory_traversal ... ok\ntest kernel_io::implementation::tests::allowlist_preserves_expected_boundaries ... ok\ntest io_util::tests::guarded_write_rejects_unallowlisted_paths ... ok\ntest io_util::tests::injected_sysctl_recovery_failure_keeps_journal_for_retry ... ok\ntest io_util::tests::injected_sysctl_recovery_restores_and_clears_journal ... ok\ntest kernel_io::implementation::tests::fault_rules_are_deterministic_and_one_shot ... ok\ntest kernel_io::implementation::tests::memory_kernel_round_trip_and_clock ... ok\ntest io_util::tests::atomic_write_persists_content ... ok\ntest kernel_io::implementation::tests::persistent_hide_and_malformed_rules_apply ... ok\ntest io_util::tests::failed_revert_keeps_journal_for_retry ... ok\ntest kernel_io::implementation::tests::short_write_truncates_once ... ok\ntest latency::tests::c1_compose_max_is_unknown_if_any_component_is_unknown ... ok\ntest latency::tests::c1_compose_max_keeps_the_weakest_confidence ... ok\ntest latency::tests::c1_compose_max_of_nothing_is_unknown ... ok\ntest latency::tests::c1_describe_names_the_provenance ... ok\ntest latency::tests::c1_matching_firmware_keeps_the_estimate ... ok\ntest latency::tests::c1_stale_firmware_cache_invalidates_the_estimate ... ok\ntest latency::tests::c1_unpinned_estimate_survives_an_unknown_firmware ... ok\ntest latency::tests::c1_unreadable_firmware_invalidates_a_pinned_estimate ... ok\ntest latency::tests::c1_compose_max_takes_the_slowest_component ... ok\ntest load_state::tests::as_str_is_stable ... ok\ntest load_state::tests::boot_state_summary_lists_all_fields ... ok\ntest load_state::tests::display_matches_as_str ... ok\ntest load_state::tests::is_fallback_for_non_ok_states ... ok\ntest load_state::tests::permits_dynamic_writes_only_when_ok ... ok\ntest policy::f1_tests::f1_action_domain_returns_some_for_every_kernel_write_variant ... ok\ntest policy::f1_tests::f1_action_domain_returns_some_for_systemd_set_property ... ok\ntest policy::f1_tests::device_levers_are_not_nominated_when_busy_or_on_ac ... ok\ntest policy::f1_tests::f1_curated_baseline_still_uses_actuate_for_all_domains ... ok\ntest policy::f1_tests::device_levers_are_nominated_on_battery_while_the_machine_is_light ... ok\ntest policy::f1_tests::f1_decide_default_policy_emits_actions_for_all_domains ... ok\ntest policy::f1_tests::backlight_is_not_dimmed_in_the_light_class ... ok\ntest policy::f1_tests::f1_domain_all_returns_ten_known_domains ... ok\ntest policy::f1_tests::f1_domain_as_str_matches_allowlist_strings ... ok\ntest policy::f1_tests::f1_decide_actuate_mode_preserves_today_behavior ... ok\ntest policy::f1_tests::f1_domain_config_mode_defaults_to_actuate_when_omitted ... ok\ntest policy::f1_tests::f1_domain_default_mode_is_actuate_for_v0_6_domains ... ok\ntest policy::f1_tests::f1_domain_mode_ordering_is_off_observe_actuate ... ok\ntest policy::f1_tests::f1_decide_off_mode_does_not_capture_would_be_action ... ok\ntest policy::f1_tests::f1_decide_observe_mode_suppresses_actions_but_surfaces_reason ... ok\ntest policy::f1_tests::f1_decide_mixed_modes_filter_independently ... ok\ntest policy::f1_tests::f1_domain_default_mode_is_fail_closed_for_unknown_domains ... ok\ntest policy::f1_tests::f1_decision_render_includes_effective_config_block ... ok\ntest policy::f1_tests::f1_domain_mode_serde_accepts_lowercase_off_observe_actuate ... ok\ntest policy::f1_tests::f1_domain_mode_serde_rejects_invalid_strings ... ok\ntest policy::f1_tests::f1_decide_observe_mode_captures_would_be_action_for_render ... ok\ntest policy::f1_tests::f1_decide_off_mode_suppresses_domain_actions_silently ... ok\ntest policy::f1_tests::f1_domain_mode_serde_rejects_uppercase_variants ... ok\ntest policy::f1_tests::f1_domains_config_accepts_all_ten_known_domains ... ok\ntest policy::f1_tests::f1_domain_config_rejects_unknown_field ... ok\ntest policy::f1_tests::f1_effective_config_default_policy_all_actuate ... ok\ntest policy::f1_tests::f1_effective_config_render_lists_all_domains_in_canonical_order ... ok\ntest policy::f1_tests::f1_domains_config_rejects_unknown_domain_key ... ok\ntest policy::f1_tests::f1_effective_config_allows_actuation_only_for_actuate ... ok\ntest policy::f1_tests::f1_sensor_only_domains_default_to_observe ... ok\ntest policy::f1_tests::f1_effective_config_respects_off_mode ... ok\ntest policy::f1_tests::f1_domains_config_rejects_thermal_subtable ... ok\ntest policy::tests::vm_guest_auto_mode_critical_thermal_overrides_to_balanced ... ok\ntest policy::tests::vm_guest_auto_mode_dilated_psi_above_threshold_returns_performance ... ok\ntest policy::tests::vm_guest_auto_mode_low_load_returns_balanced_on_ac ... ok\ntest policy::tests::vm_guest_auto_mode_non_vm_uses_regular_psi_threshold ... ok\ntest policy::f1_tests::f1_production_pipeline_rejects_unknown_domain ... ok\ntest policy::tests::vm_guest_auto_mode_high_load_returns_performance_on_ac ... ok\ntest policy::f1_tests::f1_decision_render_shows_off_observe_actuate_modes ... ok\ntest policy::tests::vm_guest_auto_mode_on_battery_low_load_returns_battery ... ok\ntest policy::tests::vm_guest_auto_mode_on_battery_high_load_returns_balanced ... ok\ntest policy::f1_tests::f1_effective_config_respects_observe_mode ... ok\ntest policy::tests::vm_guest_auto_mode_on_battery_low_battery_returns_battery ... ok\ntest policy::tests::vm_guest_auto_mode_psi_is_dilated_by_half ... ok\ntest policy::f1_tests::f1_curated_policy_toml_still_parses ... ok\ntest policy::tests::vm_guest_classify_explicit_app_pin_wins_over_vm_guest ... ok\ntest policy::tests::vm_guest_classify_explicit_global_pin_wins_over_vm_guest ... ok\ntest policy::f1_tests::f1_systemd_set_property_is_domain_gated_by_default ... ok\ntest reconciler::systemd_placeholder::tests::a_real_systemd_value_is_a_value ... ok\ntest reconciler::systemd_placeholder::tests::an_empty_assignment_is_not_an_explicit_value ... ok\ntest reconciler::systemd_placeholder::tests::the_systemd_unset_placeholder_is_not_a_value ... ok\ntest policy::f1_tests::f1_production_pipeline_policy_to_render ... ok\ntest policy::tests::vm_guest_classify_non_vm_uses_regular_logic_throughput ... ok\ntest policy::tests::vm_guest_classify_non_vm_uses_regular_logic_idle ... ok\ntest policy::tests::vm_guest_classify_returns_vm_guest_even_when_idle ... ok\ntest reconciler::tests::f4_malformed_typed_state_fails_closed ... ok\ntest reconciler::systemd_placeholder::tests::a_different_property_does_not_match ... ok\ntest policy::tests::vm_guest_classify_returns_vm_guest_regardless_of_load ... ok\ntest reconciler::systemd_placeholder::tests::a_real_assignment_is_explicit ... ok\ntest policy::tests::vm_guest_classify_returns_vm_guest_when_is_vm_guest_true ... ok\ntest policy::tests::vm_guest_classify_returns_vm_guest_on_battery ... ok\ntest reconciler::tests::f4_missing_baseline_or_confirmation_never_plans_a_pretend_restore ... ok\ntest reconciler::tests::f4_multiple_targets_in_one_domain_remain_independent ... ok\ntest reconciler::tests::f4_retry_policy_is_bounded ... ok\ntest reconciler::tests::f4_restart_hydrates_real_legacy_journal_and_ownership ... ok\ntest reconciler::tests::f4_shadow_parity_reports_systemd_as_intentional_v1_only ... ok\ntest reconciler::tests::f4_systemd_property_lifecycle_distinguishes_unset_and_explicit ... ok\ntest reconciler::tests::f4_transition_detection_covers_ac_workload_mode_and_domain_off ... ok\ntest reconciler::tests::s2d_full_disk_before_publish_refuses_mutation ... ok\ntest reconciler::tests::s2d_fsync_failure_refuses_mutation ... ok\ntest reconciler::tests::f4_restart_hydrates_typed_vm_state_and_restores ... ok\ntest reconciler::tests::f4_production_device_disappearance_relinquishes_ownership ... ok\ntest reconciler::tests::f4_production_external_drift_relinquishes_without_overwrite ... ok\ntest reconciler::tests::f4_active_kernel_drift_relinquishes_and_stays_handed_back ... ok\ntest reconciler::tests::f4_systemd_readback_mismatch_never_claims_ownership ... ok\ntest reconciler::tests::s2d_durable_record_is_synced_before_production_write ... ok\ntest reconciler::tests::f4_production_runtime_pm_transition_restores_baseline ... ok\ntest reconciler::tests::f4_active_systemd_drift_relinquishes_and_stays_handed_back ... ok\ntest reconciler::tests::f4_production_coalesces_confirmed_value_and_writes_one_change ... ok\ntest reconciler::tests::f4_systemd_external_drift_is_not_overwritten ... ok\ntest reconciler::tests::s2d_compensation_attempts_every_target_after_one_failure ... ok\ntest reconciler::tests::s2d_record_path_is_stable_across_generations ... ok\ntest reconciler::tests::s2d_prepared_record_covers_crash_before_write ... ok\ntest reconciler::tests::f4_systemd_partial_property_failure_is_typed_and_independent ... ok\ntest reconciler::tests::s2d_partial_publish_failure_refuses_mutation ... ok\ntest reconciler::tests::s2d_path_reuse_identity_mismatch_is_rejected ... ok\ntest reconciler::tests::f4_runtime_pm_unwritten_baseline_mixture_is_external_drift ... ok\ntest reconciler::tests::f4_production_multiple_targets_restore_only_disappeared_target ... ok\ntest reconciler::tests::s2d_removed_target_cannot_relinquish_another_generation ... ok\ntest reconciler::tests::f4_partial_runtime_pm_restore_does_not_overwrite_external_change ... ok\ntest reconciler::tests::s2d_stale_generation_is_rejected ... ok\ntest reconciler::tests::s2d_stale_generation_handback_does_not_compact ... ok\ntest reconciler::tests::f4_partial_runtime_pm_restore_retries_confirmed_progress ... ok\ntest reconciler::tests::s2d_removed_target_sync_failure_preserves_the_undo_record ... ok\ntest reconciler::tests::s2d_readback_mismatch_compensates_and_cleans ... ok\ntest reconciler::tests::s2d_external_drift_relinquishes_without_overwrite ... ok\ntest reconciler::tests::f4_restore_failure_withholds_watchdog_through_retry_exhaustion ... ok\ntest reconciler::tests::f4_systemd_multiple_properties_apply_restore_and_unset ... ok\ntest reconciler::tests::f4_unconfirmed_partial_restore_keeps_undo_record ... ok\ntest reconciler::tests::s3d_complete_cycle_emits_ready_and_watchdog ... ok\ntest reconciler::tests::s3d_journal_failure_withholds_watchdog ... ok\ntest sensors::tests::f2_read_loadavg_with_real_kernel_returns_some_on_real_kernel ... ok\ntest sensors::tests::fmt_pressure_renders_all_fields_when_some ... ok\ntest sensors::tests::fmt_pressure_renders_unavailable_when_none ... ok\ntest sensors::tests::on_ac_accepts_an_online_usb_pd_charger_without_mains ... ok\ntest sensors::tests::on_ac_is_false_for_a_battery_only_topology ... ok\ntest sensors::tests::on_ac_ignores_offline_usb_source_and_finds_later_online_mains ... ok\ntest sensors::tests::on_ac_is_unknown_when_no_supply_exists ... ok\ntest reconciler::tests::s2d_repeated_compensation_is_idempotent ... ok\ntest sensors::tests::on_ac_is_true_when_the_only_mains_supply_is_online ... ok\ntest sensors::tests::on_ac_is_unknown_when_no_supply_is_battery_or_external ... ok\ntest sensors::tests::on_ac_is_false_when_every_external_supply_is_offline ... ok\ntest reconciler::tests::s2d_production_commit_then_verified_restore_compacts ... ok\ntest sensors::tests::on_ac_skips_an_external_supply_with_no_online_attribute ... ok\ntest sensors::tests::vm_guest_detects_innotek_virtualbox ... ok\ntest reconciler::tests::s2d_missing_runtime_pm_member_keeps_the_whole_undo_record ... ok\ntest sensors::tests::vm_guest_detects_kvm ... ok\ntest sensors::tests::vm_guest_detects_microsoft_hyperv ... ok\ntest sensors::tests::vm_guest_detects_parallels ... ok\ntest reconciler::tests::s2d_write_failure_compensates_and_cleans ... ok\ntest sensors::tests::vm_guest_detects_qemu ... ok\ntest sensors::tests::parses_psi_some_line ... ok\ntest sensors::tests::vm_guest_detects_xen ... ok\ntest sensors::tests::vm_guest_handles_newline_trailing ... ok\ntest sensors::tests::vm_guest_detects_vmware ... ok\ntest sensors::tests::vm_guest_rejects_empty_and_garbage ... ok\ntest sensors::tests::vm_guest_rejects_real_hardware_vendors ... ok\ntest shim::conflict::tests::detect_conflicts_production_entrypoint_honors_the_override ... ok\ntest shim::conflict::tests::detects_multiple_active_conflicts_in_input_order ... ok\ntest shim::conflict::tests::detects_single_active_conflict ... ok\ntest shim::conflict::tests::empty_daemon_list_is_never_blocking ... ok\ntest shim::conflict::tests::render_advice_mentions_adr_0004_and_mask_command ... ok\ntest shim::conflict::tests::no_conflicts_when_no_daemons_active ... ok\ntest shim::gamemode::tests::query_status_client_returns_0_after_unregister ... ok\ntest shim::gamemode::tests::pin_class_is_valid_for_standard_classes ... ok\ntest shim::gamemode::tests::query_status_client_returns_0_for_unregistered_pid ... ok\ntest shim::gamemode::tests::query_status_client_returns_1_for_registered_pid ... ok\ntest shim::gamemode::tests::query_status_returns_0_when_no_games_registered ... ok\ntest shim::gamemode::tests::register_game_idempotent_pin_file ... ok\ntest shim::gamemode::tests::query_status_excludes_unregistered_games ... ok\ntest shim::gamemode::tests::register_game_lazy_expires_before_registering ... ok\ntest shim::conflict::tests::unknown_daemons_in_list_are_ignored ... ok\ntest shim::gamemode::tests::pin_class_is_invalid_for_garbage ... ok\ntest shim::gamemode::tests::register_game_rejects_negative_pid ... ok\ntest reconciler::tests::s2d_removed_target_relinquishes_and_other_targets_restore ... ok\ntest shim::gamemode::tests::register_game_returns_2_for_existing_pid ... ok\ntest shim::gamemode::tests::registration_is_expired_true_when_ttl_elapsed ... ok\ntest shim::gamemode::tests::register_game_returns_1_for_new_pid ... ok\ntest shim::gamemode::tests::registry_active_count_excludes_expired ... ok\ntest shim::gamemode::tests::register_game_uses_custom_pin_class_when_configured ... ok\ntest shim::gamemode::tests::registry_expire_stale_removes_expired_entries ... ok\ntest shim::gamemode::tests::gamemode_writes_to_same_pins_dir_as_optidserver ... ok\ntest shim::gamemode::tests::registry_expire_stale_returns_empty_when_nothing_expired ... ok\ntest shim::gamemode::tests::registry_is_registered_excludes_expired ... ok\ntest shim::gamemode::tests::registry_is_registered_true_for_active ... ok\ntest shim::gamemode::tests::registry_register_refreshes_ttl_on_re_register ... ok\ntest shim::gamemode::tests::registry_register_returns_false_for_existing_pid ... ok\ntest shim::gamemode::tests::registry_register_returns_true_for_new_pid ... ok\ntest shim::conflict::tests::render_advice_is_empty_when_no_conflicts ... ok\ntest shim::gamemode::tests::registration_is_expired_false_when_within_ttl ... ok\ntest shim::gamemode::tests::register_game_writes_pin_file_with_configured_class ... ok\ntest shim::gamemode::tests::registry_unregister_returns_false_for_unknown_pid ... ok\ntest shim::gamemode::tests::registry_unregister_returns_true_for_known_pid ... ok\ntest shim::gamemode::tests::query_status_counts_active_games ... ok\ntest shim::gamemode::tests::registry_can_be_manipulated_to_simulate_expiration ... ok\ntest foreground::tests::subscribe_does_not_panic_with_empty_config ... ok\ntest shim::gamemode::tests::unregister_game_treats_negative_pid_as_not_registered ... ok\ntest shim::gamemode::tests::unregister_game_returns_1_for_registered_pid ... ok\ntest shim::gamemode::tests::unregister_game_returns_2_for_unknown_pid ... ok\ntest shim::gamemode::tests::unregister_game_removes_pin_file ... ok\ntest shim::gamemode::tests::unregister_game_after_re_register_removes_pin ... ok\ntest shim::ppd::tests::actions_returns_empty_vec ... ok\ntest shim::ppd::tests::active_profile_defaults_to_balanced_when_no_mode_file ... ok\ntest shim::ppd::tests::active_profile_reads_persisted_mode_auto ... ok\ntest shim::ppd::tests::active_profile_reads_persisted_mode_battery ... ok\ntest shim::ppd::tests::active_profile_reads_persisted_mode_performance ... ok\ntest shim::ppd::tests::active_profile_realtime_collapses_to_performance ... ok\ntest shim::ppd::tests::default_mode_for_profile_known_profiles ... ok\ntest shim::ppd::tests::default_mode_for_profile_unknown_returns_none ... ok\ntest shim::ppd::tests::active_profile_unparseable_mode_file_falls_back_to_balanced ... ok\ntest shim::ppd::tests::active_profile_returns_held_profile_when_hold_active ... ok\ntest shim::ppd::tests::hold_profile_invalid_name_returns_invalid_args ... ok\ntest shim::ppd::tests::hold_registry_effective_profile_is_most_recent ... ok\ntest shim::ppd::tests::hold_profile_writes_held_mode_to_state_dir ... ok\ntest shim::ppd::tests::hold_profile_returns_monotonic_cookies ... ok\ntest shim::ppd::tests::hold_registry_effective_profile_none_when_empty ... ok\ntest shim::ppd::tests::hold_registry_first_cookie_is_one_not_zero ... ok\ntest shim::ppd::tests::hold_registry_is_empty_after_all_released ... ok\ntest shim::ppd::tests::hold_registry_register_returns_monotonic_cookies ... ok\ntest shim::ppd::tests::hold_registry_release_returns_false_for_unknown_cookie ... ok\ntest shim::ppd::tests::hold_registry_release_returns_true_for_known_cookie ... ok\ntest shim::ppd::tests::mode_for_profile_uses_defaults_when_map_empty ... ok\ntest shim::ppd::tests::holds_can_be_released_in_reverse_order ... ok\ntest shim::ppd::tests::mode_for_profile_uses_overrides_when_map_has_them ... ok\ntest shim::ppd::tests::hold_release_reverts_to_auto_even_when_persisted_override_existed ... ok\ntest shim::ppd::tests::performance_degraded_returns_empty_string ... ok\ntest shim::ppd::tests::ppd_server_with_full_custom_map_overrides_all ... ok\ntest shim::ppd::tests::profile_for_mode_round_trip ... ok\ntest shim::ppd::tests::ppd_server_writes_same_mode_file_format_as_optid_server ... ok\ntest shim::ppd::tests::profiles_returns_three_standard_entries ... ok\ntest shim::ppd::tests::release_profile_unknown_cookie_returns_failed ... ok\ntest shim::ppd::tests::holds_mutex_survives_sequential_burst ... ok\ntest shim::ppd::tests::release_profile_reverts_to_auto_when_no_holds_remain ... ok\ntest shim::ppd::tests::release_profile_with_multiple_holds_restores_previous ... ok\ntest shim::ppd::tests::set_active_profile_balanced_writes_auto ... ok\ntest shim::ppd::tests::set_active_profile_case_sensitive ... ok\ntest shim::ppd::tests::set_active_profile_accepts_custom_profile_name_via_map ... ok\ntest shim::ppd::tests::set_active_profile_falls_back_to_default_when_map_partial ... ok\ntest shim::ppd::tests::set_active_profile_invalid_name_returns_invalid_args ... ok\ntest shim::ppd::tests::set_active_profile_performance_writes_performance ... ok\ntest shim::ppd::tests::set_active_profile_rejects_invalid_mapped_mode ... ok\ntest shim::ppd::tests::set_active_profile_power_saver_writes_battery ... ok\ntest tests::existing::f2_fault_injection_tests::f2_actuator_with_real_kernel_matches_legacy_behavior ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_hidden_dir_returns_empty_discovery ... ok\ntest shim::ppd::tests::set_active_profile_uses_custom_mapping_when_provided ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_malformed_content_on_read_returns_none ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_kernel_preserves_allowlist ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_disappearing_path_on_read_returns_not_found ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_rule_fires_once_then_recovers ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_missing_path_on_read_does_not_panic ... ok\ntest tests::existing::f2_fault_injection_tests::f2_fault_permission_denied_on_write_is_logged ... ok\ntest tests::existing::integration_tests::c1_production_runtime_pm_denies_when_evidence_exceeds_floor ... ok\ntest tests::existing::integration_tests::c1_production_entry_without_latency_still_denies ... ok\ntest tests::existing::integration_tests::c1_production_firmware_pinned_entry_denies_until_revision_is_readable ... ok\ntest tests::existing::integration_tests::c1_production_unverified_entry_latency_is_not_evidence ... ok\ntest tests::existing::integration_tests::test_contract_gate_blocks_device_resume_latency_over_floor ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_failure_on_second_write_with_successful_rollback ... ok\ntest tests::existing::integration_tests::test_context_change_reverts_device_resume_latency ... ok\ntest tests::existing::integration_tests::test_journal_key_for_systemd_set_property ... ok\ntest tests::existing::integration_tests::c1_production_runtime_pm_permits_on_verified_allowlist_latency ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_no_false_applied_marker_after_partial_failure ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_recovery_retry_via_revert ... ok\ntest tests::existing::integration_tests::test_contract_gate_allows_runtime_pm_within_floor ... ok\ntest tests::existing::integration_tests::test_n1_t10_negative_no_global_pin ... ok\ntest tests::existing::integration_tests::test_n1_t12_low_battery_on_ac_stays_balanced ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_successful_multi_write_application ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_failure_on_first_write ... ok\ntest tests::existing::integration_tests::test_n1_t13_critical_thermal_overrides_cpu_performance ... ok\ntest tests::existing::integration_tests::test_contract_gate_handles_negative_values_safely ... ok\ntest tests::existing::integration_tests::test_n1_t14_io_pressure_adds_background_io_throttle ... ok\ntest tests::existing::integration_tests::test_contract_gate_blocks_runtime_pm_over_floor ... ok\ntest tests::existing::integration_tests::test_contract_gate_huge_valid_floor_denies_runtime_pm_on_evidence ... ok\ntest tests::existing::integration_tests::test_n1_t15_memory_pressure_protects_user_and_throttles_background ... ok\ntest tests::existing::integration_tests::test_n1_t16_manual_performance_overrides_auto_battery ... ok\ntest tests::existing::integration_tests::test_context_change_retains_still_active_runtime_pm_action ... ok\ntest tests::existing::integration_tests::test_contract_gate_no_floors_permits_ungated_actions ... ok\ntest tests::existing::integration_tests::phase6_runtime_pm_rollback_failure_retains_journal ... ok\ntest tests::existing::integration_tests::test_contract_gate_zero_floor_denies_depth_enablers ... ok\ntest tests::existing::integration_tests::test_n1_t1_class_mapping ... ok\ntest tests::existing::integration_tests::test_contract_gate_no_floors_denies_depth_enablers ... ok\ntest tests::existing::integration_tests::test_n1_t5_explainability ... ok\ntest tests::existing::integration_tests::test_n1_t4_determinism ... ok\ntest tests::existing::integration_tests::test_n1_t17_missing_sensors_choose_safe_balanced ... ok\ntest tests::existing::integration_tests::test_n1_t2_pin_precedence ... ok\ntest tests::existing::integration_tests::test_contract_gate_negative_floor_denies_depth_enablers ... ok\ntest tests::existing::integration_tests::test_n1_t6_absent_foreground ... ok\ntest tests::existing::integration_tests::test_context_change_reverts_removed_runtime_pm_action ... ok\ntest tests::existing::integration_tests::test_n1_t3d_mode_hysteresis_reason_is_explainable ... ok\ntest shim::conflict::tests::conflict_checker_override_is_restored_after_the_closure_returns ... ok\ntest tests::existing::integration_tests::test_n2_t7_fits_contract ... ok\ntest tests::existing::integration_tests::test_n2_t1_resolution ... ok\ntest tests::existing::integration_tests::test_n2_t3_apply_cpu_floor ... ok\ntest tests::existing::integration_tests::test_n2_t8_explainability ... ok\ntest tests::existing::integration_tests::test_n2_t6_no_thrash ... ok\ntest tests::existing::integration_tests::test_n2_t5_fd_release ... ok\ntest shim::conflict::tests::conflict_checker_override_survives_a_panicking_closure ... ok\ntest tests::existing::integration_tests::test_n4_gate_default_denies_unknown_hwid_and_audits ... ok\ntest tests::existing::integration_tests::test_n4_gate_disabled_is_no_op ... ok\ntest tests::existing::integration_tests::test_n2_t4_per_device_revert ... ok\ntest tests::existing::integration_tests::test_n6_policy_emits_storage_pm_only_on_battery_idle ... ok\ntest tests::existing::integration_tests::test_n5_policy_emits_runtime_pm_only_on_battery_idle ... ok\ntest tests::existing::integration_tests::test_n4_gate_allows_allowlisted_hwid ... ok\ntest tests::existing::integration_tests::test_revert_key_ignores_system_wide_knobs ... ok\ntest tests::existing::integration_tests::test_n6_pcie_aspm_default_deny_audits ... ok\ntest tests::existing::integration_tests::test_contract_gate_ignores_non_latency_actions ... ok\ntest tests::existing::integration_tests::test_n7_backlight_default_deny_audits ... ok\ntest tests::existing::integration_tests::test_n5_runtime_pm_default_deny_skips_and_audits ... ok\ntest tests::existing::integration_tests::test_n6_pcie_aspm_skips_cnvi ... ok\ntest tests::existing::integration_tests::test_n6_sata_alpm_allows_journals_and_reverts ... ok\ntest tests::existing::integration_tests::test_n5_runtime_pm_skips_network_carrier_up ... ok\ntest tests::existing::integration_tests::test_revert_key_absent_journal_is_noop ... ok\ntest reconciler::tests::s2d_production_daemon_run_uses_persistent_transaction_protocol ... ok\ntest tests::existing::integration_tests::test_n7_policy_emits_backlight_only_on_battery_idle ... ok\ntest tests::existing::integration_tests::test_n6_pcie_aspm_allows_journals_and_reverts ... ok\ntest tests::existing::integration_tests::test_n7_backlight_allows_floor_clamps_and_reverts ... ok\ntest tests::existing::integration_tests::test_revert_key_ignores_systemd_keys ... ok\ntest tests::existing::optid_safety_tests::curated_baseline_is_conservative ... ok\ntest tests::existing::integration_tests::test_t3_zram_gate ... ok\ntest tests::existing::optid_safety_tests::clear_journal_is_idempotent ... ok\ntest tests::existing::integration_tests::test_t2b_vm_sysctl_writes_revert_journal_entry ... ok\ntest tests::existing::integration_tests::test_t2_failed_real_sysctl_revert_keeps_journal ... ok\ntest tests::existing::integration_tests::test_n7_backlight_never_goes_black ... ok\ntest tests::existing::integration_tests::test_n5_runtime_pm_allows_journals_and_reverts ... ok\ntest tests::existing::optid_safety_tests::malformed_allowlist_disables_dynamic_writes ... ok\ntest tests::existing::optid_safety_tests::crash_after_first_mutation_restart_restores ... ok\ntest tests::existing::optid_safety_tests::allowlist_load_with_state_ok_for_clean_or_missing_dir ... ok\ntest tests::existing::optid_safety_tests::allowlist_load_with_state_partial_for_mixed_valid_invalid ... ok\ntest tests::f3_outcome_matrix::f3_gate_matrix_distinguishes_dry_run_observe_off_and_boot_disarm ... ok\ntest tests::f3_outcome_matrix::f3_observation_matrix_distinguishes_malformed_and_permission_denied_reads ... ok\ntest tests::f2_production_surface::f2_production_daemon_run_consumes_injected_kernel_io ... ok\ntest tests::existing::optid_safety_tests::dry_run_disables_all_writes ... ok\ntest tests::existing::optid_safety_tests::malformed_policy_apply_disables_dynamic_writes ... ok\ntest tests::f3_outcome_matrix::f3_actuator_matrix_reports_missing_unsupported_contract_and_allowlist_denials ... ok\ntest thermal::tests::collect_off_skips_observation ... ok\ntest tests::f3_outcome_matrix::f3_restore_matrix_reports_actual_success_failure_malformed_and_not_applicable ... ok\ntest tests::existing::optid_safety_tests::missing_policy_loads_curated_baseline_only ... ok\ntest tests::f3_outcome_matrix::f3_actuator_matrix_reports_success_failure_readback_drift_and_redundancy ... ok\ntest tests::existing::optid_safety_tests::partial_policy_loads_curated_baseline ... ok\ntest tests::existing::optid_safety_tests::stale_incomplete_journal_deterministic_recovery ... ok\ntest thermal::tests::collect_config_changes_results ... ok\ntest tests::existing::optid_safety_tests::valid_config_enables_dynamic_writes ... ok\ntest thermal::tests::discover_fan_rpm ... ok\ntest thermal::tests::discover_malformed_skipped ... ok\ntest thermal::tests::discover_hwmon_cpu_temp ... ok\ntest thermal::tests::discover_acpi_thermal_zone ... ok\ntest thermal::tests::deterministic_ordering ... ok\ntest thermal::tests::snapshot_unavailable_thermal_c_is_none_despite_legacy_zone ... ok\ntest thermal::tests::t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim ... ok\ntest thermal::tests::snapshot_off_skips_thermal_zone_discovery_and_thermal_c ... ok\ntest thermal::tests::render_includes_sensor_state_ratio_reasons ... ok\ntest thermal::tests::t1_conformance_ambient_does_not_activate_skin_limit ... ok\ntest thermal::tests::t1_conformance_core_maximum_does_not_replace_package_provenance ... ok\ntest thermal::tests::duplicate_hwmon_acpi_dedup ... ok\ntest thermal::tests::t1_conformance_alarm_survives_an_unreadable_temperature ... ok\ntest thermal::tests::t1_conformance_collapse_records_where_a_raised_value_came_from ... ok\ntest thermal::tests::t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm ... ok\ntest thermal::tests::stable_identity_under_hwmon_reorder ... ok\ntest thermal::tests::t1_conformance_distinct_packages_with_same_label_survive_dedup ... ok\ntest thermal::tests::t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped ... ok\ntest thermal::tests::t1_conformance_faulted_and_alarmed_readings_never_yield_cool ... ok\ntest thermal::tests::t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals ... ok\ntest thermal::tests::t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range ... ok\ntest thermal::tests::t1_conformance_maximum_aggregation_is_order_independent ... ok\ntest thermal::tests::t1_conformance_no_die_signal_is_unavailable_despite_other_temps ... ok\ntest thermal::tests::t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct ... ok\ntest thermal::tests::t1_conformance_previous_temperature_is_not_reused_as_current ... ok\ntest thermal::tests::t1_conformance_mapped_alias_collapses_deterministically ... ok\ntest thermal::tests::t1_conformance_invalid_thresholds_fail_closed ... ok\ntest thermal::tests::t1_conformance_status_records_the_effective_thresholds ... ok\ntest thermal::tests::t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name ... ok\ntest thermal::tests::t1_conformance_tdie_preferred_over_tctl_in_provenance ... ok\ntest thermal::tests::t1_production_pipeline_off_mode_zero_thermal_reads ... ok\ntest thermal::tests::thermal_budget_cool_below_lo ... ok\ntest thermal::tests::thermal_budget_constrained_above_hi ... ok\ntest thermal::tests::t1_conformance_same_type_zones_without_device_link_stay_distinct ... ok\ntest thermal::tests::thermal_budget_linear_derating ... ok\ntest thermal::tests::thermal_budget_hw_crit_clamp ... ok\ntest thermal::tests::thermal_budget_disabled_when_mode_off ... ok\ntest thermal::tests::thermal_budget_hysteresis ... ok\ntest thermal::tests::thermal_budget_skin_override ... ok\ntest thermal::tests::thermal_budget_unavailable_on_implausible_temp ... ok\ntest thermal::tests::thermal_budget_unavailable_without_sensors ... ok\ntest thermal::tests::thermal_config_rejects_actuate ... ok\ntest thermal::tests::thermal_config_defaults ... ok\ntest thermal::tests::t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source ... ok\ntest thermal::tests::t1_production_pipeline_collect_to_render ... ok\ntest workload::tests::mode_parse_round_trip ... ok\ntest thermal::tests::thermal_config_rejects_unknown_fields ... ok\ntest workload::tests::test_n1_t3_hysteresis ... ok\ntest workload::tests::test_n1_t3b_mode_hysteresis_delays_auto_transition ... ok\ntest workload::tests::test_n1_t3c_mode_hysteresis_critical_thermal_bypasses_delay ... ok\ntest workload::tests::workload_class_parse_round_trip ... ok\ntest thermal::tests::two_iterations_hysteresis_via_previous ... ok\ntest thermal::tests::t1_conformance_policy_load_rejects_out_of_range_thermal_threshold ... ok\ntest thermal::tests::thermal_budget_derating_never_decreases_as_temperature_rises ... ok\ntest tests::f3_production_surface::f3_production_daemon_run_writes_one_correlated_versioned_cycle ... ok\ntest foreground::tests::subscribe_returns_receiver_that_does_not_yield_in_v0_6 ... ok\ntest sensors::tests::f2_collect_with_real_kernel_does_not_panic ... ok\ntest tests::existing::integration_tests::test_n1_t11_bad_input_garbage ... ok\ntest tests::existing::integration_tests::test_t1_dry_run_no_op ... ok\ntest tests::existing::integration_tests::test_n2_t2_dry_run_no_op ... ok\ntest tests::existing::integration_tests::test_n1_t9_global_pin_loop_boundary_precedence ... ok\n\ntest result: ok. 548 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.03s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 8 tests\ntest runtime_observability::tests::o1_disappearing_devices_are_reported_stale ... ok\ntest runtime_observability::tests::o1_nonadvancing_clock_marks_snapshot_stale_and_suppresses_deltas ... ok\ntest runtime_observability::tests::o1_counter_reset_or_wrap_never_becomes_a_huge_delta ... ok\ntest runtime_observability::tests::o1_runtime_mode_defaults_to_observe_and_parses_off ... ok\ntest runtime_observability::tests::o1_mock_full_state_snapshot_is_deterministic ... ok\ntest runtime_observability::tests::o1_off_mode_performs_no_runtime_reads ... ok\ntest runtime_observability::tests::o1_monotonic_counters_produce_real_deltas ... ok\ntest runtime_observability::tests::o1_permission_error_is_distinct_from_unsupported_and_malformed ... ok\n\ntest result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 14 tests\ntest recovery::tests::canonicalizing_collapses_the_placeholder_to_an_unset_value ... ok\ntest recovery::tests::canonicalizing_leaves_a_real_value_alone ... ok\ntest recovery::tests::canonicalizing_ignores_non_systemd_values ... ok\ntest recovery::systemd_placeholder::tests::the_systemd_unset_placeholder_is_not_a_value ... ok\ntest recovery::systemd_placeholder::tests::an_empty_assignment_is_not_an_explicit_value ... ok\ntest recovery::systemd_placeholder::tests::a_real_systemd_value_is_a_value ... ok\ntest recovery::systemd_placeholder::tests::a_different_property_does_not_match ... ok\ntest recovery::systemd_placeholder::tests::a_real_assignment_is_explicit ... ok\ntest recovery::tests::s3d_recovery_failure_retains_record ... ok\ntest recovery::tests::s3d_recovery_prepared_record_is_idempotent ... ok\ntest recovery::tests::s3d_repeated_recovery_is_idempotent ... ok\ntest recovery::tests::s3d_recovery_refuses_identity_reuse ... ok\ntest recovery::tests::s3d_recovery_restores_intended_value_and_compacts ... ok\ntest recovery::tests::s3d_recovery_drift_relinquishes_without_overwrite ... ok\n\ntest result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest s1d_contract_cli_checks_registry_through_production_surface ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n\nrunning 3 tests\ntest o1_production_off_mode_reports_zero_runtime_reads ... ok\ntest o1_production_status_surfaces_runtime_observability ... ok\ntest o1_production_repeated_sampling_reports_live_state_not_stale ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s\n\n\nrunning 4 tests\ntest s3d_recovery_binary_has_no_policy_or_async_surface ... ok\ntest s3d_recovery_cli_recovers_before_success_exit ... ok\ntest recovery_retains_unresolved_or_invalid_records_for_missing_targets ... ok\ntest recovery_relinquished_records_never_touch_removed_or_replaced_targets ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n\nrunning 2 tests\ntest s3d_failed_recovery_prevents_automatic_actuation_restart_loop ... ok\ntest s3d_apply_unit_orders_recovery_before_daemon ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 3 tests\ntest s4d_apply_unit_restarts_only_through_supervised_recovery_graph ... ok\ntest s4d_startup_seals_before_any_worker_or_dbus_input ... ok\ntest s4d_topology_rebuild_hands_back_before_status_75 ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 45 tests\ntest contracts::status_tests::reads_the_nested_v2_schema ... ok\ntest contracts::status_tests::a_status_without_a_class_is_an_error_naming_the_schema ... ok\ntest contracts::status_tests::missing_latency_floors_are_none_not_zero ... ok\ntest counter_guard_tests::an_implausible_step_is_refused ... ok\ntest counter_guard_tests::an_unmoved_counter_on_ac_is_not_treated_as_a_battery_artifact ... ok\ntest preset::tests::generated_project_is_byte_identical_across_calls ... ok\ntest preset::tests::mangohud_log_skips_blank_and_partial_rows ... ok\ntest preset::tests::mangohud_log_without_a_frametime_column_yields_nothing ... ok\ntest preset::tests::mangohud_log_yields_per_frame_microseconds ... ok\ntest preset::tests::metric_units_scale_milli_units_back_to_declared_units ... ok\ntest counter_guard_tests::a_battery_window_that_did_not_move_is_refused ... ok\ntest contracts::status_tests::still_reads_the_flat_v1_schema ... ok\ntest counter_guard_tests::a_plausible_discharge_is_accepted ... ok\ntest preset::tests::ninja_progress_ignores_non_progress_lines ... ok\ntest preset::tests::ninja_progress_of_a_build_that_never_started_is_zero ... ok\ntest contracts::status_tests::non_json_is_rejected ... ok\ntest preset::tests::ninja_progress_reports_the_highest_completed_edge_count ... ok\ntest preset::tests::object_count_of_a_missing_directory_is_zero ... ok\ntest preset::tests::pinned_matching_class_is_recorded_as_pinned ... ok\ntest preset::tests::pinned_mismatch_is_pin_ineffective_not_class_mismatch ... ok\ntest preset::tests::policy_load_failure_flags_a_silent_fallback_to_the_curated_baseline ... ok\ntest preset::tests::policy_load_failure_is_none_when_no_daemon_answered ... ok\ntest preset::tests::policy_load_failure_is_none_when_the_policy_loaded_cleanly ... ok\ntest preset::tests::object_files_are_counted_and_other_files_ignored ... ok\ntest preset::tests::preset_rejects_unknown_names ... ok\ntest preset::tests::preset_covers_every_load_producing_class ... ok\ntest preset::tests::preset_walks_the_five_specified_phases_in_order ... ok\ntest preset::tests::scale_of_one_keeps_the_specified_duration ... ok\ntest preset::tests::scaling_shortens_windows_but_never_below_one_second ... ok\ntest preset::tests::unpinned_matching_class_has_no_anomaly ... ok\ntest preset::tests::unpinned_mismatch_is_class_mismatch ... ok\ntest tests::test_t1_energy_probe_wrap_ac_switch_rejection ... ok\ntest preset::tests::throughput_oversubscribes_the_cpu_count ... ok\ntest tests::test_t2_energy_probe_arithmetic ... ok\ntest tests::test_t4_schema_freeze ... ok\ntest tests::test_t9_avg_watts_positive ... ok\ntest tests::test_report_energy_analysis_workload_filter ... ok\ntest tests::test_t7_provenance_completeness ... ok\ntest tests::test_t10_real_energy_advance ... ok\ntest tests::test_t3_class_readback_enforcement ... ok\ntest tests::test_t5_n_less_than_5_honesty ... ok\ntest tests::test_t6_real_energy_extension_does_not_bloat_samples ... ok\ntest tests::test_t8_latency_critical_honesty_path ... ok\ntest tests::test_t9_energy_detection_priority ... ok\ntest tests::test_t9_host_reject_when_no_energy_counter ... ok\n\ntest result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.23s\n\n\nrunning 51 tests\n\n===============================================\n  testOS \u2014 recovery screen\n===============================================\n\n  Failure code:        E001\n  Category:            USB not found\n  What happened:       The USB partition (label RUSHESP) was not found within the retry window.\n  Safe next action:    Re-prepare the USB on the host (tools/livedev-next --prepare-usb), then reboot from it.\n\n  Local diagnostics (private, NOT submitted):\n    /PRIVATE-DIAGNOSTICS/run-1\n\n  Review them with:\n    python3 tools/testos-diagnostics.py inspect <USB>/PRIVATE-DIAGNOSTICS/run-1\n\n  Rebooting in 10 seconds (Ctrl-C to stay on this screen).\n===============================================\n\n\u001b[31m===============================================\u001b[0m\n\u001b[1m  testOS \u2014 recovery screen\u001b[0m\n\u001b[31m===============================================\u001b[0m\n\n  \u001b[2mFailure code:\u001b[0m        \u001b[31mE099\u001b[0m\n  \u001b[2mCategory:\u001b[0m            \u001b[33mrunner internal error\u001b[0m\n  \u001b[2mWhat happened:\u001b[0m       \u001b[0mThe runner hit an internal error while executing the benchmark plan.\u001b[0m\n  \u001b[2mSafe next action:\u001b[0m    Review the private diagnostics on the USB (tools/testos-diagnostics.py inspect), then report the failure code.\n\n  Local diagnostics (private, NOT submitted):\n    \u001b[2m/PRIVATE-DIAGNOSTICS/run-1\u001b[0m\n\n  Review them with:\n    python3 tools/testos-diagnostics.py inspect <USB>/PRIVATE-DIAGNOSTICS/run-1\n\n  \u001b[33mRebooting in 10 seconds\u001b[0m (Ctrl-C to stay on this screen).\n\u001b[31m===============================================\u001b[0m\ntest recovery::tests::codes_are_stable_short_strings ... ok\ntest private_diag::tests::verify_catches_missing_file ... ok\ntest private_diag::tests::ensure_dir_creates_marker_and_directory ... ok\ntest private_diag::tests::sanitize_run_id_accepts_safe_tokens ... ok\ntest private_diag::tests::marker_text_works_without_failure_code ... ok\ntest private_diag::tests::private_diag_dir_never_under_testos_results ... ok\ntest private_diag::tests::verify_catches_empty_without_sidecar ... ok\ntest private_diag::tests::sanitize_run_id_rejects_traversal ... ok\ntest recovery::tests::recovery_screen_has_no_raw_identifiers ... ok\ntest recovery::tests::print_recovery_screen_does_not_panic_with_plain_palette ... ok\ntest recovery::tests::no_acpi_blocking_category_exists ... ok\ntest recovery::tests::recovery_screen_contains_code_and_next_action ... ok\ntest private_diag::tests::verify_accepts_empty_with_sidecar ... ok\ntest private_diag::tests::marker_text_contains_warning_and_run_id ... ok\ntest private_diag::tests::private_diag_dir_layout ... ok\ntest recovery::tests::usb_side_categories_classified_correctly ... ok\ntest recovery::tests::recovery_screen_points_to_private_diagnostics ... ok\ntest recovery::tests::print_recovery_screen_does_not_panic_with_colored_palette ... ok\ntest recovery::tests::recovery_screen_has_no_root_shell ... ok\ntest run_intent::tests::parse_iso8601_roundtrip ... ok\ntest run_intent::tests::safe_token_patterns ... ok\ntest run_intent::tests::semver_patterns ... ok\ntest private_diag::tests::capture_one_writes_output ... ok\ntest run_intent::tests::sha256_known_vectors ... ok\ntest-bench\ntest tui::tests::format_elapsed_over_minute ... ok\ntest tui::tests::catalog_with_significance_loads ... ok\ntest tui::tests::backward_compat_catalog_without_significance_loads ... ok\ntest-bench\ntest tui::tests::format_elapsed_under_minute ... ok\ntest tui::tests::overall_percent_uses_completed_count_only ... ok\ntest tui::tests::measures_text_returns_notes_trimmed ... ok\ntest tui::tests::palette_for_output_disabled_when_not_tty ... ok\ntest tui::tests::palette_for_output_enabled_when_tty_and_no_no_color ... ok\ntest tui::tests::overall_percent_never_exceeds_100 ... ok\ntest tui::tests::progress_position_formats_correctly ... ok\ntest tui::tests::palette_colored_has_escapes ... ok\ntest tui::tests::overall_percent_zero_when_total_zero ... ok\ntest tui::tests::palette_for_output_disabled_when_no_color ... ok\ntest tui::tests::significance_empty_when_both_absent ... ok\ntest tui::tests::palette_plain_has_no_escapes ... ok\ntest tui::tests::significance_falls_back_to_notes_when_absent ... ok\ntest tui::tests::significance_ignores_whitespace_only_significance ... ok\ntest-bench\ntest tui::tests::status_word_has_label_and_color ... ok\ntest tui::tests::status_word_plain_renders_just_label ... ok\ntest private_diag::tests::capture_one_handles_missing_command ... ok\ntest tui::tests::significance_uses_significance_when_present ... ok\ntest private_diag::tests::capture_one_records_failure_sidecar ... ok\ntest tui::tests::spinner_lifecycle_stops_on_drop ... ok\ntest tui::tests::spinner_lifecycle_stops_on_explicit_stop ... ok\ntest tui::tests::spinner_renders_at_least_one_frame_when_alive_long_enough ... ok\ntest private_diag::tests::capture_all_does_not_dump_firmware_or_disks ... ok\ntest private_diag::tests::capture_all_writes_runner_exit ... ok\n\ntest result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.77s\n\n\nrunning 16 tests\ntest tests::is_strictly_under_rejects_sibling ... ok\ntest tests::safe_segment_accepts_valid_date ... ok\ntest tests::is_strictly_under_accepts_descendant ... ok\ntest tests::safe_segment_accepts_max_reasonable_length ... ok\ntest tests::safe_segment_accepts_timestamp_with_colons ... ok\ntest tests::safe_segment_accepts_valid_host_fingerprint ... ok\ntest tests::is_strictly_under_rejects_traversal_string ... ok\ntest tests::safe_segment_blocks_audit_attack_vectors ... ok\ntest tests::safe_segment_rejects_backslash_traversal ... ok\ntest tests::safe_segment_rejects_dot ... ok\ntest tests::safe_segment_rejects_dot_dot ... ok\ntest tests::safe_segment_rejects_empty ... ok\ntest tests::safe_segment_rejects_leading_dash ... ok\ntest tests::safe_segment_rejects_nul_byte ... ok\ntest tests::safe_segment_rejects_spaces_and_shell_metacharacters ... ok\ntest tests::safe_segment_rejects_traversal_with_slash ... ok\n\ntest result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/validate-current-work.py"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "OK: docs/plans/current-work.md matches the optid ledger and agent entry points.\n"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/validate-optid-packages.py"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "PASS: optid package ledger and change contract are truthful\n"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/validate-optid-packages.py",
+      "--base",
+      "origin/main"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "PASS: optid package ledger and change contract are truthful\n"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/render-frontpage.py",
+      "--check"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "OK: README practical guide matches repository truth.\n"
+  },
+  {
+    "command": [
+      "bash",
+      "tools/finish-work.sh",
+      "--dry-run"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "Nothing to finish: the working tree is clean.\n"
+  },
+  {
+    "command": [
+      "bash",
+      "tools/checks.sh",
+      "--ci",
+      "--changed-base",
+      "origin/main"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "Rush checks: section=all mode=changed base=origin/main\n\n>> git diff --check origin/main...HEAD\n   Protects: R5 \u2014 whitespace or conflict-marker damage entered the patch\n\n>> git diff --check\n   Protects: R5 \u2014 uncommitted whitespace damage entered the patch\n\n>> python3 tools/check-workflow-safety.py\n   Protects: R4/R8 \u2014 automation can merge or project truth is unsafe\nOK: no self-merge or auto-merge command found in repository automation\n\n>> python3 tools/check-repo-hygiene.py --base origin/main\n   Protects: R5/R8 \u2014 generated or compiled output entered source control\nOK: changed files contain no generated artifacts, misplaced root reports, or private key material\n\n>> python3 tools/validate-versions.py\n   Protects: R8 \u2014 public versions contradict canonical release truth\n============================================================\nRush Linux \u2014 Version Consistency Check\n============================================================\n\nVERSION file:              0.7.0-beta.4\nCargo.toml workspace:      0.7.0-beta.4\nROADMAP.md:                0.7.0-beta.4\nmilestones.toml:           0.7.0-beta.4\nREADME 'Latest release':   0.7.0-beta.4\nREADME badge:              0.7.0-beta.4\n\n------------------------------------------------------------\nPASSED: All versions consistent\n------------------------------------------------------------\n\n>> python3 tools/validate-doc-sync.py\n   Protects: R8 \u2014 documentation is missing or contradicts canonical sources\n\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n\u2551     Rush Linux \u2014 Documentation Sync Validation          \u2551\n\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n  \u2705 docmap.toml loaded: 40 active doc entries\n\n\u2500\u2500 Check: All registered docs exist \u2500\u2500\n  \u2705 AGENTS.md\n  \u2705 CLAUDE.md\n  \u2705 CONTRIBUTING.md\n  \u2705 OPTID-COMPLETION-PLAN.md\n  \u2705 README.md\n  \u2705 RELEASES.md\n  \u2705 ROADMAP.md\n  \u2705 SECURITY.md\n  \u2705 docs/IMPLEMENTATION_STATUS.md\n  \u2705 docs/SPEC-northstar.md\n  \u2705 docs/SUMMARY.md\n  \u2705 docs/adaptive-engine.md\n  \u2705 docs/agent-protocol.md\n  \u2705 docs/ai-interface-policy.md\n  \u2705 docs/architecture.md\n  \u2705 docs/architecture/optid-d2-amendment.md\n  \u2705 docs/automation-human-interface.md\n  \u2705 docs/boot-and-updates.md\n  \u2705 docs/build-system.md\n  \u2705 docs/decisions/README.md\n  \u2705 docs/documentation-policy.md\n  \u2705 docs/hardware-support.md\n  \u2705 docs/how-rush-is-built.md\n  \u2705 docs/kernel-policy.md\n  \u2705 docs/livedev-developer-guide.md\n  \u2705 docs/livedev-user-guide.md\n  \u2705 docs/livedev/OPERATOR_RUNBOOK.md\n  \u2705 docs/packaging-and-builds.md\n  \u2705 docs/plans/optid-package-status.toml\n  \u2705 docs/plans/optid-verification/README.md\n  \u2705 docs/project-workflow.md\n  \u2705 docs/release-checklist.md\n  \u2705 docs/release-policy.md\n  \u2705 docs/research/README.md\n  \u2705 docs/testing-and-benchmarks.md\n  \u2705 docs/validation.md\n  \u2705 docs/versioning.md\n  \u2705 release/evidence/README.md\n  \u2705 release/milestones.toml\n  \u2705 testos/README.md\n\n\u2500\u2500 Check: Research discoverability \u2500\u2500\n  \u2705 Every numbered research paper is indexed\n\n\u2500\u2500 Check: All active-doc dependencies resolve \u2500\u2500\n\n\u2500\u2500 Check: Version consistency \u2500\u2500\n  \u2705 VERSION file: 0.7.0-beta.4\n  \u2705 docs/IMPLEMENTATION_STATUS.md contains version 0.7.0-beta.4\n  \u2705 ROADMAP.md contains version 0.7.0-beta.4\n\n\u2500\u2500 Check: ADR status validity \u2500\u2500\n  \u2705 ADR 0001-systemd-cgroup-v2.md: Status accepted\n  \u2705 ADR 0002-wayland-pipewire.md: Status accepted\n  \u2705 ADR 0003-uki-rollback.md: Status accepted\n  \u2705 ADR 0004-adaptive-optid.md: Status accepted\n  \u2705 ADR 0005-avoid-obsolete-defaults.md: Status accepted\n  \u2705 ADR 0006-performance-tweaks.md: Status accepted\n  \u2705 ADR 0007-project-and-dbus-naming.md: Status accepted\n  \u2705 ADR 0008-software-delivery-and-packaging.md: Status proposed\n  \u2705 ADR 0009-optid-security-boundary.md: Status proposed\n  \u2705 ADR 0010-realtime-edition-kernel-policy.md: Status proposed\n  \u2705 ADR 0011-benchmark-methodology.md: Status proposed\n  \u2705 ADR 0012-reproducible-build-discipline.md: Status proposed\n  \u2705 ADR 0013-detection-and-ml-boundary.md: Status proposed\n  \u2705 ADR 0014-image-composition-mkosi-arch.md: Status proposed\n  \u2705 ADR 0015-sched-ext-default-on.md: Status proposed\n  \u2705 ADR 0016-retire-epic-issues-to-spec.md: Status accepted\n  \u2705 ADR 0017-rush-telemetry-fate.md: Status proposed\n  \u2705 ADR 0018-rush-livedev-architecture-contract.md: Status proposed\n  \u2705 ADR 0019-rush-exec-rush-capture.md: Status proposed\n  \u2705 ADR 0020-rush-planner.md: Status proposed\n  \u2705 ADR 0021-rush-runner.md: Status proposed\n  \u2705 ADR 0022-rush-ai-harness.md: Status proposed\n  \u2705 ADR 0023-livedev-image.md: Status proposed\n  \u2705 ADR 0024-livedev-pr-submission.md: Status superseded\n  \u2705 ADR 0025-risk-based-project-workflow.md: Status accepted\n  \u2705 ADR 0026-optid-t1-thermal-sensor-and-threshold-policy.md: Status accepted\n\n\u2500\u2500 Check: Stale pattern detection \u2500\u2500\n  \u2705 README.md: no stale phrase 'next implementation step is replacing file-based c...'\n  \u2705 README.md: no stale phrase 'currently talks through the state directory...'\n  \u2705 README.md: no stale phrase 'code-complete; Phase D hardware-gated...'\n  \u2705 README.md: no stale phrase 'restores every knob it touched...'\n  \u2705 README.md: no stale phrase 'Nothing is permanently changed on your system...'\n\n\u2500\u2500 Check: Markdown link resolution \u2500\u2500\n  \u2705 All internal links in 11 key docs resolve\n\n\u2500\u2500 Check: active optid plan and package ledger \u2500\u2500\n  \u2705 optid package ledger records PR #322 provenance for non-safety packages\n  \u2705 worker contract and AGENTS.md require amendment-first, reference-on-demand reading\n  \u2705 optid package ledger contains 30 unique packages\n  \u2705 active_general is T1 (merged_incomplete)\n  \u2705 active_safety is O1 (candidate)\n  \u2705 D2 is accepted and superseded S1-S3 package headings are absent\n  \u2705 README derives active repairs, incomplete packages, D2, and the ledger\n\n\u2500\u2500 Check: optid code \u2194 doc sync \u2500\u2500\n  \u2705 optid 'zbus' \u2194 adaptive-engine.md 'D-Bus'\n\n\u2500\u2500 Check: last_verified freshness (max 90 days) \u2500\u2500\n  \u2705 All docs verified within 90 days\n\n\u2500\u2500 Check: ADR citations resolve \u2500\u2500\n  \u2705 All ADR citations in docs/ resolve\n\n============================================================\n\u2705 PASSED: 0 errors, 0 warning(s)\nAll documentation is in sync.\n\n>> python3 tools/check-docs-impact.py --base origin/main\n   Protects: R8 \u2014 a user-facing change has no matching guide update\nOK: No files changed.\n\n>> python3 tools/render-frontpage.py --check\n   Protects: R8 \u2014 the generated practical README is stale\nOK: README practical guide matches repository truth.\n\n>> python3 tools/validate-optid-packages.py --base origin/main\n   Protects: R1/R5 \u2014 optid package claims outrun integrated, verified behavior\nPASS: optid package ledger and change contract are truthful\n\n>> python3 tools/validate-evidence.py\n   Protects: R1 \u2014 a verified or release claim lacks matching proof\n============================================================\nRush Linux \u2014 Evidence Integrity Check (Dragnet gate)\n============================================================\n\n\u2500\u2500 Check: transcript reuse (advisory) \u2500\u2500\n  \u26a0  byte-identical transcript (md5 0f1a7486) cited by 5 criteria: 0.3.0-alpha.1/minimal VM boots to multi-user.target, 0.3.0-alpha.1/cgroup v2 and PSI are active, 0.3.0-alpha.1/optid.service starts, 0.3.0-alpha.1/nftables.conf loads, 0.4.0-alpha.1/VM boots through UKI\n  \u26a0  byte-identical transcript (md5 447c3d9c) cited by 3 criteria: 0.4.0-alpha.1/three rollback entries are retained, 0.4.0-alpha.1/simulated bad kernel rolls back, 0.5.0-beta.1/update and rollback tests pass\n\n------------------------------------------------------------\nPASSED: all verified criteria carry resolving transcripts; no dangling evidence citations\n------------------------------------------------------------\n\n>> pwsh -NoProfile -File tools/validate-repo.ps1\n   Protects: R4/R8 \u2014 a core invariant or unratified decision slipped in\nRush Linux repository validation passed.\n\nPASS: selected Rush checks passed.\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::discover_hwmon_cpu_temp",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::discover_hwmon_cpu_temp ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::discover_acpi_thermal_zone",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::discover_acpi_thermal_zone ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::discover_fan_rpm",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::discover_fan_rpm ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::thermal_budget_unavailable_without_sensors",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::thermal_budget_unavailable_without_sensors ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::thermal_budget_linear_derating",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::thermal_budget_linear_derating ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::thermal_budget_derating_never_decreases_as_temperature_rises",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::thermal_budget_derating_never_decreases_as_temperature_rises ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::two_iterations_hysteresis_via_previous",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::two_iterations_hysteresis_via_previous ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::collect_off_skips_observation",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::collect_off_skips_observation ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::snapshot_off_skips_thermal_zone_discovery_and_thermal_c",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::snapshot_off_skips_thermal_zone_discovery_and_thermal_c ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::collect_config_changes_results",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::collect_config_changes_results ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::render_includes_sensor_state_ratio_reasons",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::render_includes_sensor_state_ratio_reasons ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::deterministic_ordering",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::deterministic_ordering ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_production_pipeline_collect_to_render",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_production_pipeline_collect_to_render ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_production_pipeline_off_mode_zero_thermal_reads",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_production_pipeline_off_mode_zero_thermal_reads ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_no_die_signal_is_unavailable_despite_other_temps",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_no_die_signal_is_unavailable_despite_other_temps ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_acpitz_and_ordinal_channels_are_not_die_signals ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_distinct_packages_with_same_label_survive_dedup",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_distinct_packages_with_same_label_survive_dedup ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_mapped_alias_collapses_deterministically",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_mapped_alias_collapses_deterministically ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_tdie_preferred_over_tctl_in_provenance",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_tdie_preferred_over_tctl_in_provenance ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_faulted_and_alarmed_readings_never_yield_cool",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_faulted_and_alarmed_readings_never_yield_cool ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_ambient_does_not_activate_skin_limit",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_ambient_does_not_activate_skin_limit ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_invalid_thresholds_fail_closed",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_invalid_thresholds_fail_closed ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_policy_load_rejects_out_of_range_thermal_threshold",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_policy_load_rejects_out_of_range_thermal_threshold ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_previous_temperature_is_not_reused_as_current",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_previous_temperature_is_not_reused_as_current ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_maximum_aggregation_is_order_independent",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_maximum_aggregation_is_order_independent ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_low_crit_fails_closed_instead_of_inventing_a_range ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_core_maximum_does_not_replace_package_provenance",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_core_maximum_does_not_replace_package_provenance ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_skin_requires_a_labelled_channel_not_a_chip_name ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_alarm_survives_an_unreadable_temperature",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_alarm_survives_an_unreadable_temperature ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_policy_facing_temperature_never_comes_from_a_non_die_source ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_die_eligibility_is_driver_scoped_not_label_scoped ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_duplicate_collapse_keeps_the_maximum_and_the_alarm ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_hwmon_nodes_without_a_device_link_stay_distinct ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_status_records_the_effective_thresholds",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_status_records_the_effective_thresholds ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_collapse_records_where_a_raised_value_came_from",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_collapse_records_where_a_raised_value_came_from ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_same_type_zones_without_device_link_stay_distinct",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_same_type_zones_without_device_link_stay_distinct ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "optid",
+      "--bin",
+      "optid",
+      "thermal::tests::t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim",
+      "--",
+      "--exact"
+    ],
+    "passed": true,
+    "returncode": 0,
+    "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/main.rs (target/debug/deps/optid-2a1ffb76bab26a4c)\n",
+    "stdout": "\nrunning 1 test\ntest thermal::tests::t1_conformance_alarm_anywhere_defeats_a_full_headroom_claim ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s\n\n"
+  }
+]
