@@ -132,7 +132,8 @@ If a ratified online AI provider is configured:
    creates a branch, commits the evidence, pushes, and opens a PR.
 4. The PR body includes: goal, plan, execution record, evidence paths,
    inferred verdict, and "Awaiting Verifier review."
-5. **The PR opens for maintainer review.** The maintainer reviews and merges.
+5. **Independent review follows submission.** The coordinating agent obtains
+   review and merges eligible work under [the agent protocol](agent-protocol.md).
 
 ## Code PR flow
 
@@ -140,9 +141,10 @@ If a ratified online AI provider is configured:
    would be committed.
 2. `rush-autopilot submit-code-pr --branch <name>` creates a PR.
 3. CI runs all validation checks (schema, evidence, privacy, release truth).
-4. **The PR opens for maintainer review.** The maintainer reviews and merges.
+4. **Independent review follows submission.** The coordinating agent obtains
+   review and merges eligible work under [the agent protocol](agent-protocol.md).
 
-## What is NEVER automated
+## What the LiveDev tools cannot do
 
 - **Merging PRs** — LiveDev cannot merge its own submission. A coordinating
   agent can integrate it after independent review under

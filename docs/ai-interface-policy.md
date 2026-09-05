@@ -1,5 +1,12 @@
 # AI Interface Policy
 
+Scope update: this document's text-model and collector restrictions describe
+the bounded LiveDev harness. They are not a second constitution for coordinating
+agents. [ADR 0027](decisions/0027-delegated-reviewed-merges.md) and
+[the agent protocol](agent-protocol.md) govern independent agent review,
+evidence-backed repository edits and delegated integration. They supersede
+conflicting project-wide wording below without expanding the harness's tools.
+
 > **Status:** proposed (binding on LiveDev work once ADR 0018 is ratified;
 > descriptive for the rest of the project until then).
 > **Owners:** maintainer of record.
@@ -331,8 +338,9 @@ or in a plan file, but the file modification is a final-approval action
 
 ### 8.1 The Evidence Rule restated
 
-The Evidence Rule in `docs/agent-protocol.md` says: a checkmark may only
-appear next to an embedded command transcript. This policy extends it: AI
+The Evidence Rule in `docs/agent-protocol.md` requires proof appropriate to the
+claim, including its applicable package or hardware protocol. Within this
+bounded LiveDev harness, AI
 may not add the checkmark, AI may not remove the checkmark, and AI may not
 edit the transcript to which the checkmark refers. The checkmark is the
 Verifier's (or the Human's) alone; the transcript is the Builder's (or the

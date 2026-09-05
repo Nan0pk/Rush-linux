@@ -114,7 +114,7 @@ After the test machine reboots back to its host OS:
 6. **Resume collection** (`--resume`): validates every checkpoint path beneath the persistent Rush run root, scans USB partitions, and copies only the result whose `run_id` and checkpoint nonce match the pre-reboot checkpoint. The pre-reboot inventory is copied into the final bundle and the USB plan must hash-match the persistent plan.
 7. **Validate results.** Runs the strict testOS validator: schema, provenance, image/plan/catalog/result hashes, path safety, privacy, and unexpected-file allow-list. Any failure blocks submission.
 8. **Submit dry-run** (default): runs `tools/rush-submit-evidence` in dry-run mode. No push, no PR, no merge.
-9. **Submit real** (`--submit`): uses the same unified tool to open a draft evidence PR. No merge API call is made. A maintainer reviews and merges.
+9. **Submit real** (`--submit`): uses the same unified tool to open a draft evidence PR. The collector makes no merge API call. The coordinating agent obtains independent review and merges eligible work under [the agent protocol](../agent-protocol.md).
 
 ## USB creation
 
@@ -207,7 +207,8 @@ The script:
 5. Pushes without putting tokens in URLs or process arguments.
 6. Opens a draft PR and prints its URL.
 
-No merge API call is made. The PR is opened for maintainer review.
+The collector makes no merge API call. Independent review and integration follow
+[the agent protocol](../agent-protocol.md).
 
 ## Token timing
 
@@ -221,7 +222,10 @@ Do not set the token in the environment before that point. The token needs: Cont
 
 ## No auto-merge
 
-The LiveDev one-command path never calls the GitHub merge API. The PR is opened and left for a maintainer to review and merge. This is enforced in three places:
+The LiveDev one-command path never calls the GitHub merge API. A coordinating
+agent can merge the resulting PR after independent review under
+[the agent protocol](../agent-protocol.md). The collector-only containment is
+enforced in three places:
 
 1. `tools/livedev-bootstrap.sh` and `tools/livedev-bootstrap.ps1` do not invoke `PUT /pulls/{n}/merge`.
 2. `tools/rush_pr_lib.py` (submission-only; independent integration follows the agent protocol) is the underlying PR library used by `livedev-next --submit`.
