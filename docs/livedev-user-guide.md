@@ -144,7 +144,9 @@ If a ratified online AI provider is configured:
 
 ## What is NEVER automated
 
-- **Merging PRs** — only the human maintainer merges to `main`.
+- **Merging PRs** — LiveDev cannot merge its own submission. A coordinating
+  agent can integrate it after independent review under
+  [the agent protocol](agent-protocol.md).
 - **Marking milestones verified** — only the human maintainer flips
   `verified = true` in `release/milestones.toml`.
 - **Modifying release truth** — VERSION, RELEASES.md, milestones.toml,

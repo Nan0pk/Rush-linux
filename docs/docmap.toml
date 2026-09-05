@@ -17,35 +17,35 @@ purpose = "Practical user entry point and generated current status"
 owner_area = "area:docs"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/rush-host-bench.sh", "tools/start-work.sh", "tools/finish-work.sh", "tools/build-mkosi-image.sh"]
 deps = ["docs/frontpage/project.toml", "VERSION", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-26"
+last_verified = "2026-09-05"
 
 [docs."CONTRIBUTING.md"]
 purpose = "Contributor entry path and pull-request expectations"
 owner_area = "area:docs"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh"]
 deps = ["AGENTS.md", "docs/project-workflow.md", "docs/documentation-policy.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."AGENTS.md"]
 purpose = "Canonical agent constitution and authority order"
 owner_area = "area:governance"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh"]
 deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."CLAUDE.md"]
 purpose = "Thin compatibility pointer to the canonical agent constitution"
 owner_area = "area:governance"
 covers_code = []
 deps = ["AGENTS.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/SPEC-northstar.md"]
 purpose = "Product objective and non-negotiable invariants"
 owner_area = "area:architecture"
 covers_code = ["crates/", "packaging/", "mkosi/"]
 deps = []
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/IMPLEMENTATION_STATUS.md"]
 purpose = "Detailed implemented, partial, and missing capability inventory"
@@ -108,7 +108,7 @@ purpose = "Source-to-image overview"
 owner_area = "area:packaging"
 covers_code = ["Cargo.toml", "mkosi/", "packaging/", "distro/"]
 deps = ["docs/build-system.md", "docs/architecture.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/packaging-and-builds.md"]
 purpose = "Packaging layout, image composition, and release artifacts"
@@ -143,7 +143,7 @@ purpose = "Local and CI validation commands"
 owner_area = "area:testing"
 covers_code = ["tools/checks.sh", ".github/workflows/ci.yml"]
 deps = ["docs/project-workflow.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/versioning.md"]
 purpose = "Version-number rules"
@@ -192,56 +192,56 @@ purpose = "Architecture decision index and status rules"
 owner_area = "area:architecture"
 covers_code = []
 deps = []
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/project-workflow.md"]
 purpose = "Risk-based path from intent to release"
 owner_area = "area:governance"
 covers_code = ["tools/checks.sh", ".github/workflows/ci.yml"]
 deps = ["AGENTS.md", "docs/agent-protocol.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/agent-protocol.md"]
 purpose = "Builder, verifier, and human claim boundaries"
 owner_area = "area:governance"
 covers_code = ["tools/validate-evidence.py", "tools/validate-optid-packages.py"]
 deps = ["AGENTS.md", "docs/project-workflow.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/automation-human-interface.md"]
 purpose = "LiveDev automation and human-control boundary"
 owner_area = "area:livedev"
 covers_code = ["tools/rush-autopilot", "tools/rush-livedev-orchestrator", "tools/livedev-next"]
 deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/ai-interface-policy.md"]
 purpose = "AI harness policy for LiveDev"
 owner_area = "area:livedev"
 covers_code = ["tools/rush-agent", "tools/rush-autopilot"]
 deps = ["docs/automation-human-interface.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/livedev/OPERATOR_RUNBOOK.md"]
 purpose = "Authoritative LiveDev operator procedure"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1", "tools/livedev-next"]
 deps = ["docs/livedev-user-guide.md", "testos/README.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/livedev-user-guide.md"]
 purpose = "LiveDev end-user guide"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-bootstrap.sh", "tools/livedev-bootstrap.ps1"]
 deps = ["docs/livedev/OPERATOR_RUNBOOK.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/livedev-developer-guide.md"]
 purpose = "LiveDev implementation and test guide"
 owner_area = "area:livedev"
 covers_code = ["tools/livedev-", "tools/rush_livedev_", "testos/"]
 deps = ["docs/decisions/0018-rush-livedev-architecture-contract.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."testos/README.md"]
 purpose = "testOS build and fallback operator guide"
@@ -255,7 +255,7 @@ purpose = "Active optid construction plan"
 owner_area = "area:optid"
 covers_code = ["crates/optid/", "crates/optctl/"]
 deps = ["docs/architecture/optid-d2-amendment.md", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/architecture/optid-d2-amendment.md"]
 purpose = "Accepted fail-passive safety architecture"

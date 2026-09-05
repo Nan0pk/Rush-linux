@@ -49,7 +49,8 @@ A maintainer ratifies by editing the ADR to:
 ## Current status
 
 Read each ADR's `Status:` line; the set changes as the project develops. ADR
-0025 is the accepted project-workflow and check model. Proposed ADRs remain
+0025 is the accepted check model; ADR 0027 updates its merge authority and
+independent review requirement. Proposed ADRs remain
 non-binding until the maintainer adds an explicit `Ratified-by:` line.
 
 ## Adding a new ADR

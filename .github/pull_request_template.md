@@ -37,4 +37,9 @@ Answer these for every optid behavior change:
 2. What happens when required input is missing, malformed, or stale?
 3. Which production entrypoint does each integration test execute?
 
-Automation never merges this PR.
+## Independent review and integration
+
+The coordinating agent records an independent review of the current head and
+base, resolves findings, verifies required checks, and merges eligible work
+under `docs/agent-protocol.md`. Record reviewer task/session, scope, findings,
+checks and limitations in a review on the PR. The builder cannot self-approve.

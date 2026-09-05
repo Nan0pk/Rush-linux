@@ -17,7 +17,8 @@ For safety work, read the amendment first:
 
 - Do not invent branches, pull requests, tests, or evidence.
 - Do not bypass the package ledger or claim completion from isolated tests.
-- Do not merge; only the human maintainer merges.
+- Do not self-approve or bypass checks. Obtain independent review and perform
+  eligible delegated merges using [the agent protocol](agent-protocol.md).
 - Do not duplicate project policy in provider-specific hooks or command files.
 
 Validate changes with:

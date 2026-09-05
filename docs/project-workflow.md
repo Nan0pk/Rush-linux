@@ -27,11 +27,11 @@ important without making every small change wait for a research project.
 7. Self-check
    The builder runs the checks relevant to the changed files
         |
-8. Independent proof — only for high-risk or release claims
-   Cold review, hardware evidence, security review, or release verification
+8. Independent review
+   Accuracy and completeness; additional proof for high-risk claims
         |
-9. Human merge
-   Automation never merges
+9. Delegated merge
+   Coordinator checks current review and CI, merges, then continues
         |
 10. Observe
     Learn from real use and feed results back into research and decisions
@@ -74,7 +74,7 @@ Proof blocks only the action that depends on the missing proof.
 |---|---|---|
 | Hardware safety result | Automatic writes and trusted allowlist promotion | Read-only detection, dry-run output, simulation, evidence collection |
 | Performance benchmark | Claiming a performance or energy win | Correctness work, instrumentation, experiments |
-| Independent review | Release or high-risk certification | Builder self-tests and opening a draft pull request |
+| Independent review | Delegated merge and high-risk certification | Builder self-tests, opening a draft PR and independent work |
 | Accepted direction | Shipping a new permanent project policy | Research, comparison, and an isolated off-by-default prototype |
 
 Every failure must print the blocked action, the risk, the root of that risk,
@@ -119,7 +119,7 @@ changed and aggregates every selected lane:
 A maintenance PR that changes only dependency references or other internal
 workflow plumbing may carry the `docs-not-needed` label. PR Gate passes that
 label only to the documentation-impact check; it does not bypass workflow
-safety, Actionlint, dependency policy, tests, evidence checks, or human merge.
+safety, Actionlint, dependency policy, tests, evidence checks, or independent review.
 
 External-link scanning and newly published dependency advisories run on a
 schedule. They remain visible, but an unreliable website does not block an
@@ -127,6 +127,10 @@ unrelated pull request.
 
 Hardware tests cannot run honestly in ordinary GitHub CI. They block promotion
 of the affected hardware claim, not merging a safe, disabled prototype.
+
+The coordinating agent follows [the agent protocol](agent-protocol.md) for
+review, protected merge and continued work. Do not wait for a routine human
+merge or add duplicate verification of the same claim.
 
 ## Release rule
 

@@ -163,7 +163,7 @@ if selected integrity; then
         git diff --check "$BASE"...HEAD
     attempt run "R5 — uncommitted whitespace damage entered the patch" \
         git diff --check
-    attempt run "R4/R8 — automation can merge or project truth is unsafe" \
+    attempt run "R4/R8 — unattended scripts self-merge or project truth is unsafe" \
         "${PYTHON[@]}" tools/check-workflow-safety.py
     attempt run "R5/R8 — generated or compiled output entered source control" \
         "${PYTHON[@]}" tools/check-repo-hygiene.py --base "$BASE"

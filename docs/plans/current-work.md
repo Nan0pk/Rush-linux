@@ -70,7 +70,8 @@ ledger answers which `optid` construction work is active.
 - Work on one coherent package-sized change.
 - Use `bash tools/start-work.sh "short task description"` before editing.
 - Use `bash tools/finish-work.sh --dry-run` before committing.
-- Open a draft pull request; never merge or enable auto-merge.
+- Open a draft pull request; the coordinating agent obtains independent review
+  and merges eligible work under [the agent protocol](../agent-protocol.md).
 - Never self-certify a package as `completed`.
 
 Validate this page with:

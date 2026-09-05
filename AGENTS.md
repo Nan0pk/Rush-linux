@@ -123,7 +123,7 @@ Use `docs/project-workflow.md` as the complete workflow. The short form is:
 ```text
 Intent -> Understand -> Research if needed -> Decide if needed -> Plan
        -> Implement -> Self-check -> Independent proof when required
-       -> Human merge -> Observe and learn
+       -> Independent review -> Delegated merge -> Observe and learn
 ```
 
 Not every change needs every stage. A typo does not need research. A new
@@ -255,6 +255,11 @@ need a second agent before a pull request can be opened. A package builder also
 opens its PR without waiting; cold verification controls only the transition
 from `candidate` to `completed`.
 
+Every delegated merge requires an independent accuracy and completeness review
+under `docs/agent-protocol.md`. For ordinary changes this is a focused review,
+not a second certification program. Reuse a qualifying cold verification as
+the merge review; do not commission duplicate reviews of the same claim.
+
 Evidence may block a claim or automatic rollout. Missing evidence must not
 block research, read-only diagnosis, simulation, a dry run, or an explicitly
 experimental prototype.
@@ -358,8 +363,18 @@ them ask twice is a defect, not a matter of taste.
 
 - Work on a branch. Do not push directly to `main`.
 - Agents may commit, push a branch, and open a draft pull request.
-- Agents and automation must never merge a pull request or enable auto-merge.
-- Only the human maintainer merges to `main`.
+- The owner delegates routine integration to a coordinating agent after a
+  separate agent reviews accuracy and completeness. Follow the exact-commit
+  procedure in `docs/agent-protocol.md`; do not ask the owner to click merge.
+- A builder cannot approve its own work. The coordinator must actually obtain
+  the independent review, resolve findings, and check the current PR and CI.
+- Merge only the reviewed head through GitHub's normal protected PR interface.
+  Never bypass checks, use administrator override, or push directly to main.
+- Collectors, builders and unattended repository jobs cannot self-merge.
+  A label, PR comment or green CI alone is not independent review authorization.
+- New direction, release declaration, production signing, trusted hardware
+  promotion and destructive physical actions retain their existing authority.
+  Apply authorization already given; do not request it again for each PR.
 - Do not modify release truth or claim a milestone passed without matching
   evidence.
 - Do not expose tokens in arguments, logs, remotes, files, or evidence.
@@ -379,7 +394,13 @@ Before finishing, run:
 bash tools/finish-work.sh --dry-run
 ```
 
-After the checks pass, commit and open a draft pull request. The scripts must
+After the checks pass, commit and open a draft pull request. The coordinating
+agent then dispatches independent review, fixes findings, merges when eligible,
+and refreshes the work selector. Continue authorized work without waiting for
+the owner's availability. If review or access is unavailable, report the exact
+block and continue an independent task; do not fabricate a reviewer.
+
+The scripts must
 show the real failing command and explain which risk it protects. A missing
 tool may skip only the affected local check; CI performs the authoritative
 check on the pull request.

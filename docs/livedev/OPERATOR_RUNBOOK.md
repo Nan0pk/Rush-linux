@@ -224,7 +224,7 @@ Do not set the token in the environment before that point. The token needs: Cont
 The LiveDev one-command path never calls the GitHub merge API. The PR is opened and left for a maintainer to review and merge. This is enforced in three places:
 
 1. `tools/livedev-bootstrap.sh` and `tools/livedev-bootstrap.ps1` do not invoke `PUT /pulls/{n}/merge`.
-2. `tools/rush_pr_lib.py` (`Cannot merge PRs (Human-only)`) is the underlying PR library used by `livedev-next --submit`.
+2. `tools/rush_pr_lib.py` (submission-only; independent integration follows the agent protocol) is the underlying PR library used by `livedev-next --submit`.
 3. `tools/livedev-next --submit` only calls `rush-autopilot submit-evidence`, which uses `rush_pr_lib.py` and inherits its no-merge invariant.
 
 ## No milestone verification

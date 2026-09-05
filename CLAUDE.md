@@ -31,4 +31,6 @@ Validate them with:
 bash tools/finish-work.sh --dry-run
 ```
 
-Only the human maintainer merges pull requests.
+Follow the independent-review and delegated-merge procedure in
+[`docs/agent-protocol.md`](docs/agent-protocol.md). Do not wait for a human merge
+when that procedure is satisfied.

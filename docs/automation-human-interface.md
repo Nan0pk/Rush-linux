@@ -139,10 +139,11 @@ configuration.
 
 ### 2.5 Final approval
 
-A **final-approval action** is any action that changes the project's
-canonical truth. Examples:
-
-- Merging a PR to `main` (changes the canonical source tree).
+Reviewed repository integration is delegated to coordinating agents under
+[ADR 0027](decisions/0027-delegated-reviewed-merges.md) and
+[the agent protocol](agent-protocol.md). Collectors cannot merge their own PRs.
+A source-tree change alone is not a human-only action. The remaining final
+approvals include:
 - Marking a milestone criterion `verified = true` in
   `release/milestones.toml` (changes the canonical release state).
 - Bumping `VERSION`, `Cargo.toml`, `RELEASES.md`, or the os-release file
@@ -290,8 +291,8 @@ This policy does **not**:
 
 - Replace the Builder/Verifier/Human split in `docs/agent-protocol.md`. It
   extends it to the LiveDev surface.
-- Authorize the system to merge PRs. Final approval (§2.5) remains the
-  maintainer's alone.
+- Authorize a collector to merge its own PR. Coordinating agents may merge
+  independently reviewed changes under `docs/agent-protocol.md`.
 - Authorize the system to mark evidence verified. Final approval (§2.5)
   remains the maintainer's (or a separate Verifier agent's) alone.
 - Authorize the system to call online AI providers without limit. Money
