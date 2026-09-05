@@ -183,7 +183,8 @@ The commands above are the supported entry points. Use these guides for detail:
 | Claims, evidence, and release tiers | [Testing and benchmarks](docs/testing-and-benchmarks.md) |
 | Risk-based contributor process | [Project workflow](docs/project-workflow.md) |
 
-Only the human maintainer merges to `main`. A merged optid PR proves that code
+An authorized coordinating agent merges after independent review and required
+checks; see the [agent protocol](docs/agent-protocol.md). A merged optid PR proves that code
 landed; package completion additionally requires production-path integration
 and independent committed evidence.
 

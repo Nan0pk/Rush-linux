@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Reject repository automation that can merge without the maintainer."""
+"""Keep unattended builders/collectors from merging their own submissions.
+
+Delegated coordinators use the protected GitHub interface after actual separate
+agent review (docs/agent-protocol.md). This lexical scan checks repository
+scripts; it neither authenticates reviewers nor certifies a merge.
+"""
 
 from pathlib import Path
 import re
@@ -39,15 +44,15 @@ def main() -> int:
                         failures.append(f"{path.relative_to(ROOT)}:{number}: {label}")
 
     if failures:
-        print("BLOCKED: repository automation can merge without the maintainer.")
+        print("BLOCKED: a repository script can merge without the coordinating review process.")
         print("Risk: unreviewed work can enter main and alter release truth.")
         print("Root: AGENTS.md section 13 and the LiveDev/testOS safety incidents.")
-        print("Ways forward: open a draft PR and leave the final merge to the maintainer.")
+        print("Ways forward: submit a PR; the coordinator obtains independent review and uses the protected GitHub interface.")
         for failure in failures:
             print(f"  - {failure}")
         return 1
 
-    print("OK: no self-merge or auto-merge command found in repository automation")
+    print("OK: no merge command in unattended repository automation; delegated review is governed by docs/agent-protocol.md")
     return 0
 
 

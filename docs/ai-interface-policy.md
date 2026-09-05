@@ -1,5 +1,12 @@
 # AI Interface Policy
 
+Scope update: this document's text-model and collector restrictions describe
+the bounded LiveDev harness. They are not a second constitution for coordinating
+agents. [ADR 0027](decisions/0027-delegated-reviewed-merges.md) and
+[the agent protocol](agent-protocol.md) govern independent agent review,
+evidence-backed repository edits and delegated integration. They supersede
+conflicting project-wide wording below without expanding the harness's tools.
+
 > **Status:** proposed (binding on LiveDev work once ADR 0018 is ratified;
 > descriptive for the rest of the project until then).
 > **Owners:** maintainer of record.
@@ -290,39 +297,22 @@ or money actions).
 
 ---
 
-## 7. AI cannot merge PRs
+## 7. Reviewed integration and the LiveDev boundary
 
-Merging a PR is a final-approval action (`docs/automation-human-interface.md`
-§2.5). The Human role alone may merge to `main`
-(`docs/agent-protocol.md`). AI is not the Human role.
+[ADR 0027](decisions/0027-delegated-reviewed-merges.md) replaces the project-wide
+human-only merge ban. A coordinating agent may integrate independently reviewed
+changes under [the agent protocol](agent-protocol.md), using current CI and the
+protected GitHub interface with an expected head SHA. The owner does not need
+to approve each routine merge.
 
-This rule exists because merging is the canonical truth-mutation in the
-project. A merged PR is the source of truth; everything else is a draft.
-Delegating merge authority to AI collapses the Builder/Verifier/Human split
-and removes the project's primary defense against evidence fabrication and
-silent regressions.
+This does not give the LiveDev text-model harness, collector or submission
+library a merge capability. They remain bounded builders. The coordinator must
+actually obtain another agent's accuracy/completeness review; an arbitrary PR
+comment, model response or green badge is not authorization. Record distinct
+agent sessions honestly even when they share a GitHub identity.
 
-### 7.1 What the AI may do around PRs
-
-The AI may:
-
-- **Draft** a PR title and description (from a template; the harness
-  composes the text).
-- **Suggest** a reviewer (from the repo's CODEOWNERS, if any, or from the
-  maintainer's default).
-- **Summarize** the CI results on a PR ("CI is green on
-  `ubuntu-latest`; the `tests` job ran 312 tests in 47s").
-- **Detect** that a PR is mergeable (branch is pushed, CI is green, no
-  conflicts) and **prompt** the Human to merge (final-approval action,
-  default `wait`).
-
-The AI may **not**:
-
-- Click the merge button (via the API or otherwise).
-- Force-push to `main`.
-- Close a PR without merge (destructive action,
-  `docs/automation-human-interface.md` §2.4).
-- Reopen a closed PR.
+No agent may bypass branch protection, force-push main, forge reviews or promote
+release/hardware claims without their separate evidence and authority.
 
 ---
 
@@ -348,8 +338,9 @@ or in a plan file, but the file modification is a final-approval action
 
 ### 8.1 The Evidence Rule restated
 
-The Evidence Rule in `docs/agent-protocol.md` says: a checkmark may only
-appear next to an embedded command transcript. This policy extends it: AI
+The Evidence Rule in `docs/agent-protocol.md` requires proof appropriate to the
+claim, including its applicable package or hardware protocol. Within this
+bounded LiveDev harness, AI
 may not add the checkmark, AI may not remove the checkmark, and AI may not
 edit the transcript to which the checkmark refers. The checkmark is the
 Verifier's (or the Human's) alone; the transcript is the Builder's (or the
@@ -397,7 +388,8 @@ A LiveDev AI surface is compliant with this policy if and only if:
       Verifier's verdict wins over the AI summary.
 - [ ] The AI model never executes shell commands (§6). The harness writes
       text; the caller decides whether to execute.
-- [ ] The AI does not merge PRs (§7). The Human merges.
+- [ ] The LiveDev harness cannot self-merge. Coordinating agents follow the
+      separate-review procedure in §7.
 - [ ] The AI does not modify release-truth files (§8). The Human modifies.
 
 Non-compliance is a release blocker for the LiveDev track. A LiveDev PR

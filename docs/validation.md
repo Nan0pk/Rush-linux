@@ -6,7 +6,7 @@ The pull-request mechanism is defined in `docs/project-workflow.md` and run by
 The runner selects checks from the files that changed:
 
 - repository structure, accepted-decision ratification, versions, docs,
-  no-auto-merge safety, evidence integrity, and generated front-page
+  collector self-merge prevention, evidence integrity, and generated front-page
   consistency on every change;
 - Rust format, tests, Clippy, and all-target/all-feature compilation for Rust
   changes;

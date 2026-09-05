@@ -203,7 +203,8 @@ We'd rather help you succeed than have you struggle alone. Welcome aboard.
 Agents build and test their own work, then open a draft pull request. A cold,
 independent verifier is required for hardware, security, boot, performance,
 milestone, and release claims—not for every typo or ordinary unit-tested bug.
-Only the human maintainer merges to `main`.
+An authorized coordinating agent may merge to `main` after independent review
+and required checks, following [the agent protocol](docs/agent-protocol.md).
 
 See [AGENTS.md](AGENTS.md), the [project workflow](docs/project-workflow.md), and
 the [evidence protocol](docs/agent-protocol.md) for the complete rules.

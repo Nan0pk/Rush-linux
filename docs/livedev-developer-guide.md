@@ -3,6 +3,12 @@
 > **Status:** skeleton (e2e phase). Documents the architecture boundaries
 > and data flow of the LiveDev track.
 
+Integration authority update: [ADR 0027](decisions/0027-delegated-reviewed-merges.md)
+allows a coordinating agent to merge after independent review. The older
+Builder/Verifier/Human diagrams below describe the LiveDev design history;
+human-only merge labels are superseded for the coordinator. Collectors and
+submission libraries still cannot self-merge or promote release truth.
+
 ## Architecture boundaries
 
 ```

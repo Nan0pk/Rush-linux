@@ -19,6 +19,12 @@ agent to treat ordinary self-testing as someone else's job. Proof rules that
 were created after real false-certification incidents had become detached from
 the exact claims they were meant to protect.
 
+## Scoped amendment — 2026-09-05
+
+[ADR 0027](0027-delegated-reviewed-merges.md) supersedes the human-only merge
+clauses below and requires focused independent review before delegated merges.
+The original decision remains historical context; its other protections remain.
+
 ## Decision
 
 1. Use `docs/project-workflow.md` as the single path from intent through

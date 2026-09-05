@@ -56,10 +56,11 @@ git push -u origin "$BRANCH"
 if command -v gh >/dev/null 2>&1; then
     if ! gh pr view "$BRANCH" >/dev/null 2>&1; then
         gh pr create --draft --base main --head "$BRANCH" --title "$COMMIT_MSG" --body \
-            "Builder checks passed via \`bash tools/checks.sh\`. This is a draft for maintainer review; automation will not merge it."
+            "Builder checks passed via \`bash tools/checks.sh\`. Independent accuracy and completeness review is pending. The coordinating agent follows docs/agent-protocol.md to review and merge eligible work."
     fi
     gh pr view "$BRANCH" --json url --jq .url
 else
     echo "Branch pushed. Open a draft PR:"
     echo "https://github.com/Nan0pk/Rush-linux/compare/$BRANCH?expand=1"
 fi
+echo "Next: obtain independent review of this PR, then merge eligible work under docs/agent-protocol.md."

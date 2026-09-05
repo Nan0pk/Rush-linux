@@ -12,11 +12,14 @@ authority rules are in the **[Agent Work Protocol](agent-protocol.md)**:
    a draft pull request. Builders are not allowed to avoid normal testing by
    calling it "verification."
 2. **Independent Verifier:** Checks high-risk hardware, security, boot,
-   performance, milestone, and release claims cold. Ordinary low-risk changes
-   do not require a second agent before review.
-3. **Human Maintainer:** The only role authorized to merge code into `main`,
-   accept project direction, promote trusted hardware, manage production
-   signing keys, and declare milestones or releases complete.
+   performance, milestone, and release claims cold. Every delegated merge receives focused accuracy/completeness review; a
+   qualifying cold verification can satisfy it without a second review chain.
+3. **Coordinating Agent:** Obtains a separate accuracy/completeness review,
+   checks current CI and merges eligible PRs through the protected interface.
+   It then continues authorized work without waiting for the owner to merge.
+4. **Human Maintainer:** Gives direction, promotes trusted hardware, manages
+   production signing authority, and declares milestones or releases complete.
+   Existing authorization is not requested again for each implementation PR.
 
 ## The Evidence Rule and the "C1 Incident"
 

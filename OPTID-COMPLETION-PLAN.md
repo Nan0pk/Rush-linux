@@ -370,7 +370,7 @@ Every production-reachable package must emit or preserve enough typed F3 data fo
 
 **Spec gaps.** Supported Landlock ABI/kernel matrix is evidence from D0, not an owner guess.
 
-**Scope/risk.** Large, 10–18 files, 1,000–1,800 LOC. Risk tier 3; separate builder/verifier and human merge.
+**Scope/risk.** Large, 10–18 files, 1,000–1,800 LOC. Risk tier 3; separate builder/verifier and delegated merge under `docs/agent-protocol.md`.
 
 ### S5D — Add domain circuit breakers and controlled canary re-entry
 
@@ -781,7 +781,7 @@ Add a physical-failure reproduction workflow:
 
 **Desired end state.** Code construction proceeds without nominated machines; automatic writes and release claims remain evidence-backed. Hardware promotion fails if a feature works but cannot explain its own result through the shared diagnostic contract.
 
-**Tests/pass.** Every merge passes workspace format/build/clippy/tests plus I2. Every actuation promotion passes the domain’s hardware protocol, produces a clean sanitized diagnostic receipt, proves before/requested/applied/readback/restore/recovery state, and receives the independent verification required by its risk tier. Human merges remain mandatory (`docs/decisions/0025-risk-based-project-workflow.md:22-41`).
+**Tests/pass.** Every merge passes workspace format/build/clippy/tests plus I2. Every actuation promotion passes the domain’s hardware protocol, produces a clean sanitized diagnostic receipt, proves before/requested/applied/readback/restore/recovery state, and receives the independent verification required by its risk tier. Delegated merges follow `docs/agent-protocol.md`; hardware promotion keeps its separate authority and evidence requirements.
 
 **Feature flag.** Promotion changes only a verified allowlist/evidence row or accepted default; no hidden environment bypass.
 
@@ -863,7 +863,7 @@ Execution rules:
 - Do not improvise kernel ABIs, vendor paths, controller gains, security policy, defaults, or milestone claims.
 - A missing choice is a stop condition, not permission to choose a convenient value.
 - Tests must assert behavior and outcomes; “builds” or “minimum passing tests” is not completion.
-- The builder may self-verify risk-tier 1. Risk-tier 2 needs a cold review. Risk-tier 3 needs a separate verifier and human merge.
+- The builder may self-verify risk-tier 1. Risk-tier 2 needs a cold review. Risk-tier 3 needs a separate verifier. Every delegated merge requires the accuracy/completeness review in `docs/agent-protocol.md`.
 - Worker agents report facts only: exact commands, statuses, files, and remaining gaps. They never mark hardware verified from mocks.
 - Parallel workers may depend only on frozen interfaces. The integration owner, not leaf workers, resolves cross-package conflicts.
 
