@@ -1,6 +1,14 @@
 # Implementation Status
 
-Last updated: 2026-07-23
+Historical inventory: 2026-07-23. Status correction: 2026-09-05.
+
+The detailed capability descriptions below preserve a July snapshot and include
+superseded gaps. They must not be used to select work or infer current package
+completion. At `8cdcf99`, the live ledger records 12 completed packages, runtime
+observability as candidate, and thermal sensing as merged but incomplete. Read
+[`current-work.md`](plans/current-work.md) and the linked ledger for current
+state. The [September reassessment](research/0025-os-goals-and-source-build-reassessment.md)
+separates source inspection, existing hardware reports and unvalidated hypotheses.
 
 > **Code is not evidence.** This file describes what exists in the repository.
 > Release and hardware-verification truth comes from

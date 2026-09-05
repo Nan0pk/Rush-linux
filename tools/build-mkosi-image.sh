@@ -11,6 +11,8 @@
 #   sudo bash tools/build-mkosi-image.sh --edition server        # same common base
 #   sudo bash tools/build-mkosi-image.sh --edition livedev       # LiveDev (benchmark/CI)
 #   sudo bash tools/build-mkosi-image.sh --edition server --clean
+#   bash tools/build-mkosi-image.sh --plan --snapshot 20260904
+#   sudo bash tools/build-mkosi-image.sh --snapshot 20260904 --package-dir /path/to/packages
 #
 # Product edition example:
 #   sudo tools/build-edition-image.sh --edition desktop --unsigned-development
@@ -31,10 +33,21 @@ set -euo pipefail
 # ── Parse arguments ──────────────────────────────────────────────
 EDITION="server"
 CLEAN=false
+PLAN=false
+SNAPSHOT=""
+PACKAGE_DIRS=()
+
+require_value() {
+    if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
+        echo "Option $1 requires a value." >&2
+        exit 2
+    fi
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --edition|-e)
+            require_value "$@"
             EDITION="$2"
             shift 2
             ;;
@@ -42,9 +55,25 @@ while [[ $# -gt 0 ]]; do
             CLEAN=true
             shift
             ;;
+        --plan)
+            PLAN=true
+            shift
+            ;;
+        --snapshot)
+            require_value "$@"
+            SNAPSHOT="$2"
+            shift 2
+            ;;
+        --package-dir)
+            require_value "$@"
+            PACKAGE_DIRS+=("$2")
+            shift 2
+            ;;
         --help|-h)
-            echo "Usage: $0 [--edition server|livedev] [--clean]"
+            echo "Usage: $0 [--edition server|livedev] [--clean] [--plan] [--snapshot YYYYMMDD] [--package-dir DIR]"
             echo "Product editions: use tools/build-edition-image.sh --edition desktop|laptop|realtime-audio"
+            echo "--plan prints the build commands without building or cleaning."
+            echo "--package-dir is repeatable; makes local Arch packages available to mkosi."
             exit 0
             ;;
         *)
@@ -77,6 +106,50 @@ EXTRA_DIR="${MKOSI_DIR}/mkosi.extra"
 VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.5.0-beta.1")"
 VERSION_ID="${VERSION%%-*}"
 
+# Form the invocation once so a plan and a real build select the same inputs.
+# A snapshot fixes repository selection, not the compiler or every build input.
+MKOSI_ARGS=(--force)
+if [[ "${EDITION}" == "livedev" ]]; then
+    MKOSI_ARGS+=(--profile="${EDITION}")
+fi
+if [[ -n "${SNAPSHOT}" ]]; then
+    if [[ ! "${SNAPSHOT}" =~ ^[0-9]{8}$ ]] ||
+       ! date -d "${SNAPSHOT:0:4}-${SNAPSHOT:4:2}-${SNAPSHOT:6:2}" +%Y%m%d >/dev/null 2>&1; then
+        echo "Invalid Arch snapshot '${SNAPSHOT}'; expected a calendar date YYYYMMDD." >&2
+        exit 2
+    fi
+    MKOSI_ARGS+=(--snapshot="${SNAPSHOT}")
+fi
+for package_dir in "${PACKAGE_DIRS[@]}"; do
+    if [[ ! -d "${package_dir}" ]]; then
+        echo "Package directory does not exist: ${package_dir}" >&2
+        exit 2
+    fi
+    package_dir="$(cd -- "${package_dir}" && pwd -P)"
+    MKOSI_ARGS+=(--package-directory="${package_dir}")
+done
+if [[ -n "${MKOSI_CACHE:-}" ]]; then
+    MKOSI_ARGS+=(--cache-dir="${MKOSI_CACHE}")
+fi
+if [[ "${PLAN}" == true ]]; then
+    echo "Build plan only; no compilation, staging, cleaning, or image build performed."
+    printf 'Repository: %s\nEdition: %s\nClean before image build: %s\n' "${REPO_ROOT}" "${EDITION}" "${CLEAN}"
+    printf 'Compile in %q: cargo build --workspace --release --locked\n' "${REPO_ROOT}"
+    printf 'Build in %q: ' "${MKOSI_DIR}"
+    printf '%q ' mkosi build "${MKOSI_ARGS[@]}"
+    printf '\nOutput directory: %s/build\n' "${REPO_ROOT}"
+    echo "Local packages are candidates; inspect the image package manifest to confirm selection."
+    echo "This plan does not establish image reproducibility, bootability, or a performance gain."
+    exit 0
+fi
+for build_tool in cargo mkosi; do
+    if ! command -v "${build_tool}" >/dev/null 2>&1; then
+        echo "Missing build tool: ${build_tool}. See docs/build-system.md; --plan needs neither tool." >&2
+        exit 2
+    fi
+done
+cd "${REPO_ROOT}"
+
 echo "════════════════════════════════════════════════════"
 echo "  Rush Linux mkosi Builder"
 echo "════════════════════════════════════════════════════"
@@ -87,7 +160,7 @@ echo ""
 
 # ── Step 1: Compile host binaries ────────────────────────────────
 echo ">> [1/5] Building optid and optctl in release mode..."
-cargo build --workspace --release
+cargo build --workspace --release --locked
 echo "   Done."
 echo ""
 
@@ -271,19 +344,9 @@ fi
 echo ">> [4/5] Invoking mkosi build (edition: ${EDITION})..."
 cd "${MKOSI_DIR}"
 
-MKOSI_ARGS=(--force)
-
 # The server target *is* the common base described by mkosi/mkosi.conf, so it
 # must not consume mkosi.profiles/server: that profile is intentionally the
 # empty server sysext payload. LiveDev remains a whole-image operational profile.
-if [[ "${EDITION}" == "livedev" ]]; then
-    MKOSI_ARGS+=(--profile="${EDITION}")
-fi
-
-if [[ -n "${MKOSI_CACHE:-}" ]]; then
-    MKOSI_ARGS+=(--cache-dir="${MKOSI_CACHE}")
-fi
-
 mkosi build "${MKOSI_ARGS[@]}"
 
 echo "   Done."

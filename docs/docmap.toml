@@ -31,7 +31,7 @@ purpose = "Canonical agent constitution and authority order"
 owner_area = "area:governance"
 covers_code = ["tools/start-work.sh", "tools/finish-work.sh", "tools/checks.sh"]
 deps = ["docs/SPEC-northstar.md", "docs/project-workflow.md", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."CLAUDE.md"]
 purpose = "Thin compatibility pointer to the canonical agent constitution"
@@ -45,21 +45,21 @@ purpose = "Product objective and non-negotiable invariants"
 owner_area = "area:architecture"
 covers_code = ["crates/", "packaging/", "mkosi/"]
 deps = []
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/IMPLEMENTATION_STATUS.md"]
 purpose = "Detailed implemented, partial, and missing capability inventory"
 owner_area = "area:docs"
 covers_code = ["crates/", "packaging/", "mkosi/"]
 deps = ["VERSION", "docs/plans/optid-package-status.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."ROADMAP.md"]
 purpose = "Release sequence and current version"
 owner_area = "area:release"
 covers_code = []
 deps = ["VERSION", "release/milestones.toml"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."RELEASES.md"]
 purpose = "Release history"
@@ -101,7 +101,7 @@ purpose = "Supported image-build commands and dependencies"
 owner_area = "area:packaging"
 covers_code = ["tools/build-mkosi-image.sh", "mkosi/", "testos/build-testos.sh"]
 deps = ["docs/packaging-and-builds.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/how-rush-is-built.md"]
 purpose = "Source-to-image overview"
@@ -115,7 +115,7 @@ purpose = "Packaging layout, image composition, and release artifacts"
 owner_area = "area:packaging"
 covers_code = ["packaging/", "mkosi/", "distro/", "recipes/"]
 deps = ["docs/decisions/0014-image-composition-mkosi-arch.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/boot-and-updates.md"]
 purpose = "Boot, update, rollback, and recovery behavior"
@@ -136,7 +136,7 @@ purpose = "Test tiers, benchmark methods, and claim boundaries"
 owner_area = "area:testing"
 covers_code = ["benchmarks/", "tools/rush-host-bench.sh", "crates/rushbench/"]
 deps = ["release/evidence/README.md"]
-last_verified = "2026-07-22"
+last_verified = "2026-09-05"
 
 [docs."docs/validation.md"]
 purpose = "Local and CI validation commands"
@@ -185,7 +185,7 @@ purpose = "Discoverability index for numbered research papers"
 owner_area = "area:research"
 covers_code = []
 deps = []
-last_verified = "2026-07-25"
+last_verified = "2026-09-05"
 
 [docs."docs/decisions/README.md"]
 purpose = "Architecture decision index and status rules"
