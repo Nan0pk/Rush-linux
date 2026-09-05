@@ -41,5 +41,8 @@ Answer these for every optid behavior change:
 
 The coordinating agent records an independent review of the current head and
 base, resolves findings, verifies required checks, and merges eligible work
-under `docs/agent-protocol.md`. Record reviewer task/session, scope, findings,
-checks and limitations in a review on the PR. The builder cannot self-approve.
+under `docs/agent-protocol.md`. Start with project goals and current state, then
+architecture, interactions, the issue, implementation and proof; return to a
+whole-system verdict. Record reviewer task/session, project fit, affected
+interactions, scope, findings, checks and limitations in the PR review. Scale
+depth to impact; the builder cannot self-approve.

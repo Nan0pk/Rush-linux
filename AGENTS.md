@@ -262,7 +262,13 @@ opens its PR without waiting; cold verification controls only the transition
 from `candidate` to `completed`.
 
 Every delegated merge requires an independent accuracy and completeness review
-under `docs/agent-protocol.md`. For ordinary changes this is a focused review,
+under `docs/agent-protocol.md`. Every reviewer starts with the whole project's
+purpose and current state, then progressively examines architecture, component
+interactions, the issue's causal path, implementation and evidence, before
+returning to the overall system verdict. Do not begin and end with the diff.
+The protocol's project-to-change review sequence is mandatory; its depth and
+written output scale to the actual change, not a fixed document quota.
+For ordinary changes this is a focused review,
 not a second certification program. Reuse a qualifying cold verification as
 the merge review; do not commission duplicate reviews of the same claim.
 

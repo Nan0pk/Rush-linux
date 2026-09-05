@@ -35,11 +35,67 @@ physical measurements and release acceptance support different claims.
 ## Independent review
 
 The coordinator spawns or assigns a separate agent after the patch is available.
-Give it owner intent, PR, full head and base SHAs, requirements and evidence.
-It reads the actual diff and production entrypoints from a clean checkout,
-rather than accepting the builder's summary. It must not silently fix the work
+Give it owner intent, PR, full head and base SHAs, requirements and evidence,
+and require the project-to-change sequence below. The reviewer independently
+reconstructs context from current sources, then reads the actual diff and
+production entrypoints from a clean checkout rather than accepting the builder's
+summary or its asserted impact boundary. It must not silently fix the work
 it is reviewing. Return defects to the builder; if the reviewer becomes a
 builder, another reviewer must assess its changes.
+
+### Always start with the whole project, then zoom in
+
+Every review starts at the project's "60,000-foot" view and descends in order.
+Apply this to issue diagnosis and package verification as well as PR review;
+when there is no patch yet, identify the affected path and evidence needed.
+
+1. **Project purpose and present reality.** Re-ground in the latest owner
+   direction, Northstar, project brief, current strategy and live work state.
+   What user outcome is Rush pursuing? What works, what is merely proposed,
+   and what presently limits progress? Identify relevant drift or conflicting
+   guidance using the source-of-truth hierarchy. Do not treat an old roadmap
+   or a package-completion count as proof of product readiness.
+2. **Architecture and boundaries.** Place the issue in the whole OS, including
+   relevant upstream kernel/firmware responsibilities, Optid, desktop/session
+   integration, image/build, updates/recovery and evidence tooling. Identify
+   owners, interfaces, invariants and existing mechanisms before judging a new
+   mechanism. Which architectural constraint makes this approach appropriate?
+3. **Interactions and consequences.** Trace actual callers, consumers, shared
+   state, dependencies and downstream effects beyond changed files. Examine
+   relevant control-loop interactions, resource costs, security/ownership,
+   failure propagation, recovery, compatibility and maintenance burden. Explain
+   where an apparent local improvement could regress another user outcome or
+   duplicate existing behavior. Support impact claims with source paths or
+   evidence; mark unverified dependencies and assumptions explicitly.
+4. **The issue and proposed change.** Reconstruct the causal path from the
+   reported problem to its real entrypoint and intended result. Does the change
+   address a cause or conceal a symptom? Does its scope fit the current plan,
+   and would an existing upstream facility or simpler change meet the need?
+   Keep necessary integration distinct from unrelated desirable work.
+5. **Implementation and proof.** Inspect behavior, edge cases, units, missing
+   input, concurrency and failure paths as applicable. Test the accuracy and
+   completeness criteria below against actual acceptance requirements. Verify
+   relevant interactions through production-path or integration evidence;
+   isolated unit tests do not prove that the whole affected path works.
+6. **Return to the whole-system verdict.** State whether the change advances
+   the intended user outcome, fits its neighbors and preserves the relevant
+   constraints. Distinguish measured benefit from a plausible contribution.
+   Name remaining integration gaps, uncertainty and necessary follow-up. Local
+   correctness alone is insufficient when a demonstrated system conflict remains.
+
+Always perform the broad orientation, including for a typo; scale depth to
+impact. A small wording fix may need only a brief context check and sentence
+in the review. This is a reasoning order, not six mandatory reports or a demand
+to reread the entire repository or redo all research on every PR. Reuse verified
+context when its source revisions and assumptions still apply, checking what
+changed. Expand investigation only along relevant dependencies or uncertainties.
+
+A system-level concern blocks this change only when tied to a concrete violated
+requirement, credible affected path or missing proof necessary for its claims.
+Record unrelated debt, speculative improvements and broader ambitions as
+follow-up; do not turn the wider view into another indefinite approval gate.
+
+### Accuracy, completeness and risk
 
 For every delegated merge, review:
 
@@ -60,7 +116,8 @@ to debug it. Ask only for an unresolved product choice or action outside the
 delegated authority.
 
 Record the real review on the PR, tied to full head and base SHAs: reviewer
-task/session, acceptance scope, checks inspected or run, findings, limitations,
+task/session, project fit, affected component interactions, acceptance scope,
+checks inspected or run, findings, limitations,
 and verdict (`ready`, `changes requested`, or `inconclusive`). Reuse the review
 result; no additional receipt file is required for routine merges. Existing
 package-completion receipts remain required for their separate claims.
