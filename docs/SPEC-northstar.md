@@ -271,8 +271,7 @@ shipped. The gate is satisfied by the benchmark results dataset (evidence) produ
   hardware experiments and release acceptance prove different things.
 - Human approval owns permanent project direction and release decisions. Reviewed
   repository integration is delegated under
-  [`docs/agent-protocol.md`](agent-protocol.md) and ADR 0027; do not require a
-  human merge of every pull request.
+  `docs/agent-protocol.md` and ADR 0027; do not require a human merge of every PR.
 - Any agent claim of a created PR/branch/file must be verifiable
   (`gh pr view`, `git log`) or it is treated as fabricated.
 
