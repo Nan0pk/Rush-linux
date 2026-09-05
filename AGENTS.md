@@ -150,6 +150,12 @@ packages, or resolve agent confusion is a failed strategy answer.
 Agents may recommend direction. They may not silently rewrite the Northstar or
 mark their recommendation as human-approved.
 
+For the owner-authorized OS/source-build investigation, use
+`docs/plans/source-build-experiment.md` and its linked primary-source review.
+The experimental Northstar amendment is for review; keep production defaults,
+package verification and hardware promotion separate. Source construction is a
+method to test, not an assumed performance advantage or a mandate to rewrite.
+
 ## 7. Research, Decisions, Plans, and Memory
 
 Important ideas must not be buried in chat, pull-request comments, or vague

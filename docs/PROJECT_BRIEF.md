@@ -1,56 +1,45 @@
-# Project Brief
+# Project brief
 
-Rush Linux is a long-term operating system project for a source-built Linux
-distribution whose main product feature is fast, preemptive, automatic runtime
-optimization across mainstream hardware and workloads.
+Rush Linux aims to be a dependable, responsive OS that completes useful work
+efficiently and adapts automatically with little user configuration. The original
+May 2026 intent covered responsiveness, battery life, thermal behavior and
+resource utilization. Matching the quality of a Mac is a product ambition,
+not an established benchmark result.
 
-The project is not a theme, tweak set, or derivative distro script. It is an
-architecture-first distro effort with a native optimizer, `optid`, as a core
-system service.
+Optid coordinates adaptive policy. It is one component of the OS; installation,
+updates, recovery, application compatibility, display/audio quality and everyday
+usability have independent requirements.
 
-## Mission
+## Success
 
-Build a modern Linux distribution that:
+- Responsive foreground work under concurrent CPU, memory and I/O demand.
+- Competitive battery life and suspend behavior with equivalent service quality.
+- Preserved useful throughput, correct results and explicit user preferences.
+- Reliable installation, updates, rollback and native fallback if Optid stops.
+- Few setup decisions for the user and clear explanations when a feature cannot
+  operate on the machine.
 
-- Maximizes foreground responsiveness under mixed load.
-- Preserves or improves battery life on laptops.
-- Uses CPU, memory, storage, GPU, thermal headroom, and background services
-  intelligently.
-- Dynamically adjusts in real time instead of relying on fixed power profiles.
-- Keeps every optimization explainable, reversible, and benchmarked.
-- Avoids obsolete defaults and aligns with upstream Linux direction.
+Measure these outcomes together. Lower watts obtained by doing less work or
+silently reducing brightness do not establish superior efficiency. A source
+build, custom scheduler, edition count or completed package count is not itself
+an outcome.
 
-## Current Product Shape
+## Present foundation
 
-The first implementation slice is a GitHub-ready scaffold:
+The repository contains real Rust services, guarded control/recovery paths,
+simulation, mkosi image composition, boot/install/rollback tooling and a
+development/test environment. The build uses Arch packages plus source-built
+Rush components; historical custom recipes do not constitute a complete source
+distribution. The current package ledger and committed evidence define their
+precise completion and verification scope.
 
-- Rust workspace for `optid` and `optctl`.
-- Kernel config fragments for adaptive and realtime kernels.
-- cgroup v2, PSI, UKI, nftables, Wayland, PipeWire, and systemd defaults.
-- Source recipe skeletons for future package builds.
-- Edition profiles for desktop, laptop, server, and realtime audio.
-- Documentation and ADRs that define accepted architecture.
+The [source-build experiment](plans/source-build-experiment.md) preserves that
+work while testing selected changes before choosing a different base. Its
+[research](research/0025-os-goals-and-source-build-reassessment.md) identifies
+what is sourced, what was observed, and what remains hypothetical. The Northstar
+amendment is proposed for review on the experimental branch.
 
-This is not yet a bootable distribution. The next milestone is to build
-and validate a bootable VM disk image (`disk.raw`) with actual UEFI UKI boot
-flow.
-
-## Success Criteria
-
-The distro succeeds only if it can prove:
-
-- Better foreground latency than mainstream distro defaults under mixed load.
-- Competitive or better laptop battery behavior.
-- No unacceptable throughput loss on workstation and server workloads.
-- Safe rollback for bad kernels, updates, and optimizer policy changes.
-- Clear documentation that matches the actual code and config.
-
-## Engineering Principles
-
-- Prefer upstream kernel and userspace features over permanent downstream
-  patches.
-- Avoid legacy defaults unless there is no modern replacement that works.
-- Make one component own runtime optimization policy: `optid`.
-- Add hardware-specific policies through allowlists and measured data.
-- Treat documentation, tests, and validation as part of implementation.
-
+Prefer mature upstream components and one owner per controlled domain. Keep
+privileged operations bounded, observable and recoverable. Build and test on a
+narrow initial hardware envelope, then widen support from measurements. Deliver
+built artifacts to users; development complexity belongs in automation.

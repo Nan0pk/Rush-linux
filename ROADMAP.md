@@ -112,7 +112,9 @@ Exit criteria (from `release/milestones.toml`):
 
 ## v0.6.0-beta.1: Hardware-Aware optid
 
-Status: code-complete, **certification pending Phase D**. The in-container Work
+Status: implementation and certification incomplete. The current Optid package
+ledger, rather than this historical release summary, identifies unfinished
+capabilities. The in-container Work
 Packages are merged: PPD shim (PR #183), GameMode shim (PR #184), `vm.guest`
 workload class (PR #185), and foreground-detection stub (PR #186). See
 `docs/plans/v0.6-hardware-aware-optid-proposal.md` for the implementation plan.
@@ -144,7 +146,9 @@ work packages follow.
 Exit criteria:
 
 - Each edition installs, boots, and verifies cleanly.
-- Desktop uses Wayland, PipeWire, and default-on sched_ext.
+- Desktop uses Wayland and PipeWire. Scheduler specialization remains
+  experimental and requires the Northstar evidence gate; default-on sched_ext
+  is not an approved production requirement.
 - Server profile builds without desktop components.
 
 ## v0.8.0-beta.1: Benchmark Lab

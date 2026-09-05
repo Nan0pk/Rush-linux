@@ -6,6 +6,11 @@ for the question at hand.
 
 ## Current integrated disposition
 
+For the full OS objective and the source-build question, start with
+[0025 — OS goals and source-build reassessment](0025-os-goals-and-source-build-reassessment.md).
+It is a candidate investigation with proposed experiments, not a new hardware
+authorization or a replacement for the current Optid package selector.
+
 Read [0021 — Integrated optid research disposition](0021-integrated-optid-research-disposition.md)
 before using the broad WIP papers as implementation guidance. It records the
 newer validated disposition of the staged optid research mission and identifies
@@ -42,6 +47,7 @@ current completion plan, current-work selector, and package ledger remain author
 - [0022 — Platform primitive disposition](0022-platform-primitives-disposition.md)
 - [0023 — Render scaling and ambient-light feasibility](0023-render-scaling-als-feasibility.md)
 - [0024 — Non-bare-metal optid validation method](0024-non-bare-metal-optid-validation-method.md)
+- [0025 — OS goals and source-build reassessment](0025-os-goals-and-source-build-reassessment.md)
 
 New numbered papers must be linked here. Machine checks enforce the index
 without duplicating every paper's metadata in `docmap.toml`.
