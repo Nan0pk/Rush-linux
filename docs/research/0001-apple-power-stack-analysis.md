@@ -1,6 +1,12 @@
 # Apple Power Stack Analysis & Linux Power Management Blind Spots
 
-*This document contains primary research synthesized from reverse-engineering Apple's power stack and analyzing Linux's current power management capabilities. It serves as foundational research for the `optid` architecture.*
+Status: Superseded as implementation guidance; retained as the historical idea
+inventory. Its exact Apple-controller claims, platform-interface assumptions and
+power-share numbers are not established measurements. Read the
+[source-backed reassessment](0025-os-goals-and-source-build-reassessment.md) and
+[platform dispositions](0022-platform-primitives-disposition.md) before acting
+on any recommendation below. This preserves the original ideas without treating
+them as verified interfaces or authorized controls.
 
 ## 1. Apple CLPC is a PID controller, not a simple data flow
 

@@ -2,6 +2,11 @@
 
 This file answers one question: **what should an agent work on next?**
 
+The owner-authorized [source-build experiment](source-build-experiment.md) is
+separate OS research/build work. It preserves this Optid selector, package
+dependencies and hardware promotion rules. Its Northstar amendment is a proposal
+for review, not a release or package-completion claim.
+
 For `optid`, the machine-readable source of truth is
 [`optid-package-status.toml`](optid-package-status.toml). This page is a
 validated, human-readable projection of that ledger. When the values below

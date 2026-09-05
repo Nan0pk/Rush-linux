@@ -1,10 +1,33 @@
 # SPEC-northstar.md — Rush Linux Canonical Objective Specification
 
-**Version:** 1.0
-**Status:** CANON. This document defines what `optid` optimizes for. Every other
-doc, roadmap, ADR, and agent task is *derived* from it. On any conflict, this
-file wins. Changing the objective requires a human edit to this file and a
-version bump — not a PR comment, not an agent proposal.
+**Version:** 1.1 — experimental amendment, 2026-09-05
+**Status:** Proposed for review on the experimental branch. The owner authorized
+the reassessment and isolated experiments; this does not assert acceptance of
+every recommendation or change production defaults. The approved version on
+`main` remains the production specification until the maintainer approves this
+amendment. Objective changes require explicit human approval and a version bump;
+agents may prepare and recommend them.
+
+## Rush Linux's purpose
+
+Build a dependable, responsive Linux OS that completes useful work efficiently,
+adapts automatically to the user and machine, and requires little maintenance.
+Mac-like responsiveness, battery behavior, and integration are comparison goals,
+not existing capabilities or a promise of hardware-independent parity.
+
+Optid's objective below is one part of that OS. Installation, application
+compatibility, graphics/audio quality, accessibility, security, updates, recovery,
+and daily usability have independent acceptance requirements. They do not need
+to justify their existence as energy-saving levers. Source building and vertical
+integration are available methods, not success criteria.
+
+Evaluate improvement at equivalent useful work and service quality: completion
+time and throughput, response-time tails, dropped frames/audio underruns,
+brightness and resolution, battery/suspend behavior, and recovery. Record the
+user's performance or battery preference. Do not hide a regression behind a
+single aggregate score or quieter/slower behavior. Numerical experimental
+margins must be fixed before confirmatory measurements and do not silently
+replace approved release criteria.
 
 ---
 
@@ -14,11 +37,21 @@ version bump — not a PR comment, not an agent proposal.
 > responsiveness floor**, by holding each controllable domain in the **deepest
 > power state its active latency contract permits**.
 
-That is the whole project in one sentence. There is exactly one quantity to
-minimize (energy) and exactly one constraint that may stop it (the floor).
-Everything below is mechanism in service of this line.
+This is the optimizer's objective, not the whole OS's definition. Energy is
+measured over equivalent completed work, or an equal-duration idle/service
+window with equivalent delivered service. Responsiveness, throughput and output
+quality requirements bound the optimization; they are not expendable to obtain
+a lower wattage. Faster completion may itself reduce total energy.
 
-### Why the old framing failed
+The deepest admissible state is a candidate, not an instruction to force every
+idle interval into it. Account for transition energy, expected residency,
+uncertainty and oscillation. Prefer native kernel/driver decisions when they
+already own this timing. Linux CPUIdle explicitly considers both target residency
+and exit latency ([primary documentation](https://docs.kernel.org/admin-guide/pm/cpuidle.html)).
+This correction does not invent a new generic device-residency ABI or authorize
+a hardware write; any new implementation must pass the existing actuation rule.
+
+### Why the optimizer needs a precise objective
 
 The prior tenets were "zero waste + high responsiveness + optimal hardware use +
 max vertical integration." Three of those are not objectives:
@@ -31,9 +64,8 @@ max vertical integration." Three of those are not objectives:
 - **Max vertical integration** is a *method*, not a goal. Integration is pursued
   only as far as it reduces avoidable energy without breaching a floor.
 
-With no objective function there was nothing to orchestrate toward, so every
-agent grabbed a different lever and called it strategy. This spec removes that
-freedom: a lever is legitimate only if it serves the line in §0.
+These distinctions bound Optid's responsibilities. They do not forbid proposing
+a better algorithm, testing a different build, or pursuing the wider OS goals.
 
 ---
 
@@ -50,9 +82,12 @@ contract. Initial classes: `idle`, `light` (typing, reading), `interactive`
 (build, batch). Detected from PSI, foreground app, fullscreen/audio/video state,
 and explicit pins.
 
-**Latency contract.** The responsiveness floor for the active class, expressed as
-concrete budgets: CPU wakeup latency, per-device resume latency, frame-time
-ceiling, audio-buffer safety. A contract is a *floor*, never a target to exceed.
+**Latency contract.** The responsiveness requirement for the active class,
+expressed as concrete budgets: CPU wakeup latency, per-device resume latency,
+frame-time ceiling, audio-buffer safety. A latency ceiling is a maximum allowed
+delay, not a measurement and not a reason to deliberately slow faster work.
+Most-demanding composition means `min` for numeric maximum-delay budgets and
+`max` for minimum-performance requirements.
 
 **Controllable domain.** Anything with selectable power states: CPU, each device
 (NVMe, PCIe links, SATA, USB, radios, audio, camera), GPU/display/media, memory
@@ -66,12 +101,18 @@ Every lever in the entire research corpus maps to exactly one role. If a propose
 lever does not fit one of these, it does not belong in `optid`.
 
 1. **CONTRACT-SETTER** — reads context and *sets or raises a floor*. Decides how
-   responsive a domain must stay. Floors compose by `max` (most-demanding class
-   wins while active).
+   responsive a domain must stay. Compose by strictness as defined in §1;
+   do not take the numeric maximum of maximum-delay budgets.
 2. **DEPTH-ENABLER** — moves a domain to the *deepest power state allowed by the
    current floor*. This is where energy is actually saved.
 3. **BUDGET-ARBITRATOR** — the outer loop. Caps aggregate power/thermal and sheds
    from lowest-priority domains first, but **never breaches a floor**.
+
+These are admission requirements, not a guarantee that arbitrary simultaneous
+demands are physically achievable. If a safe thermal/power envelope cannot meet
+all contracts, retain native hardware protection, report the unmet requirement,
+and use the explicitly defined degradation policy. Never override hardware
+protection or record success merely to satisfy an impossible contract.
 
 Observability is not a role; it is the *input* that lets setters and enablers
 act. Listed separately in §4.
@@ -102,8 +143,10 @@ separate feature; it is two clauses of the actuation rule.
 
 ## 4. The lever ledger
 
-Every lever from both papers, binned. `Status` is honest as of repo state
-2026-06-08 (IMPLEMENTATION_STATUS.md): **A**=actuates, **O**=observes only,
+Historical design inventory from June 2026; the status cells below are **not a
+current implementation or promotion ledger**. For current construction read
+[`optid-package-status.toml`](plans/optid-package-status.toml). The historical
+notation is **A**=actuates, **O**=observes only,
 **P**=parsed-not-applied, **—**=not implemented.
 
 ### 4.1 Observability inputs (read to know state + floor)
@@ -161,7 +204,7 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 |---|---|---|---|
 | DTPM / powercap | `powercap`, `dtpm` | Hierarchical shared power cap | — |
 | Thermal governor / power allocator | thermal sysfs | Thermal budget across domains | — |
-| Fan / acoustic | ACPI fan performance | Couples acoustic to thermal budget | — |
+| Fan / acoustic observation | ACPI/hwmon | Informs thermal context; fan actuation excluded | — |
 | HFI feedback | Intel/AMD HFI | Informs placement under changing capacity | — |
 | `sched_ext` | BPF scheduler class | Scheduler specialization; safe fallback | — (experimental fragment only) |
 
@@ -173,9 +216,9 @@ Every lever from both papers, binned. `Status` is honest as of repo state
   is out of scope.
 - **No actuation outside the §3 rule.** No "aggressive mode" that ignores the
   floor or the allowlist.
-- **No maximizing responsiveness.** The floor is *sufficient and invisible*, not
-  "as high as possible." Spending energy to exceed a floor is, by definition,
-  avoidable energy — the thing we minimize.
+- **No unaccounted trade-offs.** Responsiveness and throughput improvements are
+  legitimate OS goals. Optid respects the active service requirements and user
+  preference; a lower power reading alone is not proof of greater efficiency.
 - **No "integration for its own sake."** A new domain is absorbed only when a
   benchmark shows it reduces avoidable energy at a fixed floor.
 - **No agent redefining §0.** See §7.
@@ -184,9 +227,11 @@ Every lever from both papers, binned. `Status` is honest as of repo state
 
 ## 6. Work-package decomposition (derived, not invented)
 
-Each WP implements one ledger row (or tight group), behind the §3 gate, with one
-verifier criterion. Sequence respects the dependency: you cannot enable depth
-without first observing state and defining the contract.
+The table below is the historical decomposition, not the active task selector.
+Use the current completion plan and package ledger for construction. Sequence
+respects the dependency: you cannot enable depth without first observing state
+and defining the contract. OS integration and isolated source-build experiments
+may proceed independently of unfinished optional optimizer domains.
 
 | WP | Implements | Role | Verifier PASS criterion |
 |---|---|---|---|
@@ -199,7 +244,7 @@ without first observing state and defining the contract.
 | WP-N6 | NVMe APST + PCIe ASPM + SATA ALPM | enabler | State selected by exit-latency-vs-floor; no panic on allowlisted set; off-list = denied |
 | WP-N7 | Display/media depth (PSR, DPMS, backlight, dGPU runtime) | enabler | Idle display power drops at fixed interactive floor; resume within budget |
 | WP-N8 | DTPM/powercap outer loop | arbitrator | Aggregate cap enforced; sheds lowest-priority first; never breaches a floor |
-| WP-N9 | Thermal/fan budget coupling | arbitrator | Acoustic state tracks thermal headroom without floor breach |
+| WP-N9 | Thermal budget and fan observation | arbitrator | Thermal policy respects contracts; no fan actuation |
 | WP-B1 | Benchmark harness execution vs PPD/TLP/baseline | evidence | Real numbers published in `benchmarks/results/`; losses documented honestly |
 
 *Note: WP-B1's first deliverable is the measurement rig (`rushbench`) and single-host evidence; the cross-distro PPD/TLP/baseline comparison is a follow-up under the same WP row.*
@@ -213,16 +258,21 @@ shipped. The gate is satisfied by the benchmark results dataset (evidence) produ
 
 ---
 
-## 7. Agent contract addendum (paste into AGENTS.md)
+## 7. Relationship to agent work
 
-- Agents **may not** propose project direction, redefine the objective in §0, or
-  offer "strategic pivots." Such output is auto-rejected on sight.
-- A task = implement **one ledger row** from §4 as **one WP** from §6, behind the
-  §3 actuation rule.
-- Deliverable = code + verifier verdict (PASS/FAIL with evidence paths). Not a
-  memo, not a roadmap.
-- Humans own the objective. Reviewed repository integration is delegated under
-  `docs/agent-protocol.md` and ADR 0027; do not require a human merge of every PR.
+- `AGENTS.md` owns execution and verification procedure; do not duplicate a
+  competing workflow here.
+- Agents may research, recommend direction, prepare amendments and implement
+  authorized experiments. They must distinguish a proposal from human approval.
+- Choose a coherent behavior or research question. Use the active package
+  contract for Optid construction and the smallest risk-appropriate path for
+  other work. Historical lever rows do not define every permitted task.
+- Evidence must match the claim: source review, production-path tests, controlled
+  hardware experiments and release acceptance prove different things.
+- Human approval owns permanent project direction and release decisions. Reviewed
+  repository integration is delegated under
+  [`docs/agent-protocol.md`](agent-protocol.md) and ADR 0027; do not require a
+  human merge of every pull request.
 - Any agent claim of a created PR/branch/file must be verifiable
   (`gh pr view`, `git log`) or it is treated as fabricated.
 

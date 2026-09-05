@@ -1,5 +1,11 @@
 # Testing And Benchmarks
 
+For the owner-authorized OS/source-build investigation, use the
+[controlled comparison plan](plans/source-build-experiment.md). It separates
+Optid's causal effect, one source-build intervention, and whole-product
+comparisons. Its proposed numerical margins do not replace approved release
+criteria. Build plans and stubbed software tests are not hardware evidence.
+
 Rush Linux must prove optimization claims with repeatable tests. Benchmarks
 are not optional marketing material; they are release gates.
 
