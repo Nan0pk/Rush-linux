@@ -28,7 +28,8 @@ important without making every small change wait for a research project.
    The builder runs the checks relevant to the changed files
         |
 8. Independent review
-   Accuracy and completeness; additional proof for high-risk claims
+   Project goals -> architecture -> interactions -> issue -> implementation/proof
+   Return to a whole-system verdict; additional proof for high-risk claims
         |
 9. Delegated merge
    Coordinator checks current review and CI, merges, then continues
