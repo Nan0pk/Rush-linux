@@ -214,11 +214,14 @@ pub(crate) struct RuntimeObservabilitySnapshot {
     pub(crate) status: ObservationStatus,
     pub(crate) collected_at: u64,
     pub(crate) reads_attempted: u64,
+    pub(crate) wakeup_sources_status: ObservationStatus,
     pub(crate) wakeup_sources: Vec<WakeupSourceObservation>,
     pub(crate) runtime_pm: Vec<RuntimePmObservation>,
+    pub(crate) cpu_idle_status: ObservationStatus,
     pub(crate) cpu_idle: Vec<CpuIdleObservation>,
     pub(crate) pm_qos: PmQosObservation,
     pub(crate) storage: Vec<StorageObservation>,
+    pub(crate) backlights_status: ObservationStatus,
     pub(crate) backlights: Vec<BacklightObservation>,
 }
 
@@ -245,6 +248,13 @@ impl RuntimeObservabilitySnapshot {
 
         let stale = previous.is_some_and(|previous| collected_at <= previous.collected_at);
         let mut reads = ReadCounter::default();
+        let (wakeup_sources, wakeup_sources_status) =
+            collect_wakeup_sources(read, &mut reads, previous, stale);
+        let runtime_pm = collect_runtime_pm(read, &mut reads, previous, stale);
+        let (cpu_idle, cpu_idle_status) = collect_cpu_idle(read, &mut reads, previous, stale);
+        let pm_qos = collect_pm_qos(read, &mut reads);
+        let storage = collect_storage(read, &mut reads, previous);
+        let (backlights, backlights_status) = collect_backlights(read, &mut reads, previous);
         let mut snapshot = Self {
             mode,
             status: if stale {
@@ -253,12 +263,15 @@ impl RuntimeObservabilitySnapshot {
                 ObservationStatus::Observed
             },
             collected_at,
-            wakeup_sources: collect_wakeup_sources(read, &mut reads, previous, stale),
-            runtime_pm: collect_runtime_pm(read, &mut reads, previous, stale),
-            cpu_idle: collect_cpu_idle(read, &mut reads, previous, stale),
-            pm_qos: collect_pm_qos(read, &mut reads),
-            storage: collect_storage(read, &mut reads, previous),
-            backlights: collect_backlights(read, &mut reads, previous),
+            wakeup_sources_status,
+            wakeup_sources,
+            runtime_pm,
+            cpu_idle_status,
+            cpu_idle,
+            pm_qos,
+            storage,
+            backlights_status,
+            backlights,
             ..Self::default()
         };
         snapshot.reads_attempted = reads.attempts;
@@ -280,6 +293,12 @@ impl RuntimeObservabilitySnapshot {
             self.storage.len(),
             self.backlights.len(),
         );
+        out.push_str(&format!(
+            "sources.wakeup={} cpu_idle={} backlight={}\n",
+            self.wakeup_sources_status.as_str(),
+            self.cpu_idle_status.as_str(),
+            self.backlights_status.as_str(),
+        ));
         out.push_str(&format!(
             "pm_qos.cpu_latency_us={} requestors={} status={}\n",
             self.pm_qos
@@ -470,13 +489,11 @@ fn collect_wakeup_sources(
     counter: &mut ReadCounter,
     previous: Option<&RuntimeObservabilitySnapshot>,
     stale: bool,
-) -> Vec<WakeupSourceObservation> {
+) -> (Vec<WakeupSourceObservation>, ObservationStatus) {
     let root = Path::new("/sys/class/wakeup");
-    if !counter.exists(read, root) {
-        return stale_wakeups(previous);
-    }
-    let Ok(mut entries) = counter.read_dir(read, root) else {
-        return stale_wakeups(previous);
+    let mut entries = match counter.read_dir(read, root) {
+        Ok(entries) => entries,
+        Err(error) => return (stale_wakeups(previous), error_status(&error)),
     };
     entries.sort();
     let mut output = Vec::new();
@@ -541,7 +558,7 @@ fn collect_wakeup_sources(
         }
     }
     output.sort_by(|left, right| left.id.cmp(&right.id));
-    output
+    (output, ObservationStatus::Observed)
 }
 
 fn stale_wakeups(previous: Option<&RuntimeObservabilitySnapshot>) -> Vec<WakeupSourceObservation> {
@@ -698,13 +715,11 @@ fn collect_cpu_idle(
     counter: &mut ReadCounter,
     previous: Option<&RuntimeObservabilitySnapshot>,
     stale: bool,
-) -> Vec<CpuIdleObservation> {
+) -> (Vec<CpuIdleObservation>, ObservationStatus) {
     let root = Path::new("/sys/devices/system/cpu");
-    if !counter.exists(read, root) {
-        return Vec::new();
-    }
-    let Ok(mut cpus) = counter.read_dir(read, root) else {
-        return Vec::new();
+    let mut cpus = match counter.read_dir(read, root) {
+        Ok(cpus) => cpus,
+        Err(error) => return (stale_cpu_idle(previous), error_status(&error)),
     };
     cpus.sort();
     let mut output = Vec::new();
@@ -774,7 +789,25 @@ fn collect_cpu_idle(
         }
     }
     output.sort_by(|left, right| (left.cpu, &left.state).cmp(&(right.cpu, &right.state)));
-    output
+    (output, ObservationStatus::Observed)
+}
+
+fn stale_cpu_idle(previous: Option<&RuntimeObservabilitySnapshot>) -> Vec<CpuIdleObservation> {
+    previous
+        .map(|previous| {
+            previous
+                .cpu_idle
+                .iter()
+                .cloned()
+                .map(|mut entry| {
+                    entry.status = ObservationStatus::Stale;
+                    entry.time_delta_us = CounterDelta::default();
+                    entry.usage_delta = CounterDelta::default();
+                    entry
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn collect_pm_qos(read: &dyn KernelRead, counter: &mut ReadCounter) -> PmQosObservation {
@@ -931,25 +964,11 @@ fn collect_backlights(
     read: &dyn KernelRead,
     counter: &mut ReadCounter,
     previous: Option<&RuntimeObservabilitySnapshot>,
-) -> Vec<BacklightObservation> {
+) -> (Vec<BacklightObservation>, ObservationStatus) {
     let root = Path::new("/sys/class/backlight");
-    if !counter.exists(read, root) {
-        return previous
-            .map(|previous| {
-                previous
-                    .backlights
-                    .iter()
-                    .cloned()
-                    .map(|mut entry| {
-                        entry.status = ObservationStatus::Stale;
-                        entry
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-    }
-    let Ok(mut entries) = counter.read_dir(read, root) else {
-        return Vec::new();
+    let mut entries = match counter.read_dir(read, root) {
+        Ok(entries) => entries,
+        Err(error) => return (stale_backlights(previous), error_status(&error)),
     };
     entries.sort();
     let mut output = Vec::new();
@@ -987,7 +1006,23 @@ fn collect_backlights(
         }
     }
     output.sort_by(|left, right| left.id.cmp(&right.id));
-    output
+    (output, ObservationStatus::Observed)
+}
+
+fn stale_backlights(previous: Option<&RuntimeObservabilitySnapshot>) -> Vec<BacklightObservation> {
+    previous
+        .map(|previous| {
+            previous
+                .backlights
+                .iter()
+                .cloned()
+                .map(|mut entry| {
+                    entry.status = ObservationStatus::Stale;
+                    entry
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1043,6 +1078,13 @@ mod tests {
                 .entry(directory.to_path_buf())
                 .or_default()
                 .push(entry.to_path_buf());
+        }
+
+        fn add_empty_dir(&self, directory: &Path) {
+            self.directories
+                .borrow_mut()
+                .entry(directory.to_path_buf())
+                .or_default();
         }
 
         fn advance_clock(&self, seconds: u64) {
@@ -1360,6 +1402,90 @@ mod tests {
             ObservationStatus::Unsupported
         );
         assert!(snapshot.render_summary().contains("actual=unavailable"));
+    }
+
+    #[test]
+    fn o1_directory_discovery_failures_are_visible_and_preserve_previous_state() {
+        let first = fixture();
+        let previous = observe(&first);
+
+        let wakeup = fixture();
+        wakeup.advance_clock(2);
+        wakeup.fail_next_read(
+            PathBuf::from("/sys/class/wakeup"),
+            io::ErrorKind::PermissionDenied,
+        );
+        let wakeup = RuntimeObservabilitySnapshot::collect(
+            &wakeup,
+            &wakeup,
+            RuntimeObservabilityMode::Observe,
+            Some(&previous),
+        );
+        assert_eq!(
+            wakeup.wakeup_sources_status,
+            ObservationStatus::PermissionDenied
+        );
+        assert!(wakeup
+            .wakeup_sources
+            .iter()
+            .all(|entry| entry.status == ObservationStatus::Stale));
+
+        let cpu = fixture();
+        cpu.advance_clock(2);
+        cpu.fail_next_read(
+            PathBuf::from("/sys/devices/system/cpu"),
+            io::ErrorKind::PermissionDenied,
+        );
+        let cpu = RuntimeObservabilitySnapshot::collect(
+            &cpu,
+            &cpu,
+            RuntimeObservabilityMode::Observe,
+            Some(&previous),
+        );
+        assert_eq!(cpu.cpu_idle_status, ObservationStatus::PermissionDenied);
+        assert!(cpu
+            .cpu_idle
+            .iter()
+            .all(|entry| entry.status == ObservationStatus::Stale));
+
+        let backlight = fixture();
+        backlight.advance_clock(2);
+        backlight.fail_next_read(
+            PathBuf::from("/sys/class/backlight"),
+            io::ErrorKind::PermissionDenied,
+        );
+        let backlight = RuntimeObservabilitySnapshot::collect(
+            &backlight,
+            &backlight,
+            RuntimeObservabilityMode::Observe,
+            Some(&previous),
+        );
+        assert_eq!(
+            backlight.backlights_status,
+            ObservationStatus::PermissionDenied
+        );
+        assert!(backlight
+            .backlights
+            .iter()
+            .all(|entry| entry.status == ObservationStatus::Stale));
+        assert!(backlight
+            .render_summary()
+            .contains("sources.wakeup=observed cpu_idle=observed backlight=permission_denied"));
+    }
+
+    #[test]
+    fn o1_successfully_empty_sources_are_observed_not_failed() {
+        let kernel = ObserverKernel::new();
+        kernel.add_empty_dir(Path::new("/sys/class/wakeup"));
+        kernel.add_empty_dir(Path::new("/sys/devices/system/cpu"));
+        kernel.add_empty_dir(Path::new("/sys/class/backlight"));
+        let snapshot = observe(&kernel);
+        assert_eq!(snapshot.wakeup_sources_status, ObservationStatus::Observed);
+        assert_eq!(snapshot.cpu_idle_status, ObservationStatus::Observed);
+        assert_eq!(snapshot.backlights_status, ObservationStatus::Observed);
+        assert!(snapshot.wakeup_sources.is_empty());
+        assert!(snapshot.cpu_idle.is_empty());
+        assert!(snapshot.backlights.is_empty());
     }
 
     #[test]
