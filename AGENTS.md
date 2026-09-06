@@ -199,6 +199,35 @@ elegant. Do not expand scope without explaining why the current task requires
 it. A prototype from unfinished research must remain off by default and clearly
 marked experimental.
 
+### Work in bounded, substantial batches
+
+Owner direction, 2026-09-06: work in batches, avoid getting entangled in one
+task and wasting resources, and do not let perfect become the enemy of excellent.
+
+- Choose a batch from the live work selector or another owner-authorized plan.
+  State its useful outcome, included work, necessary checks and stopping point
+  briefly. Prefer a substantial coherent result over a stream of tiny process
+  changes; a batch may contain several independently reviewable PRs.
+- Finish the agreed scope and integrate eligible work. Do not keep extending
+  an investigation, polishing an adequate result or expanding an audit merely
+  because more improvements are possible. Broaden only for a concrete defect
+  or missing requirement that prevents the batch's promised outcome.
+- Run the checks appropriate to the actual risk and all required gates. Once
+  they pass, repeat or broaden them only for changed code, failures, new
+  evidence or unresolved concerns. Reuse valid context and review evidence.
+- Record out-of-scope findings in the existing plan or inbox with their impact
+  and next action, then return to the batch. A blocked item does not consume
+  the whole session: continue independent authorized work while CI or review
+  runs, and revisit the blocker when new evidence or access arrives.
+- Close each batch with the delivered result, verification, remaining gaps and
+  next useful batch. Measure progress by working behavior and usable evidence,
+  not time spent, document count or repeated status checks.
+
+This policy bounds scope and effort; it does not waive safety, required checks,
+independent review, truthful package status or explicit owner decisions. Useful
+partial implementation may ship with its limits stated, but cannot unlock
+dependencies or claim completion it has not earned.
+
 ### Simplicity check
 
 Before adding code, tooling, a workflow, or an instruction layer:
