@@ -1,5 +1,11 @@
 # O1 repair — three defects fixed, three decisions made. Needs a fresh cold verifier.
 
+Correction, 2026-09-06: the claim below that root-only debugfs is correctly
+reported as `unsupported` was disproved by independent cold verification.
+An inaccessible ancestor returns permission denied, not proof of absence.
+See [the fresh findings](2026-09-06-runtime-observability-verification.md).
+The reporter now opens the PM QoS file directly and preserves that error.
+
 Package: **O1 — Add truthful runtime-state observability** (ledger stays `candidate`)
 Repairs: `docs/inbox/2026-09-04-o1-cold-verification-findings.md` (PR #453)
 Base commit: `8bbe10e`
