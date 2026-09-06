@@ -200,14 +200,13 @@ terminate_owned_tree() {
 stop_owned_pid() {
     local pid="$1"
     local label="$2"
-    local attempt
     if ! kill -0 "$pid" 2>/dev/null; then
         wait "$pid" 2>/dev/null || true
         return 0
     fi
     echo "[cleanup] stopping run-owned $label (pid=$pid)"
     kill "$pid" 2>/dev/null || true
-    for attempt in $(seq 1 30); do
+    for _ in $(seq 1 30); do
         kill -0 "$pid" 2>/dev/null || break
         sleep 0.1
     done
