@@ -239,16 +239,17 @@ fn spawn_owned_driver(command: &mut Command, label: &str) -> Result<(Child, u32)
 }
 
 /// Send a signal to one run-owned process group using the shell's POSIX `kill`
-/// builtin. The PGID is numeric and supplied as a positional argument, not
-/// interpolated into shell source.
+/// builtin. The signal and numeric PGID are supplied as positional arguments,
+/// not interpolated into shell source. The explicit signal option makes the
+/// following negative number unambiguously a process-group target without
+/// relying on the non-portable `kill -- -PGID` form.
 fn signal_owned_process_group(process_group: u32, signal: &str) -> Result<(), String> {
-    let target = format!("-{process_group}");
-    let script = format!("kill -{signal} -- \"$1\"");
     let status = Command::new("sh")
         .arg("-c")
-        .arg(script)
+        .arg("kill -\"$1\" -\"$2\"")
         .arg("rushbench-driver-kill")
-        .arg(&target)
+        .arg(signal)
+        .arg(process_group.to_string())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
