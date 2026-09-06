@@ -13,13 +13,14 @@
 #
 # Two arms, and what differs between them:
 #
-#   baseline  the distribution's mainstream default power stack, left running
-#             (on Fedora 44 that is tuned with its balanced profile — not the
-#             workload spec's "PPD balanced", which is not what a Fedora user
-#             actually runs). No optid.
-#   optid     tuned stopped, `optid --apply` supervising instead. tuned is in
-#             optid's competing_policy_daemons list, so leaving it up would make
-#             optid downgrade its own apply mode and measure nothing.
+#   baseline  the distribution's mainstream default power stack, already
+#             running in its expected profile. The capture never starts tuned
+#             or changes its profile to manufacture a baseline. No optid.
+#   optid     tuned stopped by this run when it was active, `optid --apply`
+#             supervising instead. tuned is in optid's competing_policy_daemons
+#             list, so leaving it up would make optid downgrade its own apply
+#             mode and measure nothing. Cleanup restores only state this run
+#             changed, including the prior tuned profile.
 #
 # Both arms MUST run on battery: Criterion 3 is an on-battery measurement, and
 # the only energy counter a non-root process can read on this class of hardware
@@ -63,7 +64,7 @@ while [[ $# -gt 0 ]]; do
         --user) DESKTOP_USER="$2"; shift 2 ;;
         --min-battery) MIN_BATTERY="$2"; shift 2 ;;
         --ac-ok) AC_OK=1; shift ;;
-        -h|--help) sed -n '2,46p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,49p' "$0"; exit 0 ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -82,6 +83,7 @@ OPTCTL="$REPO/target/release/optctl"
 for binary in "$RUSHBENCH" "$OPTID" "$OPTCTL"; do
     [[ -x "$binary" ]] || { echo "error: $binary missing — run: cargo build --release" >&2; exit 1; }
 done
+command -v pgrep >/dev/null 2>&1 || { echo "error: pgrep is required for ownership checks" >&2; exit 1; }
 
 # The 2026-06-10 sample was rejected partly because meta.txt captured usage text
 # here; refuse to start if the version flag is still not real.
@@ -105,6 +107,38 @@ done
 if (( ${#missing[@]} )); then
     echo "note: absent phase drivers will record unsupported_here: ${missing[*]}"
     echo "      install with: dnf install -y ${missing[*]}"
+fi
+
+if pgrep -x optid >/dev/null 2>&1; then
+    echo "error: an optid process already exists; this capture will not kill or adopt a process it did not start" >&2
+    exit 1
+fi
+
+current_tuned_profile() {
+    tuned-adm active 2>/dev/null | sed -n 's/^Current active profile: //p' | head -1
+}
+
+TUNED_WAS_ACTIVE=0
+TUNED_PROFILE_BEFORE=""
+if systemctl is-active --quiet tuned 2>/dev/null; then
+    command -v tuned-adm >/dev/null 2>&1 || { echo "error: tuned is active but tuned-adm is unavailable, so its profile cannot be inventoried/restored" >&2; exit 1; }
+    TUNED_WAS_ACTIVE=1
+    TUNED_PROFILE_BEFORE="$(current_tuned_profile)"
+fi
+
+# A baseline is evidence for the distro's mainstream default, not a profile the
+# harness manufactured. On the nominated Fedora 44 reference host that means
+# tuned must already be active in balanced. Refuse mismatched host state rather
+# than silently changing it.
+if [[ "$ARM" == "baseline" || "$ARM" == "both" ]]; then
+    if (( TUNED_WAS_ACTIVE == 0 )); then
+        echo "error: tuned is not active; refusing to start it just to manufacture the baseline" >&2
+        exit 1
+    fi
+    if [[ "$TUNED_PROFILE_BEFORE" != "balanced" ]]; then
+        echo "error: tuned profile is '${TUNED_PROFILE_BEFORE:-unknown}', expected the already-active distro baseline 'balanced'; refusing to change it" >&2
+        exit 1
+    fi
 fi
 
 ac_online=0
@@ -146,32 +180,97 @@ LOG="$DIR/capture.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== phase-d-capture $(date -u +%Y-%m-%dT%H:%M:%SZ) arm=$ARM cycles=$CYCLES scale=$SCALE"
 echo "=== optid_version=$OPTID_VERSION desktop_user=$DESKTOP_USER battery=${battery_pct}%"
+echo "=== tuned_initial_active=$TUNED_WAS_ACTIVE tuned_initial_profile=${TUNED_PROFILE_BEFORE:-unknown}"
 
 # --------------------------------------------------------------- system state
-STOPPED=()
 OPTID_PID=""
-cleanup() {
-    set +e
-    echo "[cleanup] restoring system state"
-    if [[ -n "$OPTID_PID" ]] && kill -0 "$OPTID_PID" 2>/dev/null; then
-        echo "[cleanup] stopping optid (pid=$OPTID_PID); its revert path restores the knobs"
-        kill "$OPTID_PID"
-        sleep 3
+RUSHBENCH_PID=""
+TUNED_STOPPED_BY_RUN=0
+RUN_WORK_DIR="/tmp/rushbench-mixed-load-001-capture-$$"
+
+terminate_owned_tree() {
+    local pid="$1"
+    local child
+    while read -r child; do
+        [[ -n "$child" ]] && terminate_owned_tree "$child"
+    done < <(pgrep -P "$pid" 2>/dev/null || true)
+    kill "$pid" 2>/dev/null || true
+}
+
+stop_owned_pid() {
+    local pid="$1"
+    local label="$2"
+    if ! kill -0 "$pid" 2>/dev/null; then
+        wait "$pid" 2>/dev/null || true
+        return 0
     fi
-    pkill -x optid 2>/dev/null
-    pkill -u "$USER_UID" -f rushbench-mixed-load-001 2>/dev/null
-    for svc in "${STOPPED[@]:-}"; do
-        echo "[cleanup] restarting $svc"
-        systemctl start "$svc" 2>/dev/null
+    echo "[cleanup] stopping run-owned $label (pid=$pid)"
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
     done
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "[cleanup] run-owned $label did not stop after SIGTERM; sending SIGKILL" >&2
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+}
+
+cleanup() {
+    local original_status=$?
+    local restore_failed=0
+    set +e
+    echo "[cleanup] restoring capture-owned system state"
+
+    if [[ -n "$RUSHBENCH_PID" ]] && kill -0 "$RUSHBENCH_PID" 2>/dev/null; then
+        echo "[cleanup] stopping run-owned rushbench process tree (pid=$RUSHBENCH_PID)"
+        terminate_owned_tree "$RUSHBENCH_PID"
+        wait "$RUSHBENCH_PID" 2>/dev/null
+    fi
+    RUSHBENCH_PID=""
+
+    if [[ -n "$OPTID_PID" ]]; then
+        stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
+    fi
+    OPTID_PID=""
+
+    if (( TUNED_STOPPED_BY_RUN == 1 )); then
+        echo "[cleanup] restarting tuned because this run attempted to stop it"
+        if ! systemctl start tuned; then
+            echo "[cleanup] error: failed to restart tuned" >&2
+            restore_failed=1
+        elif [[ -n "$TUNED_PROFILE_BEFORE" ]]; then
+            local current_profile
+            current_profile="$(current_tuned_profile)"
+            if [[ "$current_profile" != "$TUNED_PROFILE_BEFORE" ]]; then
+                echo "[cleanup] restoring tuned profile '$TUNED_PROFILE_BEFORE'"
+                if ! tuned-adm profile "$TUNED_PROFILE_BEFORE"; then
+                    echo "[cleanup] error: failed to restore tuned profile '$TUNED_PROFILE_BEFORE'" >&2
+                    restore_failed=1
+                fi
+            fi
+        fi
+    fi
+
+    rm -rf "$RUN_WORK_DIR"
+    trap - EXIT
+    if (( restore_failed == 1 && original_status == 0 )); then
+        exit 1
+    fi
+    exit "$original_status"
 }
 trap cleanup EXIT
 
 # rushbench runs in the desktop session so the graphical phases have a display.
+# It is launched asynchronously only so cleanup can retain its exact PID and
+# terminate that run-owned process tree on errors or interrupts; no name-based
+# process killing is used.
 run_rushbench() {
     local tag="$1" out="$2"
-    mkdir -p "$out"
-    chown -R "$DESKTOP_USER" "$out"
+    local status
+    mkdir -p "$out" "$RUN_WORK_DIR"
+    chown -R "$DESKTOP_USER" "$out" "$RUN_WORK_DIR"
     local extra_args=()
     if (( AC_OK )); then
         extra_args+=(--ac-ok)
@@ -183,40 +282,50 @@ run_rushbench() {
         RUSHBENCH_ENERGY_SOURCE=battery \
         RUSHBENCH_PHASE_SCALE="$SCALE" \
         RUSHBENCH_OPTID_BIN="$OPTID" \
-        RUSHBENCH_WORK_DIR="/tmp/rushbench-mixed-load-001" \
+        RUSHBENCH_WORK_DIR="$RUN_WORK_DIR" \
         PATH="$REPO/target/release:$PATH" \
         "$RUSHBENCH" run preset=mixed-load-001 \
             --cycles "$CYCLES" --tag="$tag" --out "$out" \
-            "${extra_args[@]}"
+            "${extra_args[@]}" &
+    RUSHBENCH_PID=$!
+    if wait "$RUSHBENCH_PID"; then
+        status=0
+    else
+        status=$?
+    fi
+    RUSHBENCH_PID=""
+    return "$status"
 }
 
 capture_baseline() {
-    echo "--- D3 baseline arm: mainstream defaults, no optid"
-    pkill -x optid 2>/dev/null || true
-    if ! systemctl is-active --quiet tuned 2>/dev/null; then
-        echo "[baseline] tuned is not running; starting it so the baseline is the distro default"
-        systemctl start tuned || true
-    fi
-    tuned-adm profile balanced 2>/dev/null || echo "[baseline] tuned-adm profile balanced failed (recorded as-is)"
-    echo "[baseline] tuned profile: $(tuned-adm active 2>/dev/null || echo unknown)"
+    echo "--- D3 baseline arm: observed mainstream default, no optid"
+    echo "[baseline] tuned was already active; profile: $(tuned-adm active 2>/dev/null || echo unknown)"
     run_rushbench "baseline-fedora44-tuned-balanced-$(hostname)" "$DIR/baseline"
 }
 
 capture_optid() {
-    echo "--- D4 optid arm: tuned stopped, optid --apply supervising"
+    echo "--- D4 optid arm: competing tuned owner temporarily stopped, optid --apply supervising"
     if systemctl is-active --quiet tuned 2>/dev/null; then
+        # Mark ownership before the stop attempt. If systemctl fails after
+        # partially changing state, the EXIT trap will still restore tuned.
+        TUNED_STOPPED_BY_RUN=1
         systemctl stop tuned
-        STOPPED+=(tuned)
     fi
-    pkill -x optid 2>/dev/null || true
-    sleep 1
-    rm -rf /run/optid
+
+    # Do not delete /run/optid: it may contain state this capture does not own.
+    # Instead require status.json to change after this daemon is launched so a
+    # stale file cannot be mistaken for readiness.
     mkdir -p /run/optid
-    chmod 755 /run/optid
+    local status_before=""
+    if [[ -e /run/optid/status.json ]]; then
+        status_before="$(stat -c '%y:%s:%i' /run/optid/status.json 2>/dev/null || true)"
+    fi
+
     # Mirror the packaged unit ordering: optid-apply.service Requires= and
     # After= optid-recover.service. Transaction records left by an earlier
-    # generation make the daemon refuse to touch their targets, so without this
-    # step it stops at startup after any unclean exit.
+    # generation make the daemon refuse to touch their targets, so recovery must
+    # run before a new daemon. Recovery evidence is consumed through its normal
+    # verified path; this wrapper never deletes the shared recovery directory.
     "$REPO/target/release/optid-recover" \
         --recovery-dir /var/lib/optid/recovery \
         --status-file /run/optid/recovery-status.json \
@@ -226,14 +335,26 @@ capture_optid() {
         >"$DIR/optid-daemon.log" 2>&1 &
     OPTID_PID=$!
     for _ in $(seq 1 30); do
-        [[ -r /run/optid/status.json ]] && break
+        if [[ -r /run/optid/status.json ]]; then
+            local status_now
+            status_now="$(stat -c '%y:%s:%i' /run/optid/status.json 2>/dev/null || true)"
+            if [[ -n "$status_now" && "$status_now" != "$status_before" ]]; then
+                break
+            fi
+        fi
         sleep 1
     done
     if [[ ! -r /run/optid/status.json ]]; then
         echo "error: optid wrote no status.json in 30 s; see $DIR/optid-daemon.log" >&2
         exit 1
     fi
-    chmod -R a+rX /run/optid
+    local status_after
+    status_after="$(stat -c '%y:%s:%i' /run/optid/status.json 2>/dev/null || true)"
+    if [[ -z "$status_after" || "$status_after" == "$status_before" ]]; then
+        echo "error: /run/optid/status.json did not become fresh after optid launch; refusing stale readiness" >&2
+        exit 1
+    fi
+
     echo "[optid] apply_armed line: $(grep -m1 apply_armed /run/optid/status 2>/dev/null || echo unavailable)"
     run_rushbench "optid-${OPTID_VERSION// /-}-$(hostname)" "$DIR/optid"
     # The allowlist denials are Criterion 1's evidence: unsupported/unverified
@@ -241,8 +362,7 @@ capture_optid() {
     for artifact in status status.json decisions.log actions.log audit.jsonl; do
         [[ -r "/run/optid/$artifact" ]] && cp "/run/optid/$artifact" "$DIR/optid/optid-$artifact"
     done
-    kill "$OPTID_PID" 2>/dev/null || true
-    wait "$OPTID_PID" 2>/dev/null || true
+    stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
     OPTID_PID=""
 }
 
