@@ -166,6 +166,12 @@ Preserve those distinctions in the PR.
 
 ## Keep work moving
 
+Use the bounded-batch policy in `AGENTS.md`: agree a useful outcome and stopping
+point, deliver a substantial coherent result, and park unrelated discoveries
+with a next action. Do not let one task absorb the session through repeated
+audits, speculative refinements or checking unchanged state. Required proof and
+review still apply; reuse evidence until the relevant code or assumptions change.
+
 Start review when a coherent patch is ready. Other agents can work on independent
 tasks while review and CI run. After merging, use actual dependency status to
 select work. Do not serialize everything behind one PR or pretend an incomplete
