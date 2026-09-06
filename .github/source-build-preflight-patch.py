@@ -54,7 +54,7 @@ replace_once(
     '''    cargo = bin_dir / "cargo"
     cargo.write_text(
         "#!/bin/sh\\n"
-        "if [ \"${1:-}\" = \"--version\" ]; then echo 'cargo 99-test'; exit 0; fi\\n"
+        'if [ "${1:-}" = "--version" ]; then echo "cargo 99-test"; exit 0; fi\\n'
         "mkdir -p target/release\\n"
         "printf fixture > target/release/optid\\n"
         "printf fixture > target/release/optctl\\n"
