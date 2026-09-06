@@ -62,6 +62,9 @@ fn o1_production_status_surfaces_runtime_observability() {
     assert!(report.contains("cpu_idle="));
     assert!(report.contains("storage="));
     assert!(report.contains("backlights="));
+    assert!(report.contains("sources.wakeup="));
+    assert!(report.contains("cpu_idle="));
+    assert!(report.contains("backlight="));
 }
 
 #[test]
