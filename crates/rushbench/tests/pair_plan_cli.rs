@@ -36,11 +36,17 @@ fn pair_plan_cli_writes_reproducible_balanced_plan() {
     let order = value["order"].as_array().expect("order array");
     assert_eq!(order.len(), 6);
     assert_eq!(
-        order.iter().filter(|entry| entry.as_str() == Some("AB")).count(),
+        order
+            .iter()
+            .filter(|entry| entry.as_str() == Some("AB"))
+            .count(),
         3
     );
     assert_eq!(
-        order.iter().filter(|entry| entry.as_str() == Some("BA")).count(),
+        order
+            .iter()
+            .filter(|entry| entry.as_str() == Some("BA"))
+            .count(),
         3
     );
 
