@@ -630,10 +630,16 @@ fn collect_runtime_pm(
                     .map_err(|failure| status = status.merge(failure))
                     .ok();
             let qos_path = path.join("power/pm_qos_resume_latency_us");
-            let resume_latency_constraint_us = if counter.exists(read, &qos_path) {
-                read_i64(read, counter, &qos_path).ok()
-            } else {
-                None
+            let resume_latency_constraint_us = match read_i64(read, counter, &qos_path) {
+                Ok(value) => Some(value),
+                // This optional attribute is absent on many devices. Only
+                // absence is benign; an unreadable or corrupt constraint is
+                // not a successfully observed device.
+                Err(ObservationStatus::Unsupported) => None,
+                Err(failure) => {
+                    status = status.merge(failure);
+                    None
+                }
             };
             let prior = previous_runtime_pm(previous, &id);
             output.push(RuntimePmObservation {
@@ -773,9 +779,8 @@ fn collect_cpu_idle(
 
 fn collect_pm_qos(read: &dyn KernelRead, counter: &mut ReadCounter) -> PmQosObservation {
     let path = Path::new("/sys/kernel/debug/pm_qos/cpu_latency_constraints");
-    if !counter.exists(read, path) {
-        return PmQosObservation::default();
-    }
+    // Open directly: exists() folds permission errors on debugfs ancestors
+    // into false and would misreport an inaccessible interface as absent.
     let text = match counter.read_to_string(read, path) {
         Ok(text) => text,
         Err(error) => {
@@ -957,13 +962,10 @@ fn collect_backlights(
             .map_err(|failure| status = status.merge(failure))
             .ok();
         let actual_path = path.join("actual_brightness");
-        let actual_brightness = if counter.exists(read, &actual_path) {
-            read_u64(read, counter, &actual_path)
-                .map_err(|failure| status = status.merge(failure))
-                .ok()
-        } else {
-            brightness
-        };
+        // Requested brightness is not evidence of the actual device state.
+        let actual_brightness = read_u64(read, counter, &actual_path)
+            .map_err(|failure| status = status.merge(failure))
+            .ok();
         let max_brightness = read_u64(read, counter, &path.join("max_brightness"))
             .map_err(|failure| status = status.merge(failure))
             .ok();
@@ -1292,6 +1294,72 @@ mod tests {
             parsed.observability.runtime.mode,
             RuntimeObservabilityMode::Off
         );
+    }
+
+    #[test]
+    fn o1_pm_qos_inaccessible_ancestor_is_permission_denied() {
+        let kernel = ObserverKernel::new();
+        // Like Path::exists() behind an inaccessible debugfs ancestor, this
+        // absent fixture path returns false from exists but EACCES on open.
+        kernel.fail_next_read(
+            PathBuf::from("/sys/kernel/debug/pm_qos/cpu_latency_constraints"),
+            io::ErrorKind::PermissionDenied,
+        );
+        let snapshot = RuntimeObservabilitySnapshot::collect(
+            &kernel,
+            &kernel,
+            RuntimeObservabilityMode::Observe,
+            None,
+        );
+        assert_eq!(snapshot.pm_qos.status, ObservationStatus::PermissionDenied);
+        assert!(snapshot
+            .render_summary()
+            .contains("pm_qos.cpu_latency_us=unavailable requestors=0 status=permission_denied"));
+    }
+
+    #[test]
+    fn o1_runtime_pm_qos_read_failures_are_not_observed() {
+        let path = Path::new("/sys/bus/pci/devices/0000:00:1f.0/power/pm_qos_resume_latency_us");
+        for (failure, expected) in [
+            (
+                io::ErrorKind::PermissionDenied,
+                ObservationStatus::PermissionDenied,
+            ),
+            (io::ErrorKind::InvalidData, ObservationStatus::Malformed),
+        ] {
+            let kernel = fixture();
+            kernel.fail_next_read(path.to_path_buf(), failure);
+            let snapshot = RuntimeObservabilitySnapshot::collect(
+                &kernel,
+                &kernel,
+                RuntimeObservabilityMode::Observe,
+                None,
+            );
+            assert_eq!(snapshot.runtime_pm[0].status, expected);
+            assert_eq!(snapshot.runtime_pm[0].resume_latency_constraint_us, None);
+        }
+    }
+
+    #[test]
+    fn o1_missing_actual_brightness_is_not_requested_brightness() {
+        let kernel = fixture();
+        remove_file(
+            &kernel,
+            "/sys/class/backlight/intel_backlight/actual_brightness",
+        );
+        let snapshot = RuntimeObservabilitySnapshot::collect(
+            &kernel,
+            &kernel,
+            RuntimeObservabilityMode::Observe,
+            None,
+        );
+        assert!(snapshot.backlights[0].brightness.is_some());
+        assert_eq!(snapshot.backlights[0].actual_brightness, None);
+        assert_eq!(
+            snapshot.backlights[0].status,
+            ObservationStatus::Unsupported
+        );
+        assert!(snapshot.render_summary().contains("actual=unavailable"));
     }
 
     #[test]

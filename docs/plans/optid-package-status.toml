@@ -565,7 +565,7 @@ completion_evidence = [
   "crates/optid/src/runtime_observability.rs",
   "crates/optid/tests/o1_runtime_status.rs",
 ]
-blocking_reason = "O1's first cold verification failed on real hardware (docs/inbox/2026-09-04-o1-cold-verification-findings.md, PR #453): the reporter read a wakeup file the kernel does not export, and treated a documented runtime_status value as corruption. Both are repaired, along with a third defect of the same class found during the repair, and the fixture is now pinned to a captured real sysfs layout (docs/inbox/2026-09-04-o1-repair-record.md). Completion still requires a fresh cold verification by a worker who did not write the repair, and no receipt exists at docs/plans/optid-verification/o1.toml, so D1 and D2 remain locked. The optctl status surface named in the completion plan is separately unwired by maintainer direction."
+blocking_reason = "Fresh cold verification at f3cbdb2 found permission-denied PM QoS reported as unsupported, discarded per-device constraint errors, fabricated actual brightness, and hidden directory-discovery failures (docs/inbox/2026-09-06-runtime-observability-verification.md). The field-read defects are repaired with regression coverage; directory-discovery error reporting remains unfinished. Completion still requires a fresh independent passing receipt, so D1 and D2 remain locked. The optctl status surface named in the completion plan is separately unwired by maintainer direction."
 [package.acceptance_tests]
 config_defaults_and_off_mode = "o1_runtime_mode_defaults_to_observe_and_parses_off"
 deterministic_full_snapshot = "o1_mock_full_state_snapshot_is_deterministic"
@@ -583,6 +583,10 @@ unsupported_state_is_not_malformed = "o1_unsupported_runtime_status_is_not_appli
 captured_real_kernel_layout = "o1_captured_real_sysfs_layout_reports_no_read_failure"
 fixture_matches_real_kernel = "o1_synthetic_fixture_uses_only_file_names_the_real_kernel_exports"
 live_kernel_surfaces_are_not_degraded = "o1_production_reports_real_kernel_surfaces_without_degrading_them"
+inaccessible_pm_qos_ancestor = "o1_pm_qos_inaccessible_ancestor_is_permission_denied"
+runtime_pm_qos_errors = "o1_runtime_pm_qos_read_failures_are_not_observed"
+unavailable_actual_brightness = "o1_missing_actual_brightness_is_not_requested_brightness"
+production_pm_qos_errors = "o1_production_pm_qos_preserves_kernel_read_errors"
 
 [[package]]
 id = "O2"

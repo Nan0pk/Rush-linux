@@ -71,6 +71,33 @@ fn o1_production_off_mode_reports_zero_runtime_reads() {
 }
 
 #[test]
+fn o1_production_pm_qos_preserves_kernel_read_errors() {
+    let path = "/sys/kernel/debug/pm_qos/cpu_latency_constraints";
+    let before = fs::read_to_string(path).err().map(|error| error.kind());
+    let report = observe("observe", &[]);
+    let after = fs::read_to_string(path).err().map(|error| error.kind());
+    // Compare only a stable error across the sampling window. A readable
+    // debugfs surface or a concurrent mount change has no error to assert.
+    if before != after {
+        return;
+    }
+    let expected = match before {
+        Some(std::io::ErrorKind::PermissionDenied) => "permission_denied",
+        Some(std::io::ErrorKind::NotFound) => "unsupported",
+        Some(_) => "malformed",
+        None => return,
+    };
+    let line = report
+        .lines()
+        .find(|line| line.starts_with("pm_qos.cpu_latency_us="))
+        .expect("production report includes PM QoS");
+    assert!(
+        line.ends_with(&format!("status={expected}")),
+        "kernel error {before:?}: {line}"
+    );
+}
+
+#[test]
 fn o1_production_repeated_sampling_reports_live_state_not_stale() {
     // The reporter takes no state directory and owns no write path; it keeps
     // one previous snapshot in memory. Each sample must report exactly once,
