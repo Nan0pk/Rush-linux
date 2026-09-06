@@ -22,7 +22,7 @@ jobs:
           python3 .github/rushbench-pair-plan-patch.py
           rm .github/rushbench-pair-plan-patch.py
           rm .github/workflows/rushbench-pair-plan-patch.yml
-          cargo fmt --all -- --check
+          cargo fmt --all
           cargo test -p rushbench
           git diff --check
           unexpected="$(git diff --name-only | grep -Ev '^(crates/rushbench/src/main.rs|crates/rushbench/src/pair_plan.rs|crates/rushbench/tests/pair_plan_cli.rs|\.github/rushbench-pair-plan-patch.py|\.github/workflows/rushbench-pair-plan-patch.yml)$' || true)"
