@@ -19,19 +19,26 @@ pub struct PairPlan {
 ///
 /// The seed is retained in the plan so the exact ordering can be reproduced.
 /// For an odd number of pairs, one order necessarily occurs once more than the
-/// other; the difference is never greater than one.
+/// other; the seed decides which order gets that extra pair so repeated odd
+/// campaigns do not systematically privilege AB.
 pub fn build_pair_plan(pairs: usize, seed: u64) -> Result<PairPlan, String> {
     if pairs == 0 {
         return Err("pair count must be at least 1".to_string());
     }
 
-    let ab_count = (pairs + 1) / 2;
-    let ba_count = pairs / 2;
+    let upper = pairs.div_ceil(2);
+    let lower = pairs / 2;
+    let mut rng = XorShift64::new(seed);
+    let (ab_count, ba_count) = if pairs % 2 == 0 || rng.next() & 1 == 0 {
+        (upper, lower)
+    } else {
+        (lower, upper)
+    };
+
     let mut order = Vec::with_capacity(pairs);
     order.extend(std::iter::repeat(PairOrder::Ab).take(ab_count));
     order.extend(std::iter::repeat(PairOrder::Ba).take(ba_count));
 
-    let mut rng = XorShift64::new(seed);
     for index in (1..order.len()).rev() {
         let swap_with = (rng.next() % ((index + 1) as u64)) as usize;
         order.swap(index, swap_with);
@@ -92,6 +99,19 @@ mod tests {
             assert_eq!(plan.order.len(), pairs);
             assert!(ab.abs_diff(ba) <= 1);
         }
+    }
+
+    #[test]
+    fn odd_pair_extra_is_not_systematically_assigned_to_ab() {
+        let mut saw_ab_extra = false;
+        let mut saw_ba_extra = false;
+        for seed in 0..64 {
+            let plan = build_pair_plan(5, seed).unwrap();
+            let (ab, ba) = counts(&plan);
+            saw_ab_extra |= ab > ba;
+            saw_ba_extra |= ba > ab;
+        }
+        assert!(saw_ab_extra && saw_ba_extra);
     }
 
     #[test]
