@@ -97,6 +97,8 @@ sudo ./tools/bench-optid-matrix.sh --apply --levers baseline,epp --iter 9
 
 - `rushbench run --class <C> --workload <W> [--n 5] [--ac-ok]`  
   Runs `n` iterations (default 5, must be >=5 for valid rollups) of the specified workload under the target workload class. Pins the class via `optctl pin` and validates the resolved floors via `optctl status --json`.
+- `rushbench pair-plan --pairs <n> --seed <u64> [--out <file>]`  
+  Produces a deterministic balanced AB/BA matched-pair order for controlled comparisons. The JSON output records the seed and exact order so a physical campaign can be replayed; generating the plan performs no benchmark or hardware mutation.
 - `rushbench matrix [--ac-ok]`  
   Iterates through all supported workload classes and workloads.
 - `rushbench report <results-dir>`  
