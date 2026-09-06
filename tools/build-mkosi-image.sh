@@ -148,6 +148,17 @@ for build_tool in cargo mkosi; do
         exit 2
     fi
 done
+
+echo "Build tool versions:"
+printf '  cargo: %s\n' "$(cargo --version)"
+printf '  mkosi: %s\n' "$(mkosi --version)"
+echo "Resolved mkosi configuration:"
+(
+    cd "${MKOSI_DIR}"
+    mkosi summary "${MKOSI_ARGS[@]}"
+)
+echo ""
+
 cd "${REPO_ROOT}"
 
 echo "════════════════════════════════════════════════════"

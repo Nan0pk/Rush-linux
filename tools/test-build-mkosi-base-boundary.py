@@ -120,11 +120,19 @@ def test_real_build_forwards_inputs_without_shell_interpretation(
     second_packages = tmp_path / "second-packages"
     second_packages.mkdir()
     cargo = bin_dir / "cargo"
-    cargo.write_text("#!/bin/sh\nmkdir -p target/release\nprintf fixture > target/release/optid\nprintf fixture > target/release/optctl\n")
+    cargo.write_text(
+        "#!/bin/sh\n"
+        'if [ "${1:-}" = "--version" ]; then echo "cargo 99-test"; exit 0; fi\n'
+        "mkdir -p target/release\n"
+        "printf fixture > target/release/optid\n"
+        "printf fixture > target/release/optctl\n"
+    )
     mkosi = bin_dir / "mkosi"
     mkosi.write_text(
         "#!/usr/bin/env python3\nimport json, os, pathlib, sys\n"
-        "pathlib.Path(os.environ['RUSH_TEST_TRACE']).write_text(json.dumps({'args': sys.argv[1:], 'cwd': os.getcwd()}))\n"
+        "trace = pathlib.Path(os.environ['RUSH_TEST_TRACE'])\n"
+        "with trace.open('a') as handle: handle.write(json.dumps({'args': sys.argv[1:], 'cwd': os.getcwd()}) + '\\n')\n"
+        "if sys.argv[1:] == ['--version']: print('mkosi 99-test')\n"
     )
     cargo.chmod(0o755)
     mkosi.chmod(0o755)
@@ -136,14 +144,22 @@ def test_real_build_forwards_inputs_without_shell_interpretation(
         "--package-dir", str(second_packages), cwd=tmp_path, env=env,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    recorded = json.loads(trace.read_text())
-    assert recorded == {
-        "args": ["build", "--force", "--snapshot=20260904",
-                 f"--package-directory={local_packages}",
-                 f"--package-directory={second_packages}",
-                 f"--cache-dir={tmp_path / 'cache with spaces'}"],
-        "cwd": str(repo / "mkosi"),
-    }
+    recorded = [json.loads(line) for line in trace.read_text().splitlines()]
+    expected_inputs = [
+        "--force",
+        "--snapshot=20260904",
+        f"--package-directory={local_packages}",
+        f"--package-directory={second_packages}",
+        f"--cache-dir={tmp_path / 'cache with spaces'}",
+    ]
+    assert recorded == [
+        {"args": ["--version"], "cwd": str(tmp_path)},
+        {"args": ["summary", *expected_inputs], "cwd": str(repo / "mkosi")},
+        {"args": ["build", *expected_inputs], "cwd": str(repo / "mkosi")},
+    ]
+    assert "cargo: cargo 99-test" in result.stdout
+    assert "mkosi: mkosi 99-test" in result.stdout
+    assert "Resolved mkosi configuration:" in result.stdout
     assert (repo / "mkosi/mkosi.extra/usr/libexec/optid").read_text() == "fixture"
     assert not (tmp_path / "PWNED").exists()
     assert not (repo / "PWNED").exists()
