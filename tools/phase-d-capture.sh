@@ -121,6 +121,7 @@ current_tuned_profile() {
 TUNED_WAS_ACTIVE=0
 TUNED_PROFILE_BEFORE=""
 if systemctl is-active --quiet tuned 2>/dev/null; then
+    command -v tuned-adm >/dev/null 2>&1 || { echo "error: tuned is active but tuned-adm is unavailable, so its profile cannot be inventoried/restored" >&2; exit 1; }
     TUNED_WAS_ACTIVE=1
     TUNED_PROFILE_BEFORE="$(current_tuned_profile)"
 fi
@@ -130,7 +131,6 @@ fi
 # tuned must already be active in balanced. Refuse mismatched host state rather
 # than silently changing it.
 if [[ "$ARM" == "baseline" || "$ARM" == "both" ]]; then
-    command -v tuned-adm >/dev/null 2>&1 || { echo "error: tuned-adm is required for the Fedora baseline" >&2; exit 1; }
     if (( TUNED_WAS_ACTIVE == 0 )); then
         echo "error: tuned is not active; refusing to start it just to manufacture the baseline" >&2
         exit 1
@@ -197,6 +197,27 @@ terminate_owned_tree() {
     kill "$pid" 2>/dev/null || true
 }
 
+stop_owned_pid() {
+    local pid="$1"
+    local label="$2"
+    local attempt
+    if ! kill -0 "$pid" 2>/dev/null; then
+        wait "$pid" 2>/dev/null || true
+        return 0
+    fi
+    echo "[cleanup] stopping run-owned $label (pid=$pid)"
+    kill "$pid" 2>/dev/null || true
+    for attempt in $(seq 1 30); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "[cleanup] run-owned $label did not stop after SIGTERM; sending SIGKILL" >&2
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
     local original_status=$?
     local restore_failed=0
@@ -210,15 +231,13 @@ cleanup() {
     fi
     RUSHBENCH_PID=""
 
-    if [[ -n "$OPTID_PID" ]] && kill -0 "$OPTID_PID" 2>/dev/null; then
-        echo "[cleanup] stopping run-owned optid (pid=$OPTID_PID); its revert path restores the knobs"
-        kill "$OPTID_PID" 2>/dev/null
-        wait "$OPTID_PID" 2>/dev/null
+    if [[ -n "$OPTID_PID" ]]; then
+        stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
     fi
     OPTID_PID=""
 
     if (( TUNED_STOPPED_BY_RUN == 1 )); then
-        echo "[cleanup] restarting tuned because this run stopped it"
+        echo "[cleanup] restarting tuned because this run attempted to stop it"
         if ! systemctl start tuned; then
             echo "[cleanup] error: failed to restart tuned" >&2
             restore_failed=1
@@ -288,8 +307,10 @@ capture_baseline() {
 capture_optid() {
     echo "--- D4 optid arm: competing tuned owner temporarily stopped, optid --apply supervising"
     if systemctl is-active --quiet tuned 2>/dev/null; then
-        systemctl stop tuned
+        # Mark ownership before the stop attempt. If systemctl fails after
+        # partially changing state, the EXIT trap will still restore tuned.
         TUNED_STOPPED_BY_RUN=1
+        systemctl stop tuned
     fi
 
     # Do not delete /run/optid: it may contain state this capture does not own.
@@ -342,8 +363,7 @@ capture_optid() {
     for artifact in status status.json decisions.log actions.log audit.jsonl; do
         [[ -r "/run/optid/$artifact" ]] && cp "/run/optid/$artifact" "$DIR/optid/optid-$artifact"
     done
-    kill "$OPTID_PID" 2>/dev/null || true
-    wait "$OPTID_PID" 2>/dev/null || true
+    stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
     OPTID_PID=""
 }
 
