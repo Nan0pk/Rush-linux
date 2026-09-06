@@ -1,0 +1,38 @@
+name: Source build preflight docs patch
+
+on:
+  push:
+    branches:
+      - work/20260906-source-build-preflight-provenance
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply and verify documentation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/source-build-preflight-doc-patch.py
+          rm .github/source-build-preflight-doc-patch.py
+          rm .github/workflows/source-build-preflight-doc-patch.yml
+          python3 tools/validate-doc-sync.py
+          python3 tools/check-docs-impact.py --base 898654437a90c33b5371791fce73cb7afe3ac09b
+          git diff --check
+          unexpected="$(git diff --name-only | grep -Ev '^(docs/plans/source-build-experiment.md|\.github/source-build-preflight-doc-patch.py|\.github/workflows/source-build-preflight-doc-patch.yml)$' || true)"
+          if [[ -n "$unexpected" ]]; then
+            echo "Unexpected changed files:"
+            echo "$unexpected"
+            exit 1
+          fi
+          git config user.name "Rush coordinating agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: record automatic mkosi preflight"
+          git push origin HEAD:work/20260906-source-build-preflight-provenance
