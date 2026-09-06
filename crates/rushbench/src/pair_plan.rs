@@ -28,8 +28,8 @@ pub fn build_pair_plan(pairs: usize, seed: u64) -> Result<PairPlan, String> {
     let ab_count = (pairs + 1) / 2;
     let ba_count = pairs / 2;
     let mut order = Vec::with_capacity(pairs);
-    order.extend(std::iter::repeat_n(PairOrder::Ab, ab_count));
-    order.extend(std::iter::repeat_n(PairOrder::Ba, ba_count));
+    order.extend(std::iter::repeat(PairOrder::Ab).take(ab_count));
+    order.extend(std::iter::repeat(PairOrder::Ba).take(ba_count));
 
     let mut rng = XorShift64::new(seed);
     for index in (1..order.len()).rev() {
