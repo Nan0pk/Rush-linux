@@ -111,6 +111,11 @@ The existing builder now supports `--plan`, `--snapshot YYYYMMDD` and repeatable
 requires the committed lockfile and the image emits a JSON package manifest. Snapshot and
 local package choices use mkosi's existing interfaces; no signature checks are
 disabled. The plan returns before compilation, staging or `--clean` deletion.
+For a real build, the wrapper prints the Cargo and mkosi versions and runs
+`mkosi summary` with the exact resolved build arguments before compilation or
+staging, so the preflight configuration can be retained with the experiment.
+A failed summary aborts the wrapper before compilation or staging instead of
+continuing with an unresolved image configuration.
 
 From the experiment checkout, preview the common base:
 
