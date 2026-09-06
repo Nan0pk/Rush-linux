@@ -19,6 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet pytest
           python3 .github/source-build-preflight-patch.py
           rm .github/source-build-preflight-patch.py
           rm .github/workflows/source-build-preflight-patch.yml
