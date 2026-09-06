@@ -35,8 +35,14 @@ fn pair_plan_cli_writes_reproducible_balanced_plan() {
     assert_eq!(value["pairs"], 6);
     let order = value["order"].as_array().expect("order array");
     assert_eq!(order.len(), 6);
-    assert_eq!(order.iter().filter(|entry| ***entry == "AB").count(), 3);
-    assert_eq!(order.iter().filter(|entry| ***entry == "BA").count(), 3);
+    assert_eq!(
+        order.iter().filter(|entry| entry.as_str() == Some("AB")).count(),
+        3
+    );
+    assert_eq!(
+        order.iter().filter(|entry| entry.as_str() == Some("BA")).count(),
+        3
+    );
 
     let parent = output_path.parent().unwrap().parent().unwrap();
     fs::remove_dir_all(parent).expect("remove pair-plan fixture");
