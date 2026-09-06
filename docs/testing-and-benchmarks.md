@@ -112,6 +112,15 @@ Results are written under `benchmarks/results/<UTC-date>/<host-fingerprint>/<cla
 
 The rig performs zero optimization writes. The only writes are to the `benchmarks/results/` output path, stdout/stderr, and `/tmp` scratch paths (no writes to `/proc/sys/**`, `/sys/devices/**`, etc.). This can be validated using sandboxing tools such as `strace` or `bwrap`.
 
+The `mixed-load-001` phase drivers run in dedicated process groups owned by the
+specific driver instance. At the phase boundary, `rushbench` signals only that
+owned process group; it does not search the host with `pkill -f` or another
+name/pattern match. If the direct group leader exits unexpectedly before the
+window closes, the run records the phase as unsupported and deliberately avoids
+signalling the old PGID, because the kernel may have recycled that number for an
+unrelated process. This is a software ownership boundary, not proof that every
+third-party graphical driver restores all of its own external state.
+
 ## Benchmark Manifest
 
 Scenario definitions live in `benchmarks/manifest.toml`.
