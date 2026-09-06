@@ -89,7 +89,7 @@ replace_once(
         f"--cache-dir={tmp_path / 'cache with spaces'}",
     ]
     assert recorded == [
-        {"args": ["--version"], "cwd": str(repo)},
+        {"args": ["--version"], "cwd": str(tmp_path)},
         {"args": ["summary", *expected_inputs], "cwd": str(repo / "mkosi")},
         {"args": ["build", *expected_inputs], "cwd": str(repo / "mkosi")},
     ]
