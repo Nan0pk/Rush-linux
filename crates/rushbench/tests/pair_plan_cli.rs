@@ -63,3 +63,42 @@ fn pair_plan_cli_rejects_zero_pairs() {
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("--pairs must be at least 1"));
 }
+
+#[test]
+fn pair_plan_cli_requires_seed() {
+    let result = Command::new(env!("CARGO_BIN_EXE_rushbench"))
+        .args(["pair-plan", "--pairs", "4"])
+        .output()
+        .expect("run rushbench pair-plan");
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("pair-plan requires --seed <u64>"));
+}
+
+#[test]
+fn pair_plan_cli_rejects_invalid_seed() {
+    let result = Command::new(env!("CARGO_BIN_EXE_rushbench"))
+        .args(["pair-plan", "--pairs", "4", "--seed", "not-a-number"])
+        .output()
+        .expect("run rushbench pair-plan");
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("--seed must be an unsigned integer"));
+}
+
+#[test]
+fn pair_plan_cli_prints_json_without_out() {
+    let result = Command::new(env!("CARGO_BIN_EXE_rushbench"))
+        .args(["pair-plan", "--pairs", "4", "--seed", "9"])
+        .output()
+        .expect("run rushbench pair-plan");
+    assert!(
+        result.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&result.stdout).expect("valid pair plan JSON on stdout");
+    assert_eq!(value["seed"], 9);
+    assert_eq!(value["pairs"], 4);
+    assert_eq!(value["order"].as_array().expect("order array").len(), 4);
+}
