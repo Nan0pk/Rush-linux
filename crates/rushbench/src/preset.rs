@@ -1470,7 +1470,10 @@ mod tests {
         for process_group in [0, 1] {
             let error = signal_owned_process_group(process_group, "TERM")
                 .expect_err("reserved PGIDs must be rejected before signalling");
-            assert!(error.contains("refusing unsafe process-group id"), "{error}");
+            assert!(
+                error.contains("refusing unsafe process-group id"),
+                "{error}"
+            );
         }
     }
 
@@ -1538,7 +1541,10 @@ mod tests {
         let _ = unrelated.wait();
         let _ = fs::remove_file(&pid_file);
 
-        assert!(!descendant_alive, "owned process-group descendant survived cleanup");
+        assert!(
+            !descendant_alive,
+            "owned process-group descendant survived cleanup"
+        );
         assert!(
             unrelated_alive,
             "owned process-group cleanup killed an unrelated process"
