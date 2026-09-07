@@ -25,10 +25,11 @@ pub(crate) const DEFAULT_AUTOSUSPEND_DELAY_MS: i32 = 2000;
 /// Device classes whose live-use rules differ for runtime PM.
 ///
 /// `Composite` is intentionally explicit: a USB device can expose, for example,
-/// audio and HID interfaces at once. Treating it as whichever interface was
-/// enumerated first would make safety depend on directory order. `Unknown`
-/// means there was no usable class evidence; the completed D1 actuation gate
-/// must deny unknown rather than infer a benign class.
+/// audio and HID interfaces at once, or combine one understood interface with a
+/// vendor-specific one. Treating it as whichever interface was enumerated first
+/// would make safety depend on directory order or hide an unmodelled function.
+/// `Unknown` means there was no usable class evidence; the completed D1
+/// actuation gate must deny unknown rather than infer a benign class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimePmDeviceClass {
     Network,
@@ -49,12 +50,10 @@ struct ClassFlags {
     input: bool,
     storage: bool,
     other: bool,
-    saw_evidence: bool,
 }
 
 impl ClassFlags {
     fn mark_usb_class(&mut self, value: u8) {
-        self.saw_evidence = true;
         match value {
             // USB Audio Device Class.
             0x01 => self.audio = true,
@@ -64,15 +63,15 @@ impl ClassFlags {
             0x08 => self.storage = true,
             // USB Video Class (UVC).
             0x0e => self.camera = true,
-            // 0x00 means class is defined by interfaces, so it is evidence
-            // about where to look but is not itself an "other" class.
+            // 0x00 means class is defined by interfaces. By itself it is not a
+            // usable classification; if no interface class can be read the
+            // device remains Unknown and the later actuation gate fails closed.
             0x00 => {},
             _ => self.other = true,
         }
     }
 
     fn mark_pci_class(&mut self, value: u32) {
-        self.saw_evidence = true;
         let base = ((value >> 16) & 0xff) as u8;
         let subclass = ((value >> 8) & 0xff) as u8;
         match (base, subclass) {
@@ -100,7 +99,11 @@ impl ClassFlags {
         .filter(|present| *present)
         .count();
 
-        if known_count > 1 {
+        // Any combination of understood classes, or an understood class plus
+        // an unmodelled interface, stays composite. The final D1 gate can then
+        // require every function to be understood instead of silently dropping
+        // the extra interface from the safety model.
+        if known_count > 1 || (known_count > 0 && self.other) {
             return RuntimePmDeviceClass::Composite;
         }
         if self.network {
@@ -113,7 +116,7 @@ impl ClassFlags {
             RuntimePmDeviceClass::Input
         } else if self.storage {
             RuntimePmDeviceClass::Storage
-        } else if self.other || self.saw_evidence {
+        } else if self.other {
             RuntimePmDeviceClass::Other
         } else {
             RuntimePmDeviceClass::Unknown
@@ -159,7 +162,6 @@ pub(crate) fn classify_device(
         .is_ok_and(|entries| !entries.is_empty())
     {
         flags.network = true;
-        flags.saw_evidence = true;
     }
 
     // A USB device may carry a device-level class, per-interface classes, or
@@ -303,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn d1_composite_device_never_depends_on_interface_enumeration_order() {
+    fn d1_composite_device_never_hides_another_function() {
         let read = RealKernel::new();
         let dev = tmp("class_composite");
         add_usb_interface(&dev, "1-1:1.1", "03");
@@ -312,7 +314,16 @@ mod tests {
             classify_device(&read, &dev),
             RuntimePmDeviceClass::Composite
         );
+
+        let partially_known = tmp("class_partially_known");
+        add_usb_interface(&partially_known, "2-1:1.0", "01");
+        add_usb_interface(&partially_known, "2-1:1.1", "ff");
+        assert_eq!(
+            classify_device(&read, &partially_known),
+            RuntimePmDeviceClass::Composite
+        );
         let _ = fs::remove_dir_all(dev);
+        let _ = fs::remove_dir_all(partially_known);
     }
 
     #[test]
@@ -324,6 +335,17 @@ mod tests {
             RuntimePmDeviceClass::Unknown
         );
 
+        let per_interface_without_interfaces = tmp("class_zero_without_interfaces");
+        fs::write(
+            per_interface_without_interfaces.join("bDeviceClass"),
+            "00\n",
+        )
+        .unwrap();
+        assert_eq!(
+            classify_device(&read, &per_interface_without_interfaces),
+            RuntimePmDeviceClass::Unknown
+        );
+
         let other = tmp("class_other");
         fs::write(other.join("class"), "0x030000\n").unwrap();
         assert_eq!(
@@ -331,6 +353,7 @@ mod tests {
             RuntimePmDeviceClass::Other
         );
         let _ = fs::remove_dir_all(unknown);
+        let _ = fs::remove_dir_all(per_interface_without_interfaces);
         let _ = fs::remove_dir_all(other);
     }
 
