@@ -84,6 +84,7 @@ for binary in "$RUSHBENCH" "$OPTID" "$OPTCTL"; do
     [[ -x "$binary" ]] || { echo "error: $binary missing — run: cargo build --release" >&2; exit 1; }
 done
 command -v pgrep >/dev/null 2>&1 || { echo "error: pgrep is required for ownership checks" >&2; exit 1; }
+command -v mktemp >/dev/null 2>&1 || { echo "error: mktemp is required for a private run work directory" >&2; exit 1; }
 
 # The 2026-06-10 sample was rejected partly because meta.txt captured usage text
 # here; refuse to start if the version flag is still not real.
@@ -124,6 +125,10 @@ if systemctl is-active --quiet tuned 2>/dev/null; then
     command -v tuned-adm >/dev/null 2>&1 || { echo "error: tuned is active but tuned-adm is unavailable, so its profile cannot be inventoried/restored" >&2; exit 1; }
     TUNED_WAS_ACTIVE=1
     TUNED_PROFILE_BEFORE="$(current_tuned_profile)"
+    if [[ -z "$TUNED_PROFILE_BEFORE" ]]; then
+        echo "error: tuned is active but its current profile could not be inventoried; refusing to stop state that cannot be restored" >&2
+        exit 1
+    fi
 fi
 
 # A baseline is evidence for the distro's mainstream default, not a profile the
@@ -186,7 +191,7 @@ echo "=== tuned_initial_active=$TUNED_WAS_ACTIVE tuned_initial_profile=${TUNED_P
 OPTID_PID=""
 RUSHBENCH_PID=""
 TUNED_STOPPED_BY_RUN=0
-RUN_WORK_DIR="/tmp/rushbench-mixed-load-001-capture-$$"
+RUN_WORK_DIR="$(mktemp -d /tmp/rushbench-mixed-load-001-capture-XXXXXX)"
 
 terminate_owned_tree() {
     local pid="$1"
@@ -200,6 +205,7 @@ terminate_owned_tree() {
 stop_owned_pid() {
     local pid="$1"
     local label="$2"
+    local forced_kill=0
     if ! kill -0 "$pid" 2>/dev/null; then
         wait "$pid" 2>/dev/null || true
         return 0
@@ -211,16 +217,23 @@ stop_owned_pid() {
         sleep 0.1
     done
     if kill -0 "$pid" 2>/dev/null; then
+        forced_kill=1
         echo "[cleanup] run-owned $label did not stop after SIGTERM; sending SIGKILL" >&2
         kill -KILL "$pid" 2>/dev/null || true
     fi
     wait "$pid" 2>/dev/null || true
+    if (( forced_kill == 1 )); then
+        echo "[cleanup] error: run-owned $label required forced SIGKILL; knob restoration cannot be verified" >&2
+        return 1
+    fi
+    return 0
 }
 
 cleanup() {
     local original_status=$?
     local restore_failed=0
     set +e
+    trap - EXIT INT TERM
     echo "[cleanup] restoring capture-owned system state"
 
     if [[ -n "$RUSHBENCH_PID" ]] && kill -0 "$RUSHBENCH_PID" 2>/dev/null; then
@@ -231,7 +244,9 @@ cleanup() {
     RUSHBENCH_PID=""
 
     if [[ -n "$OPTID_PID" ]]; then
-        stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
+        if ! stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"; then
+            restore_failed=1
+        fi
     fi
     OPTID_PID=""
 
@@ -240,7 +255,10 @@ cleanup() {
         if ! systemctl start tuned; then
             echo "[cleanup] error: failed to restart tuned" >&2
             restore_failed=1
-        elif [[ -n "$TUNED_PROFILE_BEFORE" ]]; then
+        elif [[ -z "$TUNED_PROFILE_BEFORE" ]]; then
+            echo "[cleanup] error: tuned was stopped but its original profile is unknown" >&2
+            restore_failed=1
+        else
             local current_profile
             current_profile="$(current_tuned_profile)"
             if [[ "$current_profile" != "$TUNED_PROFILE_BEFORE" ]]; then
@@ -254,13 +272,14 @@ cleanup() {
     fi
 
     rm -rf "$RUN_WORK_DIR"
-    trap - EXIT
     if (( restore_failed == 1 && original_status == 0 )); then
         exit 1
     fi
     exit "$original_status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # rushbench runs in the desktop session so the graphical phases have a display.
 # It is launched asynchronously only so cleanup can retain its exact PID and
@@ -269,7 +288,7 @@ trap cleanup EXIT
 run_rushbench() {
     local tag="$1" out="$2"
     local status
-    mkdir -p "$out" "$RUN_WORK_DIR"
+    mkdir -p "$out"
     chown -R "$DESKTOP_USER" "$out" "$RUN_WORK_DIR"
     local extra_args=()
     if (( AC_OK )); then
@@ -362,7 +381,9 @@ capture_optid() {
     for artifact in status status.json decisions.log actions.log audit.jsonl; do
         [[ -r "/run/optid/$artifact" ]] && cp "/run/optid/$artifact" "$DIR/optid/optid-$artifact"
     done
-    stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"
+    if ! stop_owned_pid "$OPTID_PID" "optid; its revert path restores the knobs"; then
+        return 1
+    fi
     OPTID_PID=""
 }
 
