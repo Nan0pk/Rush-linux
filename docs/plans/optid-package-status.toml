@@ -1,14 +1,15 @@
 schema_version = 2
-updated = "2026-08-31"
+updated = "2026-09-08"
 plan = "OPTID-COMPLETION-PLAN.md"
 architecture = "docs/architecture/optid-d2-amendment.md"
 safety_architecture = "D2-fail-passive"
 # Independent cold verification now covers the four foundation packages,
-# the full D2 fail-passive safety sequence, measured-latency contracts, and
-# the full-system simulation/fault matrix. T1 remains separately hardware-gated.
+# the full D2 fail-passive safety sequence, measured-latency contracts,
+# truthful runtime-state observability, and the full-system simulation/fault
+# matrix. T1 remains separately hardware-gated.
 # No package self-certified.
 active_general = "T1"
-active_safety = "O1"
+active_safety = "D1"
 
 # Provenance: D0 and S1D-S5D come from the D2 amendment; all other packages carry forward the completion plan merged in PR #322.
 
@@ -515,9 +516,10 @@ completion_evidence = []
 id = "O1"
 lane = "observability"
 title = "Add truthful runtime-state observability"
-status = "candidate"
+status = "completed"
 depends = ["F2", "F3"]
 pr = "450"
+verification_receipt = "docs/plans/optid-verification/o1.toml"
 # Ownership boundary (maintainer direction on PR #450): observability is split
 # from the control-loop proof surface. The reporter is its own read-only
 # binary, so a diagnostic never edits crates/optid/src/main.rs, crates/optctl,
@@ -552,7 +554,7 @@ pr = "450"
 # (tools/capture-o1-sysfs.sh, crates/optid/tests/fixtures/), and the production
 # binary is asserted against the live kernel it runs on.
 #
-# Still `candidate`: the worker who wrote this repair may not verify it.
+# Fresh independent verification is recorded by PR #468 and the receipt above.
 runtime_entrypoints = [
   "crates/optid/src/bin/optid-observe.rs",
   "crates/optid/src/runtime_observability.rs",
@@ -565,7 +567,6 @@ completion_evidence = [
   "crates/optid/src/runtime_observability.rs",
   "crates/optid/tests/o1_runtime_status.rs",
 ]
-blocking_reason = "Fresh cold verification at f3cbdb2 found permission-denied PM QoS reported as unsupported, discarded per-device constraint errors, fabricated actual brightness, and hidden directory-discovery failures (docs/inbox/2026-09-06-runtime-observability-verification.md). The field-read defects and source-level directory-discovery reporting are repaired with regression coverage. Completion still requires a fresh independent passing receipt, so D1 and D2 remain locked. The optctl status surface named in the completion plan is separately unwired by maintainer direction."
 [package.acceptance_tests]
 config_defaults_and_off_mode = "o1_runtime_mode_defaults_to_observe_and_parses_off"
 deterministic_full_snapshot = "o1_mock_full_state_snapshot_is_deterministic"
@@ -619,7 +620,7 @@ completion_evidence = []
 id = "D1"
 lane = "depth"
 title = "Complete runtime PM as a reconciled domain"
-status = "planned"
+status = "next"
 depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
 pr = ""
 completion_evidence = []
@@ -628,7 +629,7 @@ completion_evidence = []
 id = "D2"
 lane = "depth"
 title = "Complete storage depth control, including NVMe APST"
-status = "planned"
+status = "ready_parallel"
 depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
 pr = ""
 completion_evidence = []

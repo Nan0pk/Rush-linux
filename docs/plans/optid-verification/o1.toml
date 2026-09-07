@@ -1,0 +1,32 @@
+# Independent cold-verification receipt for truthful runtime-state observability.
+# Verification ran before this receipt was written. Historical failed-verifier
+# findings remain preserved under docs/inbox/.
+
+schema_version = 1
+package = "O1"
+implementation_pr = 450
+verification_pr = 468
+verified_commit = "898654437a90c33b5371791fce73cb7afe3ac09b"
+verifier = "Independent ChatGPT GitHub verifier; GitHub Actions ubuntu-24.04"
+result = "pass"
+workflow_run = 34044904615
+workflow_job = 101844030189
+
+commands = [
+  "Fresh rerun of PR #463 Root Rust workspace, run 34044904615 job 101844030189: sudo -E env ... cargo test --workspace -> PASS",
+  "Within that fresh workspace run: optid-observe unit suite -> PASS; 18 passed, 0 failed",
+  "Within that fresh workspace run: crates/optid/tests/o1_runtime_status.rs -> PASS; 5 passed, 0 failed",
+  "Within that fresh workspace run: optid main suite -> PASS; 548 passed, 0 failed",
+  "GitHub compare b4dd665e6afbd0b7eba4fe139b0f98185b92b29f...898654437a90c33b5371791fce73cb7afe3ac09b -> no file differences",
+  "GitHub compare 898654437a90c33b5371791fce73cb7afe3ac09b...1dcd18b30e438d7099f67460e4e106d78ecd0479 -> later changes confined to benchmark/source-build files; no declared O1 proof path changed",
+]
+
+runtime_proofs = [
+  "The fresh production/live-kernel suite passed PM QoS kernel-read error preservation, real-kernel surface reporting, repeated live sampling, production status reporting, and off-mode zero-read behavior.",
+  "The fresh optid-observe suite passed regressions for inaccessible PM QoS ancestors, per-device runtime-PM QoS read failures, missing actual brightness, source-directory discovery failures, successful empty sources, wakeup/runtime-PM unit conversion, stale observations, counter reset handling, and unsupported runtime status.",
+  "The Actions rerun checked synthetic PR merge b4dd665e6afbd0b7eba4fe139b0f98185b92b29f. GitHub comparison found no file differences between that tested merge and actual merged PR #463 commit 898654437a90c33b5371791fce73cb7afe3ac09b, which is the verified_commit recorded here.",
+  "No O1 declared proof path changed from actual PR #463 merge commit 898654437a90c33b5371791fce73cb7afe3ac09b through current main at verification time, so the fresh execution covers the package content present on main.",
+  "This receipt verifies truthful read-only runtime observation only. It does not claim energy savings, performance benefit, automatic-actuation safety, broad hardware compatibility, or the deliberately unwired optctl status integration.",
+]
+
+unresolved = []
