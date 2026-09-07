@@ -49,6 +49,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -200,8 +201,10 @@ pub struct DriverOutcome {
 /// A running driver plus everything needed to stop it and harvest its output.
 struct RunningDriver {
     child: Option<Child>,
-    /// A unique `pkill -f` pattern for children the direct kill misses.
-    stragglers: Option<String>,
+    /// PGID owned by this driver. It is safe to signal only while the direct
+    /// child is still alive, which prevents a recycled PGID from targeting an
+    /// unrelated process after an unexpectedly early driver exit.
+    process_group: Option<u32>,
     mangohud_dir: Option<PathBuf>,
     ninja_dir: Option<PathBuf>,
     unsupported: Vec<String>,
@@ -220,6 +223,61 @@ fn have(binary: &str) -> bool {
 
 fn have_graphical_session() -> bool {
     std::env::var("WAYLAND_DISPLAY").is_ok() || std::env::var("DISPLAY").is_ok()
+}
+
+/// Spawn a phase driver as the leader of a new process group. Every descendant
+/// inherits this PGID, so cleanup can target only processes descended from this
+/// driver instead of searching the host by executable name or command-line
+/// pattern.
+fn spawn_owned_driver(command: &mut Command, label: &str) -> Result<(Child, u32), String> {
+    command.process_group(0);
+    let child = command
+        .spawn()
+        .map_err(|error| format!("spawn {label}: {error}"))?;
+    let process_group = child.id();
+    Ok((child, process_group))
+}
+
+/// Send a signal to one run-owned process group using the shell's POSIX `kill`
+/// builtin. The signal and numeric PGID are supplied as positional arguments,
+/// not interpolated into shell source. The explicit signal option makes the
+/// following negative number unambiguously a process-group target without
+/// relying on the non-portable `kill -- -PGID` form.
+fn signal_owned_process_group(process_group: u32, signal: &str) -> Result<(), String> {
+    if process_group <= 1 {
+        return Err(format!(
+            "refusing unsafe process-group id {process_group}; expected a spawned child PGID"
+        ));
+    }
+    let status = Command::new("sh")
+        .arg("-c")
+        .arg("kill -\"$1\" -\"$2\"")
+        .arg("rushbench-driver-kill")
+        .arg(signal)
+        .arg(process_group.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|error| format!("signal owned process group {process_group}: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "signal owned process group {process_group} with {signal} exited {status}"
+        ))
+    }
+}
+
+/// Terminate a process group whose leader is still known to be alive. A short
+/// TERM grace period lets wrappers such as MangoHud flush output; KILL then
+/// guarantees that descendants cannot survive the phase boundary.
+fn terminate_owned_process_group(process_group: u32) -> Result<(), String> {
+    signal_owned_process_group(process_group, "TERM")?;
+    std::thread::sleep(Duration::from_millis(100));
+    // If TERM already removed the group, KILL returns non-zero. That is the
+    // desired state, so the second signal is best-effort.
+    let _ = signal_owned_process_group(process_group, "KILL");
+    Ok(())
 }
 
 // ── MangoHud frametime log ───────────────────────────────────────────────────
@@ -409,7 +467,7 @@ fn start_driver(
     match driver {
         Driver::Quiescent => Ok(RunningDriver {
             child: None,
-            stragglers: None,
+            process_group: None,
             mangohud_dir: None,
             ninja_dir: None,
             unsupported,
@@ -427,7 +485,7 @@ fn start_driver(
                 unsupported.push("interactive load page missing from the repository".to_string());
                 return Ok(RunningDriver {
                     child: None,
-                    stragglers: None,
+                    process_group: None,
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
@@ -437,7 +495,7 @@ fn start_driver(
             if !unsupported.is_empty() {
                 return Ok(RunningDriver {
                     child: None,
-                    stragglers: None,
+                    process_group: None,
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
@@ -446,18 +504,18 @@ fn start_driver(
             }
             let profile = work_root.join("firefox-profile");
             fs::create_dir_all(&profile).map_err(|e| format!("firefox profile dir: {e}"))?;
-            let child = Command::new("firefox")
+            let mut command = Command::new("firefox");
+            command
                 .arg("--new-instance")
                 .arg("--profile")
                 .arg(&profile)
                 .arg(format!("file://{}", page.display()))
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .map_err(|e| format!("spawn firefox: {e}"))?;
+                .stderr(Stdio::null());
+            let (child, process_group) = spawn_owned_driver(&mut command, "firefox")?;
             Ok(RunningDriver {
                 child: Some(child),
-                stragglers: Some(profile.display().to_string()),
+                process_group: Some(process_group),
                 mangohud_dir: None,
                 ninja_dir: None,
                 unsupported,
@@ -475,7 +533,7 @@ fn start_driver(
             if !unsupported.is_empty() {
                 return Ok(RunningDriver {
                     child: None,
-                    stragglers: None,
+                    process_group: None,
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
@@ -494,18 +552,18 @@ fn start_driver(
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .status();
-            let child = Command::new("ninja")
+            let mut command = Command::new("ninja");
+            command
                 .arg("-C")
                 .arg(&dir)
                 .arg("-j")
                 .arg(throughput_jobs().to_string())
                 .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn()
-                .map_err(|e| format!("spawn ninja: {e}"))?;
+                .stderr(Stdio::null());
+            let (child, process_group) = spawn_owned_driver(&mut command, "ninja")?;
             Ok(RunningDriver {
                 child: Some(child),
-                stragglers: Some(dir.display().to_string()),
+                process_group: Some(process_group),
                 mangohud_dir: None,
                 ninja_dir: Some(dir),
                 unsupported,
@@ -536,7 +594,7 @@ fn start_driver(
             {
                 return Ok(RunningDriver {
                     child: None,
-                    stragglers: None,
+                    process_group: None,
                     mangohud_dir: None,
                     ninja_dir: None,
                     unsupported,
@@ -587,10 +645,10 @@ fn start_driver(
                 .arg("--fullscreen")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
-            let child = command.spawn().map_err(|e| format!("spawn glmark2: {e}"))?;
+            let (child, process_group) = spawn_owned_driver(&mut command, "glmark2")?;
             Ok(RunningDriver {
                 child: Some(child),
-                stragglers: Some("glmark2".to_string()),
+                process_group: Some(process_group),
                 mangohud_dir: if instrumented { Some(log_dir) } else { None },
                 ninja_dir: None,
                 unsupported,
@@ -611,23 +669,29 @@ fn stop_driver(driver: Driver, mut running: RunningDriver) -> DriverOutcome {
     let mut ninja_stdout = String::new();
     if let Some(mut child) = running.child.take() {
         let still_running = matches!(child.try_wait(), Ok(None));
-        let _ = child.kill();
+        if still_running {
+            if let Some(process_group) = running.process_group.take() {
+                if let Err(error) = terminate_owned_process_group(process_group) {
+                    outcome.unsupported.push(format!(
+                        "owned_driver_cleanup_failed: {error}; falling back to direct child kill"
+                    ));
+                    let _ = child.kill();
+                }
+            } else {
+                let _ = child.kill();
+            }
+        }
         if let Ok(out) = child.wait_with_output() {
             ninja_stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         }
         if !still_running && driver != Driver::Throughput {
-            outcome
-                .unsupported
-                .push("driver exited before the phase window closed".to_string());
+            outcome.unsupported.push(
+                "driver exited before the phase window closed; no process-group signal was sent \
+                 after leader exit to avoid targeting a recycled PGID; surviving descendants may \
+                 contaminate later phases, so this run is not trustworthy benchmark evidence"
+                    .to_string(),
+            );
         }
-    }
-    if let Some(pattern) = running.stragglers.take() {
-        let _ = Command::new("pkill")
-            .arg("-f")
-            .arg(&pattern)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
     }
 
     if let Some(dir) = running.ninja_dir.take() {
@@ -1291,6 +1355,13 @@ pub fn run_preset(
 mod tests {
     use super::*;
 
+    fn process_is_running(pid: u32) -> bool {
+        let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            return false;
+        };
+        stat.split_whitespace().nth(2) != Some("Z")
+    }
+
     #[test]
     fn preset_rejects_unknown_names() {
         assert!(preset_phases("mixed-load-002").is_err());
@@ -1392,6 +1463,92 @@ mod tests {
             assert!(message.contains(state), "{message}");
             assert!(message.contains("curated baseline"), "{message}");
         }
+    }
+
+    #[test]
+    fn process_group_signal_rejects_reserved_ids() {
+        for process_group in [0, 1] {
+            let error = signal_owned_process_group(process_group, "TERM")
+                .expect_err("reserved PGIDs must be rejected before signalling");
+            assert!(
+                error.contains("refusing unsafe process-group id"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn owned_driver_group_cleanup_stops_descendants_and_preserves_unrelated_process() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "rushbench-owned-driver-child-{}.pid",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&pid_file);
+
+        let mut owned_command = Command::new("sh");
+        owned_command
+            .arg("-c")
+            .arg("sleep 30 & echo $! > \"$1\"; wait")
+            .arg("rushbench-owned-driver-fixture")
+            .arg(&pid_file)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let (mut owned, process_group) =
+            spawn_owned_driver(&mut owned_command, "owned process-group fixture")
+                .expect("spawn owned fixture");
+        let mut unrelated = Command::new("sleep")
+            .arg("30")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn unrelated fixture");
+
+        let descendant_pid = (0..100)
+            .find_map(|_| {
+                let parsed = fs::read_to_string(&pid_file)
+                    .ok()
+                    .and_then(|text| text.trim().parse::<u32>().ok());
+                if parsed.is_none() {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                parsed
+            })
+            .expect("owned fixture should publish its child PID");
+
+        assert!(process_is_running(descendant_pid));
+        assert!(matches!(unrelated.try_wait(), Ok(None)));
+        terminate_owned_process_group(process_group).expect("terminate owned fixture group");
+        let _ = owned.wait();
+
+        for _ in 0..100 {
+            if !process_is_running(descendant_pid) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let descendant_alive = process_is_running(descendant_pid);
+        let unrelated_alive = matches!(unrelated.try_wait(), Ok(None));
+
+        if descendant_alive {
+            let _ = Command::new("sh")
+                .arg("-c")
+                .arg("kill -KILL \"$1\" 2>/dev/null || true")
+                .arg("rushbench-test-cleanup")
+                .arg(descendant_pid.to_string())
+                .status();
+        }
+        let _ = unrelated.kill();
+        let _ = unrelated.wait();
+        let _ = fs::remove_file(&pid_file);
+
+        assert!(
+            !descendant_alive,
+            "owned process-group descendant survived cleanup"
+        );
+        assert!(
+            unrelated_alive,
+            "owned process-group cleanup killed an unrelated process"
+        );
     }
 
     #[test]
