@@ -244,6 +244,11 @@ fn spawn_owned_driver(command: &mut Command, label: &str) -> Result<(Child, u32)
 /// following negative number unambiguously a process-group target without
 /// relying on the non-portable `kill -- -PGID` form.
 fn signal_owned_process_group(process_group: u32, signal: &str) -> Result<(), String> {
+    if process_group <= 1 {
+        return Err(format!(
+            "refusing unsafe process-group id {process_group}; expected a spawned child PGID"
+        ));
+    }
     let status = Command::new("sh")
         .arg("-c")
         .arg("kill -\"$1\" -\"$2\"")
@@ -682,7 +687,8 @@ fn stop_driver(driver: Driver, mut running: RunningDriver) -> DriverOutcome {
         if !still_running && driver != Driver::Throughput {
             outcome.unsupported.push(
                 "driver exited before the phase window closed; no process-group signal was sent \
-                 after leader exit to avoid targeting a recycled PGID"
+                 after leader exit to avoid targeting a recycled PGID; surviving descendants may \
+                 contaminate later phases, so this run is not trustworthy benchmark evidence"
                     .to_string(),
             );
         }
@@ -1349,6 +1355,13 @@ pub fn run_preset(
 mod tests {
     use super::*;
 
+    fn process_is_running(pid: u32) -> bool {
+        let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            return false;
+        };
+        stat.split_whitespace().nth(2) != Some("Z")
+    }
+
     #[test]
     fn preset_rejects_unknown_names() {
         assert!(preset_phases("mixed-load-002").is_err());
@@ -1453,11 +1466,28 @@ mod tests {
     }
 
     #[test]
-    fn owned_driver_group_cleanup_does_not_touch_an_unrelated_process() {
+    fn process_group_signal_rejects_reserved_ids() {
+        for process_group in [0, 1] {
+            let error = signal_owned_process_group(process_group, "TERM")
+                .expect_err("reserved PGIDs must be rejected before signalling");
+            assert!(error.contains("refusing unsafe process-group id"), "{error}");
+        }
+    }
+
+    #[test]
+    fn owned_driver_group_cleanup_stops_descendants_and_preserves_unrelated_process() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "rushbench-owned-driver-child-{}.pid",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&pid_file);
+
         let mut owned_command = Command::new("sh");
         owned_command
             .arg("-c")
-            .arg("sleep 30 & wait")
+            .arg("sleep 30 & echo $! > \"$1\"; wait")
+            .arg("rushbench-owned-driver-fixture")
+            .arg(&pid_file)
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         let (mut owned, process_group) =
@@ -1470,16 +1500,49 @@ mod tests {
             .spawn()
             .expect("spawn unrelated fixture");
 
+        let descendant_pid = (0..100)
+            .find_map(|_| {
+                let parsed = fs::read_to_string(&pid_file)
+                    .ok()
+                    .and_then(|text| text.trim().parse::<u32>().ok());
+                if parsed.is_none() {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                parsed
+            })
+            .expect("owned fixture should publish its child PID");
+
+        assert!(process_is_running(descendant_pid));
         assert!(matches!(unrelated.try_wait(), Ok(None)));
         terminate_owned_process_group(process_group).expect("terminate owned fixture group");
         let _ = owned.wait();
-        assert!(
-            matches!(unrelated.try_wait(), Ok(None)),
-            "owned process-group cleanup killed an unrelated process"
-        );
 
+        for _ in 0..100 {
+            if !process_is_running(descendant_pid) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let descendant_alive = process_is_running(descendant_pid);
+        let unrelated_alive = matches!(unrelated.try_wait(), Ok(None));
+
+        if descendant_alive {
+            let _ = Command::new("sh")
+                .arg("-c")
+                .arg("kill -KILL \"$1\" 2>/dev/null || true")
+                .arg("rushbench-test-cleanup")
+                .arg(descendant_pid.to_string())
+                .status();
+        }
         let _ = unrelated.kill();
         let _ = unrelated.wait();
+        let _ = fs::remove_file(&pid_file);
+
+        assert!(!descendant_alive, "owned process-group descendant survived cleanup");
+        assert!(
+            unrelated_alive,
+            "owned process-group cleanup killed an unrelated process"
+        );
     }
 
     #[test]
