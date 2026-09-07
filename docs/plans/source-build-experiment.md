@@ -99,10 +99,17 @@ path, not the older shell benchmarks or a new parallel framework.
    claims, then test a kernel update and suspend/resume. Promote only the measured
    hardware/firmware scope through the existing review path.
 
-The legacy `tools/phase-d-capture.sh` does not implement all of this procedure.
-It presently changes native profiles, uses broad process cleanup and fixed arm
-ordering. Repair those behaviors before using it for these claims. A dry run
-of a build plan is not a dry run of privileged benchmark collection.
+The capture wrapper now has a bounded owner/restoration repair: it refuses to
+kill or adopt a pre-existing Optid process, requires the Fedora baseline's tuned
+service/profile to already be in the expected native state instead of changing
+it, tracks the exact benchmark and Optid processes it starts, restores tuned only
+when this run stopped it (including its prior profile), leaves `/run/optid` and
+the shared recovery directory intact, and requires a fresh post-launch status
+file rather than accepting stale readiness. Regression tests pin those software
+boundaries. This is not physical restoration proof. `--arm both` still uses fixed
+baseline-then-treatment ordering; wire the retained `rushbench pair-plan` order
+into whole independent runs before using this path for the new paired claims.
+A dry run of a build plan is not a dry run of privileged benchmark collection.
 
 ## Source-build preparation available now
 
@@ -173,10 +180,10 @@ build with unchanged settings precedes an optimization change.
   reference laptop at initial inspection. Upstream mkosi was obtained for the
   configuration check above. No physical treatment, package rebuild, image boot
   or new battery/performance measurement is claimed.
-- Next executable work: correct owner/restoration and paired collection in the
-  existing benchmark path; verify required probes; profile the reference laptop;
-  select and build one source intervention. Keep ordinary OS integration moving
-  alongside this work, subject only to its actual dependencies.
+- Next executable work: consume the retained pair plan in whole-run paired
+  collection; verify required probes; profile the reference laptop; select and
+  build one source intervention. Keep ordinary OS integration moving alongside
+  this work, subject only to its actual dependencies.
 - CI results belong to the draft PR and exact tested commit. A green build is
   software/build evidence, not automatic hardware or performance certification.
 
