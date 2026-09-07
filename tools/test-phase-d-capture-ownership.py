@@ -41,6 +41,12 @@ def test_baseline_must_already_be_the_expected_native_state() -> None:
     assert "refusing to change it" in text
 
 
+def test_active_tuned_state_must_be_inventoried_before_it_can_be_stopped() -> None:
+    text = source()
+    assert "tuned is active but its current profile could not be inventoried" in text
+    assert '[[ -z "$TUNED_PROFILE_BEFORE" ]]' in text
+
+
 def test_cleanup_tracks_only_run_owned_processes_and_tuned_changes() -> None:
     text = source()
     assert 'OPTID_PID=""' in text
@@ -52,6 +58,21 @@ def test_cleanup_tracks_only_run_owned_processes_and_tuned_changes() -> None:
     assert 'tuned-adm profile "$TUNED_PROFILE_BEFORE"' in text
 
 
+def test_capture_routes_int_and_term_through_exit_cleanup() -> None:
+    text = source()
+    assert "trap cleanup EXIT" in text
+    assert "trap 'exit 130' INT" in text
+    assert "trap 'exit 143' TERM" in text
+    assert "trap - EXIT INT TERM" in text
+
+
+def test_forced_optid_kill_cannot_be_reported_as_verified_restoration() -> None:
+    text = source()
+    assert "forced SIGKILL; knob restoration cannot be verified" in text
+    assert 'if ! stop_owned_pid "$OPTID_PID"' in text
+    assert "restore_failed=1" in text
+
+
 def test_capture_does_not_accept_stale_optid_status_as_readiness() -> None:
     text = source()
     assert "status_before" in text
@@ -59,7 +80,8 @@ def test_capture_does_not_accept_stale_optid_status_as_readiness() -> None:
     assert "did not become fresh after optid launch" in text
 
 
-def test_capture_uses_a_run_unique_work_directory() -> None:
+def test_capture_uses_mktemp_for_a_private_run_work_directory() -> None:
     text = source()
-    assert 'RUN_WORK_DIR="/tmp/rushbench-mixed-load-001-capture-$$"' in text
+    assert 'mktemp -d /tmp/rushbench-mixed-load-001-capture-XXXXXX' in text
+    assert 'RUN_WORK_DIR="/tmp/rushbench-mixed-load-001-capture-$$"' not in text
     assert 'RUSHBENCH_WORK_DIR="$RUN_WORK_DIR"' in text
