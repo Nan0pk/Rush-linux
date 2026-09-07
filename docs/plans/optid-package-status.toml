@@ -499,9 +499,9 @@ tightening_never_authorizes_deeper = "c1_property_tightening_a_floor_never_autho
 unknown_denies_at_every_floor = "c1_property_unknown_is_denied_at_every_floor"
 production_pipeline_permits_on_evidence = "c1_production_runtime_pm_permits_on_verified_allowlist_latency"
 production_pipeline_denies_above_floor = "c1_production_runtime_pm_denies_when_evidence_exceeds_floor"
-production_unverified_entry_is_not_evidence = "c1_production_unverified_entry_latency_is_not_evidence"
-production_firmware_pin_denies_until_readable = "c1_production_firmware_pinned_entry_denies_until_revision_is_readable"
-production_entry_without_latency_denies = "c1_production_entry_without_latency_still_denies"
+production_unverified_entry_is_not_evidence = "c1_production_runtime_pm_unverified_entry_latency_is_not_evidence"
+production_firmware_pin_denies_until_readable = "c1_production_runtime_pm_firmware_pinned_entry_denies_until_revision_is_readable"
+production_entry_without_latency_denies = "c1_production_runtime_pm_entry_without_latency_still_denies"
 
 [[package]]
 id = "E1"
@@ -623,7 +623,10 @@ title = "Complete runtime PM as a reconciled domain"
 status = "next"
 depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
 pr = ""
-completion_evidence = []
+blocking_reason = "PR #469 is the first explicitly permitted modular D1 slice: it adds typed runtime-PM classification for network, audio, camera/video, input, storage, composite, other, and unknown devices and routes the existing carrier/wakeup predicates through that classification. D1 remains next, not candidate: audio/camera/storage live-use gates, fail-closed unknown/runtime-status handling, evidence-backed per-device delay selection, final reconciled-gate wiring, and the complete D1 acceptance matrix are still required. Research-only class delay guesses are not production policy."
+completion_evidence = [
+  "crates/optid/src/actuators/runtime_pm.rs",
+]
 
 [[package]]
 id = "D2"
