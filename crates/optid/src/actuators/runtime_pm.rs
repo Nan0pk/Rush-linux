@@ -66,7 +66,7 @@ impl ClassFlags {
             // 0x00 means class is defined by interfaces. By itself it is not a
             // usable classification; if no interface class can be read the
             // device remains Unknown and the later actuation gate fails closed.
-            0x00 => {},
+            0x00 => {}
             _ => self.other = true,
         }
     }
@@ -151,10 +151,7 @@ fn usb_interface_classes(read: &dyn KernelRead, device_dir: &Path) -> Vec<u8> {
 /// a `net/` child takes part in the same result as USB interface classes and
 /// PCI class codes, so a composite device cannot silently collapse to the
 /// first directory entry returned by the kernel.
-pub(crate) fn classify_device(
-    read: &dyn KernelRead,
-    device_dir: &Path,
-) -> RuntimePmDeviceClass {
+pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> RuntimePmDeviceClass {
     let mut flags = ClassFlags::default();
 
     if read
@@ -273,10 +270,7 @@ mod tests {
 
         let audio = tmp("class_audio");
         add_usb_interface(&audio, "1-1:1.0", "01");
-        assert_eq!(
-            classify_device(&read, &audio),
-            RuntimePmDeviceClass::Audio
-        );
+        assert_eq!(classify_device(&read, &audio), RuntimePmDeviceClass::Audio);
 
         let camera = tmp("class_camera");
         add_usb_interface(&camera, "1-2:1.0", "0e");
@@ -287,10 +281,7 @@ mod tests {
 
         let input = tmp("class_input");
         add_usb_interface(&input, "1-3:1.0", "03");
-        assert_eq!(
-            classify_device(&read, &input),
-            RuntimePmDeviceClass::Input
-        );
+        assert_eq!(classify_device(&read, &input), RuntimePmDeviceClass::Input);
 
         let storage = tmp("class_storage");
         add_usb_interface(&storage, "1-4:1.0", "08");
@@ -348,10 +339,7 @@ mod tests {
 
         let other = tmp("class_other");
         fs::write(other.join("class"), "0x030000\n").unwrap();
-        assert_eq!(
-            classify_device(&read, &other),
-            RuntimePmDeviceClass::Other
-        );
+        assert_eq!(classify_device(&read, &other), RuntimePmDeviceClass::Other);
         let _ = fs::remove_dir_all(unknown);
         let _ = fs::remove_dir_all(per_interface_without_interfaces);
         let _ = fs::remove_dir_all(other);
