@@ -57,8 +57,20 @@ diff should say.
    deliberate change to the dependency rule, and risks the foundation sitting
    incomplete indefinitely.
 
-No recommendation is recorded here on purpose: this trades project throughput
-against the strength of the completion guarantee, which is the owner's call.
+**Recommended: option 1, with option 2 as follow-up work if the cost proves
+real.** Re-verifying on demand is the only option that keeps the guarantee at
+full strength, and the guarantee is the reason anyone can trust a `completed`
+mark. The cost is one verification pass per core change, which is bearable
+because core changes are rare — nothing touched these files for the two weeks
+before this one. If that cost turns out to bite, narrowing the declared proof
+paths reduces how often the collision happens without weakening what a receipt
+asserts, and can be done later on evidence rather than guessed at now.
+
+What the recommendation does not settle, and what makes this the owner's call
+rather than an agent's: who counts as the cold verifier. The existing receipts
+name an independent external verifier. Whether an agent arranged by the project
+can fill that role goes to how much the completion mark is worth, and an agent
+answering that question for itself would be deciding its own authority.
 
 ## What remains safe to continue meanwhile
 
