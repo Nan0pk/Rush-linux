@@ -91,6 +91,14 @@ ledger.
 For safety work, read the amendment first. Use the long-form research only
 when the amendment or package packet needs deeper justification.
 
+### Concurrent workers and work claims
+
+Rush may have several humans and AI agents working at once. Before any non-read-only
+work, read `docs/agent-coordination.md` and check active `[agent-claim]` issues, open pull
+requests, recent overlapping branches/commits, and review activity. A coordination claim
+never changes the live selector, package ledger, completion evidence, or delegated review
+requirements; it only prevents workers from colliding on the same work surface.
+
 ## 4. Human-Effort Rule
 
 The human's time, attention, money, hardware, and patience are scarce project

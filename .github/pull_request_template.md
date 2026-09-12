@@ -46,3 +46,15 @@ architecture, interactions, the issue, implementation and proof; return to a
 whole-system verdict. Record reviewer task/session, project fit, affected
 interactions, scope, findings, checks and limitations in the PR review. Scale
 depth to impact; the builder cannot self-approve.
+
+## Agent coordination
+
+Delete this section only when no autonomous or concurrent worker coordination is involved.
+
+- Canonical work:
+- Coordination claim issue:
+- Builder/session:
+- Known overlapping work checked:
+- Current coordination state:
+
+When the head is coherent and ready for review, post the exact `Agent handoff v1` block from `docs/agent-coordination.md` as a top-level PR comment. Do not put a guessed or stale head/base SHA here.
