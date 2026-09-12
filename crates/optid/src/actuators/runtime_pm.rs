@@ -183,6 +183,22 @@ pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> Runti
     flags.finish()
 }
 
+/// True when classification found no usable class evidence for this device.
+///
+/// This is the fail-closed half of the D1 gate: "not identified" must never be
+/// treated as "safe to autosuspend". `Other` is deliberately excluded — an
+/// understood bus class that simply falls outside the modelled categories still
+/// carries evidence, whereas `Unknown` carries none at all. PCI devices expose
+/// `class` and USB devices expose `bDeviceClass` with per-interface
+/// `bInterfaceClass`, so a device reaching this predicate as `Unknown` is one
+/// whose class could not be read at all rather than one merely uncategorised.
+pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -> bool {
+    matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Unknown
+    )
+}
+
 /// True if any network interface backed by this device has its link up
 /// (`carrier == 1`). Autosuspending a device with an active link would silently
 /// drop packets, so the existing actuator hard-skips these.

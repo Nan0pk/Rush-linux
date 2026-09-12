@@ -85,6 +85,23 @@ fn armed_actuator(state_dir: PathBuf, kernel: MemoryKernel) -> Actuator {
     actuator
 }
 
+/// Publish the class attribute a real device on this bus exposes: `class` for
+/// PCI, `bDeviceClass` for USB.
+///
+/// The kernel always provides one. A fixture without it is not a simpler real
+/// device but an unidentifiable one, which the D1 gate declines to actuate, so
+/// an unseeded fixture would exercise that refusal instead of the restore and
+/// drift behaviour these tests are about. Vendor-specific (`ff`) and the USB
+/// host-controller PCI class both classify as `Other`: a real class, deliberately
+/// not one of the categories carrying a live-use rule of its own.
+fn seed_usb_device_class(kernel: &MemoryKernel, device: &Path) {
+    kernel.write_raw(&device.join("bDeviceClass"), "ff");
+}
+
+fn seed_pci_device_class(kernel: &MemoryKernel, device: &Path) {
+    kernel.write_raw(&device.join("class"), "0x0c0330");
+}
+
 fn runtime_pm_action(device_dir: &Path, delay: i32) -> Action {
     Action::RuntimePm {
         device_dir: device_dir.to_path_buf(),
