@@ -2408,13 +2408,22 @@ device_resume_latency = 100000
         ));
         actuator.bypass_contract_gate = true;
 
-        actuator
+        let outcome = actuator
             .apply(&Action::RuntimePm {
                 device_dir: dev.clone(),
                 autosuspend_delay_ms: 2000,
                 reason: "test".to_string(),
             })
             .unwrap();
+
+        // The reported reason is the one the ledger names, so a reader of the
+        // outcome can tell this skip from the network-carrier one.
+        assert_eq!(outcome.targets.len(), 1);
+        assert_eq!(
+            outcome.targets[0].reason,
+            crate::envelope::OutcomeReasonCode::RuntimePmClassUnknown
+        );
+        assert!(!outcome.targets[0].write_attempted);
 
         // Allowed by the allowlist, still not touched: an unidentified device
         // must not be deepened on the assumption that it is harmless.

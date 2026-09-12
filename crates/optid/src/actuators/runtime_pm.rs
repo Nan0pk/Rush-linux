@@ -172,6 +172,19 @@ pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> Runti
         flags.mark_usb_class(value);
     }
 
+    // A USB interface node such as `1-1:1.0` is itself enumerated as a
+    // runtime-PM candidate by `discover_runtime_pm_device_paths_with`, because
+    // it exposes `power/control` like any other device. It carries no
+    // `bDeviceClass` and has no interface children of its own; its class is the
+    // `bInterfaceClass` in its own directory. Read it, so an interface is
+    // classified from the evidence it does publish rather than refused as
+    // unidentifiable.
+    if let Ok(value) = read.read_to_string(&device_dir.join("bInterfaceClass")) {
+        if let Some(value) = parse_hex_u8(&value) {
+            flags.mark_usb_class(value);
+        }
+    }
+
     // PCI exposes a 24-bit class code as 0xBBSSPP (base, subclass,
     // programming interface). This is available without driver-specific I/O.
     if let Ok(value) = read.read_to_string(&device_dir.join("class")) {
@@ -189,9 +202,14 @@ pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> Runti
 /// treated as "safe to autosuspend". `Other` is deliberately excluded — an
 /// understood bus class that simply falls outside the modelled categories still
 /// carries evidence, whereas `Unknown` carries none at all. PCI devices expose
-/// `class` and USB devices expose `bDeviceClass` with per-interface
+/// `class`, USB devices expose `bDeviceClass` with per-interface
+/// `bInterfaceClass`, and a USB interface node exposes its own
 /// `bInterfaceClass`, so a device reaching this predicate as `Unknown` is one
 /// whose class could not be read at all rather than one merely uncategorised.
+///
+/// Devices on buses that publish no class attribute at all are refused here.
+/// That is the intended direction, but it narrows runtime-PM coverage rather
+/// than widening it, and it has not been measured on physical hardware.
 pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -> bool {
     matches!(
         classify_device(read, device_dir),
@@ -359,6 +377,22 @@ mod tests {
         let _ = fs::remove_dir_all(unknown);
         let _ = fs::remove_dir_all(per_interface_without_interfaces);
         let _ = fs::remove_dir_all(other);
+    }
+
+    #[test]
+    fn d1_usb_interface_node_is_classified_from_its_own_class() {
+        // Discovery enumerates interface nodes such as `1-1:1.0` alongside
+        // whole devices, because they expose `power/control` too. Their class
+        // lives in their own directory, not in a child.
+        let read = RealKernel::new();
+        let interface = tmp("class_interface_node");
+        fs::write(interface.join("bInterfaceClass"), "03\n").unwrap();
+        assert_eq!(
+            classify_device(&read, &interface),
+            RuntimePmDeviceClass::Input
+        );
+        assert!(!class_evidence_missing(&read, &interface));
+        let _ = fs::remove_dir_all(interface);
     }
 
     #[test]
