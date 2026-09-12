@@ -593,6 +593,7 @@ fn s2d_removed_target_relinquishes_and_other_targets_restore() {
     memory.write_raw(&control, "on");
     memory.write_raw(&delay, "2000");
     memory.write_raw(&vm, "60");
+    seed_pci_device_class(&memory, &device);
     let mut actuator = s2d_armed_actuator(
         state_dir.clone(),
         Box::new(S2dSharedKernel(Arc::clone(&memory))),
@@ -638,6 +639,7 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     memory.write_raw(&vm, "60");
     memory.write_raw(&control, "on");
     memory.write_raw(&delay, "2000");
+    seed_pci_device_class(&memory, &device);
     let mut actuator = s2d_armed_actuator(
         state_dir.clone(),
         Box::new(S2dSharedKernel(Arc::clone(&memory))),

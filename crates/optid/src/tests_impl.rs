@@ -1167,6 +1167,49 @@ device_resume_latency = 100000
     // ── WP-N5: runtime-PM autosuspend actuator ──────────────────────────────
 
     /// Build a synthetic sysfs device dir with a modalias and power/control.
+    /// Read the two hex digits following `key`.
+    ///
+    /// Modalias keys are lowercase and their values are uppercase hex, so a
+    /// lowercase key never collides with a preceding field's value.
+    fn modalias_hex(rest: &str, key: &str) -> Option<String> {
+        let idx = rest.find(key)?;
+        let digits: String = rest[idx + key.len()..].chars().take(2).collect();
+        (digits.len() == 2 && digits.chars().all(|c| c.is_ascii_hexdigit())).then_some(digits)
+    }
+
+    /// Publish the sysfs class attributes a real device with this modalias
+    /// would expose: `class` for PCI, `bDeviceClass` plus a per-interface
+    /// `bInterfaceClass` for USB.
+    ///
+    /// The kernel always exposes these, so a fixture that omits them is not a
+    /// smaller real device — it is one whose class cannot be read, which the D1
+    /// gate denies. Deriving them from the modalias each test already declares
+    /// keeps the fixture and the hardware identity it claims in agreement.
+    fn write_sysfs_class_attrs(dev: &Path, modalias: &str) {
+        if let Some(rest) = modalias.strip_prefix("pci:") {
+            if let (Some(base), Some(sub), Some(prog)) = (
+                modalias_hex(rest, "bc"),
+                modalias_hex(rest, "sc"),
+                modalias_hex(rest, "i"),
+            ) {
+                fs::write(dev.join("class"), format!("0x{base}{sub}{prog}\n")).unwrap();
+            }
+        } else if let Some(rest) = modalias.strip_prefix("usb:") {
+            if let Some(device_class) = modalias_hex(rest, "dc") {
+                fs::write(dev.join("bDeviceClass"), format!("{device_class}\n")).unwrap();
+            }
+            if let Some(interface_class) = modalias_hex(rest, "ic") {
+                let interface = dev.join("1-1:1.0");
+                fs::create_dir_all(&interface).unwrap();
+                fs::write(
+                    interface.join("bInterfaceClass"),
+                    format!("{interface_class}\n"),
+                )
+                .unwrap();
+            }
+        }
+    }
+
     fn n5_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
         let dev = temp.join(name);
         let power = dev.join("power");
@@ -1174,6 +1217,7 @@ device_resume_latency = 100000
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "-1\n").unwrap();
+        write_sysfs_class_attrs(&dev, modalias);
         dev
     }
 
@@ -2005,6 +2049,7 @@ device_resume_latency = 100000
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        write_sysfs_class_attrs(&dev, modalias);
         // Baseline: autosuspend off, 100 ms delay.
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
@@ -2116,6 +2161,7 @@ device_resume_latency = 100000
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        write_sysfs_class_attrs(&dev, modalias);
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
 
@@ -2326,6 +2372,98 @@ device_resume_latency = 100000
         assert!(!temp.join(format!("original_rpm_{hash}")).exists());
         let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
         assert!(actions.contains("network carrier up"), "{actions}");
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_d1_runtime_pm_fails_closed_when_device_class_is_unknown() {
+        let temp = std::env::temp_dir().join(format!("optid_d1_unknown_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        // A device the allowlist permits and whose class cannot be read: no
+        // PCI `class`, no USB `bDeviceClass`, no interface exposing one. The
+        // allowlist works from modalias, so permission alone is not evidence of
+        // what the device is.
+        let modalias = "usb:vFFFFpFFFFd0001";
+        let dev = temp.join("9-9");
+        let power = dev.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        fs::write(power.join("control"), "on\n").unwrap();
+        fs::write(power.join("autosuspend_delay_ms"), "-1\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"d1 unknown-class test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        actuator.bypass_contract_gate = true;
+
+        let outcome = actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        // The reported reason is the one the ledger names, so a reader of the
+        // outcome can tell this skip from the network-carrier one.
+        assert_eq!(outcome.targets.len(), 1);
+        assert_eq!(
+            outcome.targets[0].reason,
+            crate::envelope::OutcomeReasonCode::RuntimePmClassUnknown
+        );
+        assert!(!outcome.targets[0].write_attempted);
+
+        // Allowed by the allowlist, still not touched: an unidentified device
+        // must not be deepened on the assumption that it is harmless.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "runtime PM control must be left alone for an unclassifiable device"
+        );
+        assert_eq!(
+            fs::read_to_string(power.join("autosuspend_delay_ms"))
+                .unwrap()
+                .trim(),
+            "-1",
+            "autosuspend delay must be left alone for an unclassifiable device"
+        );
+        // Nothing was journalled, so there is no baseline to restore later.
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            actions.contains("device class evidence missing"),
+            "{actions}"
+        );
+
+        // The same device becomes actuatable once it reports a real class,
+        // which shows the refusal came from missing evidence and not from some
+        // unrelated part of the fixture being wrong.
+        fs::write(dev.join("bDeviceClass"), "ff\n").unwrap();
+        actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "auto",
+            "a device reporting a real class should still be actuated"
+        );
 
         let _ = fs::remove_dir_all(&temp);
     }
