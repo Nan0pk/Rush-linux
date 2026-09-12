@@ -1,8 +1,10 @@
-# Decision 0028 — Agent truthfulness and owner decisions
+# ADR 0028: Agent truthfulness and owner decisions
 
-**Status:** Accepted
-**Date:** 2026-09-12
-**Owner decision:** Explicit direction from the repository owner.
+Status: accepted
+Ratified-by: Nan0pk, 2026-09-12 (explicit owner direction in the autonomous-work session)
+
+Date: 2026-09-12
+Tags: workflow, agents, truthfulness, owner-decisions
 
 ## Decision
 
