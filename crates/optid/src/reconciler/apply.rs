@@ -27,6 +27,31 @@ impl Reconciler {
             return Ok(outcome);
         }
         let expanded = self.expand_action(action, actuator)?;
+
+        // D1 runtime-PM safety is evaluated before any transaction is prepared
+        // or kernel write is attempted. This is intentionally a transitional
+        // fail-closed gate: only a class with an accepted live-use predicate
+        // and a known stable runtime status may continue. Passing this check is
+        // not itself permission to suspend; the existing allowlist, contract,
+        // carrier, capability, transaction, and readback gates still apply.
+        if let Action::RuntimePm { device_dir, .. } = action {
+            if let Err(block) =
+                crate::actuators::runtime_pm::actuation_precheck(actuator.kernel.as_ref(), device_dir)
+            {
+                let detail = block.message().to_string();
+                let mut outcome = active_action_outcome(action);
+                for desired in &expanded {
+                    outcome.targets.push(TargetOutcome::denied(
+                        desired.target_id.clone(),
+                        PipelineStage::Write,
+                        detail.clone(),
+                    ));
+                }
+                self.record_action_outcome(action, &outcome, actuator)?;
+                return Ok(outcome);
+            }
+        }
+
         if expanded.iter().any(|desired| {
             self.targets.get(&desired.target_id).is_some_and(|state| {
                 state.ownership == OwnershipState::Optid
