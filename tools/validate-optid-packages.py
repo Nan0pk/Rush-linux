@@ -22,8 +22,13 @@ assert _SPEC and _SPEC.loader
 _impl = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_impl)
 
-# Preserve the validator's existing import surface for its focused tests and any
-# repository tooling that imports helpers from this canonical file.
+# Preserve the validator's existing import surface for focused tests and repository
+# tooling. Explicit aliases below also keep static analysis aware of names used by
+# this entry point; the compatibility export remains for other helper imports.
+load_toml = _impl.load_toml
+LEDGER = _impl.LEDGER
+validate_ledger = _impl.validate_ledger
+validate_change = _impl.validate_change
 for _name in dir(_impl):
     if not _name.startswith("__"):
         globals()[_name] = getattr(_impl, _name)
