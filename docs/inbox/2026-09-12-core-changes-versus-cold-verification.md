@@ -1,6 +1,9 @@
-# Unresolved: how a core actuator change lands without un-completing the foundation
+# Resolved: how a core actuator change lands without un-completing the foundation
 
-Status: **open, waiting on the owner.** Raised 2026-09-12 from pull request #471.
+Status: **answered by the owner on 2026-09-13.** Raised 2026-09-12 from pull request #471.
+The decision is [ADR 0029](../decisions/0029-impact-based-cold-verification-freshness.md),
+and the answer is written up under "What the owner decided" at the end of this file. The
+question and options below are kept as the record of what was asked.
 
 ## What is blocked
 
@@ -85,4 +88,50 @@ The freshness check compares `verified_commit..HEAD`, so an uncommitted working
 tree is invisible to it: the dry run passes and the failure only appears once the
 commit is made, in continuous integration. The pre-commit gate structurally
 cannot protect against this particular failure. Worth fixing whichever way the
-decision above goes.
+decision above goes, and still unfixed.
+
+## What the owner decided
+
+On 2026-09-13 the owner chose **impact-based freshness**, recorded in
+[ADR 0029](../decisions/0029-impact-based-cold-verification-freshness.md) and
+implemented in pull request #476.
+
+Editing a file named in a completed package's declared proof paths no longer, by
+itself, invalidates that package's cold-verification receipt. Instead the change
+requires an **independent impact review** that inspects the actual changed
+behaviour against each affected package's original acceptance scope and records
+one of `proof preserved`, `re-verification required`, or `inconclusive` — the
+last two meaning fresh cold verification is needed. The validator still fails
+closed on an unavailable or structurally invalid receipt; only the
+"touched a proof path" signal becomes review context rather than a failure.
+
+**This is not the option this file recommended.** The recommendation here was to
+re-verify affected packages on demand, keeping the rule as it was and paying the
+cost per core change. The owner instead narrowed what counts as invalidation, in
+the direction of option 2 but on behavioural impact rather than on which files a
+package claims. Recording that plainly because the disagreement is the useful
+part: the recommendation treated file-level detection as sound and only
+expensive, and the decision judges it to be measuring the wrong thing — a file
+edit is not evidence that a behavioural proof has stopped holding.
+
+The guardrails are worth reading before relying on this. A builder cannot declare
+its own impact review sufficient; passing tests, CI success, silence or an older
+review do not constitute one; and security-boundary changes, hard-to-reverse
+hardware writes and release claims keep their existing cold-verification
+requirements regardless.
+
+**What pull request #471 needs now**, per the ADR's own closing section: it is no
+longer required to cold-verify seven historical packages, but it is not
+authorised to merge either. It needs pull request #476 to land so the validator
+stops failing, then an independent review on its exact head and base that
+explicitly classifies each of the seven affected packages and names the touched
+proof paths, reasoning, evidence inspected and SHAs. The reviews it has had so
+far did not do that classification — they stopped at the blocker — so a fresh one
+scoped to the ADR's requirements is still outstanding.
+
+One caution, for the same reason this file exists. The ADR records itself as
+ratified by the owner, and no session can verify that from inside this
+repository, because every commit and comment here carries the same identity
+whether a person or an agent wrote it. It is consistent with the question this
+file put to the owner having been answered, and it is not independent proof of
+it.
