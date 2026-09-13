@@ -2,7 +2,7 @@
 """Canonical Optid package-contract entry point.
 
 The implementation module performs structural checks and detects completed-package
-proof paths that changed after their cold-verification receipt. ADR 0028 makes
+proof paths that changed after their cold-verification receipt. ADR 0029 makes
 that file-level freshness signal review context rather than automatic proof
 invalidation: semantic impact must be decided by an independent reviewer.
 """
@@ -37,7 +37,7 @@ _OLD_REMEDY = (
 
 
 def _impact_notice(error: str) -> str | None:
-    """Convert raw proof-path staleness into ADR-0028 review context.
+    """Convert raw proof-path staleness into ADR-0029 review context.
 
     Missing/unavailable receipt commits remain blocking errors. Only the narrow
     signal produced when known proof paths changed after a known verified commit
@@ -47,7 +47,7 @@ def _impact_notice(error: str) -> str | None:
         return None
     detail = error.replace(_OLD_REMEDY, "").strip()
     return (
-        f"{detail} ADR 0028 requires an independent impact review on the exact "
+        f"{detail} ADR 0029 requires an independent impact review on the exact "
         "head/base before merge. The package may keep its existing completion "
         "receipt only if that review records `proof preserved`; `re-verification "
         "required` or `inconclusive` requires fresh independent cold verification."
