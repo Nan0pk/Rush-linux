@@ -473,6 +473,311 @@ unresolved = []
                 f"divergent commit must skip freshness, not error: {freshness_errors}",
             )
 
+    # ── ADR 0029: impact-based freshness is scoped to the proposed change ──
+
+    def _stale_receipt_fixture(self, tmp_root, *, verified_at, modify_between):
+        """Build a synthetic repo with a completed package's proof path
+        modified in a chain of commits, and return
+        (data, verified_sha, commit_shas) where `commit_shas` are the
+        SHAs of every commit after the verified one, in order.
+
+        `verified_at` is the content written at the verified commit;
+        `modify_between` is a list of `(relative_path, content)` pairs,
+        one commit per entry, so a test can distinguish a commit that
+        touches the declared proof path from one that touches something
+        else entirely.
+        """
+        import subprocess
+
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_root, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"], cwd=tmp_root, check=True
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_root, check=True)
+
+        proof_dir = tmp_root / "crates" / "optid" / "src"
+        proof_dir.mkdir(parents=True)
+        (proof_dir / "policy.rs").write_text(verified_at, encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_root, check=True)
+        verified_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+        ).stdout.strip()
+
+        commit_shas = []
+        for index, (relative_path, content) in enumerate(modify_between):
+            target = tmp_root / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", f"change {index}"], cwd=tmp_root, check=True
+            )
+            commit_shas.append(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+                ).stdout.strip()
+            )
+
+        receipt_dir = tmp_root / "docs" / "plans" / "optid-verification"
+        receipt_dir.mkdir(parents=True)
+        receipt_path = receipt_dir / "f1.toml"
+        receipt_path.write_text(
+            f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{verified_sha}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+            encoding="utf-8",
+        )
+
+        first = package(
+            "F1",
+            status="completed",
+            pr="332",
+            runtime_entrypoints=["crates/optid/src/policy.rs"],
+            integration_tests=["crates/optid/src/policy.rs"],
+            completion_evidence=[
+                "crates/optid/src/policy.rs",
+                "docs/plans/optid-verification/f1.toml",
+            ],
+            verification_receipt="docs/plans/optid-verification/f1.toml",
+        )
+        return ledger(first), verified_sha, commit_shas
+
+    def test_stale_receipt_notice_does_not_repeat_for_already_merged_change(self):
+        """A proof-path edit that already landed on `base` — because an
+        earlier, unrelated change introduced and merged it — must not
+        keep surfacing as a fresh finding on every later change forever.
+        Without this scoping, an accepted `proof preserved` impact
+        review could never actually clear the finding: the same old
+        edit would still be "since verified_commit" on every future
+        head.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            data, _verified, commits = self._stale_receipt_fixture(
+                tmp_root,
+                verified_at="// v1\n",
+                modify_between=[
+                    ("crates/optid/src/policy.rs", "// v2 (already merged)\n"),
+                    ("crates/optid/src/unrelated.rs", "// v3 (unrelated later commit)\n"),
+                ],
+            )
+            already_merged_change, later_unrelated_head = commits
+            errors = validator.validate_ledger(
+                data, tmp_root, base=already_merged_change
+            )
+            stale_errors = [e for e in errors if "stale" in e.lower()]
+            self.assertFalse(
+                stale_errors,
+                "a proof-path edit already on `base` must not be reported as "
+                f"this change's finding, got: {stale_errors}",
+            )
+
+    def test_stale_receipt_notice_fires_for_edit_introduced_by_this_change(self):
+        """A proof-path edit that IS part of the currently proposed
+        `base..HEAD` change must still surface, so ADR 0029's required
+        impact review actually happens on the change that introduces it.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            data, verified_sha, commits = self._stale_receipt_fixture(
+                tmp_root,
+                verified_at="// v1\n",
+                modify_between=[
+                    ("crates/optid/src/policy.rs", "// v2 (this proposed change)\n")
+                ],
+            )
+            errors = validator.validate_ledger(data, tmp_root, base=verified_sha)
+            stale_errors = [e for e in errors if "stale" in e.lower()]
+            self.assertTrue(
+                stale_errors,
+                f"a proof-path edit introduced by base..HEAD must still be "
+                f"reported, got: {errors}",
+            )
+            self.assertTrue(
+                any("ADR 0029" in e for e in stale_errors),
+                f"the finding must point at the ADR 0029 impact-review "
+                f"requirement, got: {stale_errors}",
+            )
+
+    def test_cli_keeps_stale_receipt_blocking_without_base_but_notices_with_it(self):
+        """CLI-level regression for the routing defect an independent
+        review found on PR #477's first head: `main()` unconditionally
+        moved every stale-receipt finding into non-blocking notices, even
+        when the validator ran with no `--base` at all. But
+        `validate_receipt_freshness` falls back to the full historical
+        comparison exactly when `base` is `None` — that is the
+        standalone, no-PR-context contract the module's own docstring
+        describes, and it must still fail the gate. Only a run that
+        actually has a `base` to scope the finding to may relax it to a
+        notice.
+
+        This drives the real script as a subprocess, the way CI does (via
+        `tools/checks.sh`'s `python3 tools/validate-optid-packages.py
+        --base "$BASE"`) rather than calling `validate_ledger` directly,
+        so it exercises the same `--base` handling, `ROOT`/`LEDGER`
+        resolution, and marker-based error/notice split real CI depends
+        on. The script computes `ROOT` from its own `__file__`, so it is
+        copied into a synthetic repo's own `tools/` directory rather than
+        pointed at a different root by an argument or an environment
+        variable — neither exists on this script.
+        """
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            (tmp_root / "tools").mkdir()
+            shutil.copy(
+                ROOT / "tools" / "validate-optid-packages.py",
+                tmp_root / "tools" / "validate-optid-packages.py",
+            )
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"], cwd=tmp_root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_root, check=True)
+
+            # Two proof paths that never change (so they never trip the
+            # `OPTID_CODE_PREFIXES` / "ledger must be updated" rule in
+            # `validate_change`) plus a third, declared only as
+            # completion_evidence and outside OPTID_CODE_PREFIXES, that
+            # will be modified after the verified commit.
+            (tmp_root / "crates/optid/src").mkdir(parents=True)
+            (tmp_root / "crates/optid/src/main.rs").write_text("// entrypoint\n", encoding="utf-8")
+            (tmp_root / "crates/optid/tests").mkdir(parents=True)
+            (tmp_root / "crates/optid/tests/smoke.rs").write_text("// test\n", encoding="utf-8")
+            (tmp_root / "crates/optid/README.md").write_text("v1\n", encoding="utf-8")
+            (tmp_root / "docs/plans/optid-verification").mkdir(parents=True)
+            (tmp_root / "docs/plans/optid-verification/f1.toml").write_text(
+                "placeholder\n", encoding="utf-8"
+            )
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_root, check=True)
+            verified_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+            ).stdout.strip()
+
+            receipt_path = tmp_root / "docs/plans/optid-verification/f1.toml"
+            receipt_path.write_text(
+                f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{verified_sha}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "add receipt"], cwd=tmp_root, check=True)
+
+            ledger_lines = [
+                'schema_version = 2',
+                'active_general = "D0"',
+                'active_safety = "D0"',
+                "",
+                "[[package]]",
+                'id = "F1"',
+                'lane = "foundation"',
+                'title = "F1 outcome"',
+                'status = "completed"',
+                "depends = []",
+                'pr = "332"',
+                'runtime_entrypoints = ["crates/optid/src/main.rs"]',
+                'integration_tests = ["crates/optid/tests/smoke.rs"]',
+                'completion_evidence = ["crates/optid/README.md", '
+                '"docs/plans/optid-verification/f1.toml"]',
+                'verification_receipt = "docs/plans/optid-verification/f1.toml"',
+                "",
+                "[[package]]",
+                'id = "D0"',
+                'lane = "safety"',
+                'title = "D0 outcome"',
+                'status = "next"',
+                "depends = []",
+                'pr = ""',
+                "completion_evidence = []",
+            ]
+            for number in range(1, 29):
+                ledger_lines += [
+                    "",
+                    "[[package]]",
+                    f'id = "P{number}"',
+                    'lane = "foundation"',
+                    f'title = "P{number} outcome"',
+                    'status = "planned"',
+                    "depends = []",
+                    'pr = ""',
+                    "completion_evidence = []",
+                ]
+            (tmp_root / "docs/plans/optid-package-status.toml").write_text(
+                "\n".join(ledger_lines) + "\n", encoding="utf-8"
+            )
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "add ledger"], cwd=tmp_root, check=True)
+            ledger_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+            ).stdout.strip()
+
+            # This is the currently proposed change: it edits a declared
+            # proof path (crates/optid/README.md) outside
+            # OPTID_CODE_PREFIXES, so it needs no ledger update of its
+            # own, and it is not the ledger commit itself.
+            (tmp_root / "crates/optid/README.md").write_text("v2 (proposed change)\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "edit declared proof path"], cwd=tmp_root, check=True
+            )
+
+            script = tmp_root / "tools" / "validate-optid-packages.py"
+            no_base = subprocess.run(
+                [sys.executable, str(script)],
+                cwd=tmp_root,
+                capture_output=True,
+                text=True,
+            )
+            with_base = subprocess.run(
+                [sys.executable, str(script), "--base", ledger_sha],
+                cwd=tmp_root,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(
+            no_base.returncode,
+            1,
+            "a stale receipt must still fail the gate with no --base at all "
+            f"(the standalone, no-PR-context contract), got exit "
+            f"{no_base.returncode}, stdout:\n{no_base.stdout}\nstderr:\n{no_base.stderr}",
+        )
+        self.assertIn("stale", no_base.stdout.lower())
+
+        self.assertEqual(
+            with_base.returncode,
+            0,
+            "the same drift, scoped to base..HEAD via --base, must be a "
+            f"non-blocking ADR 0029 notice, got exit {with_base.returncode}, "
+            f"stdout:\n{with_base.stdout}\nstderr:\n{with_base.stderr}",
+        )
+        self.assertIn("ADR 0029", with_base.stdout)
+
     # ── Post-#337: multi-package repair PR exemption ──────────────────
 
     def test_demotion_does_not_count_as_advancement(self):

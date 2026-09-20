@@ -105,6 +105,7 @@ def validate_verification_receipt(
     package: dict[str, Any],
     root: Path,
     errors: list[str],
+    base: str | None = None,
 ) -> None:
     receipt_value = package.get("verification_receipt", "")
     if not isinstance(receipt_value, str) or not receipt_value:
@@ -149,7 +150,7 @@ def validate_verification_receipt(
     # Post-#337 freshness check: a completed package's receipt must be
     # invalidated when a later change modifies any declared proof path.
     # See `validate_receipt_freshness` for the full rule.
-    validate_receipt_freshness(package_id, package, receipt, root, errors)
+    validate_receipt_freshness(package_id, package, receipt, root, errors, base=base)
 
 
 def _git_ancestry_contains(
@@ -215,14 +216,16 @@ def validate_receipt_freshness(
     receipt: dict[str, Any],
     root: Path,
     errors: list[str],
+    base: str | None = None,
 ) -> None:
-    """Post-#337 rule: a completed package's receipt must be invalidated
-    when a later change modifies any declared runtime_entrypoint,
-    integration_test, or completion_evidence implementation file, unless
-    a newer receipt verifies a commit containing that change.
+    """Post-#337 rule, narrowed by ADR 0029: a completed package's proof
+    paths changing is review context, not an automatic `completed`
+    failure, when the change that touched them is the one currently
+    being proposed.
 
     Fail-closed semantics (post-#338 review):
-    - **ancestor + proof paths changed** → STALE (deny `completed`).
+    - **ancestor + proof paths changed** → the receipt is stale (see
+      ADR 0029 scoping below).
     - **divergent** (verified commit exists but is not an ancestor of
       HEAD) → skip (legitimate; the receipt is for a divergent history,
       e.g. an unmerged branch).
@@ -239,6 +242,15 @@ def validate_receipt_freshness(
     #337) modified `policy.rs`, `action.rs`, `actuator.rs`, etc. — all
     declared F1 runtime entrypoints. The receipt continued to assert
     `result = "pass"` against an older commit, masking the regression.
+
+    ADR 0029 scoping: when `base` is given, a proof path is only
+    reported if it was changed within the currently proposed `base` to
+    `HEAD` change, not merely at some point since `verified_commit`. A
+    proof-path edit that already landed on `base` was — or should have
+    been — reviewed on the change that introduced it; once merged, it
+    must not keep surfacing as a fresh finding on every later, unrelated
+    change forever. `base` is optional so a standalone ledger check
+    (no PR in view) keeps the full historical comparison.
     """
     verified_commit = str(receipt.get("verified_commit", "")).strip()
     if not SHA_RE.fullmatch(verified_commit):
@@ -282,18 +294,34 @@ def validate_receipt_freshness(
         return
 
     stale = _files_changed_since_commit(verified_commit, proof_paths, root)
-    if stale:
-        errors.append(
-            f"{package_id}: verification receipt is stale — verified_commit "
-            f"{verified_commit[:12]} is an ancestor of HEAD but the following "
-            f"declared proof paths were modified after it: {', '.join(stale)}. "
-            "A fresh cold verification receipt is required before this package "
-            "may remain `completed`. Demote to `merged_incomplete` and record "
-            "the precise blocker in `blocking_reason`."
-        )
+    if not stale:
+        return
+
+    if base is not None:
+        introduced_by_this_change = set(changed_files(base, root))
+        stale = [path for path in stale if path in introduced_by_this_change]
+        if not stale:
+            # The drift predates this change and already sits on `base`;
+            # under ADR 0029 it is not this change's review to redo.
+            return
+
+    errors.append(
+        f"{package_id}: verification receipt is stale — verified_commit "
+        f"{verified_commit[:12]} is an ancestor of HEAD but the following "
+        f"declared proof paths were modified after it: {', '.join(stale)}. "
+        "ADR 0029 requires an independent impact review on the exact head/base "
+        "before merge. The package may keep its existing completion receipt "
+        "only if that review records `proof preserved`; `re-verification "
+        "required` or `inconclusive` requires fresh independent cold "
+        "verification, and the package must be demoted to `merged_incomplete` "
+        "with the precise blocker recorded in `blocking_reason` until that "
+        "verification exists."
+    )
 
 
-def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
+def validate_ledger(
+    ledger: dict[str, Any], root: Path = ROOT, base: str | None = None
+) -> list[str]:
     errors: list[str] = []
     packages = ledger.get("package", [])
     ids = [package.get("id") for package in packages]
@@ -395,7 +423,7 @@ def validate_ledger(ledger: dict[str, Any], root: Path = ROOT) -> list[str]:
         if status == "completed":
             if not PR_RE.fullmatch(str(package.get("pr", ""))):
                 errors.append(f"{package_id}: completed status requires a numeric PR")
-            validate_verification_receipt(package_id, package, root, errors)
+            validate_verification_receipt(package_id, package, root, errors, base=base)
 
     for key in ("active_general", "active_safety"):
         active_id = ledger.get(key)
@@ -847,6 +875,9 @@ def validate_change(base: str, root: Path = ROOT) -> list[str]:
     return errors
 
 
+_STALE_RECEIPT_MARKER = ": verification receipt is stale — "
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -857,11 +888,30 @@ def main() -> int:
 
     try:
         ledger = load_toml(ROOT / LEDGER)
-        errors = validate_ledger(ledger)
+        raw_findings = validate_ledger(ledger, base=args.base)
         if args.base:
-            errors.extend(validate_change(args.base))
+            raw_findings.extend(validate_change(args.base))
     except (OSError, tomllib.TOMLDecodeError, RuntimeError) as exc:
-        errors = [str(exc)]
+        raw_findings = [str(exc)]
+
+    # ADR 0029: a completed package's declared proof path changing in the
+    # currently proposed change is review context for the independent
+    # merge review, not by itself a package-contract failure. That
+    # relaxation only makes sense once a proposed change exists to scope
+    # it to: without `--base`, `validate_receipt_freshness` falls back to
+    # the full historical comparison, and this finding must stay a
+    # blocking failure of the standalone package-contract gate.
+    if args.base:
+        errors = [item for item in raw_findings if _STALE_RECEIPT_MARKER not in item]
+        notices = [item for item in raw_findings if _STALE_RECEIPT_MARKER in item]
+    else:
+        errors = list(raw_findings)
+        notices = []
+
+    if notices:
+        print("NOTICE: completed-package proof paths changed; ADR 0029 impact review required")
+        for notice in notices:
+            print(f"  - {notice}")
 
     if errors:
         print("FAILED: optid package contract")
