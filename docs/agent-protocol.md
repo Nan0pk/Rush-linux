@@ -43,16 +43,24 @@ summary or its asserted impact boundary. It must not silently fix the work
 it is reviewing. Return defects to the builder; if the reviewer becomes a
 builder, another reviewer must assess its changes.
 
-Before starting a repeat review, confirm the head has actually moved. A verdict
-belongs to the exact commit it names, so a head that has not changed since your
-last verdict still carries that verdict: post nothing and wait for a push. This
-is not a courtesy — repeated verdicts on an unchanged commit consume review
-capacity and CI while producing no new information, and they teach the builder
-nothing it was not told the first time. The worst recorded case is in the sibling
-Archiv repository, where nine consecutive reviews read the same commit and
-reported the same lint failure. If a head is unchanged and the work appears
-stalled, treat that as a coordination problem and say what the builder is
-blocked on, rather than re-issuing the finding.
+Before starting a repeat review, confirm that something has actually moved. A
+verdict is recorded against a head and a base together, so it still stands only
+while **both** are unchanged since you gave it; in that case post nothing and
+wait. A moved base invalidates the verdict exactly as a moved head does, even
+when the source head is byte-identical, because the integration result against a
+new `main` can differ. Step 4 of "Coordinating a merge" already requires
+re-review when head or base changed, and nothing here narrows it.
+
+Where both are unchanged, silence is the correct output. A repeated verdict on
+an unchanged head and base consumes review capacity and CI while producing no new
+information, and teaches the builder nothing it was not told the first time. In
+the sibling Archiv repository nine consecutive reviews read one head across three
+different bases: six repeated a verdict already given on that exact pair, while
+the three that followed a base move were legitimate — and one of them found a
+real defect the earlier rounds could not have seen. Suppress the repeat, never
+the re-integration. If nothing has moved and the work appears stalled, treat that
+as a coordination problem and say what the builder is blocked on, rather than
+re-issuing the finding.
 
 ### Always start with the whole project, then zoom in
 
