@@ -623,9 +623,10 @@ title = "Complete runtime PM as a reconciled domain"
 status = "next"
 depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
 pr = ""
-blocking_reason = "PR #469 is the first explicitly permitted modular D1 slice: it adds typed runtime-PM classification for network, audio, camera/video, input, storage, composite, other, and unknown devices and routes the existing carrier/wakeup predicates through that classification. D1 remains next, not candidate: audio/camera/storage live-use gates, fail-closed unknown/runtime-status handling, evidence-backed per-device delay selection, final reconciled-gate wiring, and the complete D1 acceptance matrix are still required. Research-only class delay guesses are not production policy."
+blocking_reason = "PR #469 added typed runtime-PM classification for network, audio, camera/video, input, storage, composite, other, and unknown devices and routed the existing carrier/wakeup predicates through it. A second modular slice now makes the actuator fail closed on unknown: a device whose class cannot be read is skipped with outcome reason runtime_pm_class_unknown and is never written, so absent evidence is no longer treated as a benign class. Only unknown is refused; other remains actuatable because an understood-but-uncategorised class is still evidence. D1 remains next, not candidate: audio/camera/storage live-use gates, runtime_status handling, evidence-backed per-device delay selection, final reconciled-gate wiring, and the complete D1 acceptance matrix are still required. Research-only class delay guesses are not production policy. Note the coverage consequence of failing closed: devices on buses that publish no class attribute are now skipped rather than deepened, which is intended but narrows runtime-PM coverage until per-bus classification evidence is extended."
 completion_evidence = [
   "crates/optid/src/actuators/runtime_pm.rs",
+  "crates/optid/src/actuator.rs",
 ]
 
 [[package]]

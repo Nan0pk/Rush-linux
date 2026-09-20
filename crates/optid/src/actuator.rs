@@ -1313,6 +1313,30 @@ impl Actuator {
                     ));
                     return Ok(outcome);
                 }
+                // D1 fails closed on devices whose class could not be read at
+                // all. Deepening an unidentified device would mean inferring a
+                // benign class from the absence of evidence, which is the one
+                // inference this gate exists to prevent.
+                if runtime_pm::class_evidence_missing(self.kernel.as_ref(), device_dir) {
+                    self.log(&format!(
+                        "skip runtime_pm {}: device class evidence missing",
+                        device_dir.display()
+                    ))?;
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason: OutcomeReasonCode::RuntimePmClassUnknown,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Skipped,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Unowned,
+                        pending_restore: RestoreState::NotApplicable,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: Some("device class evidence missing".to_string()),
+                    });
+                    return Ok(outcome);
+                }
                 if runtime_pm::network_carrier_up(self.kernel.as_ref(), device_dir) {
                     self.log(&format!(
                         "skip runtime_pm {}: network carrier up",

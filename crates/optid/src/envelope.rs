@@ -203,6 +203,7 @@ pub(crate) enum OutcomeReasonCode {
     NotApplicable,
     GateDenied,
     NetworkCarrierUp,
+    RuntimePmClassUnknown,
     RedundantValue,
     WriteApplied,
     WriteFailed,

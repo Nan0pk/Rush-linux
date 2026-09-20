@@ -7,6 +7,7 @@ fn f4_production_runtime_pm_transition_restores_baseline() {
     let kernel = MemoryKernel::new();
     kernel.write_raw(&control, "on");
     kernel.write_raw(&delay, "1000");
+    seed_usb_device_class(&kernel, &device);
     let mut actuator = armed_actuator(state_dir.clone(), kernel);
     let mut reconciler = Reconciler::load_with_systemd(
         state_dir,
@@ -391,6 +392,7 @@ impl RuntimePmRestoreFixture {
         let memory = Arc::new(MemoryKernel::new());
         memory.write_raw(&control, "on");
         memory.write_raw(&delay, "1000");
+        seed_usb_device_class(&memory, &device);
         let mut actuator = s2d_armed_actuator(
             state_dir.clone(),
             Box::new(S2dSharedKernel(Arc::clone(&memory))),
