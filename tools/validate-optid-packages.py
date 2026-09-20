@@ -896,11 +896,17 @@ def main() -> int:
 
     # ADR 0029: a completed package's declared proof path changing in the
     # currently proposed change is review context for the independent
-    # merge review, not by itself a package-contract failure. Every other
-    # finding — including this same message when no `--base` was given
-    # to scope it to a specific change — still fails the gate.
-    errors = [item for item in raw_findings if _STALE_RECEIPT_MARKER not in item]
-    notices = [item for item in raw_findings if _STALE_RECEIPT_MARKER in item]
+    # merge review, not by itself a package-contract failure. That
+    # relaxation only makes sense once a proposed change exists to scope
+    # it to: without `--base`, `validate_receipt_freshness` falls back to
+    # the full historical comparison, and this finding must stay a
+    # blocking failure of the standalone package-contract gate.
+    if args.base:
+        errors = [item for item in raw_findings if _STALE_RECEIPT_MARKER not in item]
+        notices = [item for item in raw_findings if _STALE_RECEIPT_MARKER in item]
+    else:
+        errors = list(raw_findings)
+        notices = []
 
     if notices:
         print("NOTICE: completed-package proof paths changed; ADR 0029 impact review required")
