@@ -473,6 +473,144 @@ unresolved = []
                 f"divergent commit must skip freshness, not error: {freshness_errors}",
             )
 
+    # ── ADR 0029: impact-based freshness is scoped to the proposed change ──
+
+    def _stale_receipt_fixture(self, tmp_root, *, verified_at, modify_between):
+        """Build a synthetic repo with a completed package's proof path
+        modified in a chain of commits, and return
+        (data, verified_sha, commit_shas) where `commit_shas` are the
+        SHAs of every commit after the verified one, in order.
+
+        `verified_at` is the content written at the verified commit;
+        `modify_between` is a list of `(relative_path, content)` pairs,
+        one commit per entry, so a test can distinguish a commit that
+        touches the declared proof path from one that touches something
+        else entirely.
+        """
+        import subprocess
+
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_root, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"], cwd=tmp_root, check=True
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_root, check=True)
+
+        proof_dir = tmp_root / "crates" / "optid" / "src"
+        proof_dir.mkdir(parents=True)
+        (proof_dir / "policy.rs").write_text(verified_at, encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_root, check=True)
+        verified_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+        ).stdout.strip()
+
+        commit_shas = []
+        for index, (relative_path, content) in enumerate(modify_between):
+            target = tmp_root / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=tmp_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", f"change {index}"], cwd=tmp_root, check=True
+            )
+            commit_shas.append(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"], cwd=tmp_root, capture_output=True, text=True
+                ).stdout.strip()
+            )
+
+        receipt_dir = tmp_root / "docs" / "plans" / "optid-verification"
+        receipt_dir.mkdir(parents=True)
+        receipt_path = receipt_dir / "f1.toml"
+        receipt_path.write_text(
+            f'''schema_version = 1
+package = "F1"
+implementation_pr = 332
+verified_commit = "{verified_sha}"
+verifier = "test"
+result = "pass"
+commands = ["cargo test"]
+runtime_proofs = ["proof"]
+unresolved = []
+''',
+            encoding="utf-8",
+        )
+
+        first = package(
+            "F1",
+            status="completed",
+            pr="332",
+            runtime_entrypoints=["crates/optid/src/policy.rs"],
+            integration_tests=["crates/optid/src/policy.rs"],
+            completion_evidence=[
+                "crates/optid/src/policy.rs",
+                "docs/plans/optid-verification/f1.toml",
+            ],
+            verification_receipt="docs/plans/optid-verification/f1.toml",
+        )
+        return ledger(first), verified_sha, commit_shas
+
+    def test_stale_receipt_notice_does_not_repeat_for_already_merged_change(self):
+        """A proof-path edit that already landed on `base` — because an
+        earlier, unrelated change introduced and merged it — must not
+        keep surfacing as a fresh finding on every later change forever.
+        Without this scoping, an accepted `proof preserved` impact
+        review could never actually clear the finding: the same old
+        edit would still be "since verified_commit" on every future
+        head.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            data, _verified, commits = self._stale_receipt_fixture(
+                tmp_root,
+                verified_at="// v1\n",
+                modify_between=[
+                    ("crates/optid/src/policy.rs", "// v2 (already merged)\n"),
+                    ("crates/optid/src/unrelated.rs", "// v3 (unrelated later commit)\n"),
+                ],
+            )
+            already_merged_change, later_unrelated_head = commits
+            errors = validator.validate_ledger(
+                data, tmp_root, base=already_merged_change
+            )
+            stale_errors = [e for e in errors if "stale" in e.lower()]
+            self.assertFalse(
+                stale_errors,
+                "a proof-path edit already on `base` must not be reported as "
+                f"this change's finding, got: {stale_errors}",
+            )
+
+    def test_stale_receipt_notice_fires_for_edit_introduced_by_this_change(self):
+        """A proof-path edit that IS part of the currently proposed
+        `base..HEAD` change must still surface, so ADR 0029's required
+        impact review actually happens on the change that introduces it.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            data, verified_sha, commits = self._stale_receipt_fixture(
+                tmp_root,
+                verified_at="// v1\n",
+                modify_between=[
+                    ("crates/optid/src/policy.rs", "// v2 (this proposed change)\n")
+                ],
+            )
+            errors = validator.validate_ledger(data, tmp_root, base=verified_sha)
+            stale_errors = [e for e in errors if "stale" in e.lower()]
+            self.assertTrue(
+                stale_errors,
+                f"a proof-path edit introduced by base..HEAD must still be "
+                f"reported, got: {errors}",
+            )
+            self.assertTrue(
+                any("ADR 0029" in e for e in stale_errors),
+                f"the finding must point at the ADR 0029 impact-review "
+                f"requirement, got: {stale_errors}",
+            )
+
     # ── Post-#337: multi-package repair PR exemption ──────────────────
 
     def test_demotion_does_not_count_as_advancement(self):
