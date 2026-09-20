@@ -43,6 +43,17 @@ summary or its asserted impact boundary. It must not silently fix the work
 it is reviewing. Return defects to the builder; if the reviewer becomes a
 builder, another reviewer must assess its changes.
 
+Before starting a repeat review, confirm the head has actually moved. A verdict
+belongs to the exact commit it names, so a head that has not changed since your
+last verdict still carries that verdict: post nothing and wait for a push. This
+is not a courtesy — repeated verdicts on an unchanged commit consume review
+capacity and CI while producing no new information, and they teach the builder
+nothing it was not told the first time. The worst recorded case is in the sibling
+Archiv repository, where nine consecutive reviews read the same commit and
+reported the same lint failure. If a head is unchanged and the work appears
+stalled, treat that as a coordination problem and say what the builder is
+blocked on, rather than re-issuing the finding.
+
 ### Always start with the whole project, then zoom in
 
 Every review starts at the project's "60,000-foot" view and descends in order.

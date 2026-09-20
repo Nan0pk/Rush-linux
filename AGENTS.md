@@ -454,6 +454,20 @@ show the real failing command and explain which risk it protects. A missing
 tool may skip only the affected local check; CI performs the authoritative
 check on the pull request.
 
+Run those checks where you are working. Never push a change in order to learn
+whether the formatter, the linter, or the type checker is satisfied. CI is the
+authoritative check, not a way to find out what a local command would have told
+you in seconds, and every speculative push spends a full run plus, if a reviewer
+is waiting on the head, a whole review round.
+
+An agent that cannot execute the toolchain must say so plainly in the pull
+request instead of substituting pushes for runs. Pull request #476 was built
+that way — its own description records that the session had repository access
+but no executable checkout — and it stalled for a week with a defect its
+reviewer had already identified twice. Pull request #477 replaced it in a single
+pass from a session that could run `bash tools/checks.sh` directly. Obtaining a
+real checkout is almost always cheaper than the rounds it saves.
+
 ## 15. Final Rule
 
 The agent's job is to make the project easier and faster to move forward
