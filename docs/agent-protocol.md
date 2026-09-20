@@ -43,6 +43,25 @@ summary or its asserted impact boundary. It must not silently fix the work
 it is reviewing. Return defects to the builder; if the reviewer becomes a
 builder, another reviewer must assess its changes.
 
+Before starting a repeat review, confirm that something has actually moved. A
+verdict is recorded against a head and a base together, so it still stands only
+while **both** are unchanged since you gave it; in that case post nothing and
+wait. A moved base invalidates the verdict exactly as a moved head does, even
+when the source head is byte-identical, because the integration result against a
+new `main` can differ. Step 4 of "Coordinating a merge" already requires
+re-review when head or base changed, and nothing here narrows it.
+
+Where both are unchanged, silence is the correct output. A repeated verdict on
+an unchanged head and base consumes review capacity and CI while producing no new
+information, and teaches the builder nothing it was not told the first time. In
+the sibling Archiv repository nine consecutive reviews read one head across three
+different bases: six repeated a verdict already given on that exact pair, while
+the three that followed a base move were legitimate — and one of them found a
+real defect the earlier rounds could not have seen. Suppress the repeat, never
+the re-integration. If nothing has moved and the work appears stalled, treat that
+as a coordination problem and say what the builder is blocked on, rather than
+re-issuing the finding.
+
 ### Always start with the whole project, then zoom in
 
 Every review starts at the project's "60,000-foot" view and descends in order.
