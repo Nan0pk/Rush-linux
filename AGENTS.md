@@ -468,6 +468,12 @@ reviewer had already identified twice. Pull request #477 replaced it in a single
 pass from a session that could run `bash tools/checks.sh` directly. Obtaining a
 real checkout is almost always cheaper than the rounds it saves.
 
+One trap to know before trusting a local run: a shallow checkout makes
+`tools/validate-optid-packages.py` report completed packages as having
+unavailable verification receipts, because the receipt commits are simply not
+present. That is the tool being unable to look, not a truthful failure, and the
+error says so — run `git fetch --unshallow` and re-run before reporting it.
+
 ## 15. Final Rule
 
 The agent's job is to make the project easier and faster to move forward
