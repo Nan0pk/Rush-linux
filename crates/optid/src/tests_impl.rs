@@ -1343,6 +1343,7 @@ device_resume_latency = 100000
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        write_sysfs_class_attrs(&dev, modalias);
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
         fs::write(
@@ -1399,6 +1400,17 @@ device_resume_latency = 100000
         assert!(
             !log.contains("contract gate BLOCKED"),
             "verified 500us evidence under a 10000us floor must pass the gate: {log}"
+        );
+        // Permitting at the gate is only half the claim: the action has to
+        // reach the write. Asserting the end state keeps a later downstream
+        // refusal from quietly reducing this to a gate-only test, which is
+        // what happened when the class-evidence gate landed.
+        assert_eq!(
+            fs::read_to_string(dev.join("power").join("control"))
+                .unwrap()
+                .trim(),
+            "auto",
+            "a permitted runtime-PM action must reach the write: {log}"
         );
 
         let _ = fs::remove_dir_all(&temp);
@@ -1504,6 +1516,7 @@ device_resume_latency = 100000
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
+        write_sysfs_class_attrs(&dev, modalias);
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
         fs::write(
