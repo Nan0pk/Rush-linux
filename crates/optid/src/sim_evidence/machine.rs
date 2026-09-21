@@ -1435,6 +1435,11 @@ fn materialise(
         if device.runtime_pm {
             let control = format!("{base}/power/control");
             write_file(root, &control, "on\n")?;
+            // Real runtime-PM-capable hardware always exposes this attribute;
+            // the D1 fail-closed precheck denies actuation when it is
+            // missing, so a fixture without it would exercise that refusal
+            // instead of the actuation behaviour these scenarios are about.
+            write_file(root, &format!("{base}/power/runtime_status"), "active\n")?;
             controls.insert(
                 control,
                 ControlSpec {
