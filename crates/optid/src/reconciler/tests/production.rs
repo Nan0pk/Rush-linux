@@ -7,7 +7,7 @@ fn f4_production_runtime_pm_transition_restores_baseline() {
     let kernel = MemoryKernel::new();
     kernel.write_raw(&control, "on");
     kernel.write_raw(&delay, "1000");
-    kernel.write_raw(&device.join("net/eth0/carrier"), "0");
+    kernel.write_raw(&device.join("class"), "0x020000");
     kernel.write_raw(&device.join("power/runtime_status"), "active");
     let mut actuator = armed_actuator(state_dir.clone(), kernel);
     let mut reconciler = Reconciler::load_with_systemd(
@@ -414,7 +414,7 @@ impl RuntimePmRestoreFixture {
         let memory = Arc::new(MemoryKernel::new());
         memory.write_raw(&control, "on");
         memory.write_raw(&delay, "1000");
-        memory.write_raw(&device.join("net/eth0/carrier"), "0");
+        memory.write_raw(&device.join("class"), "0x020000");
         memory.write_raw(&device.join("power/runtime_status"), "active");
         let mut actuator = s2d_armed_actuator(
             state_dir.clone(),
