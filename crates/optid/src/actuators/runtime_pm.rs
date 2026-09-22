@@ -42,6 +42,51 @@ pub(crate) enum RuntimePmDeviceClass {
     Unknown,
 }
 
+/// Stable runtime-PM states in which a later D1 write gate may continue
+/// evaluating the device. These are observations, not permission to actuate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuntimePmStableStatus {
+    Active,
+    Suspended,
+}
+
+/// A typed reason the D1 actuation precheck refuses to proceed.
+///
+/// This deliberately contains no guessed delay values. Audio, camera, input,
+/// storage, composite, and other devices stay blocked until their live-use
+/// predicates are implemented and accepted. Network is the only class that
+/// already has a hard live-use predicate in this module (`carrier == 1`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuntimePmActuationBlock {
+    UnknownClass,
+    LiveUseGuardNotImplemented(RuntimePmDeviceClass),
+    RuntimeStatusUnavailable,
+    RuntimeStatusUnsupported,
+    RuntimeStatusTransitioning,
+    RuntimeStatusUnknown,
+}
+
+impl RuntimePmActuationBlock {
+    pub(crate) fn message(self) -> &'static str {
+        match self {
+            Self::UnknownClass => "device class is unknown",
+            Self::LiveUseGuardNotImplemented(_) => {
+                "device class has no accepted live-use guard yet"
+            }
+            Self::RuntimeStatusUnavailable => "power/runtime_status is unavailable",
+            Self::RuntimeStatusUnsupported => "runtime PM is unsupported for this device",
+            Self::RuntimeStatusTransitioning => "runtime PM is currently transitioning",
+            Self::RuntimeStatusUnknown => "power/runtime_status contains an unknown value",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RuntimePmActuationReady {
+    pub(crate) class: RuntimePmDeviceClass,
+    pub(crate) runtime_status: RuntimePmStableStatus,
+}
+
 #[derive(Default)]
 struct ClassFlags {
     network: bool,
@@ -172,6 +217,19 @@ pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> Runti
         flags.mark_usb_class(value);
     }
 
+    // A USB interface node such as `1-1:1.0` is itself enumerated as a
+    // runtime-PM candidate by `discover_runtime_pm_device_paths_with`, because
+    // it exposes `power/control` like any other device. It carries no
+    // `bDeviceClass` and has no interface children of its own; its class is the
+    // `bInterfaceClass` in its own directory. Read it, so an interface is
+    // classified from the evidence it does publish rather than refused as
+    // unidentifiable.
+    if let Ok(value) = read.read_to_string(&device_dir.join("bInterfaceClass")) {
+        if let Some(value) = parse_hex_u8(&value) {
+            flags.mark_usb_class(value);
+        }
+    }
+
     // PCI exposes a 24-bit class code as 0xBBSSPP (base, subclass,
     // programming interface). This is available without driver-specific I/O.
     if let Ok(value) = read.read_to_string(&device_dir.join("class")) {
@@ -181,6 +239,75 @@ pub(crate) fn classify_device(read: &dyn KernelRead, device_dir: &Path) -> Runti
     }
 
     flags.finish()
+}
+
+/// True when classification found no usable class evidence for this device.
+///
+/// This is the fail-closed half of the D1 gate: "not identified" must never be
+/// treated as "safe to autosuspend". `Other` is deliberately excluded — an
+/// understood bus class that simply falls outside the modelled categories still
+/// carries evidence, whereas `Unknown` carries none at all. PCI devices expose
+/// `class`, USB devices expose `bDeviceClass` with per-interface
+/// `bInterfaceClass`, and a USB interface node exposes its own
+/// `bInterfaceClass`, so a device reaching this predicate as `Unknown` is one
+/// whose class could not be read at all rather than one merely uncategorised.
+///
+/// Devices on buses that publish no class attribute at all are refused here.
+/// That is the intended direction, but it narrows runtime-PM coverage rather
+/// than widening it, and it has not been measured on physical hardware.
+pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -> bool {
+    matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Unknown
+    )
+}
+
+/// Evaluate the D1 facts that are already settled enough to fail closed.
+///
+/// This is deliberately narrower than the final D1 gate. It does not choose a
+/// delay or claim a device is safe to suspend. It only prevents later wiring
+/// from treating an unknown class, an unimplemented live-use class, a missing
+/// runtime status, or a transition/unknown runtime status as permission.
+///
+/// Network is the sole ready class for this slice because the repository
+/// already has a hard carrier guard. Every other class remains denied until its
+/// live-use predicate is implemented without relying on the research-only
+/// timing hypotheses.
+pub(crate) fn actuation_precheck(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Result<RuntimePmActuationReady, RuntimePmActuationBlock> {
+    let class = classify_device(read, device_dir);
+    match class {
+        RuntimePmDeviceClass::Unknown => return Err(RuntimePmActuationBlock::UnknownClass),
+        RuntimePmDeviceClass::Network => {}
+        RuntimePmDeviceClass::Audio
+        | RuntimePmDeviceClass::Camera
+        | RuntimePmDeviceClass::Input
+        | RuntimePmDeviceClass::Storage
+        | RuntimePmDeviceClass::Composite
+        | RuntimePmDeviceClass::Other => {
+            return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
+        }
+    }
+
+    let runtime_status = read
+        .read_to_string(&device_dir.join("power").join("runtime_status"))
+        .map_err(|_| RuntimePmActuationBlock::RuntimeStatusUnavailable)?;
+    let runtime_status = match runtime_status.trim() {
+        "active" => RuntimePmStableStatus::Active,
+        "suspended" => RuntimePmStableStatus::Suspended,
+        "unsupported" => return Err(RuntimePmActuationBlock::RuntimeStatusUnsupported),
+        "suspending" | "resuming" => {
+            return Err(RuntimePmActuationBlock::RuntimeStatusTransitioning);
+        }
+        _ => return Err(RuntimePmActuationBlock::RuntimeStatusUnknown),
+    };
+
+    Ok(RuntimePmActuationReady {
+        class,
+        runtime_status,
+    })
 }
 
 /// True if any network interface backed by this device has its link up
@@ -255,6 +382,12 @@ mod tests {
         let interface = device.join(name);
         fs::create_dir_all(&interface).unwrap();
         fs::write(interface.join("bInterfaceClass"), format!("{class}\n")).unwrap();
+    }
+
+    fn set_runtime_status(device: &Path, status: &str) {
+        let power = device.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(power.join("runtime_status"), format!("{status}\n")).unwrap();
     }
 
     #[test]
@@ -343,6 +476,111 @@ mod tests {
         let _ = fs::remove_dir_all(unknown);
         let _ = fs::remove_dir_all(per_interface_without_interfaces);
         let _ = fs::remove_dir_all(other);
+    }
+
+    #[test]
+    fn d1_usb_interface_node_is_classified_from_its_own_class() {
+        // Discovery enumerates interface nodes such as `1-1:1.0` alongside
+        // whole devices, because they expose `power/control` too. Their class
+        // lives in their own directory, not in a child.
+        let read = RealKernel::new();
+        let interface = tmp("class_interface_node");
+        fs::write(interface.join("bInterfaceClass"), "03\n").unwrap();
+        assert_eq!(
+            classify_device(&read, &interface),
+            RuntimePmDeviceClass::Input
+        );
+        assert!(!class_evidence_missing(&read, &interface));
+        let _ = fs::remove_dir_all(interface);
+    }
+
+    #[test]
+    fn d1_actuation_precheck_denies_unknown_and_unimplemented_live_use_classes() {
+        let read = RealKernel::new();
+
+        let unknown = tmp("precheck_unknown");
+        set_runtime_status(&unknown, "active");
+        assert_eq!(
+            actuation_precheck(&read, &unknown),
+            Err(RuntimePmActuationBlock::UnknownClass)
+        );
+
+        let audio = tmp("precheck_audio");
+        add_usb_interface(&audio, "1-5:1.0", "01");
+        set_runtime_status(&audio, "active");
+        assert_eq!(
+            actuation_precheck(&read, &audio),
+            Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(
+                RuntimePmDeviceClass::Audio
+            ))
+        );
+
+        let composite = tmp("precheck_composite");
+        add_usb_interface(&composite, "1-6:1.0", "01");
+        add_usb_interface(&composite, "1-6:1.1", "03");
+        set_runtime_status(&composite, "active");
+        assert_eq!(
+            actuation_precheck(&read, &composite),
+            Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(
+                RuntimePmDeviceClass::Composite
+            ))
+        );
+
+        for dir in [&unknown, &audio, &composite] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_actuation_precheck_requires_a_known_stable_runtime_status() {
+        let read = RealKernel::new();
+        let network = tmp("precheck_status");
+        fs::write(network.join("class"), "0x020000\n").unwrap();
+
+        assert_eq!(
+            actuation_precheck(&read, &network),
+            Err(RuntimePmActuationBlock::RuntimeStatusUnavailable)
+        );
+
+        for status in ["suspending", "resuming"] {
+            set_runtime_status(&network, status);
+            assert_eq!(
+                actuation_precheck(&read, &network),
+                Err(RuntimePmActuationBlock::RuntimeStatusTransitioning)
+            );
+        }
+
+        set_runtime_status(&network, "unsupported");
+        assert_eq!(
+            actuation_precheck(&read, &network),
+            Err(RuntimePmActuationBlock::RuntimeStatusUnsupported)
+        );
+
+        set_runtime_status(&network, "driver-specific-mystery");
+        assert_eq!(
+            actuation_precheck(&read, &network),
+            Err(RuntimePmActuationBlock::RuntimeStatusUnknown)
+        );
+
+        set_runtime_status(&network, "active");
+        assert_eq!(
+            actuation_precheck(&read, &network),
+            Ok(RuntimePmActuationReady {
+                class: RuntimePmDeviceClass::Network,
+                runtime_status: RuntimePmStableStatus::Active,
+            })
+        );
+
+        set_runtime_status(&network, "suspended");
+        assert_eq!(
+            actuation_precheck(&read, &network),
+            Ok(RuntimePmActuationReady {
+                class: RuntimePmDeviceClass::Network,
+                runtime_status: RuntimePmStableStatus::Suspended,
+            })
+        );
+
+        let _ = fs::remove_dir_all(network);
     }
 
     #[test]

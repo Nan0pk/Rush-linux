@@ -103,12 +103,21 @@ pub(crate) fn machine_spec() -> MachineSpec {
                 inert_controls: vec!["l1_aspm".to_string()],
                 readonly_controls: Vec::new(),
             },
-            // Root port whose runtime-PM control the kernel exposes read-only.
+            // Network controller whose runtime-PM control the kernel exposes
+            // read-only. The sysfs `class` attribute drives D1 classification
+            // and is set to a network class code (rather than, say, a PCI
+            // bridge code) because D1's fail-closed precheck now denies every
+            // class without an accepted live-use guard before a write is even
+            // attempted; network is the only class currently admitted far
+            // enough to reach the kernel, so it is the only class that can
+            // still exercise a kernel-level write refusal here. `modalias` is
+            // left unchanged because `simulation_allowlist_override` below
+            // keys its verified entry for this device on that exact string.
             DeviceSpec {
                 id: "0000:00:1c.0".to_string(),
                 bus: "pci",
                 modalias: "pci:v00008086p00009A2Fsv000017AAsd000022C2bc06sc04i00".to_string(),
-                class: "0x060400".to_string(),
+                class: "0x020000".to_string(),
                 pm_qos: false,
                 runtime_pm: true,
                 aspm: false,

@@ -592,6 +592,8 @@ fn s2d_removed_target_relinquishes_and_other_targets_restore() {
     let memory = Arc::new(MemoryKernel::new());
     memory.write_raw(&control, "on");
     memory.write_raw(&delay, "2000");
+    memory.write_raw(&device.join("class"), "0x020000");
+    memory.write_raw(&device.join("power/runtime_status"), "active");
     memory.write_raw(&vm, "60");
     let mut actuator = s2d_armed_actuator(
         state_dir.clone(),
@@ -638,6 +640,8 @@ fn s2d_missing_runtime_pm_member_keeps_the_whole_undo_record() {
     memory.write_raw(&vm, "60");
     memory.write_raw(&control, "on");
     memory.write_raw(&delay, "2000");
+    memory.write_raw(&device.join("class"), "0x020000");
+    memory.write_raw(&device.join("power/runtime_status"), "active");
     let mut actuator = s2d_armed_actuator(
         state_dir.clone(),
         Box::new(S2dSharedKernel(Arc::clone(&memory))),
