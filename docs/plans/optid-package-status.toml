@@ -636,26 +636,7 @@ title = "Complete storage depth control, including NVMe APST"
 status = "ready_parallel"
 depends = ["C1", "F4", "O1", "S2D", "S3D", "S4D", "S5D"]
 pr = ""
-# A first, deliberately partial slice of D2 adds
-# crates/optid/src/actuators/nvme_apst.rs: pure-function parsing of the NVMe
-# Identify Controller data structure into Power State Descriptors (PSDs) and
-# the APST-supported (APSTA) attribute, plus construction of the Autonomous
-# Power State Transition (Feature ID 0x0C) Set Features table from those
-# PSDs. It consumes raw Identify-command byte buffers, never parsed
-# `nvme-cli` text, per the packet's own recommendation, and every input is a
-# synthetic fixture built in the module's own tests — no real device is
-# read. The module is gated behind `#[cfg(test)]` in
-# crates/optid/src/actuators/mod.rs because nothing outside its tests calls
-# it yet.
-#
-# This does not move D2 forward on the ledger: it is not wired into the
-# reconciler, the sealed capability table, or actuator.rs's write path; it
-# issues no ioctl and touches no real hardware; it does not implement PCIe
-# ASPM/SATA ALPM changes (those already exist separately in actuator.rs);
-# and it does not implement the HDD/CNVi/active-IO guards, firmware-revision
-# gating, rollback-on-transition, or hardware promotion evidence the full D2
-# acceptance matrix requires. Status stays `ready_parallel` until a later
-# slice does that integration work and a cold verifier confirms it.
+blocking_reason = "PR #482 adds a first, deliberately partial slice of the storage depth control package: a pure-function module (crates/optid/src/actuators/nvme_apst.rs) that parses the NVMe Identify Controller data structure into Power State Descriptors (PSDs) and the APST-supported (APSTA) attribute, and builds the Autonomous Power State Transition (Feature ID 0x0C) Set Features table from those PSDs. It consumes raw Identify-command byte buffers, never parsed nvme-cli text, per the package's own recommendation, and every test input is a synthetic fixture built in the module's own tests -- no real device is read. The module is gated behind #[cfg(test)] in crates/optid/src/actuators/mod.rs because nothing outside its tests calls it yet. This does not move the package forward: it is not wired into the reconciler, the sealed capability table, or actuator.rs's write path; it issues no ioctl and touches no real hardware; it does not implement the PCIe ASPM/SATA ALPM changes that already exist separately in actuator.rs; and it does not implement the HDD/CNVi/active-IO guards, firmware-revision gating, rollback-on-transition, or hardware promotion evidence the full acceptance matrix requires. Status stays ready_parallel until a later slice does that integration work and a cold verifier confirms it."
 completion_evidence = []
 
 [[package]]
