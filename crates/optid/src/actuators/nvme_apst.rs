@@ -18,16 +18,20 @@
 //!   Idle Transition Power State (ITPS) and Idle Time Prior to Transition
 //!   (ITPT) pair, packed the way the spec's APST Entry structure requires.
 //!
-//! The table-construction algorithm mirrors the publicly documented
-//! behavior of the Linux kernel's `nvme_configure_apst()`
+//! The table-construction algorithm's *control flow* mirrors the publicly
+//! documented behavior of the Linux kernel's `nvme_configure_apst()`
 //! (`drivers/nvme/host/core.c`, cited in research 0008 §1.1): walk power
 //! states from deepest to shallowest, and let each state that is safe to
 //! target (non-operational, and within an exit-latency ceiling the caller
 //! supplies) become the transition target offered to every shallower state,
-//! until a still-shallower safe target is found. The arithmetic and control
-//! flow below are an independent, from-scratch reimplementation written
-//! from the spec and from a plain-English description of the kernel's
-//! behavior — no kernel source is copied here.
+//! until a still-shallower safe target is found. That control flow is an
+//! independent, from-scratch reimplementation written from the spec and
+//! from a plain-English description of the kernel's behavior — no kernel
+//! source is copied here. The idle-time-threshold arithmetic (see
+//! `ApstTable::build`) is this module's own choice, not a transcription of
+//! research 0008 §1.1's simpler `EXLAT × 2` example — the two formulas
+//! differ, and reconciling them, if that turns out to matter, is a later,
+//! separate decision.
 //!
 //! ## What this module deliberately does NOT do
 //!
@@ -274,9 +278,13 @@ impl ApstTable {
     /// Then check whether the current state itself qualifies to become the
     /// target offered to shallower states: it must be non-operational, and
     /// its exit latency must not exceed `max_exit_latency_us`. A qualifying
-    /// state's idle-time threshold is `(exit_latency_us + entry_latency_us)`
-    /// rounded up and divided by 20 (a five-percent margin over the state's
-    /// own round-trip latency), capped at the 24-bit ITPT field's maximum.
+    /// state's idle-time threshold, in milliseconds, is
+    /// `(exit_latency_us + entry_latency_us)` — a microsecond value —
+    /// divided by 20 and rounded up. Because 1 ms is 1000 us, dividing by
+    /// 20 rather than 1000 sets the millisecond threshold to fifty times
+    /// the state's own round-trip latency (equivalently, that latency is
+    /// about two percent of the chosen idle threshold), capped at the
+    /// 24-bit ITPT field's maximum.
     pub(crate) fn build(power_states: &[PowerStateDescriptor], max_exit_latency_us: u32) -> Self {
         let mut entries = [0u64; MAX_POWER_STATE_COUNT];
         let mut target: u64 = 0;
