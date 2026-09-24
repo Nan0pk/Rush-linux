@@ -2482,6 +2482,135 @@ device_resume_latency = 100000
     }
 
     #[test]
+    fn test_d1_actuator_denies_storage_device_with_nonzero_runtime_usage() {
+        // Exercises the actuator's own second, direct-call guard
+        // (`storage_live_use_block` inside `Actuator::apply`), not just the
+        // reconciler precheck that normally runs ahead of it — mirroring
+        // `test_d1_runtime_pm_fails_closed_when_device_class_is_unknown` above
+        // for the class-unknown guard.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_storage_busy_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        // PCI mass-storage controller (base class 0x01), matching
+        // `mark_storage_pci` in `actuators::runtime_pm`'s own unit tests.
+        let modalias = "pci:v0000144Dp0000A808sv0000144Dsd0000A801bc01sc08i02";
+        let dev = n5_device(&temp, "0000:01:00.0", modalias);
+        let power = dev.join("power");
+        // A nonzero kernel runtime-PM reference count: some in-kernel user
+        // currently holds the device active.
+        fs::write(power.join("runtime_usage"), "1\n").unwrap();
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"d1 storage busy test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        actuator.bypass_contract_gate = true;
+
+        let outcome = actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(outcome.targets.len(), 1);
+        assert_eq!(
+            outcome.targets[0].reason,
+            crate::envelope::OutcomeReasonCode::StorageRuntimePmInUse
+        );
+        assert!(!outcome.targets[0].write_attempted);
+
+        // Allowlisted, but a live kernel user still blocks it — control
+        // untouched, nothing journalled to restore later.
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "runtime PM control must be left alone while the device is in use"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            actions.contains("storage device has a nonzero runtime-PM usage count"),
+            "{actions}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_d1_actuator_denies_storage_device_with_unreadable_runtime_usage() {
+        // Same guard, the other fail-closed branch: `power/runtime_usage` is
+        // absent rather than nonzero. Missing evidence must deny exactly like
+        // contradicting evidence does, not be treated as an idle device.
+        let temp = std::env::temp_dir().join(format!(
+            "optid_d1_storage_noevidence_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+
+        let modalias = "pci:v0000144Dp0000A808sv0000144Dsd0000A801bc01sc08i02";
+        let dev = n5_device(&temp, "0000:02:00.0", modalias);
+        let power = dev.join("power");
+        // No `runtime_usage` file written at all.
+
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"d1 storage no-evidence test\"\n"),
+        )
+        .unwrap();
+
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        actuator.bypass_contract_gate = true;
+
+        let outcome = actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(outcome.targets.len(), 1);
+        assert_eq!(
+            outcome.targets[0].reason,
+            crate::envelope::OutcomeReasonCode::StorageRuntimePmEvidenceUnavailable
+        );
+        assert!(!outcome.targets[0].write_attempted);
+        assert_eq!(
+            fs::read_to_string(power.join("control")).unwrap().trim(),
+            "on",
+            "runtime PM control must be left alone without live-use evidence"
+        );
+        let hash = get_path_hash(&dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(
+            actions.contains("power/runtime_usage is unavailable or unreadable"),
+            "{actions}"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
     fn test_n5_policy_emits_runtime_pm_only_on_battery_idle() {
         let policy = Policy::default();
         let make = |on_ac: Option<bool>| Snapshot {
