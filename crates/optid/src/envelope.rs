@@ -204,6 +204,8 @@ pub(crate) enum OutcomeReasonCode {
     GateDenied,
     NetworkCarrierUp,
     RuntimePmClassUnknown,
+    StorageRuntimePmInUse,
+    StorageRuntimePmEvidenceUnavailable,
     RedundantValue,
     WriteApplied,
     WriteFailed,

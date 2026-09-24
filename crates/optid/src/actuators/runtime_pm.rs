@@ -53,13 +53,16 @@ pub(crate) enum RuntimePmStableStatus {
 /// A typed reason the D1 actuation precheck refuses to proceed.
 ///
 /// This deliberately contains no guessed delay values. Audio, camera, input,
-/// storage, composite, and other devices stay blocked until their live-use
-/// predicates are implemented and accepted. Network is the only class that
-/// already has a hard live-use predicate in this module (`carrier == 1`).
+/// composite, and other devices stay blocked until their live-use predicates
+/// are implemented and accepted. Network has a hard live-use predicate
+/// (`carrier == 1`), and storage now has one too (the kernel's own runtime-PM
+/// usage count, see [`storage_live_use_block`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimePmActuationBlock {
     UnknownClass,
     LiveUseGuardNotImplemented(RuntimePmDeviceClass),
+    StorageLiveUseEvidenceUnavailable,
+    StorageInUse,
     RuntimeStatusUnavailable,
     RuntimeStatusUnsupported,
     RuntimeStatusTransitioning,
@@ -73,6 +76,10 @@ impl RuntimePmActuationBlock {
             Self::LiveUseGuardNotImplemented(_) => {
                 "device class has no accepted live-use guard yet"
             }
+            Self::StorageLiveUseEvidenceUnavailable => {
+                "power/runtime_usage is unavailable or unreadable for this storage device"
+            }
+            Self::StorageInUse => "storage device has a nonzero runtime-PM usage count",
             Self::RuntimeStatusUnavailable => "power/runtime_status is unavailable",
             Self::RuntimeStatusUnsupported => "runtime PM is unsupported for this device",
             Self::RuntimeStatusTransitioning => "runtime PM is currently transitioning",
@@ -269,9 +276,11 @@ pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -
 /// from treating an unknown class, an unimplemented live-use class, a missing
 /// runtime status, or a transition/unknown runtime status as permission.
 ///
-/// Network is the sole ready class for this slice because the repository
-/// already has a hard carrier guard. Every other class remains denied until its
-/// live-use predicate is implemented without relying on the research-only
+/// Network and storage are the ready classes for this slice: network already
+/// had a hard carrier guard, and storage now has one based on the kernel's own
+/// runtime-PM usage count (see [`storage_live_use_block`]). Audio, camera,
+/// input, composite, and other devices remain denied until a live-use
+/// predicate is implemented for them without relying on the research-only
 /// timing hypotheses.
 pub(crate) fn actuation_precheck(
     read: &dyn KernelRead,
@@ -281,10 +290,14 @@ pub(crate) fn actuation_precheck(
     match class {
         RuntimePmDeviceClass::Unknown => return Err(RuntimePmActuationBlock::UnknownClass),
         RuntimePmDeviceClass::Network => {}
+        RuntimePmDeviceClass::Storage => {
+            if let Some(block) = storage_live_use_block(read, device_dir) {
+                return Err(block);
+            }
+        }
         RuntimePmDeviceClass::Audio
         | RuntimePmDeviceClass::Camera
         | RuntimePmDeviceClass::Input
-        | RuntimePmDeviceClass::Storage
         | RuntimePmDeviceClass::Composite
         | RuntimePmDeviceClass::Other => {
             return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
@@ -329,6 +342,71 @@ pub(crate) fn network_carrier_up(read: &dyn KernelRead, device_dir: &Path) -> bo
         read.read_to_string(&entry.join("carrier"))
             .is_ok_and(|value| value.trim() == "1")
     })
+}
+
+/// Read this device's kernel-tracked runtime-PM usage count.
+///
+/// `power/runtime_usage` is the sysfs exposure of the runtime PM core's own
+/// reference count (`Documentation/power/runtime_pm.rst`; kernel source
+/// `drivers/base/power/sysfs.c` prints `atomic_read(&dev->power.usage_count)`
+/// as a plain decimal integer). A positive count means some in-kernel user —
+/// the owning driver mid-transfer, a child device, or another subsystem —
+/// currently holds the device active; the runtime PM core itself refuses to
+/// call `->runtime_suspend()` while the count is nonzero. This attribute is
+/// gated behind `CONFIG_PM_ADVANCED_DEBUG`, which Rush's own kernel build
+/// sets (`distro/kernel/default-adaptive.config`), but a consumer must still
+/// treat a kernel without it as missing evidence rather than assuming the
+/// setting.
+///
+/// Returns `Err(())` when the attribute is missing, unreadable, or does not
+/// parse as an integer. Callers must treat that as "cannot tell", not as
+/// "safe to suspend".
+fn storage_runtime_usage(read: &dyn KernelRead, device_dir: &Path) -> Result<i64, ()> {
+    let raw = read
+        .read_to_string(&device_dir.join("power").join("runtime_usage"))
+        .map_err(|_| ())?;
+    raw.trim().parse::<i64>().map_err(|_| ())
+}
+
+/// The D1 live-use predicate for the storage class.
+///
+/// Storage devices reach D1's classification as PCI mass-storage controllers
+/// (NVMe, AHCI/SATA) or USB mass-storage devices/interfaces. Those three
+/// buses expose their block-layer I/O counters through different, driver
+/// specific sysfs topologies below the classified device
+/// (`nvme/nvmeN/nvmeNnM/stat` for NVMe; SCSI host/target/lun chains of
+/// unpredictable depth for AHCI and USB mass storage) that this module does
+/// not have verified, bus-independent traversal rules for. Rather than guess
+/// that traversal, this predicate uses the one signal every classified
+/// storage device already exposes directly in its own `power/` directory:
+/// the kernel's runtime-PM usage count (see [`storage_runtime_usage`]).
+///
+/// Classifies the device itself, so it is safe to call on any runtime-PM
+/// candidate — not only ones a caller has already confirmed are `Storage` —
+/// the same self-contained style as [`network_carrier_up`]. Returns `None`
+/// for every other class; it is not a substitute for the class match in
+/// [`actuation_precheck`].
+///
+/// For a genuine storage device, returns `None` when the device may proceed
+/// to the existing `runtime_status` check (usage count read as exactly `0`).
+/// Returns `Some(block)` — fail closed — when the count is missing,
+/// unreadable, unparseable, or nonzero. This never treats absent or
+/// ambiguous evidence as "safe to suspend".
+pub(crate) fn storage_live_use_block(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    if !matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Storage
+    ) {
+        return None;
+    }
+    match storage_runtime_usage(read, device_dir) {
+        Ok(0) => None,
+        Ok(_) => Some(RuntimePmActuationBlock::StorageInUse),
+        Err(()) => Some(RuntimePmActuationBlock::StorageLiveUseEvidenceUnavailable),
+    }
 }
 
 /// Does this device expose a USB HID (interface class `03`) child?
@@ -388,6 +466,18 @@ mod tests {
         let power = device.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(power.join("runtime_status"), format!("{status}\n")).unwrap();
+    }
+
+    fn set_runtime_usage(device: &Path, usage: &str) {
+        let power = device.join("power");
+        fs::create_dir_all(&power).unwrap();
+        fs::write(power.join("runtime_usage"), format!("{usage}\n")).unwrap();
+    }
+
+    fn mark_storage_pci(device: &Path) {
+        // Base class 0x01 = mass-storage controller (subclass irrelevant to
+        // classification; e.g. 0x08 = NVMe, 0x06 = AHCI/SATA).
+        fs::write(device.join("class"), "0x010802\n").unwrap();
     }
 
     #[test]
@@ -631,5 +721,105 @@ mod tests {
         assert!(!wakeup_disabled(&RealKernel::new(), &dev));
         assert!(wakeup_warning(&RealKernel::new(), &dev).is_none());
         let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_zero_usage_permits_the_runtime_status_check() {
+        let read = RealKernel::new();
+        let dev = tmp("storage_zero_usage");
+        mark_storage_pci(&dev);
+        set_runtime_usage(&dev, "0");
+        assert_eq!(storage_live_use_block(&read, &dev), None);
+
+        set_runtime_status(&dev, "active");
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Ok(RuntimePmActuationReady {
+                class: RuntimePmDeviceClass::Storage,
+                runtime_status: RuntimePmStableStatus::Active,
+            })
+        );
+        let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_nonzero_usage_denies_regardless_of_runtime_status() {
+        let read = RealKernel::new();
+        let dev = tmp("storage_nonzero_usage");
+        mark_storage_pci(&dev);
+        set_runtime_usage(&dev, "1");
+        // Even a stable, otherwise-safe-looking runtime_status must not
+        // override a nonzero usage count.
+        set_runtime_status(&dev, "active");
+        assert_eq!(
+            storage_live_use_block(&read, &dev),
+            Some(RuntimePmActuationBlock::StorageInUse)
+        );
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Err(RuntimePmActuationBlock::StorageInUse)
+        );
+        let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_negative_usage_is_treated_as_in_use_not_as_idle() {
+        // A negative reference count should never occur on a healthy kernel,
+        // but this predicate only ever permits an exact `0` reading; any
+        // other value denies, including one that looks superficially "less
+        // than in use".
+        let read = RealKernel::new();
+        let dev = tmp("storage_negative_usage");
+        mark_storage_pci(&dev);
+        set_runtime_usage(&dev, "-1");
+        assert_eq!(
+            storage_live_use_block(&read, &dev),
+            Some(RuntimePmActuationBlock::StorageInUse)
+        );
+        let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_missing_usage_evidence_fails_closed() {
+        let read = RealKernel::new();
+        let dev = tmp("storage_missing_usage");
+        mark_storage_pci(&dev);
+        // No power/runtime_usage file at all.
+        assert_eq!(
+            storage_live_use_block(&read, &dev),
+            Some(RuntimePmActuationBlock::StorageLiveUseEvidenceUnavailable)
+        );
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Err(RuntimePmActuationBlock::StorageLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_unparseable_usage_evidence_fails_closed() {
+        let read = RealKernel::new();
+        let dev = tmp("storage_unparseable_usage");
+        mark_storage_pci(&dev);
+        set_runtime_usage(&dev, "not-a-number");
+        assert_eq!(
+            storage_live_use_block(&read, &dev),
+            Some(RuntimePmActuationBlock::StorageLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(dev);
+    }
+
+    #[test]
+    fn d1_storage_live_use_check_does_not_apply_to_other_classes() {
+        // Self-contained class check, mirroring `network_carrier_up`: calling
+        // this on a non-storage device must never produce a storage-shaped
+        // block, even if that device happens to expose the same file name
+        // for an unrelated reason.
+        let read = RealKernel::new();
+        let network = tmp("storage_check_on_network");
+        fs::write(network.join("class"), "0x020000\n").unwrap();
+        set_runtime_usage(&network, "5");
+        assert_eq!(storage_live_use_block(&read, &network), None);
+        let _ = fs::remove_dir_all(network);
     }
 }
