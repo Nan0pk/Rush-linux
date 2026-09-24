@@ -1357,6 +1357,44 @@ impl Actuator {
                     });
                     return Ok(outcome);
                 }
+                // D1's reconciler-level precheck already re-reads this before
+                // `apply_action` gets here (see `reconciler/apply.rs`). This is
+                // the same second, direct-call guard the class-unknown check
+                // above keeps for the same reason: a write reached through any
+                // other call site must not skip the check just because it
+                // skipped the reconciler's gate.
+                if let Some(block) =
+                    runtime_pm::storage_live_use_block(self.kernel.as_ref(), device_dir)
+                {
+                    let (reason, detail) = match block {
+                        runtime_pm::RuntimePmActuationBlock::StorageInUse => (
+                            OutcomeReasonCode::StorageRuntimePmInUse,
+                            "storage device has a nonzero runtime-PM usage count",
+                        ),
+                        _ => (
+                            OutcomeReasonCode::StorageRuntimePmEvidenceUnavailable,
+                            "power/runtime_usage is unavailable or unreadable for this storage device",
+                        ),
+                    };
+                    self.log(&format!(
+                        "skip runtime_pm {}: {detail}",
+                        device_dir.display()
+                    ))?;
+                    outcome.targets.push(TargetOutcome {
+                        target_id: action.stable_target_id(),
+                        pipeline_stage: PipelineStage::Write,
+                        support: SupportState::Supported,
+                        reason,
+                        write_attempted: false,
+                        write_outcome: WriteOutcome::Skipped,
+                        readback: ReadbackOutcome::NotPerformed,
+                        ownership: OwnershipState::Unowned,
+                        pending_restore: RestoreState::NotApplicable,
+                        responsible_subsystem: ResponsibleSubsystem::Actuator,
+                        detail: Some(detail.to_string()),
+                    });
+                    return Ok(outcome);
+                }
                 if let Some(warning) = runtime_pm::wakeup_warning(self.kernel.as_ref(), device_dir)
                 {
                     self.log(&format!("warn runtime_pm: {warning}"))?;
