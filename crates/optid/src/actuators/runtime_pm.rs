@@ -13,7 +13,7 @@
 //! delay evidence. Unknown devices remain distinguishable so the final gate can
 //! fail closed instead of treating "not identified" as "safe".
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::kernel_io::KernelRead;
 
@@ -52,17 +52,23 @@ pub(crate) enum RuntimePmStableStatus {
 
 /// A typed reason the D1 actuation precheck refuses to proceed.
 ///
-/// This deliberately contains no guessed delay values. Audio, camera, input,
-/// composite, and other devices stay blocked until their live-use predicates
-/// are implemented and accepted. Network has a hard live-use predicate
-/// (`carrier == 1`), and storage now has one too (the kernel's own runtime-PM
-/// usage count, see [`storage_live_use_block`]).
+/// This deliberately contains no guessed delay values. Audio and input
+/// devices stay blocked until their live-use predicates are implemented and
+/// accepted. Network has a hard live-use predicate (`carrier == 1`), storage
+/// has one based on the kernel's own runtime-PM usage count (see
+/// [`storage_live_use_block`]), and camera has one based on whether any
+/// process holds its `/dev/videoN` node open (see [`camera_live_use_block`]).
+/// Composite and other-classified devices remain denied outright: a composite
+/// device mixes functions this module has not agreed a combined rule for, and
+/// "other" carries no predicate at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimePmActuationBlock {
     UnknownClass,
     LiveUseGuardNotImplemented(RuntimePmDeviceClass),
     StorageLiveUseEvidenceUnavailable,
     StorageInUse,
+    CameraLiveUseEvidenceUnavailable,
+    CameraInUse,
     RuntimeStatusUnavailable,
     RuntimeStatusUnsupported,
     RuntimeStatusTransitioning,
@@ -80,6 +86,10 @@ impl RuntimePmActuationBlock {
                 "power/runtime_usage is unavailable or unreadable for this storage device"
             }
             Self::StorageInUse => "storage device has a nonzero runtime-PM usage count",
+            Self::CameraLiveUseEvidenceUnavailable => {
+                "this camera has no readable video4linux/videoN mapping, or its open-file-descriptor scan could not be completed"
+            }
+            Self::CameraInUse => "a process currently holds this camera's video device node open",
             Self::RuntimeStatusUnavailable => "power/runtime_status is unavailable",
             Self::RuntimeStatusUnsupported => "runtime PM is unsupported for this device",
             Self::RuntimeStatusTransitioning => "runtime PM is currently transitioning",
@@ -276,12 +286,13 @@ pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -
 /// from treating an unknown class, an unimplemented live-use class, a missing
 /// runtime status, or a transition/unknown runtime status as permission.
 ///
-/// Network and storage are the ready classes for this slice: network already
-/// had a hard carrier guard, and storage now has one based on the kernel's own
-/// runtime-PM usage count (see [`storage_live_use_block`]). Audio, camera,
-/// input, composite, and other devices remain denied until a live-use
-/// predicate is implemented for them without relying on the research-only
-/// timing hypotheses.
+/// Network, storage, and camera are the ready classes for this slice: network
+/// already had a hard carrier guard, storage has one based on the kernel's own
+/// runtime-PM usage count (see [`storage_live_use_block`]), and camera has one
+/// based on whether any process holds its `/dev/videoN` node open (see
+/// [`camera_live_use_block`]). Audio, input, composite, and other devices
+/// remain denied until a live-use predicate is implemented for them without
+/// relying on the research-only timing hypotheses.
 pub(crate) fn actuation_precheck(
     read: &dyn KernelRead,
     device_dir: &Path,
@@ -295,8 +306,12 @@ pub(crate) fn actuation_precheck(
                 return Err(block);
             }
         }
+        RuntimePmDeviceClass::Camera => {
+            if let Some(block) = camera_live_use_block(read, device_dir) {
+                return Err(block);
+            }
+        }
         RuntimePmDeviceClass::Audio
-        | RuntimePmDeviceClass::Camera
         | RuntimePmDeviceClass::Input
         | RuntimePmDeviceClass::Composite
         | RuntimePmDeviceClass::Other => {
@@ -409,6 +424,164 @@ pub(crate) fn storage_live_use_block(
     }
 }
 
+/// Read the V4L2 character-device name this camera is bound to, from its
+/// `video4linux/` child directory.
+///
+/// Classification reads only USB/PCI class codes; it says nothing about
+/// whether a driver is actually bound. A camera device (USB Video Class or a
+/// PCI multimedia-video controller) that has no `video4linux/` child, or
+/// whose child is not a single `videoN` entry, has not published the mapping
+/// this predicate needs — that is "cannot tell", not "not in use", so the
+/// caller must fail closed rather than guess a device node. Exactly one
+/// `videoN` entry is the only topology this predicate understands; more than
+/// one (an unexpected topology this module has no verified rule for) is
+/// refused the same way a missing directory is, rather than picking one
+/// arbitrarily.
+fn camera_video_device_node(read: &dyn KernelRead, device_dir: &Path) -> Result<PathBuf, ()> {
+    let entries = read
+        .read_dir(&device_dir.join("video4linux"))
+        .map_err(|_| ())?;
+    let mut names = entries.into_iter().filter_map(|entry| {
+        let name = entry.file_name()?.to_str()?.to_string();
+        let suffix = name.strip_prefix("video")?;
+        (!suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit())).then_some(name)
+    });
+    let name = names.next().ok_or(())?;
+    if names.next().is_some() {
+        return Err(());
+    }
+    Ok(Path::new("/dev").join(name))
+}
+
+/// Scan every process on the system for an open file descriptor that resolves
+/// to `video_device`, reading process directories from `proc_dir`.
+///
+/// `proc_dir` exists as a parameter only so this module's own tests can point
+/// it at a fixture tree instead of the real `/proc`; production always calls
+/// this through [`camera_live_use_block`], which fixes it to `/proc`.
+///
+/// # Why an unreadable `/proc/<pid>/fd` fails closed, but a vanished `/proc/<pid>` does not
+///
+/// `/proc` is inherently racy: a process can exit at any point between this
+/// function listing `/proc` and reading that one pid's own `fd` directory.
+/// This predicate treats two failures there differently, on purpose:
+///
+/// - If reading `/proc/<pid>/fd` fails with `NotFound`, the process itself is
+///   gone by the time this scan reached it. A process that no longer exists
+///   holds no file descriptor at all, so moving on to the next pid cannot
+///   miss anything real: there is nothing left there to miss.
+/// - Any other failure — most importantly `PermissionDenied` — means the
+///   process is still there but this predicate cannot see into it. That is a
+///   genuine gap in the evidence, not a confirmed absence of use, so it must
+///   deny the whole check the same way [`storage_live_use_block`] denies on
+///   an unreadable `power/runtime_usage`: "cannot tell" is never "safe to
+///   suspend". optid runs with the privilege to read any process's `fd`
+///   directory in its ordinary deployment, so a permission failure here is
+///   the unusual case, and treating it as permission to proceed would be
+///   exactly the kind of guess this module exists to refuse.
+///
+/// The same reasoning applies one level down, to reading a single `fd`
+/// entry's link target: `NotFound` there means that one descriptor was closed
+/// between being listed and being read, which is a true statement about the
+/// current instant (it is not open right now), not a missing observation; any
+/// other read failure denies the whole check.
+fn camera_in_use_by_any_process(
+    read: &dyn KernelRead,
+    proc_dir: &Path,
+    video_device: &Path,
+) -> Result<bool, ()> {
+    let pids = read.read_dir(proc_dir).map_err(|_| ())?;
+    for pid_dir in pids {
+        let is_pid = pid_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| !name.is_empty() && name.bytes().all(|b| b.is_ascii_digit()));
+        if !is_pid {
+            continue;
+        }
+
+        let fds = match read.read_dir(&pid_dir.join("fd")) {
+            Ok(fds) => fds,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return Err(()),
+        };
+
+        for fd in fds {
+            match read.read_link(&fd) {
+                Ok(target) if target == video_device => return Ok(true),
+                Ok(_) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(()),
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// The D1 live-use predicate for the camera class, parameterized on the proc
+/// root so this module's own tests can exercise it against a fixture tree.
+/// [`camera_live_use_block`] is the production entry point, fixed to `/proc`.
+fn camera_live_use_block_under(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+    proc_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    if !matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Camera
+    ) {
+        return None;
+    }
+    let video_device = match camera_video_device_node(read, device_dir) {
+        Ok(path) => path,
+        Err(()) => return Some(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable),
+    };
+    match camera_in_use_by_any_process(read, proc_dir, &video_device) {
+        Ok(false) => None,
+        Ok(true) => Some(RuntimePmActuationBlock::CameraInUse),
+        Err(()) => Some(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable),
+    }
+}
+
+/// The D1 live-use predicate for the camera class.
+///
+/// Camera devices reach D1's classification as USB Video Class (UVC, `0x0e`)
+/// interfaces or PCI multimedia-video controllers. Both buses converge on the
+/// same bus-independent signal once a V4L2 driver is bound: a
+/// `video4linux/videoN` child directly under the classified device directory
+/// (see [`camera_video_device_node`]), which names the `/dev/videoN`
+/// character-device node. "Is this camera in use" is then answered the
+/// standard, portable Linux way — enumerating every process's open file
+/// descriptors under `/proc/<pid>/fd` and checking whether any resolves to
+/// that node (see [`camera_in_use_by_any_process`]) — rather than by a
+/// driver- or bus-specific activity counter this module does not have a
+/// verified reading for, the same reasoning [`storage_live_use_block`]
+/// documents for choosing `power/runtime_usage` over a bus-specific I/O
+/// counter.
+///
+/// Classifies the device itself, so it is safe to call on any runtime-PM
+/// candidate — not only ones a caller has already confirmed are `Camera` —
+/// the same self-contained style as [`network_carrier_up`] and
+/// [`storage_live_use_block`]. Returns `None` for every other class; it is
+/// not a substitute for the class match in [`actuation_precheck`].
+///
+/// For a genuine camera device, returns `None` only when the `video4linux`
+/// mapping resolves to exactly one device node and a full, error-free scan of
+/// every process's `/proc/<pid>/fd` finds no match. Returns `Some(block)` —
+/// fail closed — when the mapping is missing or ambiguous
+/// (`CameraLiveUseEvidenceUnavailable`), when a matching open descriptor is
+/// found (`CameraInUse`), or when the scan itself could not be completed
+/// (`CameraLiveUseEvidenceUnavailable`; see
+/// [`camera_in_use_by_any_process`] for which scan failures count as
+/// "complete enough to prove absence" and which do not). This never treats
+/// absent or ambiguous evidence as "safe to suspend".
+pub(crate) fn camera_live_use_block(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    camera_live_use_block_under(read, device_dir, Path::new("/proc"))
+}
+
 /// Does this device expose a USB HID (interface class `03`) child?
 /// Used to preserve the existing input wakeup diagnostic. Composite USB
 /// devices still count as HID when any interface is HID.
@@ -478,6 +651,28 @@ mod tests {
         // Base class 0x01 = mass-storage controller (subclass irrelevant to
         // classification; e.g. 0x08 = NVMe, 0x06 = AHCI/SATA).
         fs::write(device.join("class"), "0x010802\n").unwrap();
+    }
+
+    fn mark_camera_usb(device: &Path) {
+        add_usb_interface(device, "1-1:1.0", "0e");
+    }
+
+    /// Publish `video4linux/<node>` under a device directory, the way a bound
+    /// V4L2 driver does.
+    fn set_video4linux_node(device: &Path, node: &str) {
+        fs::create_dir_all(device.join("video4linux").join(node)).unwrap();
+    }
+
+    /// Create a fake `/proc`-shaped tree usable as `camera_live_use_block_under`'s
+    /// `proc_dir`, containing one process directory with an empty `fd/`.
+    fn proc_with_pid(proc_dir: &Path, pid: &str) -> PathBuf {
+        let fd_dir = proc_dir.join(pid).join("fd");
+        fs::create_dir_all(&fd_dir).unwrap();
+        fd_dir
+    }
+
+    fn symlink_fd(fd_dir: &Path, fd_num: &str, target: &Path) {
+        std::os::unix::fs::symlink(target, fd_dir.join(fd_num)).unwrap();
     }
 
     #[test]
@@ -821,5 +1016,179 @@ mod tests {
         set_runtime_usage(&network, "5");
         assert_eq!(storage_live_use_block(&read, &network), None);
         let _ = fs::remove_dir_all(network);
+    }
+
+    #[test]
+    fn d1_camera_zero_open_fds_with_valid_mapping_permits_the_runtime_status_check() {
+        // Unlike storage, this predicate's evidence source is the real,
+        // system-wide `/proc`, which this test cannot fully control (which
+        // pids exist, and which of their `fd` directories this process can
+        // read, both vary by environment and sandboxing). So the "permits"
+        // path is proven through the injectable `camera_live_use_block_under`
+        // against a controlled, empty proc fixture — no pids at all, hence
+        // no open descriptor can exist — rather than through
+        // `camera_live_use_block`/`actuation_precheck`, which are fixed to
+        // the real `/proc` and are exercised by the deny-path tests below
+        // instead (their failure mode does not depend on ambient process
+        // state, because it is resolved before `/proc` is ever read).
+        let read = RealKernel::new();
+        let dev = tmp("camera_zero_fds");
+        mark_camera_usb(&dev);
+        set_video4linux_node(&dev, "video1");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("camera_zero_fds_proc");
+        assert_eq!(camera_live_use_block_under(&read, &dev, &proc_dir), None);
+
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_matching_open_fd_denies_as_in_use() {
+        let read = RealKernel::new();
+        let dev = tmp("camera_in_use_device");
+        mark_camera_usb(&dev);
+        set_video4linux_node(&dev, "video3");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("camera_in_use_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "4242");
+        symlink_fd(&fd_dir, "7", Path::new("/dev/video3"));
+
+        assert_eq!(
+            camera_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::CameraInUse)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_missing_video4linux_mapping_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let dev = tmp("camera_no_v4l_mapping");
+        mark_camera_usb(&dev);
+        set_runtime_status(&dev, "active");
+        // No `video4linux/` directory at all: driver not bound, or not really
+        // a V4L2 device despite classification.
+        let proc_dir = tmp("camera_no_v4l_mapping_proc");
+
+        assert_eq!(
+            camera_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable)
+        );
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Err(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_ambiguous_video4linux_mapping_denies_as_evidence_unavailable() {
+        // Two `videoN` children is a topology this predicate has no verified
+        // rule for; guessing which one is authoritative would be exactly the
+        // kind of guess this module exists to refuse.
+        let read = RealKernel::new();
+        let dev = tmp("camera_ambiguous_v4l_mapping");
+        mark_camera_usb(&dev);
+        set_video4linux_node(&dev, "video0");
+        set_video4linux_node(&dev, "video1");
+        let proc_dir = tmp("camera_ambiguous_v4l_mapping_proc");
+
+        assert_eq!(
+            camera_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_exited_process_between_listing_and_fd_read_is_skipped_not_denied() {
+        // A pid directory that has vanished by the time its `fd` child is
+        // read (`NotFound`) means that process is gone and holds nothing —
+        // this must not deny the whole scan, or the check would become
+        // unusable on any real, live system where processes are constantly
+        // exiting during the scan.
+        let read = RealKernel::new();
+        let dev = tmp("camera_exited_pid");
+        mark_camera_usb(&dev);
+        set_video4linux_node(&dev, "video2");
+
+        let proc_dir = tmp("camera_exited_pid_proc");
+        // A pid directory whose `fd` child does not exist reproduces exactly
+        // the `NotFound` a real scan gets when the process exits between
+        // listing `/proc` and reading `/proc/<pid>/fd`.
+        fs::create_dir_all(proc_dir.join("999")).unwrap();
+        // A genuinely live pid, still with nothing open on this camera, so
+        // the scan also proves it kept looking past the vanished one.
+        let fd_dir = proc_with_pid(&proc_dir, "1000");
+        symlink_fd(&fd_dir, "0", Path::new("/dev/null"));
+
+        assert_eq!(camera_live_use_block_under(&read, &dev, &proc_dir), None);
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_unreadable_proc_pid_fd_denies_the_whole_check() {
+        // The documented fail-closed decision: an `fd` entry that exists but
+        // cannot be read as a directory for a reason *other* than the process
+        // having exited must deny the whole check, because it is a genuine
+        // gap in the evidence rather than a confirmed absence of use.
+        //
+        // Tests in this repository run as root, and root bypasses ordinary
+        // permission bits, so `chmod 000` cannot reproduce a real
+        // `PermissionDenied` here. This instead makes `fd` a plain file where
+        // a directory is expected, which fails with a distinct, genuine I/O
+        // error (not-a-directory) rather than `NotFound` — the same "some
+        // other read failure" branch a real permission denial would take.
+        let read = RealKernel::new();
+        let dev = tmp("camera_unreadable_fd_dir");
+        mark_camera_usb(&dev);
+        set_video4linux_node(&dev, "video4");
+
+        let proc_dir = tmp("camera_unreadable_fd_dir_proc");
+        let pid_dir = proc_dir.join("5555");
+        fs::create_dir_all(&pid_dir).unwrap();
+        fs::write(pid_dir.join("fd"), b"not a directory").unwrap();
+        assert_ne!(
+            fs::read_dir(pid_dir.join("fd")).err().map(|e| e.kind()),
+            Some(std::io::ErrorKind::NotFound)
+        );
+
+        assert_eq!(
+            camera_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::CameraLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_camera_live_use_check_does_not_apply_to_other_classes() {
+        // Self-contained class check, mirroring
+        // `d1_storage_live_use_check_does_not_apply_to_other_classes`: calling
+        // this on a non-camera device must never produce a camera-shaped
+        // block, even if that device happens to expose a `video4linux/videoN`
+        // mapping that some process holds open.
+        let read = RealKernel::new();
+        let network = tmp("camera_check_on_network");
+        fs::write(network.join("class"), "0x020000\n").unwrap();
+        set_video4linux_node(&network, "video9");
+
+        let proc_dir = tmp("camera_check_on_network_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "6666");
+        symlink_fd(&fd_dir, "1", Path::new("/dev/video9"));
+
+        assert_eq!(
+            camera_live_use_block_under(&read, &network, &proc_dir),
+            None
+        );
+        let _ = fs::remove_dir_all(&network);
+        let _ = fs::remove_dir_all(&proc_dir);
     }
 }
