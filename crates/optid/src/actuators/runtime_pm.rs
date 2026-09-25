@@ -654,7 +654,17 @@ mod tests {
     }
 
     fn mark_camera_usb(device: &Path) {
-        add_usb_interface(device, "1-1:1.0", "0e");
+        // A UVC camera is discovered as a bare interface node (see
+        // `d1_usb_interface_node_is_classified_from_its_own_class`): its own
+        // sysfs directory carries `bInterfaceClass` directly, not nested
+        // under a separate parent device directory. A bound V4L2 driver
+        // publishes `video4linux/videoN` as that same directory's own child,
+        // which is exactly what `set_video4linux_node(device, ...)` adds.
+        // Using the nested-child shape here instead (as a composite parent
+        // device's classification test legitimately does) would place
+        // `video4linux` one level away from where it can ever actually be
+        // found, so the "permits" test could never exercise a real topology.
+        fs::write(device.join("bInterfaceClass"), "0e\n").unwrap();
     }
 
     /// Publish `video4linux/<node>` under a device directory, the way a bound
