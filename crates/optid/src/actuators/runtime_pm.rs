@@ -52,15 +52,17 @@ pub(crate) enum RuntimePmStableStatus {
 
 /// A typed reason the D1 actuation precheck refuses to proceed.
 ///
-/// This deliberately contains no guessed delay values. Audio and input
-/// devices stay blocked until their live-use predicates are implemented and
-/// accepted. Network has a hard live-use predicate (`carrier == 1`), storage
-/// has one based on the kernel's own runtime-PM usage count (see
-/// [`storage_live_use_block`]), and camera has one based on whether any
-/// process holds its `/dev/videoN` node open (see [`camera_live_use_block`]).
-/// Composite and other-classified devices remain denied outright: a composite
-/// device mixes functions this module has not agreed a combined rule for, and
-/// "other" carries no predicate at all.
+/// This deliberately contains no guessed delay values. Input devices stay
+/// blocked until a live-use predicate is implemented and accepted for them.
+/// Network has a hard live-use predicate (`carrier == 1`), storage has one
+/// based on the kernel's own runtime-PM usage count (see
+/// [`storage_live_use_block`]), camera has one based on whether any process
+/// holds its `/dev/videoN` node open (see [`camera_live_use_block`]), and
+/// audio has one based on whether any process holds any of its published
+/// `/dev/snd/*` nodes open (see [`audio_live_use_block`]). Composite and
+/// other-classified devices remain denied outright: a composite device mixes
+/// functions this module has not agreed a combined rule for, and "other"
+/// carries no predicate at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimePmActuationBlock {
     UnknownClass,
@@ -69,6 +71,8 @@ pub(crate) enum RuntimePmActuationBlock {
     StorageInUse,
     CameraLiveUseEvidenceUnavailable,
     CameraInUse,
+    AudioLiveUseEvidenceUnavailable,
+    AudioInUse,
     RuntimeStatusUnavailable,
     RuntimeStatusUnsupported,
     RuntimeStatusTransitioning,
@@ -90,6 +94,12 @@ impl RuntimePmActuationBlock {
                 "this camera has no readable video4linux/videoN mapping, or its open-file-descriptor scan could not be completed"
             }
             Self::CameraInUse => "a process currently holds this camera's video device node open",
+            Self::AudioLiveUseEvidenceUnavailable => {
+                "this audio device has no readable sound/cardN mapping with at least one controlC or pcmC device node, or its open-file-descriptor scan could not be completed"
+            }
+            Self::AudioInUse => {
+                "a process currently holds one of this audio device's control or PCM device nodes open"
+            }
             Self::RuntimeStatusUnavailable => "power/runtime_status is unavailable",
             Self::RuntimeStatusUnsupported => "runtime PM is unsupported for this device",
             Self::RuntimeStatusTransitioning => "runtime PM is currently transitioning",
@@ -286,37 +296,84 @@ pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -
 /// from treating an unknown class, an unimplemented live-use class, a missing
 /// runtime status, or a transition/unknown runtime status as permission.
 ///
-/// Network, storage, and camera are the ready classes for this slice: network
-/// already had a hard carrier guard, storage has one based on the kernel's own
-/// runtime-PM usage count (see [`storage_live_use_block`]), and camera has one
-/// based on whether any process holds its `/dev/videoN` node open (see
-/// [`camera_live_use_block`]). Audio, input, composite, and other devices
-/// remain denied until a live-use predicate is implemented for them without
-/// relying on the research-only timing hypotheses.
+/// Network, storage, camera, and audio are the ready classes for this slice:
+/// network already had a hard carrier guard, storage has one based on the
+/// kernel's own runtime-PM usage count (see [`storage_live_use_block`]),
+/// camera has one based on whether any process holds its `/dev/videoN` node
+/// open (see [`camera_live_use_block`]), and audio has one based on whether
+/// any process holds any of its published `/dev/snd/*` nodes open (see
+/// [`audio_live_use_block`]). Input, composite, and other devices remain
+/// denied until a live-use predicate is implemented for them without relying
+/// on the research-only timing hypotheses.
 pub(crate) fn actuation_precheck(
     read: &dyn KernelRead,
     device_dir: &Path,
 ) -> Result<RuntimePmActuationReady, RuntimePmActuationBlock> {
     let class = classify_device(read, device_dir);
-    match class {
+    let live_use_block = match class {
         RuntimePmDeviceClass::Unknown => return Err(RuntimePmActuationBlock::UnknownClass),
-        RuntimePmDeviceClass::Network => {}
-        RuntimePmDeviceClass::Storage => {
-            if let Some(block) = storage_live_use_block(read, device_dir) {
-                return Err(block);
-            }
-        }
-        RuntimePmDeviceClass::Camera => {
-            if let Some(block) = camera_live_use_block(read, device_dir) {
-                return Err(block);
-            }
-        }
-        RuntimePmDeviceClass::Audio
-        | RuntimePmDeviceClass::Input
+        RuntimePmDeviceClass::Network => None,
+        RuntimePmDeviceClass::Storage => storage_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Camera => camera_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Audio => audio_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Input
         | RuntimePmDeviceClass::Composite
         | RuntimePmDeviceClass::Other => {
             return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
         }
+    };
+    finish_actuation_precheck(read, device_dir, class, live_use_block)
+}
+
+/// Test-only mirror of [`actuation_precheck`], parameterized on the proc root
+/// so this module's own tests can exercise the camera and audio arms — the
+/// only ones that consult `/proc` — against a controlled fixture instead of
+/// the real, system-wide `/proc`. This exists only so the "device is
+/// classified correctly and, with no evidence of use, proceeds to the
+/// `runtime_status` check" claim can be tested for camera and audio at the
+/// same integration level as [`actuation_precheck`] itself, without that test
+/// depending on ambient process state on whatever machine runs the test suite
+/// (see the audio and camera "permits" tests' own comments for why scanning
+/// the real `/proc` is not a safe basis for a deterministic test). Kept as a
+/// thin duplicate of the dispatch in [`actuation_precheck`] — rather than
+/// making `actuation_precheck` itself take a `proc_dir` parameter — so the
+/// production entry point keeps a single, always-compiled call to
+/// [`camera_live_use_block`] and [`audio_live_use_block`]; both functions
+/// share the same [`finish_actuation_precheck`] tail, so they cannot disagree
+/// about anything past the live-use decision itself.
+#[cfg(test)]
+fn actuation_precheck_under(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+    proc_dir: &Path,
+) -> Result<RuntimePmActuationReady, RuntimePmActuationBlock> {
+    let class = classify_device(read, device_dir);
+    let live_use_block = match class {
+        RuntimePmDeviceClass::Unknown => return Err(RuntimePmActuationBlock::UnknownClass),
+        RuntimePmDeviceClass::Network => None,
+        RuntimePmDeviceClass::Storage => storage_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Camera => camera_live_use_block_under(read, device_dir, proc_dir),
+        RuntimePmDeviceClass::Audio => audio_live_use_block_under(read, device_dir, proc_dir),
+        RuntimePmDeviceClass::Input
+        | RuntimePmDeviceClass::Composite
+        | RuntimePmDeviceClass::Other => {
+            return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
+        }
+    };
+    finish_actuation_precheck(read, device_dir, class, live_use_block)
+}
+
+/// The shared tail of [`actuation_precheck`] and [`actuation_precheck_under`]:
+/// apply the already-decided live-use verdict, then apply the `runtime_status`
+/// check that is identical for every class.
+fn finish_actuation_precheck(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+    class: RuntimePmDeviceClass,
+    live_use_block: Option<RuntimePmActuationBlock>,
+) -> Result<RuntimePmActuationReady, RuntimePmActuationBlock> {
+    if let Some(block) = live_use_block {
+        return Err(block);
     }
 
     let runtime_status = read
@@ -454,11 +511,23 @@ fn camera_video_device_node(read: &dyn KernelRead, device_dir: &Path) -> Result<
 }
 
 /// Scan every process on the system for an open file descriptor that resolves
-/// to `video_device`, reading process directories from `proc_dir`.
+/// to any path in `device_nodes`, reading process directories from
+/// `proc_dir`.
+///
+/// Shared by the camera and audio live-use predicates. Both answer "is this
+/// device in use" the same portable, bus-independent way: does any process
+/// hold an open file descriptor on one of the device's own character-device
+/// nodes under `/dev`. Camera only ever has one such node (`/dev/videoN`);
+/// audio can have several for one card (one `controlC<N>` plus one
+/// `pcmC<N>D<M>{p,c}` per substream), so this takes a set of paths rather
+/// than a single one. A match on any element denies the whole check the same
+/// way — this function does not distinguish which node in the set was open,
+/// only whether the device as a whole has an open handle.
 ///
 /// `proc_dir` exists as a parameter only so this module's own tests can point
 /// it at a fixture tree instead of the real `/proc`; production always calls
-/// this through [`camera_live_use_block`], which fixes it to `/proc`.
+/// this through [`camera_live_use_block`] or [`audio_live_use_block`], both of
+/// which fix it to `/proc`.
 ///
 /// # Why an unreadable `/proc/<pid>/fd` fails closed, but a vanished `/proc/<pid>` does not
 ///
@@ -485,10 +554,10 @@ fn camera_video_device_node(read: &dyn KernelRead, device_dir: &Path) -> Result<
 /// between being listed and being read, which is a true statement about the
 /// current instant (it is not open right now), not a missing observation; any
 /// other read failure denies the whole check.
-fn camera_in_use_by_any_process(
+fn device_in_use_by_any_process(
     read: &dyn KernelRead,
     proc_dir: &Path,
-    video_device: &Path,
+    device_nodes: &[PathBuf],
 ) -> Result<bool, ()> {
     let pids = read.read_dir(proc_dir).map_err(|_| ())?;
     for pid_dir in pids {
@@ -508,7 +577,9 @@ fn camera_in_use_by_any_process(
 
         for fd in fds {
             match read.read_link(&fd) {
-                Ok(target) if target == video_device => return Ok(true),
+                Ok(target) if device_nodes.contains(&target) => {
+                    return Ok(true);
+                }
                 Ok(_) => {}
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
                 Err(_) => return Err(()),
@@ -516,6 +587,18 @@ fn camera_in_use_by_any_process(
         }
     }
     Ok(false)
+}
+
+/// [`device_in_use_by_any_process`] specialised to the camera predicate's
+/// single video device node, kept as its own name so the camera call sites
+/// read as "is this one node open" rather than "is any of this set open".
+fn camera_in_use_by_any_process(
+    read: &dyn KernelRead,
+    proc_dir: &Path,
+    video_device: &Path,
+) -> Result<bool, ()> {
+    let video_device = video_device.to_path_buf();
+    device_in_use_by_any_process(read, proc_dir, std::slice::from_ref(&video_device))
 }
 
 /// The D1 live-use predicate for the camera class, parameterized on the proc
@@ -580,6 +663,194 @@ pub(crate) fn camera_live_use_block(
     device_dir: &Path,
 ) -> Option<RuntimePmActuationBlock> {
     camera_live_use_block_under(read, device_dir, Path::new("/proc"))
+}
+
+/// Parse a sysfs entry name as `card<N>` and return the digit suffix `N`.
+fn parse_card_name(name: &str) -> Option<&str> {
+    let number = name.strip_prefix("card")?;
+    (!number.is_empty() && number.bytes().all(|b| b.is_ascii_digit())).then_some(number)
+}
+
+/// True when `name` is one substream entry of card `card_number`:
+/// `pcmC<card_number>D<M>p` (playback) or `pcmC<card_number>D<M>c` (capture),
+/// for any digit string `M`.
+fn is_pcm_substream_node(name: &str, card_number: &str) -> bool {
+    let Some(after_prefix) = name.strip_prefix(&format!("pcmC{card_number}D")) else {
+        return false;
+    };
+    let Some(substream_index) = after_prefix
+        .strip_suffix('p')
+        .or_else(|| after_prefix.strip_suffix('c'))
+    else {
+        return false;
+    };
+    !substream_index.is_empty() && substream_index.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Enumerate the `/dev/snd/*` character-device nodes this audio device's bound
+/// ALSA driver has published, from its `sound/cardN` child directory.
+///
+/// # The sysfs shape this relies on
+///
+/// A bound ALSA driver calls `snd_card_register()`, which registers the
+/// card's own `struct device` under the kernel's `sound` device class
+/// (`sound_class = class_create(..., "sound")`, `sound/core/sound.c`) with
+/// that classified device as its parent, and then registers each component
+/// device node (`controlC<N>` from `sound/core/control.c`, and one
+/// `pcmC<N>D<M>p`/`pcmC<N>D<M>c` node per PCM substream from
+/// `sound/core/pcm.c`) the same way, still parented to the card. The Linux
+/// driver core's own "glue directory" behavior — used whenever a device
+/// belongs to both a class and a bus/parent device, so that sysfs does not
+/// have to place a class-named device directly under an unrelated parent's
+/// directory — nests these under the parent as `<device_dir>/sound/cardN/...`
+/// rather than as siblings of `<device_dir>` itself. This is the same
+/// mechanism [`camera_video_device_node`] already relies on for
+/// `video4linux/videoN` (V4L2 registers under the `video4linux` class the
+/// same way), so this predicate trusts it for the same reason. This has been
+/// checked against kernel source and the ALSA driver-registration
+/// documentation, cross-checked against real `udevadm`/`aplay` output showing
+/// `/sys/class/sound/controlCN` resolving through a physical device's own
+/// ancestry, but this module has no environment with real ALSA sound
+/// hardware to read the live directory from, so it has not been confirmed by
+/// directly listing `/sys/devices/.../sound/cardN/` on running kernel.
+///
+/// # Which entries this counts, and why only these
+///
+/// `sound/cardN/` can contain other entries this predicate does not
+/// recognise: informational attributes such as `id` and `number`, and
+/// subdirectories such as `pcm0p`/`pcm0c` that describe PCM component state
+/// rather than being the character-device nodes themselves. Only entries
+/// whose name exactly matches `controlC<N>` (the mixer/control device) or
+/// `pcmC<N>D<M>p`/`pcmC<N>D<M>c` (a playback/capture substream, for any `M`)
+/// are treated as device nodes, matched against the same card number `N`
+/// this `cardN` directory is named for. `midiC<N>D<M>` (rawmidi) and the
+/// card-independent `seq`/`timer` nodes are deliberately out of scope: the
+/// task this predicate exists for only asked about control and PCM nodes,
+/// and a device that turns out to expose only recognised-but-out-of-scope
+/// nodes still fails closed below (an empty result is treated as unavailable
+/// evidence, not as "nothing to check").
+///
+/// More than one `cardN` child under `sound/` is a topology this predicate
+/// has no verified rule for — the same reasoning
+/// [`camera_video_device_node`] applies to more than one `videoN` child — so
+/// it is refused the same way a missing `sound/` directory is, rather than
+/// picking one card arbitrarily.
+///
+/// Returns `Err(())` when `sound/` is missing or unreadable, when it does not
+/// contain exactly one `cardN` child, or when that card directory contains no
+/// entry this predicate recognises as a control or PCM device node. Callers
+/// must treat that as "cannot tell", not as "safe to suspend".
+fn audio_device_nodes(read: &dyn KernelRead, device_dir: &Path) -> Result<Vec<PathBuf>, ()> {
+    let sound_dir = device_dir.join("sound");
+    let card_entries = read.read_dir(&sound_dir).map_err(|_| ())?;
+    let mut card_numbers = card_entries.into_iter().filter_map(|entry| {
+        let name = entry.file_name()?.to_str()?.to_string();
+        parse_card_name(&name).map(|number| number.to_string())
+    });
+    let card_number = card_numbers.next().ok_or(())?;
+    if card_numbers.next().is_some() {
+        // More than one cardN child: ambiguous topology, refuse rather than guess.
+        return Err(());
+    }
+
+    let card_dir = sound_dir.join(format!("card{card_number}"));
+    let node_entries = read.read_dir(&card_dir).map_err(|_| ())?;
+    let control_name = format!("controlC{card_number}");
+    let nodes: Vec<PathBuf> = node_entries
+        .into_iter()
+        .filter_map(|entry| {
+            let name = entry.file_name()?.to_str()?.to_string();
+            let is_device_node = name == control_name || is_pcm_substream_node(&name, &card_number);
+            is_device_node.then(|| Path::new("/dev/snd").join(name))
+        })
+        .collect();
+
+    if nodes.is_empty() {
+        return Err(());
+    }
+    Ok(nodes)
+}
+
+/// The D1 live-use predicate for the audio class, parameterized on the proc
+/// root so this module's own tests can exercise it against a fixture tree.
+/// [`audio_live_use_block`] is the production entry point, fixed to `/proc`.
+fn audio_live_use_block_under(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+    proc_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    if !matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Audio
+    ) {
+        return None;
+    }
+    let device_nodes = match audio_device_nodes(read, device_dir) {
+        Ok(nodes) => nodes,
+        Err(()) => return Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable),
+    };
+    match device_in_use_by_any_process(read, proc_dir, &device_nodes) {
+        Ok(false) => None,
+        Ok(true) => Some(RuntimePmActuationBlock::AudioInUse),
+        Err(()) => Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable),
+    }
+}
+
+/// The D1 live-use predicate for the audio class.
+///
+/// Audio devices reach D1's classification as USB Audio Device Class
+/// (`0x01`) interfaces or PCI multimedia-audio/HD-audio controllers (PCI base
+/// class `0x04`, subclass `0x01` or `0x03`). Once an ALSA driver is bound,
+/// both buses converge on the same bus-independent signal: a `sound/cardN`
+/// child directly under the classified device directory (see
+/// [`audio_device_nodes`]), which names every `/dev/snd/*` character-device
+/// node this card publishes. "Is this audio device in use" is then answered
+/// the same standard, portable Linux way camera uses — enumerating every
+/// process's open file descriptors under `/proc/<pid>/fd` and checking
+/// whether any resolves to one of those nodes (see
+/// [`device_in_use_by_any_process`]) — rather than by a driver- or
+/// bus-specific activity counter this module does not have a verified
+/// reading for, the same reasoning [`storage_live_use_block`] documents for
+/// choosing `power/runtime_usage` over a bus-specific I/O counter.
+///
+/// # Control node counts the same as a PCM node
+///
+/// A card can have its mixer/control node (`controlC<N>`) open — for example
+/// a mixer application only querying or setting volume — without any PCM
+/// substream open at all, so no actual audio is streaming. This predicate
+/// treats that the same as an open PCM node: both deny as `AudioInUse`. This
+/// module has no verified way to tell, from sysfs or `/proc` alone, whether a
+/// held-open control descriptor reflects a momentary query or an application
+/// that intends to keep issuing mixer commands while the device is
+/// autosuspended; guessing that a control-only open is harmless would be
+/// exactly the kind of guess the storage and camera predicates already
+/// refuse to make. The fail-closed choice costs a plausibly-unnecessary
+/// denial in the mixer-query case; the alternative risks autosuspending a
+/// device a process still expects to control.
+///
+/// Classifies the device itself, so it is safe to call on any runtime-PM
+/// candidate — not only ones a caller has already confirmed are `Audio` —
+/// the same self-contained style as [`network_carrier_up`],
+/// [`storage_live_use_block`], and [`camera_live_use_block`]. Returns `None`
+/// for every other class; it is not a substitute for the class match in
+/// [`actuation_precheck`].
+///
+/// For a genuine audio device, returns `None` only when `sound/` resolves to
+/// exactly one `cardN` directory containing at least one recognised control
+/// or PCM device node, and a full, error-free scan of every process's
+/// `/proc/<pid>/fd` finds no match on any of them. Returns `Some(block)` —
+/// fail closed — when the mapping is missing, ambiguous, or empty of
+/// recognised nodes (`AudioLiveUseEvidenceUnavailable`), when a matching open
+/// descriptor is found on any node (`AudioInUse`), or when the scan itself
+/// could not be completed (`AudioLiveUseEvidenceUnavailable`; see
+/// [`device_in_use_by_any_process`] for which scan failures count as
+/// "complete enough to prove absence" and which do not). This never treats
+/// absent or ambiguous evidence as "safe to suspend".
+pub(crate) fn audio_live_use_block(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    audio_live_use_block_under(read, device_dir, Path::new("/proc"))
 }
 
 /// Does this device expose a USB HID (interface class `03`) child?
@@ -671,6 +942,34 @@ mod tests {
     /// V4L2 driver does.
     fn set_video4linux_node(device: &Path, node: &str) {
         fs::create_dir_all(device.join("video4linux").join(node)).unwrap();
+    }
+
+    fn mark_audio_usb(device: &Path) {
+        // Same reasoning as `mark_camera_usb`: a bare USB interface node
+        // carries its own `bInterfaceClass` directly, which is where a bound
+        // ALSA driver's `sound/cardN` child directory (see
+        // `add_sound_card_node`) actually appears in a real topology.
+        fs::write(device.join("bInterfaceClass"), "01\n").unwrap();
+    }
+
+    fn mark_audio_pci(device: &Path) {
+        // PCI base class 0x04 = multimedia controller; subclass 0x03 = HD
+        // Audio, 0x01 = multimedia audio (see `ClassFlags::mark_pci_class`).
+        fs::write(device.join("class"), "0x040300\n").unwrap();
+    }
+
+    /// Publish one `sound/card<card_number>/<node_name>` entry under a device
+    /// directory, the way a bound ALSA driver's card and component device
+    /// registration does (see `audio_device_nodes`'s doc comment for the
+    /// sysfs mechanism this fixture stands in for).
+    fn add_sound_card_node(device: &Path, card_number: &str, node_name: &str) {
+        fs::create_dir_all(
+            device
+                .join("sound")
+                .join(format!("card{card_number}"))
+                .join(node_name),
+        )
+        .unwrap();
     }
 
     /// Create a fake `/proc`-shaped tree usable as `camera_live_use_block_under`'s
@@ -800,13 +1099,13 @@ mod tests {
             Err(RuntimePmActuationBlock::UnknownClass)
         );
 
-        let audio = tmp("precheck_audio");
-        add_usb_interface(&audio, "1-5:1.0", "01");
-        set_runtime_status(&audio, "active");
+        let input = tmp("precheck_input");
+        add_usb_interface(&input, "1-5:1.0", "03");
+        set_runtime_status(&input, "active");
         assert_eq!(
-            actuation_precheck(&read, &audio),
+            actuation_precheck(&read, &input),
             Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(
-                RuntimePmDeviceClass::Audio
+                RuntimePmDeviceClass::Input
             ))
         );
 
@@ -821,7 +1120,7 @@ mod tests {
             ))
         );
 
-        for dir in [&unknown, &audio, &composite] {
+        for dir in [&unknown, &input, &composite] {
             let _ = fs::remove_dir_all(dir);
         }
     }
@@ -1199,6 +1498,254 @@ mod tests {
             None
         );
         let _ = fs::remove_dir_all(&network);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_zero_open_fds_with_valid_mapping_permits_the_runtime_status_check() {
+        // Same reasoning as the camera equivalent: `/proc` is real and
+        // system-wide, so the "permits" path is proven through the
+        // injectable `audio_live_use_block_under` against a controlled,
+        // empty proc fixture rather than through `audio_live_use_block`.
+        let read = RealKernel::new();
+        let dev = tmp("audio_zero_fds");
+        mark_audio_usb(&dev);
+        add_sound_card_node(&dev, "0", "controlC0");
+        add_sound_card_node(&dev, "0", "pcmC0D0p");
+        add_sound_card_node(&dev, "0", "pcmC0D0c");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("audio_zero_fds_proc");
+        assert_eq!(audio_live_use_block_under(&read, &dev, &proc_dir), None);
+
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_matching_open_fd_on_pcm_node_denies_as_in_use() {
+        let read = RealKernel::new();
+        let dev = tmp("audio_pcm_in_use_device");
+        mark_audio_pci(&dev);
+        add_sound_card_node(&dev, "1", "controlC1");
+        add_sound_card_node(&dev, "1", "pcmC1D0p");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("audio_pcm_in_use_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "7000");
+        symlink_fd(&fd_dir, "9", Path::new("/dev/snd/pcmC1D0p"));
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioInUse)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_matching_open_fd_on_control_node_alone_also_denies_as_in_use() {
+        // The documented fail-closed choice: a mixer holding only the
+        // control node open, with no PCM substream open at all, still
+        // denies. See `audio_live_use_block`'s doc comment for why a
+        // control-only open is not treated as harmless.
+        let read = RealKernel::new();
+        let dev = tmp("audio_control_only_in_use_device");
+        mark_audio_usb(&dev);
+        add_sound_card_node(&dev, "2", "controlC2");
+        add_sound_card_node(&dev, "2", "pcmC2D0p");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("audio_control_only_in_use_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "7001");
+        // Only the control node is open; the pcm node is not referenced by
+        // any fd at all.
+        symlink_fd(&fd_dir, "3", Path::new("/dev/snd/controlC2"));
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioInUse)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_missing_sound_directory_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let dev = tmp("audio_no_sound_dir");
+        mark_audio_usb(&dev);
+        set_runtime_status(&dev, "active");
+        // No `sound/` directory at all: driver not bound, or not really an
+        // ALSA-backed device despite classification.
+        let proc_dir = tmp("audio_no_sound_dir_proc");
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable)
+        );
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Err(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_ambiguous_sound_card_mapping_denies_as_evidence_unavailable() {
+        // Two `cardN` children is a topology this predicate has no verified
+        // rule for; guessing which one is authoritative would be exactly the
+        // kind of guess this module exists to refuse.
+        let read = RealKernel::new();
+        let dev = tmp("audio_ambiguous_card_mapping");
+        mark_audio_usb(&dev);
+        add_sound_card_node(&dev, "0", "controlC0");
+        add_sound_card_node(&dev, "1", "controlC1");
+        let proc_dir = tmp("audio_ambiguous_card_mapping_proc");
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_card_directory_with_no_recognised_device_node_denies_as_evidence_unavailable() {
+        // The `cardN` directory exists, but publishes only entries this
+        // predicate does not recognise (e.g. `id`, or a `midiC0D0` rawmidi
+        // node) — no `controlCN` and no `pcmCND Mp/c` substream. An empty
+        // result must fail closed, not be read as "nothing to check".
+        let read = RealKernel::new();
+        let dev = tmp("audio_no_recognised_node");
+        mark_audio_usb(&dev);
+        fs::create_dir_all(dev.join("sound").join("card0")).unwrap();
+        fs::write(dev.join("sound").join("card0").join("id"), "Generic\n").unwrap();
+        add_sound_card_node(&dev, "0", "midiC0D0");
+        let proc_dir = tmp("audio_no_recognised_node_proc");
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_exited_process_between_listing_and_fd_read_is_skipped_not_denied() {
+        let read = RealKernel::new();
+        let dev = tmp("audio_exited_pid");
+        mark_audio_usb(&dev);
+        add_sound_card_node(&dev, "0", "controlC0");
+
+        let proc_dir = tmp("audio_exited_pid_proc");
+        // A pid directory whose `fd` child does not exist reproduces exactly
+        // the `NotFound` a real scan gets when the process exits between
+        // listing `/proc` and reading `/proc/<pid>/fd`.
+        fs::create_dir_all(proc_dir.join("999")).unwrap();
+        // A genuinely live pid, still with nothing open on this audio
+        // device, so the scan also proves it kept looking past the vanished
+        // one.
+        let fd_dir = proc_with_pid(&proc_dir, "1000");
+        symlink_fd(&fd_dir, "0", Path::new("/dev/null"));
+
+        assert_eq!(audio_live_use_block_under(&read, &dev, &proc_dir), None);
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_unreadable_proc_pid_fd_denies_the_whole_check() {
+        // The same documented fail-closed decision as the camera equivalent:
+        // an `fd` entry that exists but cannot be read as a directory for a
+        // reason other than the process having exited must deny the whole
+        // check.
+        let read = RealKernel::new();
+        let dev = tmp("audio_unreadable_fd_dir");
+        mark_audio_usb(&dev);
+        add_sound_card_node(&dev, "0", "controlC0");
+
+        let proc_dir = tmp("audio_unreadable_fd_dir_proc");
+        let pid_dir = proc_dir.join("5556");
+        fs::create_dir_all(&pid_dir).unwrap();
+        fs::write(pid_dir.join("fd"), b"not a directory").unwrap();
+        assert_ne!(
+            fs::read_dir(pid_dir.join("fd")).err().map(|e| e.kind()),
+            Some(std::io::ErrorKind::NotFound)
+        );
+
+        assert_eq!(
+            audio_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::AudioLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_audio_live_use_check_does_not_apply_to_other_classes() {
+        // Self-contained class check, mirroring
+        // `d1_camera_live_use_check_does_not_apply_to_other_classes`: calling
+        // this on a non-audio device must never produce an audio-shaped
+        // block, even if that device happens to expose a `sound/cardN`
+        // mapping that some process holds open.
+        let read = RealKernel::new();
+        let network = tmp("audio_check_on_network");
+        fs::write(network.join("class"), "0x020000\n").unwrap();
+        add_sound_card_node(&network, "0", "controlC0");
+
+        let proc_dir = tmp("audio_check_on_network_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "6667");
+        symlink_fd(&fd_dir, "1", Path::new("/dev/snd/controlC0"));
+
+        assert_eq!(audio_live_use_block_under(&read, &network, &proc_dir), None);
+        let _ = fs::remove_dir_all(&network);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_actuation_precheck_permits_audio_device_with_no_evidence_of_use() {
+        // Integration-level proof that `actuation_precheck` now reaches the
+        // `runtime_status` check for audio, instead of denying it outright
+        // via `LiveUseGuardNotImplemented` the way it still does for input.
+        //
+        // This goes through `actuation_precheck_under` with a controlled,
+        // empty proc fixture rather than through `actuation_precheck` itself
+        // (fixed to the real, system-wide `/proc`). A real machine's `/proc`
+        // holds processes this test does not own or control, and scanning it
+        // can fail closed for reasons that have nothing to do with this
+        // predicate's own logic: on the sandboxed host this change was
+        // developed on, `/proc/1/fd/*` belongs to a process outside this
+        // container's user namespace, and reading its file-descriptor
+        // symlinks returns a genuine `PermissionDenied`, which
+        // `device_in_use_by_any_process` correctly (and intentionally) turns
+        // into a deny — the exact same "cannot tell" failure mode
+        // `d1_audio_unreadable_proc_pid_fd_denies_the_whole_check` and
+        // `d1_camera_unreadable_proc_pid_fd_denies_the_whole_check` prove on
+        // purpose. That makes the real `/proc` path correct but
+        // environment-dependent, not a safe basis for an assertion that must
+        // hold on every machine that runs this suite. `actuation_precheck_under`
+        // exists so this "permits" claim can still be checked at the same
+        // integration level, against a fixture this test fully controls.
+        let read = RealKernel::new();
+        let dev = tmp("precheck_audio_permits");
+        mark_audio_pci(&dev);
+        add_sound_card_node(&dev, "3", "controlC3");
+        add_sound_card_node(&dev, "3", "pcmC3D0p");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("precheck_audio_permits_proc");
+        assert_eq!(
+            actuation_precheck_under(&read, &dev, &proc_dir),
+            Ok(RuntimePmActuationReady {
+                class: RuntimePmDeviceClass::Audio,
+                runtime_status: RuntimePmStableStatus::Active,
+            })
+        );
+        let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&proc_dir);
     }
 }
