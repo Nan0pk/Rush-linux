@@ -77,6 +77,7 @@ pub(crate) enum RuntimePmActuationBlock {
     InputLiveUseEvidenceUnavailable,
     InputInUse,
     InputInUseByKernelHandler,
+    InputBoundToUnverifiedDriver,
     RuntimeStatusUnavailable,
     RuntimeStatusUnsupported,
     RuntimeStatusTransitioning,
@@ -109,6 +110,9 @@ impl RuntimePmActuationBlock {
             }
             Self::InputInUse => {
                 "a process currently holds one of this input device's event, mouse, js, hidraw, or hiddev device nodes open"
+            }
+            Self::InputBoundToUnverifiedDriver => {
+                "this input device is bound to a driver other than hid-generic, which may hold it open inside the kernel with no visible trace"
             }
             Self::InputInUseByKernelHandler => {
                 "a kernel-internal input handler (such as the console keyboard, keyboard-light, or sysrq handler) holds this input device open"
@@ -912,6 +916,9 @@ struct InputMapping {
     nodes: Vec<PathBuf>,
     input_names: Vec<String>,
     led_folder_seen: bool,
+    /// Some input device here is driven by something other than
+    /// `hid-generic` (see [`input_device_nodes`]).
+    unverified_driver: bool,
 }
 
 /// Collect the `/dev/input/*` nodes published under one `input/` glue
@@ -1025,12 +1032,28 @@ fn collect_input_class_nodes(
 /// several `inputN` children are normal, not ambiguous: every node from every
 /// one of them is checked, which can only deny more, never less.
 ///
+/// # Which driver is bound
+///
+/// A device-specific HID driver can open the device itself when it attaches
+/// and keep it open until the device is removed, with no input handler, no
+/// LED folder and no file descriptor to show for it: `hid-playstation`,
+/// `hid-steam`, `hid-nintendo` and `hid-logitech-hidpp` all call
+/// `hid_hw_open()` in their probe path. This module has checked only
+/// `hid-generic` (`drivers/hid/hid-generic.c`), whose probe starts the device
+/// without opening it. So each HID device's bound driver is read from the
+/// basename of its `driver` symlink, and anything other than `hid-generic`
+/// sets [`InputMapping::unverified_driver`]. The direct
+/// `<interface>/input/inputN` shape never comes from a HID driver — it is a
+/// USB driver registering its own input device — so it is treated the same
+/// way: its nodes are still collected, but the device is refused.
+///
 /// # When this refuses
 ///
 /// Returns `Err(())` — "cannot tell", never "safe to suspend" — when:
 ///
 /// - the device directory, or any `input/`, `inputN`, `hidraw/` or
 ///   `usbmisc/` directory that exists, cannot be read;
+/// - a HID device has no `driver` link, or it cannot be read;
 /// - no `inputN` device is found at all (no driver bound, or a node shape
 ///   this function does not read, such as a whole USB device whose HID
 ///   interfaces sit one level further down — that device is refused, and its
@@ -1045,6 +1068,11 @@ fn collect_input_class_nodes(
 fn input_device_nodes(read: &dyn KernelRead, device_dir: &Path) -> Result<InputMapping, ()> {
     let mut mapping = InputMapping::default();
     collect_input_class_nodes(read, &device_dir.join("input"), &mut mapping)?;
+    if !mapping.input_names.is_empty() {
+        // Input devices registered directly on the interface come from a
+        // non-HID USB driver, whose own behaviour this module has not checked.
+        mapping.unverified_driver = true;
+    }
 
     for entry in read_optional_dir(read, &device_dir.join("usbmisc"))? {
         if let Some(name) = entry.file_name().and_then(|n| n.to_str()) {
@@ -1060,6 +1088,12 @@ fn input_device_nodes(read: &dyn KernelRead, device_dir: &Path) -> Result<InputM
         };
         if !is_hid_device_name(name) {
             continue;
+        }
+        // A missing link means no HID driver is bound; an unreadable one is a
+        // gap in the evidence. Both refuse.
+        let driver = read.read_link(&child.join("driver")).map_err(|_| ())?;
+        if driver.file_name().and_then(|n| n.to_str()) != Some("hid-generic") {
+            mapping.unverified_driver = true;
         }
         collect_input_class_nodes(read, &child.join("input"), &mut mapping)?;
         for entry in read_optional_dir(read, &child.join("hidraw"))? {
@@ -1168,6 +1202,9 @@ fn input_live_use_block_under(
         Ok(mapping) => mapping,
         Err(()) => return Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable),
     };
+    if mapping.unverified_driver {
+        return Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver);
+    }
     if mapping.led_folder_seen {
         return Some(RuntimePmActuationBlock::InputInUseByKernelHandler);
     }
@@ -1195,25 +1232,44 @@ fn input_live_use_block_under(
 /// process hold an open file descriptor on one of those nodes (see
 /// [`device_in_use_by_any_process`]).
 ///
-/// # Kernel-held opens count as use too
+/// # Which kernel-held opens are detected
 ///
 /// Unlike a camera or a sound card, an input device can be held open inside
-/// the kernel with no file descriptor anywhere: the text-console keyboard
-/// handler, the keyboard-light handler and sysrq open every keyboard they
-/// match. A keyboard someone is typing on at a text or recovery console would
-/// otherwise look unused. So before the descriptor scan, this predicate
-/// denies with `InputInUseByKernelHandler` when any `inputN` has an
-/// `inputN::<led>` folder (see [`collect_input_class_nodes`]) or when
-/// `/proc/bus/input/devices` lists a handler other than evdev, mousedev or
-/// joydev for any of this device's input devices (see
-/// [`input_held_by_kernel_handler`]). When the kernel is built with virtual
-/// terminal support, the console keyboard handler binds to every input
-/// device that reports at least one ordinary key code below `BTN_MISC`, or
-/// sound events (`kbd_match()` in `drivers/tty/vt/keyboard.c`). That includes
-/// every keyboard and many receivers and multi-function mice, so on a normal
-/// desktop or console machine most keyboards are refused by this rule alone,
-/// whatever the session is doing. A plain mouse that reports only button and
-/// motion events is not matched by it.
+/// the kernel with no file descriptor anywhere. This predicate refuses on
+/// the two sources below; one further known source is not detected, as
+/// stated at the end of this section:
+///
+/// - **Device-specific drivers.** Any HID device bound to a driver other
+///   than `hid-generic`, and any input device registered directly on the
+///   interface by a non-HID driver, is refused with
+///   `InputBoundToUnverifiedDriver` (see [`input_device_nodes`]). Several
+///   such drivers open the device at attach time and keep it open. This
+///   refuses many common devices, including Logitech mice and receivers
+///   driven by `hid-logitech-hidpp`, and PlayStation, Nintendo and Steam game
+///   controllers.
+/// - **Input handlers.** The text-console keyboard handler, the
+///   keyboard-light handler and sysrq open every device they match, so a
+///   keyboard someone is typing on at a text or recovery console would
+///   otherwise look unused. This predicate denies with
+///   `InputInUseByKernelHandler` when any `inputN` has an `inputN::<led>`
+///   folder (see [`collect_input_class_nodes`]) or when
+///   `/proc/bus/input/devices` lists a handler other than evdev, mousedev or
+///   joydev for any of this device's input devices (see
+///   [`input_held_by_kernel_handler`]). When the kernel is built with
+///   virtual terminal support, the console keyboard handler binds to every
+///   input device that reports at least one ordinary key code below
+///   `BTN_MISC`, or sound events (`kbd_match()` in
+///   `drivers/tty/vt/keyboard.c`). That includes every keyboard and many
+///   receivers and multi-function mice, so on a normal desktop or console
+///   machine most keyboards are refused by this rule alone, whatever the
+///   session is doing. A plain mouse that reports only button and motion
+///   events is not matched by it.
+///
+/// Not detected: `usbhid`'s `HID_QUIRK_ALWAYS_POLL`, set for particular
+/// devices from the kernel's quirk table, makes `usbhid_start()` keep
+/// polling the device with no open at all (while also requesting remote
+/// wakeup). sysfs shows no sign of it, so a `hid-generic` device carrying
+/// that quirk is not refused on that account.
 ///
 /// # An open node counts as use, even though the kernel might allow suspend
 ///
@@ -1381,6 +1437,9 @@ mod tests {
     /// Publish `<device>/<hid_device>/input/<input_name>/<node_name>`, the
     /// shape `usbhid` + `hid-input` + an input handler produce for a USB HID
     /// interface (see `input_device_nodes`'s doc comment).
+    /// Also binds the HID device to `hid-generic` unless a `driver` link is
+    /// already there, because every allowed or in-use case needs that
+    /// binding; tests about the driver itself use `bind_hid_driver` first.
     fn add_hid_input_node(device: &Path, hid_device: &str, input_name: &str, node_name: &str) {
         fs::create_dir_all(
             device
@@ -1388,6 +1447,21 @@ mod tests {
                 .join("input")
                 .join(input_name)
                 .join(node_name),
+        )
+        .unwrap();
+        if fs::symlink_metadata(device.join(hid_device).join("driver")).is_err() {
+            bind_hid_driver(device, hid_device, "hid-generic");
+        }
+    }
+
+    /// Create `<device>/<hid_device>/driver` as a symlink into the HID bus's
+    /// driver directory, the shape the driver core gives a bound device.
+    fn bind_hid_driver(device: &Path, hid_device: &str, driver: &str) {
+        let hid = device.join(hid_device);
+        fs::create_dir_all(&hid).unwrap();
+        std::os::unix::fs::symlink(
+            Path::new("../../../../../../bus/hid/drivers").join(driver),
+            hid.join("driver"),
         )
         .unwrap();
     }
@@ -2253,10 +2327,11 @@ mod tests {
     }
 
     #[test]
-    fn d1_input_direct_input_mapping_on_the_interface_is_also_read() {
+    fn d1_input_direct_input_mapping_on_the_interface_is_refused_as_unverified_driver() {
         // A driver that registers its input device directly on the USB
-        // interface (no HID device in between) publishes `input/inputN` on
-        // the interface itself.
+        // interface (no HID device in between) is a non-HID USB driver whose
+        // behaviour this module has not checked, so the device is refused
+        // even with a clean handler list and nothing open.
         let read = RealKernel::new();
         let dev = tmp("input_direct_mapping");
         mark_input_usb(&dev);
@@ -2264,13 +2339,9 @@ mod tests {
 
         let proc_dir = tmp("input_direct_mapping_proc");
         write_proc_input_devices(&proc_dir, &[("input9", "event9")]);
-        assert_eq!(input_live_use_block_under(&read, &dev, &proc_dir), None);
-
-        let fd_dir = proc_with_pid(&proc_dir, "8001");
-        symlink_fd(&fd_dir, "4", Path::new("/dev/input/event9"));
         assert_eq!(
             input_live_use_block_under(&read, &dev, &proc_dir),
-            Some(RuntimePmActuationBlock::InputInUse)
+            Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
         );
         let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&proc_dir);
@@ -2412,7 +2483,7 @@ mod tests {
         set_runtime_status(&dev, "active");
         // A HID device with no input devices under it (driver bound, but no
         // input handler) is still a missing mapping.
-        fs::create_dir_all(dev.join(HID_DEVICE)).unwrap();
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
         let proc_dir = tmp("input_no_mapping_proc");
 
         assert_eq!(
@@ -2437,6 +2508,7 @@ mod tests {
         let read = RealKernel::new();
         let dev = tmp("input_raw_only");
         mark_input_usb(&dev);
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
         fs::create_dir_all(dev.join(HID_DEVICE).join("hidraw").join("hidraw3")).unwrap();
         fs::create_dir_all(dev.join("usbmisc").join("hiddev1")).unwrap();
         let proc_dir = tmp("input_raw_only_proc");
@@ -2534,6 +2606,7 @@ mod tests {
 
         let bad_input_device = tmp("input_unreadable_input_device");
         mark_input_usb(&bad_input_device);
+        bind_hid_driver(&bad_input_device, HID_DEVICE, "hid-generic");
         fs::create_dir_all(bad_input_device.join(HID_DEVICE).join("input")).unwrap();
         fs::write(
             bad_input_device
@@ -2690,6 +2763,121 @@ mod tests {
         );
 
         for dir in [&dev, &absent, &duplicated, &no_handlers] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_non_generic_hid_driver_denies_as_unverified_driver() {
+        // Drivers such as hid-playstation, hid-steam, hid-nintendo and
+        // hid-logitech-hidpp open the device at attach time, leaving no
+        // handler, LED folder or descriptor. Only hid-generic is accepted.
+        let read = RealKernel::new();
+        for driver in ["hid-playstation", "hid-logitech-hidpp", "hid-multitouch"] {
+            let dev = tmp(&format!("input_driver_{driver}"));
+            mark_input_usb(&dev);
+            bind_hid_driver(&dev, HID_DEVICE, driver);
+            add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+            set_runtime_status(&dev, "active");
+            let proc_dir = tmp(&format!("input_driver_{driver}_proc"));
+            write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+            assert_eq!(
+                input_live_use_block_under(&read, &dev, &proc_dir),
+                Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver),
+                "driver {driver}"
+            );
+            assert_eq!(
+                actuation_precheck_under(&read, &dev, &proc_dir),
+                Err(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
+            );
+            let _ = fs::remove_dir_all(&dev);
+            let _ = fs::remove_dir_all(&proc_dir);
+        }
+
+        // One non-generic HID device is enough, even beside a generic one.
+        let dev = tmp("input_driver_mixed");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        bind_hid_driver(&dev, "0003:054C:0CE6.0002", "hid-playstation");
+        let proc_dir = tmp("input_driver_mixed_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_missing_or_unreadable_driver_link_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let proc_dir = tmp("input_driver_link_bad_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+        // No `driver` link: no HID driver is bound.
+        let missing = tmp("input_driver_link_missing");
+        mark_input_usb(&missing);
+        fs::create_dir_all(
+            missing
+                .join(HID_DEVICE)
+                .join("input")
+                .join("input5")
+                .join("event5"),
+        )
+        .unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &missing, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        // `driver` exists but is not a readable link (a regular file stands
+        // in, since tests run as root and root bypasses permission bits).
+        let unreadable = tmp("input_driver_link_unreadable");
+        mark_input_usb(&unreadable);
+        fs::create_dir_all(unreadable.join(HID_DEVICE)).unwrap();
+        fs::write(unreadable.join(HID_DEVICE).join("driver"), b"x").unwrap();
+        add_hid_input_node(&unreadable, HID_DEVICE, "input5", "event5");
+        assert_eq!(
+            input_live_use_block_under(&read, &unreadable, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        for dir in [&proc_dir, &missing, &unreadable] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_hid_generic_driver_still_reaches_the_other_checks() {
+        // hid-generic passes the driver check and nothing more: the
+        // handler, LED and descriptor checks still apply after it.
+        let read = RealKernel::new();
+        let dev = tmp("input_generic_reaches_checks");
+        mark_input_usb(&dev);
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        let clean = tmp("input_generic_reaches_checks_clean_proc");
+        write_proc_input_devices(&clean, &[("input5", "event5")]);
+        assert_eq!(input_live_use_block_under(&read, &dev, &clean), None);
+
+        let kbd = tmp("input_generic_reaches_checks_kbd_proc");
+        write_proc_input_devices(&kbd, &[("input5", "kbd event5")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &kbd),
+            Some(RuntimePmActuationBlock::InputInUseByKernelHandler)
+        );
+
+        let fd_dir = proc_with_pid(&clean, "8010");
+        symlink_fd(&fd_dir, "3", Path::new("/dev/input/event5"));
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &clean),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+
+        for dir in [&dev, &clean, &kbd] {
             let _ = fs::remove_dir_all(dir);
         }
     }
