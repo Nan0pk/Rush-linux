@@ -52,14 +52,15 @@ pub(crate) enum RuntimePmStableStatus {
 
 /// A typed reason the D1 actuation precheck refuses to proceed.
 ///
-/// This deliberately contains no guessed delay values. Input devices stay
-/// blocked until a live-use predicate is implemented and accepted for them.
-/// Network has a hard live-use predicate (`carrier == 1`), storage has one
-/// based on the kernel's own runtime-PM usage count (see
-/// [`storage_live_use_block`]), camera has one based on whether any process
-/// holds its `/dev/videoN` node open (see [`camera_live_use_block`]), and
-/// audio has one based on whether any process holds any of its published
-/// `/dev/snd/*` nodes open (see [`audio_live_use_block`]). Composite and
+/// This deliberately contains no guessed delay values. Network has a hard
+/// live-use predicate (`carrier == 1`), storage has one based on the kernel's
+/// own runtime-PM usage count (see [`storage_live_use_block`]), camera has
+/// one based on whether any process holds its `/dev/videoN` node open (see
+/// [`camera_live_use_block`]), audio has one based on whether any process
+/// holds any of its published `/dev/snd/*` nodes open (see
+/// [`audio_live_use_block`]), and input has one based on whether any process
+/// holds any of its `/dev/input/*`, `/dev/hidrawN` or `/dev/usb/hiddevN`
+/// nodes open (see [`input_live_use_block`]). Composite and
 /// other-classified devices remain denied outright: a composite device mixes
 /// functions this module has not agreed a combined rule for, and "other"
 /// carries no predicate at all.
@@ -73,6 +74,10 @@ pub(crate) enum RuntimePmActuationBlock {
     CameraInUse,
     AudioLiveUseEvidenceUnavailable,
     AudioInUse,
+    InputLiveUseEvidenceUnavailable,
+    InputInUse,
+    InputInUseByKernelHandler,
+    InputBoundToUnverifiedDriver,
     RuntimeStatusUnavailable,
     RuntimeStatusUnsupported,
     RuntimeStatusTransitioning,
@@ -99,6 +104,18 @@ impl RuntimePmActuationBlock {
             }
             Self::AudioInUse => {
                 "a process currently holds one of this audio device's control or PCM device nodes open"
+            }
+            Self::InputLiveUseEvidenceUnavailable => {
+                "this input device has no readable input/inputN mapping with an event, mouse, or js device node for every input device, its handler list in /proc/bus/input/devices is unreadable, missing, or ambiguous, or its open-file-descriptor scan could not be completed"
+            }
+            Self::InputInUse => {
+                "a process currently holds one of this input device's event, mouse, js, hidraw, or hiddev device nodes open"
+            }
+            Self::InputBoundToUnverifiedDriver => {
+                "this input device is bound to a driver other than hid-generic, which may hold it open inside the kernel with no visible trace"
+            }
+            Self::InputInUseByKernelHandler => {
+                "a kernel-internal input handler (such as the console keyboard, keyboard-light, or sysrq handler) holds this input device open"
             }
             Self::RuntimeStatusUnavailable => "power/runtime_status is unavailable",
             Self::RuntimeStatusUnsupported => "runtime PM is unsupported for this device",
@@ -296,15 +313,17 @@ pub(crate) fn class_evidence_missing(read: &dyn KernelRead, device_dir: &Path) -
 /// from treating an unknown class, an unimplemented live-use class, a missing
 /// runtime status, or a transition/unknown runtime status as permission.
 ///
-/// Network, storage, camera, and audio are the ready classes for this slice:
-/// network already had a hard carrier guard, storage has one based on the
-/// kernel's own runtime-PM usage count (see [`storage_live_use_block`]),
+/// Network, storage, camera, audio, and input are the ready classes for this
+/// slice: network already had a hard carrier guard, storage has one based on
+/// the kernel's own runtime-PM usage count (see [`storage_live_use_block`]),
 /// camera has one based on whether any process holds its `/dev/videoN` node
-/// open (see [`camera_live_use_block`]), and audio has one based on whether
-/// any process holds any of its published `/dev/snd/*` nodes open (see
-/// [`audio_live_use_block`]). Input, composite, and other devices remain
-/// denied until a live-use predicate is implemented for them without relying
-/// on the research-only timing hypotheses.
+/// open (see [`camera_live_use_block`]), audio has one based on whether any
+/// process holds any of its published `/dev/snd/*` nodes open (see
+/// [`audio_live_use_block`]), and input has one based on whether any process
+/// holds any of its input, hidraw, or hiddev nodes open (see
+/// [`input_live_use_block`]). Composite and other devices remain denied until
+/// a live-use predicate is implemented for them without relying on the
+/// research-only timing hypotheses.
 pub(crate) fn actuation_precheck(
     read: &dyn KernelRead,
     device_dir: &Path,
@@ -316,9 +335,8 @@ pub(crate) fn actuation_precheck(
         RuntimePmDeviceClass::Storage => storage_live_use_block(read, device_dir),
         RuntimePmDeviceClass::Camera => camera_live_use_block(read, device_dir),
         RuntimePmDeviceClass::Audio => audio_live_use_block(read, device_dir),
-        RuntimePmDeviceClass::Input
-        | RuntimePmDeviceClass::Composite
-        | RuntimePmDeviceClass::Other => {
+        RuntimePmDeviceClass::Input => input_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Composite | RuntimePmDeviceClass::Other => {
             return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
         }
     };
@@ -326,11 +344,11 @@ pub(crate) fn actuation_precheck(
 }
 
 /// Test-only mirror of [`actuation_precheck`], parameterized on the proc root
-/// so this module's own tests can exercise the camera and audio arms — the
-/// only ones that consult `/proc` — against a controlled fixture instead of
+/// so this module's own tests can exercise the camera, audio, and input arms
+/// — the only ones that consult `/proc` — against a controlled fixture instead of
 /// the real, system-wide `/proc`. This exists only so the "device is
 /// classified correctly and, with no evidence of use, proceeds to the
-/// `runtime_status` check" claim can be tested for camera and audio at the
+/// `runtime_status` check" claim can be tested for camera, audio, and input at the
 /// same integration level as [`actuation_precheck`] itself, without that test
 /// depending on ambient process state on whatever machine runs the test suite
 /// (see the audio and camera "permits" tests' own comments for why scanning
@@ -338,7 +356,8 @@ pub(crate) fn actuation_precheck(
 /// thin duplicate of the dispatch in [`actuation_precheck`] — rather than
 /// making `actuation_precheck` itself take a `proc_dir` parameter — so the
 /// production entry point keeps a single, always-compiled call to
-/// [`camera_live_use_block`] and [`audio_live_use_block`]; both functions
+/// [`camera_live_use_block`], [`audio_live_use_block`], and
+/// [`input_live_use_block`]; both functions
 /// share the same [`finish_actuation_precheck`] tail, so they cannot disagree
 /// about anything past the live-use decision itself.
 #[cfg(test)]
@@ -354,9 +373,8 @@ fn actuation_precheck_under(
         RuntimePmDeviceClass::Storage => storage_live_use_block(read, device_dir),
         RuntimePmDeviceClass::Camera => camera_live_use_block_under(read, device_dir, proc_dir),
         RuntimePmDeviceClass::Audio => audio_live_use_block_under(read, device_dir, proc_dir),
-        RuntimePmDeviceClass::Input
-        | RuntimePmDeviceClass::Composite
-        | RuntimePmDeviceClass::Other => {
+        RuntimePmDeviceClass::Input => input_live_use_block_under(read, device_dir, proc_dir),
+        RuntimePmDeviceClass::Composite | RuntimePmDeviceClass::Other => {
             return Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class));
         }
     };
@@ -514,20 +532,21 @@ fn camera_video_device_node(read: &dyn KernelRead, device_dir: &Path) -> Result<
 /// to any path in `device_nodes`, reading process directories from
 /// `proc_dir`.
 ///
-/// Shared by the camera and audio live-use predicates. Both answer "is this
+/// Shared by the camera, audio, and input live-use predicates. All answer "is this
 /// device in use" the same portable, bus-independent way: does any process
 /// hold an open file descriptor on one of the device's own character-device
 /// nodes under `/dev`. Camera only ever has one such node (`/dev/videoN`);
 /// audio can have several for one card (one `controlC<N>` plus one
 /// `pcmC<N>D<M>{p,c}` per substream), so this takes a set of paths rather
-/// than a single one. A match on any element denies the whole check the same
+/// than a single one (input, likewise, can have several). A match on any
+/// element denies the whole check the same
 /// way — this function does not distinguish which node in the set was open,
 /// only whether the device as a whole has an open handle.
 ///
 /// `proc_dir` exists as a parameter only so this module's own tests can point
 /// it at a fixture tree instead of the real `/proc`; production always calls
-/// this through [`camera_live_use_block`] or [`audio_live_use_block`], both of
-/// which fix it to `/proc`.
+/// this through [`camera_live_use_block`], [`audio_live_use_block`], or
+/// [`input_live_use_block`], each of which fixes it to `/proc`.
 ///
 /// # Why an unreadable `/proc/<pid>/fd` fails closed, but a vanished `/proc/<pid>` does not
 ///
@@ -853,6 +872,439 @@ pub(crate) fn audio_live_use_block(
     audio_live_use_block_under(read, device_dir, Path::new("/proc"))
 }
 
+/// Parse `name` as `<prefix><N>` for a non-empty decimal `N`.
+fn has_numbered_name(name: &str, prefix: &str) -> bool {
+    name.strip_prefix(prefix)
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// True when `name` has the shape the HID core gives every HID device it
+/// registers: `BBBB:VVVV:PPPP.IIII` (bus, vendor, product, instance), each
+/// group hexadecimal (`drivers/hid/hid-core.c`, `hid_add_device()`:
+/// `dev_set_name(&hdev->dev, "%04X:%04X:%04X.%04X", ...)`). Groups are
+/// accepted at any non-zero width because `%04X` is a minimum, not a maximum.
+fn is_hid_device_name(name: &str) -> bool {
+    let is_hex_group =
+        |group: &str| !group.is_empty() && group.bytes().all(|b| b.is_ascii_hexdigit());
+    let Some((ids, instance)) = name.split_once('.') else {
+        return false;
+    };
+    let groups: Vec<&str> = ids.split(':').collect();
+    groups.len() == 3 && groups.into_iter().all(is_hex_group) && is_hex_group(instance)
+}
+
+/// List `dir`, treating a directory that does not exist as empty and every
+/// other failure as unavailable evidence.
+///
+/// Used only for the optional glue directories (`input/`, `hidraw/`,
+/// `usbmisc/`) that a device publishes only when the matching driver or
+/// handler is bound. Their absence is a real, ordinary observation ("nothing
+/// of that kind is registered here"); an unreadable one is not.
+fn read_optional_dir(read: &dyn KernelRead, dir: &Path) -> Result<Vec<PathBuf>, ()> {
+    match read.read_dir(dir) {
+        Ok(entries) => Ok(entries),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(_) => Err(()),
+    }
+}
+
+/// What sysfs says about one input-class device: the device nodes a process
+/// could be using it through, the `inputN` names found, and whether any
+/// `inputN` carries a keyboard-light folder.
+#[derive(Default)]
+struct InputMapping {
+    nodes: Vec<PathBuf>,
+    input_names: Vec<String>,
+    led_folder_seen: bool,
+    /// Some input device here is driven by something other than
+    /// `hid-generic` (see [`input_device_nodes`]).
+    unverified_driver: bool,
+}
+
+/// Collect the `/dev/input/*` nodes published under one `input/` glue
+/// directory into `mapping`. Returns `Err(())` if any `inputN` there is
+/// unreadable, publishes no recognised node, or publishes more than one node
+/// of the same kind.
+///
+/// Also records whether any `inputN` has an `inputN::<led>` child. The
+/// keyboard-light handler creates those LED class devices, parented to the
+/// input device, only after it has opened the input device inside the kernel
+/// (`input_leds_connect()` in `drivers/input/input-leds.c` calls
+/// `input_open_device()` and then names each LED `"%s::%s"` from the input
+/// device's name), so one is direct evidence of a kernel-held open.
+fn collect_input_class_nodes(
+    read: &dyn KernelRead,
+    input_glue_dir: &Path,
+    mapping: &mut InputMapping,
+) -> Result<(), ()> {
+    for input_dir in read_optional_dir(read, input_glue_dir)? {
+        let Some(input_name) = input_dir.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !has_numbered_name(input_name, "input") {
+            continue;
+        }
+        mapping.input_names.push(input_name.to_string());
+        let led_prefix = format!("{input_name}::");
+
+        let mut event = Vec::new();
+        let mut mouse = Vec::new();
+        let mut joystick = Vec::new();
+        for entry in read.read_dir(&input_dir).map_err(|_| ())? {
+            let Some(name) = entry.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if name.starts_with(&led_prefix) {
+                mapping.led_folder_seen = true;
+            } else if has_numbered_name(name, "event") {
+                event.push(name.to_string());
+            } else if has_numbered_name(name, "mouse") {
+                mouse.push(name.to_string());
+            } else if has_numbered_name(name, "js") {
+                joystick.push(name.to_string());
+            }
+        }
+        if event.len() > 1 || mouse.len() > 1 || joystick.len() > 1 {
+            // evdev, mousedev and joydev each create at most one node per
+            // input device. More than one of a kind is a topology this
+            // predicate has no verified rule for.
+            return Err(());
+        }
+        if event.is_empty() && mouse.is_empty() && joystick.is_empty() {
+            // No handler that publishes a device node is bound, so there is
+            // no node whose open descriptors could show use.
+            return Err(());
+        }
+        if !mouse.is_empty() {
+            // mousedev's shared `/dev/input/mice` opens every device that has
+            // a `mouseN` node while it is held open (`mixdev_open_devices()`
+            // in `drivers/input/mousedev.c`), so a process holding it uses
+            // this device too.
+            mapping.nodes.push(PathBuf::from("/dev/input/mice"));
+        }
+        for name in event.into_iter().chain(mouse).chain(joystick) {
+            mapping.nodes.push(Path::new("/dev/input").join(name));
+        }
+    }
+    Ok(())
+}
+
+/// Enumerate the character-device nodes through which a process can be using
+/// this input device, from the sysfs children its bound drivers publish.
+///
+/// # The sysfs shape this relies on
+///
+/// Checked against the mainline kernel source, not against a live machine:
+///
+/// - The input core registers every input device as `inputN` in the `input`
+///   class (`drivers/input/input.c`). A class device whose parent is not
+///   itself a class device is placed in a "glue" directory named after its
+///   class under that parent (`get_device_parent()` in
+///   `drivers/base/core.c`), so it appears as `<parent>/input/inputN`.
+/// - The event handlers — evdev (`eventN`, `drivers/input/evdev.c`), mousedev
+///   (`mouseN`, `drivers/input/mousedev.c`) and joydev (`jsN`,
+///   `drivers/input/joydev.c`) — register their nodes in the same `input`
+///   class with the input device as parent. A class device whose parent is a
+///   class device is placed directly under it, so they appear as
+///   `<parent>/input/inputN/eventN` and so on. The input class names their
+///   device nodes `/dev/input/<name>` (`input_devnode()`).
+/// - For an ordinary USB HID device, the parent of the input device is not
+///   the USB interface but the HID device the HID core creates for it:
+///   `usbhid` sets `hid->dev.parent = &intf->dev`
+///   (`drivers/hid/usbhid/hid-core.c`), `hid-input` sets
+///   `input_dev->dev.parent = &hid->dev` (`drivers/hid/hid-input.c`), and the
+///   HID device is named `BBBB:VVVV:PPPP.IIII` (see [`is_hid_device_name`]).
+///   So the real path is `<interface>/<hid-device>/input/inputN/eventN`, one
+///   level deeper than a driver that registers its input device directly on
+///   the interface (`<interface>/input/inputN`). Both shapes are read.
+/// - The same HID device can also publish a raw node, `hidraw/hidrawN`
+///   (`device_create(&hidraw_class, &hid->dev, ...)` in
+///   `drivers/hid/hidraw.c`, node `/dev/hidrawN`), and the interface can
+///   publish `usbmisc/hiddevN` (`usb_register_dev()` in
+///   `drivers/usb/core/file.c` with `hiddev_devnode()` naming it
+///   `/dev/usb/hiddevN`, `drivers/hid/usbhid/hiddev.c`). Programs that talk to
+///   the device without going through the input layer — vendor
+///   configuration tools, game-controller libraries, UPS monitors — hold
+///   these open instead, so they are checked too.
+///
+/// A single HID device commonly registers several input devices (a keyboard
+/// with separate media keys, a receiver serving several peripherals), so
+/// several `inputN` children are normal, not ambiguous: every node from every
+/// one of them is checked, which can only deny more, never less.
+///
+/// # Which driver is bound
+///
+/// A device-specific HID driver can open the device itself when it attaches
+/// and keep it open until the device is removed, with no input handler, no
+/// LED folder and no file descriptor to show for it: `hid-playstation`,
+/// `hid-steam`, `hid-nintendo` and `hid-logitech-hidpp` all call
+/// `hid_hw_open()` in their probe path. This module has checked only
+/// `hid-generic` (`drivers/hid/hid-generic.c`), whose probe starts the device
+/// without opening it. So each HID device's bound driver is read from the
+/// basename of its `driver` symlink, and anything other than `hid-generic`
+/// sets [`InputMapping::unverified_driver`]. The direct
+/// `<interface>/input/inputN` shape never comes from a HID driver — it is a
+/// USB driver registering its own input device — so it is treated the same
+/// way: its nodes are still collected, but the device is refused.
+///
+/// # When this refuses
+///
+/// Returns `Err(())` — "cannot tell", never "safe to suspend" — when:
+///
+/// - the device directory, or any `input/`, `inputN`, `hidraw/` or
+///   `usbmisc/` directory that exists, cannot be read;
+/// - a HID device has no `driver` link, or it cannot be read;
+/// - no `inputN` device is found at all (no driver bound, or a node shape
+///   this function does not read, such as a whole USB device whose HID
+///   interfaces sit one level further down — that device is refused, and its
+///   interface nodes are evaluated on their own);
+/// - an `inputN` publishes no `eventN`, `mouseN` or `jsN` node, so there is
+///   nothing whose open descriptors could show use;
+/// - an `inputN` publishes more than one node of the same kind, a topology
+///   this module has no verified rule for.
+///
+/// A `hidrawN` or `hiddevN` node alone does not make evidence available: it
+/// is an extra place to look, not a substitute for the input mapping.
+fn input_device_nodes(read: &dyn KernelRead, device_dir: &Path) -> Result<InputMapping, ()> {
+    let mut mapping = InputMapping::default();
+    collect_input_class_nodes(read, &device_dir.join("input"), &mut mapping)?;
+    if !mapping.input_names.is_empty() {
+        // Input devices registered directly on the interface come from a
+        // non-HID USB driver, whose own behaviour this module has not checked.
+        mapping.unverified_driver = true;
+    }
+
+    for entry in read_optional_dir(read, &device_dir.join("usbmisc"))? {
+        if let Some(name) = entry.file_name().and_then(|n| n.to_str()) {
+            if has_numbered_name(name, "hiddev") {
+                mapping.nodes.push(Path::new("/dev/usb").join(name));
+            }
+        }
+    }
+
+    for child in read.read_dir(device_dir).map_err(|_| ())? {
+        let Some(name) = child.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !is_hid_device_name(name) {
+            continue;
+        }
+        // A missing link means no HID driver is bound; an unreadable one is a
+        // gap in the evidence. Both refuse.
+        let driver = read.read_link(&child.join("driver")).map_err(|_| ())?;
+        if driver.file_name().and_then(|n| n.to_str()) != Some("hid-generic") {
+            mapping.unverified_driver = true;
+        }
+        collect_input_class_nodes(read, &child.join("input"), &mut mapping)?;
+        for entry in read_optional_dir(read, &child.join("hidraw"))? {
+            if let Some(name) = entry.file_name().and_then(|n| n.to_str()) {
+                if has_numbered_name(name, "hidraw") {
+                    mapping.nodes.push(Path::new("/dev").join(name));
+                }
+            }
+        }
+    }
+
+    if mapping.input_names.is_empty() {
+        return Err(());
+    }
+    Ok(mapping)
+}
+
+/// True for the handlers whose use is visible as a `/dev/input/*` node, and
+/// therefore already covered by the open-descriptor scan: evdev, mousedev and
+/// joydev name their handle after their node (`eventN`, `mouseN`, `jsN`).
+fn is_device_node_handler(handler: &str) -> bool {
+    has_numbered_name(handler, "event")
+        || has_numbered_name(handler, "mouse")
+        || has_numbered_name(handler, "js")
+}
+
+/// Does a kernel-internal input handler hold any of `input_names` open?
+///
+/// `/proc/bus/input/devices` lists every input device as a block of lines
+/// ending in a blank line, including `S: Sysfs=<path of the inputN device>`
+/// and `H: Handlers=<name> <name> ...` naming every handler bound to it
+/// (`input_devices_seq_show()` in `drivers/input/input.c`). `inputN` names
+/// are unique system-wide, so a block belongs to one of this device's input
+/// devices when the last component of its sysfs path is that `inputN`.
+///
+/// Handlers other than evdev, mousedev and joydev open the device inside the
+/// kernel as soon as they bind, with no file descriptor anywhere in `/proc`:
+/// the console keyboard handler `kbd` (`kbd_connect()` in
+/// `drivers/tty/vt/keyboard.c`), the keyboard-light handler `leds`
+/// (`drivers/input/input-leds.c`), `sysrq` (`drivers/tty/sysrq.c`), `rfkill`
+/// (`net/rfkill/input.c`) and `apm-power` (`drivers/input/apm-power.c`) all
+/// call `input_open_device()` in their connect function. Any such handler, or
+/// any handler name this module does not recognise, counts as use.
+///
+/// Returns `Err(())` when the file cannot be read, when an input device does
+/// not appear in it exactly once, or when its block has no `H:` line.
+fn input_held_by_kernel_handler(
+    read: &dyn KernelRead,
+    proc_dir: &Path,
+    input_names: &[String],
+) -> Result<bool, ()> {
+    let listing = read
+        .read_to_string(&proc_dir.join("bus").join("input").join("devices"))
+        .map_err(|_| ())?;
+
+    let mut blocks: Vec<(Option<&str>, Option<&str>)> = Vec::new();
+    let mut current: (Option<&str>, Option<&str>) = (None, None);
+    for line in listing.lines().chain(std::iter::once("")) {
+        if line.trim().is_empty() {
+            if current != (None, None) {
+                blocks.push(current);
+            }
+            current = (None, None);
+        } else if let Some(path) = line.strip_prefix("S: Sysfs=") {
+            current.0 = Some(path.trim());
+        } else if let Some(handlers) = line.strip_prefix("H: Handlers=") {
+            current.1 = Some(handlers);
+        }
+    }
+
+    let mut held = false;
+    for input_name in input_names {
+        let mut matching = blocks.iter().filter(|(sysfs, _)| {
+            sysfs.and_then(|path| path.rsplit('/').next()) == Some(input_name.as_str())
+        });
+        let (_, handlers) = matching.next().ok_or(())?;
+        if matching.next().is_some() {
+            return Err(());
+        }
+        let handlers = handlers.ok_or(())?;
+        if handlers
+            .split_whitespace()
+            .any(|handler| !is_device_node_handler(handler))
+        {
+            held = true;
+        }
+    }
+    Ok(held)
+}
+
+/// The D1 live-use predicate for the input class, parameterized on the proc
+/// root so this module's own tests can exercise it against a fixture tree.
+/// [`input_live_use_block`] is the production entry point, fixed to `/proc`.
+fn input_live_use_block_under(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+    proc_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    if !matches!(
+        classify_device(read, device_dir),
+        RuntimePmDeviceClass::Input
+    ) {
+        return None;
+    }
+    let mapping = match input_device_nodes(read, device_dir) {
+        Ok(mapping) => mapping,
+        Err(()) => return Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable),
+    };
+    if mapping.unverified_driver {
+        return Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver);
+    }
+    if mapping.led_folder_seen {
+        return Some(RuntimePmActuationBlock::InputInUseByKernelHandler);
+    }
+    match input_held_by_kernel_handler(read, proc_dir, &mapping.input_names) {
+        Ok(false) => {}
+        Ok(true) => return Some(RuntimePmActuationBlock::InputInUseByKernelHandler),
+        Err(()) => return Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable),
+    }
+    match device_in_use_by_any_process(read, proc_dir, &mapping.nodes) {
+        Ok(false) => None,
+        Ok(true) => Some(RuntimePmActuationBlock::InputInUse),
+        Err(()) => Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable),
+    }
+}
+
+/// The D1 live-use predicate for the input class.
+///
+/// Input devices reach D1's classification only as USB HID (`0x03`)
+/// interfaces or devices; PCI has no input class, and PS/2, I2C-HID and other
+/// buses publish no class attribute this module reads, so they stay
+/// `Unknown` and are denied before reaching here. Once drivers are bound, the
+/// device's `/dev/input/*`, `/dev/hidrawN` and `/dev/usb/hiddevN` nodes are
+/// found from sysfs (see [`input_device_nodes`]), and "is this input device
+/// in use" is answered the same way camera and audio answer it: does any
+/// process hold an open file descriptor on one of those nodes (see
+/// [`device_in_use_by_any_process`]).
+///
+/// # Which kernel-held opens are detected
+///
+/// Unlike a camera or a sound card, an input device can be held open inside
+/// the kernel with no file descriptor anywhere. This predicate refuses on
+/// the two sources below; one further known source is not detected, as
+/// stated at the end of this section:
+///
+/// - **Device-specific drivers.** Any HID device bound to a driver other
+///   than `hid-generic`, and any input device registered directly on the
+///   interface by a non-HID driver, is refused with
+///   `InputBoundToUnverifiedDriver` (see [`input_device_nodes`]). Several
+///   such drivers open the device at attach time and keep it open. This
+///   refuses many common devices, including Logitech mice and receivers
+///   driven by `hid-logitech-hidpp`, and PlayStation, Nintendo and Steam game
+///   controllers.
+/// - **Input handlers.** The text-console keyboard handler, the
+///   keyboard-light handler and sysrq open every device they match, so a
+///   keyboard someone is typing on at a text or recovery console would
+///   otherwise look unused. This predicate denies with
+///   `InputInUseByKernelHandler` when any `inputN` has an `inputN::<led>`
+///   folder (see [`collect_input_class_nodes`]) or when
+///   `/proc/bus/input/devices` lists a handler other than evdev, mousedev or
+///   joydev for any of this device's input devices (see
+///   [`input_held_by_kernel_handler`]). When the kernel is built with
+///   virtual terminal support, the console keyboard handler binds to every
+///   input device that reports at least one ordinary key code below
+///   `BTN_MISC`, or sound events (`kbd_match()` in
+///   `drivers/tty/vt/keyboard.c`). That includes every keyboard and many
+///   receivers and multi-function mice, so on a normal desktop or console
+///   machine most keyboards are refused by this rule alone, whatever the
+///   session is doing. A plain mouse that reports only button and motion
+///   events is not matched by it.
+///
+/// Not detected: `usbhid`'s `HID_QUIRK_ALWAYS_POLL`, set for particular
+/// devices from the kernel's quirk table, makes `usbhid_start()` keep
+/// polling the device with no open at all (while also requesting remote
+/// wakeup). sysfs shows no sign of it, so a `hid-generic` device carrying
+/// that quirk is not refused on that account.
+///
+/// # An open node counts as use, even though the kernel might allow suspend
+///
+/// The `usbhid` driver itself lets an opened HID interface autosuspend when
+/// remote wakeup is available (`usbhid_open()` sets `needs_remote_wakeup`),
+/// so an open descriptor does not by itself mean the kernel would refuse.
+/// This predicate still denies: whether remote wakeup actually works on a
+/// given device, and how long its resume takes before the first key press or
+/// pointer motion is delivered, is not something this module has verified
+/// evidence for. A desktop session normally holds every keyboard and mouse
+/// open, so on a typical machine this predicate will deny those devices. That
+/// is the intended fail-closed result until per-device evidence exists, not
+/// a defect.
+///
+/// Classifies the device itself, so it is safe to call on any runtime-PM
+/// candidate, in the same self-contained style as the other class
+/// predicates. Returns `None` for every other class; it is not a substitute
+/// for the class match in [`actuation_precheck`].
+///
+/// For a genuine input device, returns `None` only when at least one
+/// `inputN` device with recognised nodes is found, none of them has a
+/// keyboard-light folder or a kernel-internal handler, and a full, error-free
+/// scan of every process's `/proc/<pid>/fd` finds none of their nodes open.
+/// Returns `Some(InputLiveUseEvidenceUnavailable)` when the mapping is
+/// missing, unreadable or ambiguous, when the handler list is unreadable or
+/// does not list each input device exactly once with an `H:` line, or when
+/// the scan could not be completed; `Some(InputInUseByKernelHandler)` for a
+/// kernel-held open; and `Some(InputInUse)` when any node is open.
+pub(crate) fn input_live_use_block(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    input_live_use_block_under(read, device_dir, Path::new("/proc"))
+}
+
 /// Does this device expose a USB HID (interface class `03`) child?
 /// Used to preserve the existing input wakeup diagnostic. Composite USB
 /// devices still count as HID when any interface is HID.
@@ -970,6 +1422,80 @@ mod tests {
                 .join(node_name),
         )
         .unwrap();
+    }
+
+    fn mark_input_usb(device: &Path) {
+        // Same reasoning as `mark_camera_usb`: a bare USB HID interface node
+        // (`1-1:1.0`) carries its own `bInterfaceClass` directly, and the HID
+        // device the HID core creates for it is that directory's own child.
+        fs::write(device.join("bInterfaceClass"), "03\n").unwrap();
+    }
+
+    /// A HID device name of the shape `hid_add_device()` gives it.
+    const HID_DEVICE: &str = "0003:046D:C52B.0001";
+
+    /// Publish `<device>/<hid_device>/input/<input_name>/<node_name>`, the
+    /// shape `usbhid` + `hid-input` + an input handler produce for a USB HID
+    /// interface (see `input_device_nodes`'s doc comment).
+    /// Also binds the HID device to `hid-generic` unless a `driver` link is
+    /// already there, because every allowed or in-use case needs that
+    /// binding; tests about the driver itself use `bind_hid_driver` first.
+    fn add_hid_input_node(device: &Path, hid_device: &str, input_name: &str, node_name: &str) {
+        fs::create_dir_all(
+            device
+                .join(hid_device)
+                .join("input")
+                .join(input_name)
+                .join(node_name),
+        )
+        .unwrap();
+        if fs::symlink_metadata(device.join(hid_device).join("driver")).is_err() {
+            bind_hid_driver(device, hid_device, "hid-generic");
+        }
+    }
+
+    /// Create `<device>/<hid_device>/driver` as a symlink into the HID bus's
+    /// driver directory, the shape the driver core gives a bound device.
+    fn bind_hid_driver(device: &Path, hid_device: &str, driver: &str) {
+        let hid = device.join(hid_device);
+        fs::create_dir_all(&hid).unwrap();
+        std::os::unix::fs::symlink(
+            Path::new("../../../../../../bus/hid/drivers").join(driver),
+            hid.join("driver"),
+        )
+        .unwrap();
+    }
+
+    /// Write a `/proc/bus/input/devices` fixture under `proc_dir`, one block
+    /// per `(inputN, handlers)` pair, in the format `input_devices_seq_show()`
+    /// prints (including the trailing space after each handler name).
+    fn write_proc_input_devices(proc_dir: &Path, devices: &[(&str, &str)]) {
+        let dir = proc_dir.join("bus").join("input");
+        fs::create_dir_all(&dir).unwrap();
+        let mut listing = String::new();
+        for (input_name, handlers) in devices {
+            let handlers: String = handlers
+                .split_whitespace()
+                .map(|h| format!("{h} "))
+                .collect();
+            listing.push_str(&format!(
+                "I: Bus=0003 Vendor=046d Product=c52b Version=0111\n\
+                 N: Name=\"Fixture\"\n\
+                 P: Phys=usb-0000:00:14.0-1/input0\n\
+                 S: Sysfs=/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/{HID_DEVICE}/input/{input_name}\n\
+                 U: Uniq=\n\
+                 H: Handlers={handlers}\n\
+                 B: PROP=0\n\
+                 B: EV=17\n\n"
+            ));
+        }
+        fs::write(dir.join("devices"), listing).unwrap();
+    }
+
+    /// Publish `<device>/input/<input_name>/<node_name>`, the shape a driver
+    /// that registers its input device directly on the interface produces.
+    fn add_direct_input_node(device: &Path, input_name: &str, node_name: &str) {
+        fs::create_dir_all(device.join("input").join(input_name).join(node_name)).unwrap();
     }
 
     /// Create a fake `/proc`-shaped tree usable as `camera_live_use_block_under`'s
@@ -1099,13 +1625,15 @@ mod tests {
             Err(RuntimePmActuationBlock::UnknownClass)
         );
 
-        let input = tmp("precheck_input");
-        add_usb_interface(&input, "1-5:1.0", "03");
-        set_runtime_status(&input, "active");
+        // Vendor-specific USB interface class 0xff classifies as Other,
+        // which carries no live-use predicate at all.
+        let other = tmp("precheck_other");
+        add_usb_interface(&other, "1-5:1.0", "ff");
+        set_runtime_status(&other, "active");
         assert_eq!(
-            actuation_precheck(&read, &input),
+            actuation_precheck(&read, &other),
             Err(RuntimePmActuationBlock::LiveUseGuardNotImplemented(
-                RuntimePmDeviceClass::Input
+                RuntimePmDeviceClass::Other
             ))
         );
 
@@ -1120,7 +1648,7 @@ mod tests {
             ))
         );
 
-        for dir in [&unknown, &input, &composite] {
+        for dir in [&unknown, &other, &composite] {
             let _ = fs::remove_dir_all(dir);
         }
     }
@@ -1710,7 +2238,8 @@ mod tests {
     fn d1_actuation_precheck_permits_audio_device_with_no_evidence_of_use() {
         // Integration-level proof that `actuation_precheck` now reaches the
         // `runtime_status` check for audio, instead of denying it outright
-        // via `LiveUseGuardNotImplemented` the way it still does for input.
+        // via `LiveUseGuardNotImplemented` the way it still does for
+        // composite and other-classified devices.
         //
         // This goes through `actuation_precheck_under` with a controlled,
         // empty proc fixture rather than through `actuation_precheck` itself
@@ -1744,6 +2273,729 @@ mod tests {
                 class: RuntimePmDeviceClass::Audio,
                 runtime_status: RuntimePmStableStatus::Active,
             })
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_name_matchers_accept_only_kernel_shaped_names() {
+        assert!(is_hid_device_name("0003:046D:C52B.0001"));
+        assert!(is_hid_device_name("0003:046D:C52B.10000"));
+        assert!(!is_hid_device_name("1-1:1.0"));
+        assert!(!is_hid_device_name("ep_81"));
+        assert!(!is_hid_device_name("0003:046D.0001"));
+        assert!(!is_hid_device_name("0003:046D:C52B:0001.0001"));
+        assert!(!is_hid_device_name("0003:046D:C52B."));
+        assert!(has_numbered_name("event12", "event"));
+        assert!(!has_numbered_name("event", "event"));
+        assert!(!has_numbered_name("input3::capslock", "input"));
+        assert!(!has_numbered_name("js0x", "js"));
+    }
+
+    #[test]
+    fn d1_input_zero_open_fds_with_valid_hid_mapping_permits_the_runtime_status_check() {
+        // Same reasoning as the camera and audio equivalents: the "permits"
+        // path is proven against a controlled, empty proc fixture.
+        let read = RealKernel::new();
+        let dev = tmp("input_zero_fds");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "mouse0");
+        // Non-node entries an input device really publishes must be ignored.
+        fs::write(
+            dev.join(HID_DEVICE)
+                .join("input")
+                .join("input5")
+                .join("name"),
+            "Mouse\n",
+        )
+        .unwrap();
+        fs::create_dir_all(dev.join(HID_DEVICE).join("hidraw").join("hidraw0")).unwrap();
+        set_runtime_status(&dev, "active");
+
+        // No keyboard-light folder and only device-node handlers: the one
+        // shape in which no kernel-internal handler holds the device open.
+        let proc_dir = tmp("input_zero_fds_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "mouse0 event5")]);
+        let fd_dir = proc_with_pid(&proc_dir, "8000");
+        symlink_fd(&fd_dir, "0", Path::new("/dev/null"));
+        assert_eq!(input_live_use_block_under(&read, &dev, &proc_dir), None);
+
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_direct_input_mapping_on_the_interface_is_refused_as_unverified_driver() {
+        // A driver that registers its input device directly on the USB
+        // interface (no HID device in between) is a non-HID USB driver whose
+        // behaviour this module has not checked, so the device is refused
+        // even with a clean handler list and nothing open.
+        let read = RealKernel::new();
+        let dev = tmp("input_direct_mapping");
+        mark_input_usb(&dev);
+        add_direct_input_node(&dev, "input9", "event9");
+
+        let proc_dir = tmp("input_direct_mapping_proc");
+        write_proc_input_devices(&proc_dir, &[("input9", "event9")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_matching_open_fd_on_event_node_denies_as_in_use() {
+        let read = RealKernel::new();
+        let dev = tmp("input_event_in_use");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        set_runtime_status(&dev, "active");
+
+        let proc_dir = tmp("input_event_in_use_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        let fd_dir = proc_with_pid(&proc_dir, "8002");
+        symlink_fd(&fd_dir, "7", Path::new("/dev/input/event5"));
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+        assert_eq!(
+            actuation_precheck_under(&read, &dev, &proc_dir),
+            Err(RuntimePmActuationBlock::InputInUse)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_open_shared_mice_node_denies_only_a_device_with_a_mouse_node() {
+        // `/dev/input/mice` opens every device that has a `mouseN` node, so
+        // holding it counts as use of a mouse, but not of a keyboard that
+        // has only an `eventN` node.
+        let read = RealKernel::new();
+        let proc_dir = tmp("input_mice_proc");
+        write_proc_input_devices(
+            &proc_dir,
+            &[("input6", "mouse1 event6"), ("input7", "event7")],
+        );
+        let fd_dir = proc_with_pid(&proc_dir, "8003");
+        symlink_fd(&fd_dir, "3", Path::new("/dev/input/mice"));
+
+        let mouse = tmp("input_mice_mouse");
+        mark_input_usb(&mouse);
+        add_hid_input_node(&mouse, HID_DEVICE, "input6", "event6");
+        add_hid_input_node(&mouse, HID_DEVICE, "input6", "mouse1");
+        assert_eq!(
+            input_live_use_block_under(&read, &mouse, &proc_dir),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+
+        let keyboard = tmp("input_mice_keyboard");
+        mark_input_usb(&keyboard);
+        add_hid_input_node(&keyboard, HID_DEVICE, "input7", "event7");
+        assert_eq!(
+            input_live_use_block_under(&read, &keyboard, &proc_dir),
+            None
+        );
+
+        for dir in [&proc_dir, &mouse, &keyboard] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_open_hidraw_or_hiddev_node_denies_as_in_use() {
+        // Programs that bypass the input layer hold the raw HID node or the
+        // legacy hiddev node open instead; both count as use.
+        let read = RealKernel::new();
+        let dev = tmp("input_raw_in_use");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        fs::create_dir_all(dev.join(HID_DEVICE).join("hidraw").join("hidraw2")).unwrap();
+        fs::create_dir_all(dev.join("usbmisc").join("hiddev0")).unwrap();
+
+        let hidraw_proc = tmp("input_raw_in_use_hidraw_proc");
+        write_proc_input_devices(&hidraw_proc, &[("input5", "event5")]);
+        let fd_dir = proc_with_pid(&hidraw_proc, "8004");
+        symlink_fd(&fd_dir, "5", Path::new("/dev/hidraw2"));
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &hidraw_proc),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+
+        let hiddev_proc = tmp("input_raw_in_use_hiddev_proc");
+        write_proc_input_devices(&hiddev_proc, &[("input5", "event5")]);
+        let fd_dir = proc_with_pid(&hiddev_proc, "8005");
+        symlink_fd(&fd_dir, "5", Path::new("/dev/usb/hiddev0"));
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &hiddev_proc),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+
+        for dir in [&dev, &hidraw_proc, &hiddev_proc] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_every_input_device_under_one_hid_device_is_checked() {
+        // A keyboard with separate media keys registers several input
+        // devices under one HID device. That is normal, not ambiguous, and
+        // an open node on any of them must deny.
+        let read = RealKernel::new();
+        let dev = tmp("input_several_inputs");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input10", "event10");
+        add_hid_input_node(&dev, HID_DEVICE, "input11", "event11");
+        add_hid_input_node(&dev, HID_DEVICE, "input12", "js0");
+
+        let proc_dir = tmp("input_several_inputs_proc");
+        write_proc_input_devices(
+            &proc_dir,
+            &[
+                ("input10", "event10"),
+                ("input11", "event11"),
+                ("input12", "js0"),
+            ],
+        );
+        assert_eq!(input_live_use_block_under(&read, &dev, &proc_dir), None);
+
+        let fd_dir = proc_with_pid(&proc_dir, "8006");
+        symlink_fd(&fd_dir, "9", Path::new("/dev/input/js0"));
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_missing_mapping_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let dev = tmp("input_no_mapping");
+        mark_input_usb(&dev);
+        set_runtime_status(&dev, "active");
+        // A HID device with no input devices under it (driver bound, but no
+        // input handler) is still a missing mapping.
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
+        let proc_dir = tmp("input_no_mapping_proc");
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        // The mapping fails before `/proc` is consulted, so the production
+        // entry point gives the same deterministic answer.
+        assert_eq!(
+            actuation_precheck(&read, &dev),
+            Err(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_raw_nodes_alone_do_not_make_evidence_available() {
+        // A vendor-defined HID interface can publish only `hidrawN` and
+        // `hiddevN`, with no input device. Those are extra places to look,
+        // not a substitute for the input mapping.
+        let read = RealKernel::new();
+        let dev = tmp("input_raw_only");
+        mark_input_usb(&dev);
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
+        fs::create_dir_all(dev.join(HID_DEVICE).join("hidraw").join("hidraw3")).unwrap();
+        fs::create_dir_all(dev.join("usbmisc").join("hiddev1")).unwrap();
+        let proc_dir = tmp("input_raw_only_proc");
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_device_with_no_recognised_node_denies_as_evidence_unavailable() {
+        // `input5` exists but no evdev, mousedev or joydev node is bound to
+        // it, so no open descriptor could ever show use. One such input
+        // device denies even when a sibling input device is fine.
+        let read = RealKernel::new();
+        let dev = tmp("input_no_recognised_node");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input4", "event4");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "input5::numlock");
+        fs::write(
+            dev.join(HID_DEVICE)
+                .join("input")
+                .join("input5")
+                .join("name"),
+            "Keyboard\n",
+        )
+        .unwrap();
+        let proc_dir = tmp("input_no_recognised_node_proc");
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_ambiguous_mapping_denies_as_evidence_unavailable() {
+        // evdev creates exactly one `eventN` per input device. Two under one
+        // `inputN` is a topology this predicate has no verified rule for.
+        let read = RealKernel::new();
+        let dev = tmp("input_ambiguous");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event6");
+        let proc_dir = tmp("input_ambiguous_proc");
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_unreadable_mapping_directory_denies_as_evidence_unavailable() {
+        // A mapping directory that exists but cannot be listed is a gap in
+        // the evidence, unlike one that does not exist. Tests run as root,
+        // which bypasses permission bits, so a regular file stands in for
+        // "exists but cannot be read as a directory".
+        let read = RealKernel::new();
+        let proc_dir = tmp("input_unreadable_mapping_proc");
+
+        let bad_input = tmp("input_unreadable_input_glue");
+        mark_input_usb(&bad_input);
+        add_hid_input_node(&bad_input, HID_DEVICE, "input5", "event5");
+        fs::write(bad_input.join("input"), b"not a directory").unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &bad_input, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        let bad_hidraw = tmp("input_unreadable_hidraw_glue");
+        mark_input_usb(&bad_hidraw);
+        add_hid_input_node(&bad_hidraw, HID_DEVICE, "input5", "event5");
+        fs::write(bad_hidraw.join(HID_DEVICE).join("hidraw"), b"x").unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &bad_hidraw, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        let bad_usbmisc = tmp("input_unreadable_usbmisc_glue");
+        mark_input_usb(&bad_usbmisc);
+        add_hid_input_node(&bad_usbmisc, HID_DEVICE, "input5", "event5");
+        fs::write(bad_usbmisc.join("usbmisc"), b"x").unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &bad_usbmisc, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        let bad_input_device = tmp("input_unreadable_input_device");
+        mark_input_usb(&bad_input_device);
+        bind_hid_driver(&bad_input_device, HID_DEVICE, "hid-generic");
+        fs::create_dir_all(bad_input_device.join(HID_DEVICE).join("input")).unwrap();
+        fs::write(
+            bad_input_device
+                .join(HID_DEVICE)
+                .join("input")
+                .join("input5"),
+            b"x",
+        )
+        .unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &bad_input_device, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        for dir in [
+            &proc_dir,
+            &bad_input,
+            &bad_hidraw,
+            &bad_usbmisc,
+            &bad_input_device,
+        ] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_keyboard_light_folder_denies_as_kernel_held() {
+        // input-leds creates `inputN::<led>` only after opening the device
+        // inside the kernel, so the folder alone denies, even when the
+        // handler list shown here omits `leds`.
+        let read = RealKernel::new();
+        let dev = tmp("input_led_folder");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "input5::capslock");
+        let proc_dir = tmp("input_led_folder_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputInUseByKernelHandler)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_kernel_internal_handler_denies_as_kernel_held() {
+        // Each handler that opens the device inside the kernel, and any
+        // handler name this module does not recognise, denies on its own,
+        // with no file descriptor open anywhere. Checked on the second of two
+        // input devices so every input device's entry is proven to be read.
+        // `evbug` stands in for a handler name this module does not
+        // otherwise list.
+        let read = RealKernel::new();
+        let dev = tmp("input_kernel_handler");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        add_hid_input_node(&dev, HID_DEVICE, "input6", "event6");
+
+        for handler in ["kbd", "leds", "sysrq", "rfkill", "apm-power", "evbug"] {
+            let proc_dir = tmp(&format!("input_kernel_handler_{handler}_proc"));
+            let second = format!("{handler} event6");
+            write_proc_input_devices(&proc_dir, &[("input5", "event5"), ("input6", &second)]);
+            assert_eq!(
+                input_live_use_block_under(&read, &dev, &proc_dir),
+                Some(RuntimePmActuationBlock::InputInUseByKernelHandler),
+                "handler {handler}"
+            );
+            let _ = fs::remove_dir_all(&proc_dir);
+        }
+
+        // The ordinary desktop keyboard line, through the precheck.
+        set_runtime_status(&dev, "active");
+        let proc_dir = tmp("input_kernel_handler_desktop_proc");
+        write_proc_input_devices(
+            &proc_dir,
+            &[("input5", "sysrq kbd leds event5"), ("input6", "event6")],
+        );
+        assert_eq!(
+            actuation_precheck_under(&read, &dev, &proc_dir),
+            Err(RuntimePmActuationBlock::InputInUseByKernelHandler)
+        );
+        let _ = fs::remove_dir_all(&proc_dir);
+        let _ = fs::remove_dir_all(&dev);
+    }
+
+    #[test]
+    fn d1_input_missing_or_unreadable_handler_list_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let dev = tmp("input_handler_list_unavailable");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        // No /proc/bus/input/devices at all.
+        let missing = tmp("input_handler_list_missing_proc");
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &missing),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        // Present but unreadable as a file (a directory stands in, because
+        // tests run as root and root bypasses permission bits).
+        let unreadable = tmp("input_handler_list_unreadable_proc");
+        fs::create_dir_all(unreadable.join("bus").join("input").join("devices")).unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &unreadable),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        for dir in [&dev, &missing, &unreadable] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_device_absent_duplicated_or_without_handlers_line_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let dev = tmp("input_handler_entry_bad");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        // Absent: only `input50` is listed, which must not match `input5`.
+        let absent = tmp("input_handler_entry_absent_proc");
+        write_proc_input_devices(&absent, &[("input50", "event50")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &absent),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        // Listed twice: ambiguous.
+        let duplicated = tmp("input_handler_entry_duplicated_proc");
+        write_proc_input_devices(&duplicated, &[("input5", "event5"), ("input5", "event5")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &duplicated),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        // Listed, but the block has no `H:` line.
+        let no_handlers = tmp("input_handler_entry_no_h_line_proc");
+        fs::create_dir_all(no_handlers.join("bus").join("input")).unwrap();
+        fs::write(
+            no_handlers.join("bus").join("input").join("devices"),
+            format!(
+                "I: Bus=0003 Vendor=046d Product=c52b Version=0111\n\
+                 S: Sysfs=/devices/usb1/1-1/1-1:1.0/{HID_DEVICE}/input/input5\n\
+                 B: EV=17\n\n"
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &no_handlers),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        for dir in [&dev, &absent, &duplicated, &no_handlers] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_non_generic_hid_driver_denies_as_unverified_driver() {
+        // Drivers such as hid-playstation, hid-steam, hid-nintendo and
+        // hid-logitech-hidpp open the device at attach time, leaving no
+        // handler, LED folder or descriptor. Only hid-generic is accepted.
+        let read = RealKernel::new();
+        for driver in ["hid-playstation", "hid-logitech-hidpp", "hid-multitouch"] {
+            let dev = tmp(&format!("input_driver_{driver}"));
+            mark_input_usb(&dev);
+            bind_hid_driver(&dev, HID_DEVICE, driver);
+            add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+            set_runtime_status(&dev, "active");
+            let proc_dir = tmp(&format!("input_driver_{driver}_proc"));
+            write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+            assert_eq!(
+                input_live_use_block_under(&read, &dev, &proc_dir),
+                Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver),
+                "driver {driver}"
+            );
+            assert_eq!(
+                actuation_precheck_under(&read, &dev, &proc_dir),
+                Err(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
+            );
+            let _ = fs::remove_dir_all(&dev);
+            let _ = fs::remove_dir_all(&proc_dir);
+        }
+
+        // One non-generic HID device is enough, even beside a generic one.
+        let dev = tmp("input_driver_mixed");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        bind_hid_driver(&dev, "0003:054C:0CE6.0002", "hid-playstation");
+        let proc_dir = tmp("input_driver_mixed_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputBoundToUnverifiedDriver)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_missing_or_unreadable_driver_link_denies_as_evidence_unavailable() {
+        let read = RealKernel::new();
+        let proc_dir = tmp("input_driver_link_bad_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+        // No `driver` link: no HID driver is bound.
+        let missing = tmp("input_driver_link_missing");
+        mark_input_usb(&missing);
+        fs::create_dir_all(
+            missing
+                .join(HID_DEVICE)
+                .join("input")
+                .join("input5")
+                .join("event5"),
+        )
+        .unwrap();
+        assert_eq!(
+            input_live_use_block_under(&read, &missing, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        // `driver` exists but is not a readable link (a regular file stands
+        // in, since tests run as root and root bypasses permission bits).
+        let unreadable = tmp("input_driver_link_unreadable");
+        mark_input_usb(&unreadable);
+        fs::create_dir_all(unreadable.join(HID_DEVICE)).unwrap();
+        fs::write(unreadable.join(HID_DEVICE).join("driver"), b"x").unwrap();
+        add_hid_input_node(&unreadable, HID_DEVICE, "input5", "event5");
+        assert_eq!(
+            input_live_use_block_under(&read, &unreadable, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+
+        for dir in [&proc_dir, &missing, &unreadable] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_hid_generic_driver_still_reaches_the_other_checks() {
+        // hid-generic passes the driver check and nothing more: the
+        // handler, LED and descriptor checks still apply after it.
+        let read = RealKernel::new();
+        let dev = tmp("input_generic_reaches_checks");
+        mark_input_usb(&dev);
+        bind_hid_driver(&dev, HID_DEVICE, "hid-generic");
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        let clean = tmp("input_generic_reaches_checks_clean_proc");
+        write_proc_input_devices(&clean, &[("input5", "event5")]);
+        assert_eq!(input_live_use_block_under(&read, &dev, &clean), None);
+
+        let kbd = tmp("input_generic_reaches_checks_kbd_proc");
+        write_proc_input_devices(&kbd, &[("input5", "kbd event5")]);
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &kbd),
+            Some(RuntimePmActuationBlock::InputInUseByKernelHandler)
+        );
+
+        let fd_dir = proc_with_pid(&clean, "8010");
+        symlink_fd(&fd_dir, "3", Path::new("/dev/input/event5"));
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &clean),
+            Some(RuntimePmActuationBlock::InputInUse)
+        );
+
+        for dir in [&dev, &clean, &kbd] {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn d1_input_whole_usb_device_node_is_refused_not_traversed() {
+        // A whole USB device (`1-2`) classifies as input from its HID
+        // interface child, but its input devices sit under that interface's
+        // own HID device, one level further down than this predicate reads.
+        // It is refused; the interface node is evaluated on its own.
+        let read = RealKernel::new();
+        let dev = tmp("input_whole_usb_device");
+        fs::write(dev.join("bDeviceClass"), "00\n").unwrap();
+        add_usb_interface(&dev, "1-2:1.0", "03");
+        add_hid_input_node(&dev.join("1-2:1.0"), HID_DEVICE, "input5", "event5");
+        assert_eq!(classify_device(&read, &dev), RuntimePmDeviceClass::Input);
+        let proc_dir = tmp("input_whole_usb_device_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        assert_eq!(
+            input_live_use_block_under(&read, &dev.join("1-2:1.0"), &proc_dir),
+            None
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_exited_process_between_listing_and_fd_read_is_skipped_not_denied() {
+        let read = RealKernel::new();
+        let dev = tmp("input_exited_pid");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        let proc_dir = tmp("input_exited_pid_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        fs::create_dir_all(proc_dir.join("999")).unwrap();
+        let fd_dir = proc_with_pid(&proc_dir, "1000");
+        symlink_fd(&fd_dir, "0", Path::new("/dev/null"));
+
+        assert_eq!(input_live_use_block_under(&read, &dev, &proc_dir), None);
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_unreadable_proc_pid_fd_denies_the_whole_check() {
+        let read = RealKernel::new();
+        let dev = tmp("input_unreadable_fd_dir");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+
+        let proc_dir = tmp("input_unreadable_fd_dir_proc");
+        // A clean handler list, so the denial below is the fd scan's alone.
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        let pid_dir = proc_dir.join("5557");
+        fs::create_dir_all(&pid_dir).unwrap();
+        fs::write(pid_dir.join("fd"), b"not a directory").unwrap();
+        assert_ne!(
+            fs::read_dir(pid_dir.join("fd")).err().map(|e| e.kind()),
+            Some(std::io::ErrorKind::NotFound)
+        );
+
+        assert_eq!(
+            input_live_use_block_under(&read, &dev, &proc_dir),
+            Some(RuntimePmActuationBlock::InputLiveUseEvidenceUnavailable)
+        );
+        let _ = fs::remove_dir_all(&dev);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_input_live_use_check_does_not_apply_to_other_classes() {
+        let read = RealKernel::new();
+        let network = tmp("input_check_on_network");
+        fs::write(network.join("class"), "0x020000\n").unwrap();
+        add_direct_input_node(&network, "input0", "event0");
+
+        let proc_dir = tmp("input_check_on_network_proc");
+        let fd_dir = proc_with_pid(&proc_dir, "6668");
+        symlink_fd(&fd_dir, "1", Path::new("/dev/input/event0"));
+
+        assert_eq!(input_live_use_block_under(&read, &network, &proc_dir), None);
+        let _ = fs::remove_dir_all(&network);
+        let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    #[test]
+    fn d1_actuation_precheck_permits_input_device_with_no_evidence_of_use() {
+        // Integration-level proof that the precheck now reaches the
+        // `runtime_status` check for input instead of denying it outright.
+        // Uses `actuation_precheck_under` with a controlled proc fixture for
+        // the reason given in the audio equivalent.
+        let read = RealKernel::new();
+        let dev = tmp("precheck_input_permits");
+        mark_input_usb(&dev);
+        add_hid_input_node(&dev, HID_DEVICE, "input5", "event5");
+        set_runtime_status(&dev, "suspended");
+
+        let proc_dir = tmp("precheck_input_permits_proc");
+        write_proc_input_devices(&proc_dir, &[("input5", "event5")]);
+        assert_eq!(
+            actuation_precheck_under(&read, &dev, &proc_dir),
+            Ok(RuntimePmActuationReady {
+                class: RuntimePmDeviceClass::Input,
+                runtime_status: RuntimePmStableStatus::Suspended,
+            })
+        );
+
+        // A transitioning status still denies after a clean live-use scan.
+        set_runtime_status(&dev, "resuming");
+        assert_eq!(
+            actuation_precheck_under(&read, &dev, &proc_dir),
+            Err(RuntimePmActuationBlock::RuntimeStatusTransitioning)
         );
         let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&proc_dir);
