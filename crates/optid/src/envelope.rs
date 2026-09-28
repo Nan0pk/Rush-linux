@@ -214,6 +214,7 @@ pub(crate) enum OutcomeReasonCode {
     InputRuntimePmInUseByKernelHandler,
     InputRuntimePmBoundToUnverifiedDriver,
     InputRuntimePmEvidenceUnavailable,
+    RuntimePmLiveUseGuardNotImplemented,
     RuntimePmLiveUseDenied,
     RedundantValue,
     WriteApplied,

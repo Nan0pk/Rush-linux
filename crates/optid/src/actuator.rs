@@ -1362,8 +1362,9 @@ impl Actuator {
                 // the same second, direct-call guard the class-unknown check
                 // above keeps for the same reason: a write reached through any
                 // other call site must not skip the check just because it
-                // skipped the reconciler's gate. It covers every class that
-                // has a live-use check: storage, camera, audio and input.
+                // skipped the reconciler's gate. It runs the live-use check for
+                // storage, camera, audio and input, and refuses composite and
+                // other devices, which have none.
                 if let Some(block) = runtime_pm::live_use_block(self.kernel.as_ref(), device_dir) {
                     let detail = block.message();
                     self.log(&format!(
@@ -2213,8 +2214,10 @@ fn live_use_reason(block: runtime_pm::RuntimePmActuationBlock) -> OutcomeReasonC
         Block::InputLiveUseEvidenceUnavailable => {
             OutcomeReasonCode::InputRuntimePmEvidenceUnavailable
         }
+        Block::LiveUseGuardNotImplemented(_) => {
+            OutcomeReasonCode::RuntimePmLiveUseGuardNotImplemented
+        }
         Block::UnknownClass
-        | Block::LiveUseGuardNotImplemented(_)
         | Block::RuntimeStatusUnavailable
         | Block::RuntimeStatusUnsupported
         | Block::RuntimeStatusTransitioning

@@ -347,12 +347,13 @@ pub(crate) fn actuation_precheck(
 /// guard inside its write path.
 ///
 /// Runs the same per-class live-use check [`actuation_precheck`] runs for
-/// storage, camera, audio and input, and nothing else: it does not deny
-/// unknown, composite or other devices and does not read `runtime_status`,
-/// because the actuator keeps its own class-unknown guard and the reconciler's
-/// precheck owns the rest. Returns `None` for network, composite, other and
-/// unknown devices. A write reached through any call site that skipped the
-/// reconciler's precheck still gets the same fail-closed live-use answer.
+/// storage, camera, audio and input, and refuses composite and other devices
+/// outright exactly as the precheck does, because neither has a live-use
+/// check. It does not read `runtime_status`, which the reconciler's precheck
+/// owns. Returns `None` for network devices, which keep the actuator's own
+/// carrier guard, and for unknown devices, which the actuator's class-unknown
+/// guard refuses before this runs. A write reached through any call site that
+/// skipped the reconciler's precheck gets the same fail-closed live-use answer.
 pub(crate) fn live_use_block(
     read: &dyn KernelRead,
     device_dir: &Path,
@@ -362,10 +363,10 @@ pub(crate) fn live_use_block(
         RuntimePmDeviceClass::Camera => camera_live_use_block(read, device_dir),
         RuntimePmDeviceClass::Audio => audio_live_use_block(read, device_dir),
         RuntimePmDeviceClass::Input => input_live_use_block(read, device_dir),
-        RuntimePmDeviceClass::Unknown
-        | RuntimePmDeviceClass::Network
-        | RuntimePmDeviceClass::Composite
-        | RuntimePmDeviceClass::Other => None,
+        class @ (RuntimePmDeviceClass::Composite | RuntimePmDeviceClass::Other) => {
+            Some(RuntimePmActuationBlock::LiveUseGuardNotImplemented(class))
+        }
+        RuntimePmDeviceClass::Unknown | RuntimePmDeviceClass::Network => None,
     }
 }
 

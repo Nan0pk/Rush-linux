@@ -1210,15 +1210,14 @@ device_resume_latency = 100000
         }
     }
 
-    // Tests that need a runtime-PM write to go through use a vendor-specific
-    // USB interface class (`icff`). It classifies as `Other`, which has no
-    // live-use check in the actuator's own guard, so those tests still reach
-    // the journal, write and rollback code they exercise. A keyboard or mouse
-    // interface (`ic03`) is refused by that guard here, because the input
-    // live-use check reads the real `/proc/bus/input/devices` and cannot find
-    // evidence for a fixture device, and an unproven input device must not be
-    // deepened. The reconciler's precheck refuses `Other` outright, so none
-    // of these tests describes a device production would actuate.
+    // Tests that need a runtime-PM write to go through use an idle PCI storage
+    // controller (base class 0x01 with `power/runtime_usage` = 0). It is a
+    // class production would write to, and its live-use check reads only
+    // sysfs, never `/proc`, so the result does not depend on the machine
+    // running the tests. The actuator's own guard refuses a whole USB device
+    // with a keyboard or mouse interface (`ic03`): no `inputN` device sits
+    // under the device directory, so there is no evidence it is idle. It also
+    // refuses composite and other-class devices outright.
     fn n5_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
         let dev = temp.join(name);
         let power = dev.join("power");
@@ -1235,10 +1234,13 @@ device_resume_latency = 100000
         let temp = std::env::temp_dir().join(format!("optid_n5_allow_{}", std::process::id()));
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
-        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00";
+        let modalias = "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02";
         let dev = n5_device(&temp, "1-1", modalias);
         let power = dev.join("power");
         fs::write(power.join("wakeup"), "enabled\n").unwrap();
+        // Idle storage: a zero kernel runtime-PM usage count passes the
+        // storage live-use check without reading /proc.
+        fs::write(power.join("runtime_usage"), "0\n").unwrap();
 
         fs::write(
             admin.join("90-admin.toml"),
@@ -1355,6 +1357,9 @@ device_resume_latency = 100000
         write_sysfs_class_attrs(&dev, modalias);
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
+        // Idle storage: a zero kernel runtime-PM usage count passes the
+        // storage live-use check without reading /proc.
+        fs::write(power.join("runtime_usage"), "0\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
             format!(
@@ -1397,7 +1402,7 @@ device_resume_latency = 100000
     fn c1_production_runtime_pm_permits_on_verified_allowlist_latency() {
         let temp = std::env::temp_dir().join(format!("optid_c1_permit_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
-        let modalias = "usb:v046Dp0C01d0001dc00dsc00dp00icffiscffipffin00";
+        let modalias = "pci:v0000144Dp0000A8C1sv0000144Dsd0000A801bc01sc08i02";
         let dev = c1_rpm_device_with_latency(
             &temp,
             "3-1",
@@ -2066,12 +2071,15 @@ device_resume_latency = 100000
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
 
-        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00";
+        let modalias = "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02";
         let dev = temp.join("1-2");
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
         write_sysfs_class_attrs(&dev, modalias);
+        // Idle storage: a zero kernel runtime-PM usage count passes the
+        // storage live-use check without reading /proc.
+        fs::write(power.join("runtime_usage"), "0\n").unwrap();
         // Baseline: autosuspend off, 100 ms delay.
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
@@ -2178,12 +2186,15 @@ device_resume_latency = 100000
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
 
-        let modalias = "usb:v046Dp0083d0001dc00dsc00dp00icffiscffipffin00";
+        let modalias = "pci:v0000144Dp0000A883sv0000144Dsd0000A801bc01sc08i02";
         let dev = temp.join("1-3");
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
         fs::write(dev.join("modalias"), format!("{modalias}\n")).unwrap();
         write_sysfs_class_attrs(&dev, modalias);
+        // Idle storage: a zero kernel runtime-PM usage count passes the
+        // storage live-use check without reading /proc.
+        fs::write(power.join("runtime_usage"), "0\n").unwrap();
         fs::write(power.join("control"), "on\n").unwrap();
         fs::write(power.join("autosuspend_delay_ms"), "100\n").unwrap();
 
@@ -2472,8 +2483,12 @@ device_resume_latency = 100000
 
         // The same device becomes actuatable once it reports a real class,
         // which shows the refusal came from missing evidence and not from some
-        // unrelated part of the fixture being wrong.
-        fs::write(dev.join("bDeviceClass"), "ff\n").unwrap();
+        // unrelated part of the fixture being wrong. The class it reports is
+        // an idle storage controller, because the actuator's live-use guard
+        // refuses composite and other-class devices, which have no live-use
+        // check.
+        fs::write(dev.join("class"), "0x010802\n").unwrap();
+        fs::write(power.join("runtime_usage"), "0\n").unwrap();
         actuator
             .apply(&Action::RuntimePm {
                 device_dir: dev.clone(),
@@ -2673,6 +2688,80 @@ device_resume_latency = 100000
     }
 
     #[test]
+    fn test_d1_actuator_denies_other_class_device() {
+        // A vendor-specific interface (class 0xff) has no live-use check, so
+        // the actuator's own guard refuses it outright, as the reconciler's
+        // precheck does.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_other_direct_{}", std::process::id()));
+        let (outcome, dev) = d1_actuator_apply_bare_interface(&temp, "ff", "0104");
+        assert_d1_direct_call_refused(
+            &temp,
+            &dev,
+            &outcome,
+            crate::envelope::OutcomeReasonCode::RuntimePmLiveUseGuardNotImplemented,
+            "device class has no accepted live-use guard yet",
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_d1_actuator_denies_composite_headset() {
+        // A whole USB headset: an audio interface (0x01) and a buttons
+        // interface (0x03). It classifies as composite, which has no agreed
+        // live-use rule; before this guard refused composite devices, a
+        // direct call wrote to it with no evidence at all.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_composite_direct_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = "usb:v1D6Bp0105d0001dc00dsc00dp00";
+        let dev = n5_device(&temp, "1-4", modalias);
+        for (interface, class) in [("1-4:1.0", "01"), ("1-4:1.3", "03")] {
+            fs::create_dir_all(dev.join(interface)).unwrap();
+            fs::write(
+                dev.join(interface).join("bInterfaceClass"),
+                format!("{class}\n"),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            crate::actuators::runtime_pm::classify_device(
+                &crate::kernel_io::RealKernel::new(),
+                &dev
+            ),
+            crate::actuators::runtime_pm::RuntimePmDeviceClass::Composite
+        );
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"d1 composite test\"\n"),
+        )
+        .unwrap();
+        let mut actuator = Actuator::new_with_sink(temp.clone(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        actuator.bypass_contract_gate = true;
+        let outcome = actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+        assert_d1_direct_call_refused(
+            &temp,
+            &dev,
+            &outcome,
+            crate::envelope::OutcomeReasonCode::RuntimePmLiveUseGuardNotImplemented,
+            "device class has no accepted live-use guard yet",
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
     fn test_d1_actuator_denies_storage_device_with_unreadable_runtime_usage() {
         // Same guard, the other fail-closed branch: `power/runtime_usage` is
         // absent rather than nonzero. Missing evidence must deny exactly like
@@ -2815,6 +2904,9 @@ device_resume_latency = 100000
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
         let dev = n5_device(temp, "1-1", modalias);
+        // Idle storage: a zero kernel runtime-PM usage count passes the
+        // storage live-use check without reading /proc.
+        fs::write(dev.join("power").join("runtime_usage"), "0\n").unwrap();
         fs::write(
             admin.join("90-admin.toml"),
             format!(
@@ -2856,8 +2948,10 @@ device_resume_latency = 100000
                 .unwrap()
                 .as_nanos()
         ));
-        let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
+        let (dev, mut actuator) = phase6_setup(
+            &temp,
+            "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02",
+        );
         actuator.apply(&phase6_action(&dev)).unwrap();
 
         let power = dev.join("power");
@@ -2894,8 +2988,10 @@ device_resume_latency = 100000
                 .unwrap()
                 .as_nanos()
         ));
-        let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
+        let (dev, mut actuator) = phase6_setup(
+            &temp,
+            "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02",
+        );
         // Inject failure on write #1 (delay).
         actuator.fail_nth_runtime_pm_write = Some(1);
         actuator.apply(&phase6_action(&dev)).unwrap();
@@ -2980,8 +3076,10 @@ device_resume_latency = 100000
                 .unwrap()
                 .as_nanos()
         ));
-        let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
+        let (dev, mut actuator) = phase6_setup(
+            &temp,
+            "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02",
+        );
         // Both write #2 (control) and write #3 (the rollback that only runs
         // once #2 has failed) must fail. `fail_nth_runtime_pm_write` holds a
         // single write number, so it takes #3, and the F2 kernel seam refuses
@@ -3047,8 +3145,10 @@ device_resume_latency = 100000
                 .unwrap()
                 .as_nanos()
         ));
-        let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
+        let (dev, mut actuator) = phase6_setup(
+            &temp,
+            "pci:v0000144Dp0000A882sv0000144Dsd0000A801bc01sc08i02",
+        );
         // Inject failure on #2 (control) → rollback succeeds → delay
         // restored, journal retained (not cleared because not marked applied).
         actuator.fail_nth_runtime_pm_write = Some(2);
