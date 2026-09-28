@@ -343,6 +343,32 @@ pub(crate) fn actuation_precheck(
     finish_actuation_precheck(read, device_dir, class, live_use_block)
 }
 
+/// The live-use verdict alone, for the actuator's own second, direct-call
+/// guard inside its write path.
+///
+/// Runs the same per-class live-use check [`actuation_precheck`] runs for
+/// storage, camera, audio and input, and nothing else: it does not deny
+/// unknown, composite or other devices and does not read `runtime_status`,
+/// because the actuator keeps its own class-unknown guard and the reconciler's
+/// precheck owns the rest. Returns `None` for network, composite, other and
+/// unknown devices. A write reached through any call site that skipped the
+/// reconciler's precheck still gets the same fail-closed live-use answer.
+pub(crate) fn live_use_block(
+    read: &dyn KernelRead,
+    device_dir: &Path,
+) -> Option<RuntimePmActuationBlock> {
+    match classify_device(read, device_dir) {
+        RuntimePmDeviceClass::Storage => storage_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Camera => camera_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Audio => audio_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Input => input_live_use_block(read, device_dir),
+        RuntimePmDeviceClass::Unknown
+        | RuntimePmDeviceClass::Network
+        | RuntimePmDeviceClass::Composite
+        | RuntimePmDeviceClass::Other => None,
+    }
+}
+
 /// Test-only mirror of [`actuation_precheck`], parameterized on the proc root
 /// so this module's own tests can exercise the camera, audio, and input arms
 /// — the only ones that consult `/proc` — against a controlled fixture instead of

@@ -1362,20 +1362,10 @@ impl Actuator {
                 // the same second, direct-call guard the class-unknown check
                 // above keeps for the same reason: a write reached through any
                 // other call site must not skip the check just because it
-                // skipped the reconciler's gate.
-                if let Some(block) =
-                    runtime_pm::storage_live_use_block(self.kernel.as_ref(), device_dir)
-                {
-                    let (reason, detail) = match block {
-                        runtime_pm::RuntimePmActuationBlock::StorageInUse => (
-                            OutcomeReasonCode::StorageRuntimePmInUse,
-                            "storage device has a nonzero runtime-PM usage count",
-                        ),
-                        _ => (
-                            OutcomeReasonCode::StorageRuntimePmEvidenceUnavailable,
-                            "power/runtime_usage is unavailable or unreadable for this storage device",
-                        ),
-                    };
+                // skipped the reconciler's gate. It covers every class that
+                // has a live-use check: storage, camera, audio and input.
+                if let Some(block) = runtime_pm::live_use_block(self.kernel.as_ref(), device_dir) {
+                    let detail = block.message();
                     self.log(&format!(
                         "skip runtime_pm {}: {detail}",
                         device_dir.display()
@@ -1384,7 +1374,7 @@ impl Actuator {
                         target_id: action.stable_target_id(),
                         pipeline_stage: PipelineStage::Write,
                         support: SupportState::Supported,
-                        reason,
+                        reason: live_use_reason(block),
                         write_attempted: false,
                         write_outcome: WriteOutcome::Skipped,
                         readback: ReadbackOutcome::NotPerformed,
@@ -2190,6 +2180,45 @@ impl Actuator {
             let _ = write_num; // suppress unused-variable warning in production
         }
         self.kernel.write(path, value)
+    }
+}
+
+/// The outcome reason for each refusal the runtime-PM live-use guard can give.
+///
+/// Every live-use block has its own reason, so a journal reader can tell "in
+/// use" apart from "no evidence either way" without parsing `detail`. The
+/// blocks [`runtime_pm::live_use_block`] never returns (class and
+/// `runtime_status` refusals, which belong to the reconciler's precheck) still
+/// map to a denial rather than to a permission.
+fn live_use_reason(block: runtime_pm::RuntimePmActuationBlock) -> OutcomeReasonCode {
+    use runtime_pm::RuntimePmActuationBlock as Block;
+    match block {
+        Block::StorageInUse => OutcomeReasonCode::StorageRuntimePmInUse,
+        Block::StorageLiveUseEvidenceUnavailable => {
+            OutcomeReasonCode::StorageRuntimePmEvidenceUnavailable
+        }
+        Block::CameraInUse => OutcomeReasonCode::CameraRuntimePmInUse,
+        Block::CameraLiveUseEvidenceUnavailable => {
+            OutcomeReasonCode::CameraRuntimePmEvidenceUnavailable
+        }
+        Block::AudioInUse => OutcomeReasonCode::AudioRuntimePmInUse,
+        Block::AudioLiveUseEvidenceUnavailable => {
+            OutcomeReasonCode::AudioRuntimePmEvidenceUnavailable
+        }
+        Block::InputInUse => OutcomeReasonCode::InputRuntimePmInUse,
+        Block::InputInUseByKernelHandler => OutcomeReasonCode::InputRuntimePmInUseByKernelHandler,
+        Block::InputBoundToUnverifiedDriver => {
+            OutcomeReasonCode::InputRuntimePmBoundToUnverifiedDriver
+        }
+        Block::InputLiveUseEvidenceUnavailable => {
+            OutcomeReasonCode::InputRuntimePmEvidenceUnavailable
+        }
+        Block::UnknownClass
+        | Block::LiveUseGuardNotImplemented(_)
+        | Block::RuntimeStatusUnavailable
+        | Block::RuntimeStatusUnsupported
+        | Block::RuntimeStatusTransitioning
+        | Block::RuntimeStatusUnknown => OutcomeReasonCode::RuntimePmLiveUseDenied,
     }
 }
 

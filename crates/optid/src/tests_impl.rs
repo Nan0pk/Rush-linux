@@ -1210,6 +1210,15 @@ device_resume_latency = 100000
         }
     }
 
+    // Tests that need a runtime-PM write to go through use a vendor-specific
+    // USB interface class (`icff`). It classifies as `Other`, which has no
+    // live-use check in the actuator's own guard, so those tests still reach
+    // the journal, write and rollback code they exercise. A keyboard or mouse
+    // interface (`ic03`) is refused by that guard here, because the input
+    // live-use check reads the real `/proc/bus/input/devices` and cannot find
+    // evidence for a fixture device, and an unproven input device must not be
+    // deepened. The reconciler's precheck refuses `Other` outright, so none
+    // of these tests describes a device production would actuate.
     fn n5_device(temp: &Path, name: &str, modalias: &str) -> PathBuf {
         let dev = temp.join(name);
         let power = dev.join("power");
@@ -1226,7 +1235,7 @@ device_resume_latency = 100000
         let temp = std::env::temp_dir().join(format!("optid_n5_allow_{}", std::process::id()));
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
-        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00";
+        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00";
         let dev = n5_device(&temp, "1-1", modalias);
         let power = dev.join("power");
         fs::write(power.join("wakeup"), "enabled\n").unwrap();
@@ -1388,7 +1397,7 @@ device_resume_latency = 100000
     fn c1_production_runtime_pm_permits_on_verified_allowlist_latency() {
         let temp = std::env::temp_dir().join(format!("optid_c1_permit_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
-        let modalias = "usb:v046Dp0C01d0001dc00dsc00dp00ic03isc01ip01in00";
+        let modalias = "usb:v046Dp0C01d0001dc00dsc00dp00icffiscffipffin00";
         let dev = c1_rpm_device_with_latency(
             &temp,
             "3-1",
@@ -2057,7 +2066,7 @@ device_resume_latency = 100000
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
 
-        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00";
+        let modalias = "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00";
         let dev = temp.join("1-2");
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
@@ -2169,7 +2178,7 @@ device_resume_latency = 100000
         let admin = temp.join("admin");
         fs::create_dir_all(&admin).unwrap();
 
-        let modalias = "usb:v046Dp0083d0001dc00dsc00dp00ic03isc01ip01in00";
+        let modalias = "usb:v046Dp0083d0001dc00dsc00dp00icffiscffipffin00";
         let dev = temp.join("1-3");
         let power = dev.join("power");
         fs::create_dir_all(&power).unwrap();
@@ -2549,6 +2558,120 @@ device_resume_latency = 100000
         let _ = fs::remove_dir_all(&temp);
     }
 
+    /// Apply a runtime-PM action straight to the actuator for an allowlisted
+    /// bare USB interface node of the given interface class, with no driver
+    /// mapping published under it, and return the outcome and the device.
+    fn d1_actuator_apply_bare_interface(
+        temp: &Path,
+        interface_class: &str,
+        product: &str,
+    ) -> (crate::envelope::ActionOutcome, PathBuf) {
+        let _ = fs::remove_dir_all(temp);
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        let modalias = format!("usb:v1D6Bp{product}d0001dc00dsc00dp00");
+        let dev = n5_device(temp, "1-1:1.0", &modalias);
+        fs::write(dev.join("bInterfaceClass"), format!("{interface_class}\n")).unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!("[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{modalias}\"\naction=\"allow\"\nverified=true\nreason=\"d1 direct-call guard test\"\n"),
+        )
+        .unwrap();
+        let mut actuator =
+            Actuator::new_with_sink(temp.to_path_buf(), Box::new(MockPmqosSink::new()));
+        actuator.enable_allowlist(crate::allowlist::Allowlist::load_from(
+            &crate::kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        actuator.bypass_contract_gate = true;
+        let outcome = actuator
+            .apply(&Action::RuntimePm {
+                device_dir: dev.clone(),
+                autosuspend_delay_ms: 2000,
+                reason: "test".to_string(),
+            })
+            .unwrap();
+        (outcome, dev)
+    }
+
+    fn assert_d1_direct_call_refused(
+        temp: &Path,
+        dev: &Path,
+        outcome: &crate::envelope::ActionOutcome,
+        reason: crate::envelope::OutcomeReasonCode,
+        logged: &str,
+    ) {
+        assert_eq!(outcome.targets.len(), 1);
+        assert_eq!(outcome.targets[0].reason, reason);
+        assert!(!outcome.targets[0].write_attempted);
+        assert_eq!(
+            fs::read_to_string(dev.join("power").join("control"))
+                .unwrap()
+                .trim(),
+            "on",
+            "runtime PM control must be left alone without live-use evidence"
+        );
+        let hash = get_path_hash(dev);
+        assert!(!temp.join(format!("original_rpm_{hash}")).exists());
+        let actions = fs::read_to_string(temp.join("actions.log")).unwrap();
+        assert!(actions.contains(logged), "{actions}");
+    }
+
+    #[test]
+    fn test_d1_actuator_denies_camera_without_live_use_evidence() {
+        // The actuator's own second, direct-call guard now covers camera, not
+        // only storage: a UVC interface (class 0x0e) with no
+        // `video4linux/videoN` mapping has no evidence either way about
+        // whether it is in use, and must not be deepened when the write is
+        // reached without the reconciler's precheck.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_camera_direct_{}", std::process::id()));
+        let (outcome, dev) = d1_actuator_apply_bare_interface(&temp, "0e", "0101");
+        assert_d1_direct_call_refused(
+            &temp,
+            &dev,
+            &outcome,
+            crate::envelope::OutcomeReasonCode::CameraRuntimePmEvidenceUnavailable,
+            "no readable video4linux/videoN mapping",
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_d1_actuator_denies_audio_without_live_use_evidence() {
+        // Same guard, audio: a USB audio interface (class 0x01) with no
+        // `sound/cardN` mapping is refused at the write path.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_audio_direct_{}", std::process::id()));
+        let (outcome, dev) = d1_actuator_apply_bare_interface(&temp, "01", "0102");
+        assert_d1_direct_call_refused(
+            &temp,
+            &dev,
+            &outcome,
+            crate::envelope::OutcomeReasonCode::AudioRuntimePmEvidenceUnavailable,
+            "no readable sound/cardN mapping",
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_d1_actuator_denies_input_without_live_use_evidence() {
+        // Same guard, input: a USB HID interface (class 0x03) with no
+        // `inputN` device under it is refused at the write path. Before this
+        // guard, this exact device was actuated by a direct call.
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_input_direct_{}", std::process::id()));
+        let (outcome, dev) = d1_actuator_apply_bare_interface(&temp, "03", "0103");
+        assert_d1_direct_call_refused(
+            &temp,
+            &dev,
+            &outcome,
+            crate::envelope::OutcomeReasonCode::InputRuntimePmEvidenceUnavailable,
+            "no readable input/inputN mapping",
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
     #[test]
     fn test_d1_actuator_denies_storage_device_with_unreadable_runtime_usage() {
         // Same guard, the other fail-closed branch: `power/runtime_usage` is
@@ -2734,7 +2857,7 @@ device_resume_latency = 100000
                 .as_nanos()
         ));
         let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
         actuator.apply(&phase6_action(&dev)).unwrap();
 
         let power = dev.join("power");
@@ -2772,7 +2895,7 @@ device_resume_latency = 100000
                 .as_nanos()
         ));
         let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
         // Inject failure on write #1 (delay).
         actuator.fail_nth_runtime_pm_write = Some(1);
         actuator.apply(&phase6_action(&dev)).unwrap();
@@ -2858,7 +2981,7 @@ device_resume_latency = 100000
                 .as_nanos()
         ));
         let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
         // Both write #2 (control) and write #3 (the rollback that only runs
         // once #2 has failed) must fail. `fail_nth_runtime_pm_write` holds a
         // single write number, so it takes #3, and the F2 kernel seam refuses
@@ -2925,7 +3048,7 @@ device_resume_latency = 100000
                 .as_nanos()
         ));
         let (dev, mut actuator) =
-            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00ic03isc01ip01in00");
+            phase6_setup(&temp, "usb:v046Dp0082d0001dc00dsc00dp00icffiscffipffin00");
         // Inject failure on #2 (control) → rollback succeeds → delay
         // restored, journal retained (not cleared because not marked applied).
         actuator.fail_nth_runtime_pm_write = Some(2);
