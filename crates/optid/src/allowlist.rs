@@ -54,6 +54,9 @@ pub(crate) struct SeededEntry {
     /// C1: the firmware revision `exit_latency_us` was established against.
     /// Empty means the value is not firmware-pinned.
     pub(crate) firmware_id: &'static str,
+    /// D1: the autosuspend delay this device was verified with, in
+    /// milliseconds (`runtime_pm` entries only; `build.rs` enforces both).
+    pub(crate) autosuspend_delay_ms: Option<i64>,
 }
 
 // Pulls in `SEEDED_VERSION` and `SEEDED_ENTRIES` (see build.rs). Included inside
@@ -98,6 +101,14 @@ pub(crate) struct Entry {
     /// `None` means the value is not pinned to a firmware revision, which
     /// caps the estimate's confidence at `Medium`.
     pub(crate) firmware_id: Option<String>,
+    /// D1: the `power/autosuspend_delay_ms` value, in milliseconds, this
+    /// device was verified with on real hardware (research 0009 §1.8). Only
+    /// a `runtime_pm` entry with `verified = true` makes it evidence; see
+    /// [`crate::actuators::runtime_pm::select_autosuspend_delay`].
+    ///
+    /// This is a policy timer: how long the device must sit idle before the
+    /// kernel may suspend it. It is never an exit latency.
+    pub(crate) autosuspend_delay_ms: Option<i64>,
 }
 
 impl Entry {
@@ -229,6 +240,11 @@ struct OverrideEntry {
     /// C1: the firmware revision `exit_latency_us` was established against.
     #[serde(default)]
     firmware_id: Option<String>,
+    /// D1: the verified per-device autosuspend delay in milliseconds.
+    /// Absent ⇒ no per-device delay evidence; the runtime-PM path then uses
+    /// its fixed fallback and says so.
+    #[serde(default)]
+    autosuspend_delay_ms: Option<i64>,
 }
 
 fn default_action() -> String {
@@ -268,6 +284,7 @@ impl Allowlist {
                     } else {
                         Some(s.firmware_id.to_string())
                     },
+                    autosuspend_delay_ms: s.autosuspend_delay_ms,
                 },
             );
         }
@@ -396,6 +413,7 @@ impl Allowlist {
                         source: source.clone(),
                         exit_latency_us: oe.exit_latency_us,
                         firmware_id: oe.firmware_id,
+                        autosuspend_delay_ms: oe.autosuspend_delay_ms,
                     },
                 );
             }
@@ -700,6 +718,46 @@ mod tests {
             al.check("nvme_apst", hwid, 0).deny_reason().unwrap(),
             "entry_unverified: candidate hardware may be observed but not actuated"
         );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// D1: an override's `autosuspend_delay_ms` is carried through to the
+    /// effective entry, and an entry without one reads as absent rather than
+    /// as some default number. The seeded baseline records no delay at all.
+    #[test]
+    fn autosuspend_delay_is_parsed_from_overrides_and_absent_by_default() {
+        let base = std::env::temp_dir().join(format!("optid_al_delay_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+        let with_delay = "usb:v1234p5678d0001dc00dsc00dp00ic03isc01ip01in00";
+        let without_delay = "usb:v1234p5679d0001dc00dsc00dp00ic03isc01ip01in00";
+        fs::write(
+            base.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{with_delay}\"\nverified=true\n\
+                 autosuspend_delay_ms=1500\n\n\
+                 [[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{without_delay}\"\nverified=true\n"
+            ),
+        )
+        .unwrap();
+        let (al, state) =
+            Allowlist::load_with_state(&RealKernel::new(), std::slice::from_ref(&base));
+        assert_eq!(state, LoadState::Ok);
+        assert_eq!(
+            al.lookup("runtime_pm", with_delay)
+                .unwrap()
+                .autosuspend_delay_ms,
+            Some(1500)
+        );
+        assert_eq!(
+            al.lookup("runtime_pm", without_delay)
+                .unwrap()
+                .autosuspend_delay_ms,
+            None
+        );
+        assert!(Allowlist::seeded()
+            .entries()
+            .all(|entry| entry.autosuspend_delay_ms.is_none()));
         let _ = fs::remove_dir_all(&base);
     }
 }

@@ -15,12 +15,162 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::allowlist::{Allowlist, EntryAction};
 use crate::kernel_io::KernelRead;
+use optid::lever_contract::{contract_for, EnvelopeValue, Lever, SemanticEnvelope};
 
-/// Current conservative fallback used by the pre-D1 policy path. D1 must not
-/// replace this with research-only class-specific guesses. The completed D1
-/// path will select a per-device delay from accepted/evidence-backed policy.
+/// The fixed delay the policy proposes for every runtime-PM candidate. It is
+/// used only when no verified per-device delay exists (see
+/// [`select_autosuspend_delay`]), and the action's reason then says so. D1
+/// must not replace it with research-only class-specific guesses.
 pub(crate) const DEFAULT_AUTOSUSPEND_DELAY_MS: i32 = 2000;
+
+/// Where the autosuspend delay for one runtime-PM write came from.
+///
+/// The only accepted source of a per-device delay is a verified `runtime_pm`
+/// allowlist entry that records `autosuspend_delay_ms` (research 0009 §1.8):
+/// the same hardware record the allowlist gate and the C1 exit-latency gate
+/// already trust. Research 0009's class-level delays are hypotheses and are
+/// not a source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RuntimePmDelaySelection {
+    /// A verified allowlist entry for this device records this delay.
+    Verified { delay_ms: i32 },
+    /// No verified per-device delay exists, so the policy's fixed proposal is
+    /// kept. `why` says which piece of evidence was missing.
+    Fallback { delay_ms: i32, why: String },
+    /// A verified entry records a delay outside the runtime-PM lever's
+    /// semantic envelope. The evidence contradicts the accepted contract, so
+    /// the write is refused rather than quietly replaced with the fallback.
+    Refused { why: String },
+}
+
+impl RuntimePmDelaySelection {
+    /// The delay to write, or `None` when the write must be refused.
+    pub(crate) fn delay_ms(&self) -> Option<i32> {
+        match self {
+            Self::Verified { delay_ms } | Self::Fallback { delay_ms, .. } => Some(*delay_ms),
+            Self::Refused { .. } => None,
+        }
+    }
+
+    /// Plain-English statement of where the delay came from, appended to the
+    /// action's reason so the actuator's log records it with the write.
+    pub(crate) fn describe(&self) -> String {
+        match self {
+            Self::Verified { delay_ms } => format!(
+                "autosuspend_delay_ms={delay_ms} from this device's verified allowlist entry"
+            ),
+            Self::Fallback { delay_ms, why } => format!(
+                "autosuspend_delay_ms={delay_ms} is the fixed fallback, not a per-device value: {why}"
+            ),
+            Self::Refused { why } => format!("autosuspend delay refused: {why}"),
+        }
+    }
+}
+
+/// Apply a delay choice to one action.
+///
+/// Returns the action unchanged when it is not a runtime-PM action. For a
+/// runtime-PM action, `select` is asked for the delay: a chosen delay replaces
+/// the proposed one and its source is appended to the reason (once, so running
+/// this again on an already-chosen action changes nothing), and a refused
+/// delay returns `Err` with the refusal in plain words.
+///
+/// The daemon runs this once per cycle on every action before it reports or
+/// plans anything (`Decision::select_runtime_pm_delays`), and the reconciler
+/// runs it again as a second guard for callers that skip that step.
+pub(crate) fn with_selected_delay(
+    action: &crate::action::Action,
+    select: impl FnOnce(&Path, i32) -> RuntimePmDelaySelection,
+) -> Result<crate::action::Action, String> {
+    let crate::action::Action::RuntimePm {
+        device_dir,
+        autosuspend_delay_ms,
+        reason,
+    } = action
+    else {
+        return Ok(action.clone());
+    };
+    let selection = select(device_dir, *autosuspend_delay_ms);
+    let Some(delay_ms) = selection.delay_ms() else {
+        return Err(selection.describe());
+    };
+    let source = selection.describe();
+    let reason = if reason.ends_with(&source) {
+        reason.clone()
+    } else {
+        format!("{reason}; {source}")
+    };
+    Ok(crate::action::Action::RuntimePm {
+        device_dir: device_dir.clone(),
+        autosuspend_delay_ms: delay_ms,
+        reason,
+    })
+}
+
+/// Choose the autosuspend delay for one runtime-PM write.
+///
+/// `hwid` is the device's full modalias, as the allowlist gate matches it.
+/// `proposed_ms` is the policy's fixed proposal, kept only as a labelled
+/// fallback. This function decides the *value*; it grants nothing. The
+/// allowlist, contract, live-use, transaction, and readback gates still decide
+/// whether any write happens, and an unverified or denying entry never
+/// supplies a delay because it cannot authorise a write either.
+pub(crate) fn select_autosuspend_delay(
+    allowlist: Option<&Allowlist>,
+    hwid: Option<&str>,
+    proposed_ms: i32,
+) -> RuntimePmDelaySelection {
+    let fallback = |why: &str| RuntimePmDelaySelection::Fallback {
+        delay_ms: proposed_ms,
+        why: why.to_string(),
+    };
+    let Some(allowlist) = allowlist else {
+        return fallback("the hardware allowlist gate is disabled");
+    };
+    let Some(hwid) = hwid else {
+        return fallback("the device's hardware ID could not be read");
+    };
+    let Some(entry) = allowlist.lookup("runtime_pm", hwid) else {
+        return fallback("the device has no runtime_pm allowlist entry");
+    };
+    if entry.action == EntryAction::Deny {
+        return fallback("the device's allowlist entry denies it");
+    }
+    if !entry.verified {
+        return fallback(
+            "the device's allowlist entry is unverified, so its values are not evidence",
+        );
+    }
+    let Some(recorded) = entry.autosuspend_delay_ms else {
+        return fallback("the device's verified allowlist entry records no autosuspend_delay_ms");
+    };
+    let envelope = contract_for(Lever::RuntimePm).semantic_envelope;
+    let in_envelope = i32::try_from(recorded).ok().filter(|delay_ms| {
+        envelope.permits(EnvelopeValue::RuntimePm {
+            control: "auto",
+            delay_ms: *delay_ms,
+        })
+    });
+    match in_envelope {
+        Some(delay_ms) => RuntimePmDelaySelection::Verified { delay_ms },
+        None => {
+            let bounds = match envelope {
+                SemanticEnvelope::RuntimePm {
+                    min_delay_ms,
+                    max_delay_ms,
+                } => format!("{min_delay_ms}..={max_delay_ms} ms"),
+                _ => "the runtime-PM envelope".to_string(),
+            };
+            RuntimePmDelaySelection::Refused {
+                why: format!(
+                    "the device's verified allowlist entry records autosuspend_delay_ms={recorded}, outside the accepted range {bounds}"
+                ),
+            }
+        }
+    }
+}
 
 /// Device classes whose live-use rules differ for runtime PM.
 ///
@@ -3026,5 +3176,179 @@ mod tests {
         );
         let _ = fs::remove_dir_all(&dev);
         let _ = fs::remove_dir_all(&proc_dir);
+    }
+
+    // ── D1 per-device autosuspend delay selection ───────────────────────────
+
+    const DELAY_HWID: &str = "pci:v00008086d0000A0EDsv00001028sd00000A3Abc0Csc03i30";
+
+    /// An allowlist whose only override is one `runtime_pm` entry for
+    /// [`DELAY_HWID`] carrying `fields`.
+    fn delay_allowlist(name: &str, fields: &str) -> Allowlist {
+        let dir = tmp(&format!("delay_{name}"));
+        fs::write(
+            dir.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{DELAY_HWID}\"\n\
+                 reason=\"D1 delay selection test\"\n{fields}"
+            ),
+        )
+        .unwrap();
+        let allowlist = Allowlist::load_from(&RealKernel::new(), std::slice::from_ref(&dir));
+        let _ = fs::remove_dir_all(&dir);
+        allowlist
+    }
+
+    fn assert_fallback(selection: RuntimePmDelaySelection, why_fragment: &str) {
+        match selection {
+            RuntimePmDelaySelection::Fallback { delay_ms, why } => {
+                assert_eq!(delay_ms, DEFAULT_AUTOSUSPEND_DELAY_MS);
+                assert!(
+                    why.contains(why_fragment),
+                    "unexpected fallback reason: {why}"
+                );
+            }
+            other => panic!("expected the labelled fallback, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delay_comes_from_a_verified_runtime_pm_entry() {
+        let allowlist = delay_allowlist("verified", "verified=true\nautosuspend_delay_ms=750\n");
+        let selection = select_autosuspend_delay(
+            Some(&allowlist),
+            Some(DELAY_HWID),
+            DEFAULT_AUTOSUSPEND_DELAY_MS,
+        );
+        assert_eq!(
+            selection,
+            RuntimePmDelaySelection::Verified { delay_ms: 750 }
+        );
+        assert_eq!(selection.delay_ms(), Some(750));
+        assert!(selection.describe().contains("verified allowlist entry"));
+    }
+
+    #[test]
+    fn delay_accepts_both_envelope_bounds() {
+        for value in [0, 3_600_000] {
+            let allowlist = delay_allowlist(
+                &format!("bound_{value}"),
+                &format!("verified=true\nautosuspend_delay_ms={value}\n"),
+            );
+            assert_eq!(
+                select_autosuspend_delay(Some(&allowlist), Some(DELAY_HWID), 2000),
+                RuntimePmDelaySelection::Verified { delay_ms: value },
+            );
+        }
+    }
+
+    #[test]
+    fn delay_falls_back_without_a_verified_per_device_value() {
+        assert_fallback(
+            select_autosuspend_delay(None, Some(DELAY_HWID), DEFAULT_AUTOSUSPEND_DELAY_MS),
+            "allowlist gate is disabled",
+        );
+
+        let allowlist = delay_allowlist("fallbacks", "verified=true\nautosuspend_delay_ms=750\n");
+        assert_fallback(
+            select_autosuspend_delay(Some(&allowlist), None, DEFAULT_AUTOSUSPEND_DELAY_MS),
+            "hardware ID could not be read",
+        );
+        assert_fallback(
+            select_autosuspend_delay(
+                Some(&allowlist),
+                Some("pci:v0000FFFFd0000FFFF"),
+                DEFAULT_AUTOSUSPEND_DELAY_MS,
+            ),
+            "no runtime_pm allowlist entry",
+        );
+
+        let unverified =
+            delay_allowlist("unverified", "verified=false\nautosuspend_delay_ms=750\n");
+        assert_fallback(
+            select_autosuspend_delay(
+                Some(&unverified),
+                Some(DELAY_HWID),
+                DEFAULT_AUTOSUSPEND_DELAY_MS,
+            ),
+            "unverified",
+        );
+
+        let denied = delay_allowlist(
+            "denied",
+            "action=\"deny\"\nverified=true\nautosuspend_delay_ms=750\n",
+        );
+        assert_fallback(
+            select_autosuspend_delay(
+                Some(&denied),
+                Some(DELAY_HWID),
+                DEFAULT_AUTOSUSPEND_DELAY_MS,
+            ),
+            "denies it",
+        );
+
+        let no_delay = delay_allowlist("no_delay", "verified=true\nexit_latency_us=500\n");
+        assert_fallback(
+            select_autosuspend_delay(
+                Some(&no_delay),
+                Some(DELAY_HWID),
+                DEFAULT_AUTOSUSPEND_DELAY_MS,
+            ),
+            "records no autosuspend_delay_ms",
+        );
+    }
+
+    /// A verified entry outside the lever's envelope is contradictory
+    /// evidence. Silently using the fallback instead would hide the
+    /// contradiction, so the selection refuses.
+    #[test]
+    fn delay_refuses_a_verified_value_outside_the_envelope() {
+        for value in ["-1", "3600001", "4294967296"] {
+            let allowlist = delay_allowlist(
+                &format!("outside_{value}"),
+                &format!("verified=true\nautosuspend_delay_ms={value}\n"),
+            );
+            let selection = select_autosuspend_delay(Some(&allowlist), Some(DELAY_HWID), 2000);
+            match &selection {
+                RuntimePmDelaySelection::Refused { why } => {
+                    assert!(why.contains(value), "refusal must name the value: {why}");
+                    assert!(
+                        why.contains("0..=3600000 ms"),
+                        "refusal must name the range: {why}"
+                    );
+                }
+                other => panic!("expected refusal for {value}, got {other:?}"),
+            }
+            assert_eq!(selection.delay_ms(), None);
+        }
+    }
+
+    /// `build.rs` cannot depend on the crate it builds, so it keeps its own
+    /// copy of the runtime-PM envelope bounds to reject seeded delays. This
+    /// fails if that copy drifts from the lever contract the runtime uses.
+    #[test]
+    fn build_script_delay_bounds_match_the_lever_contract() {
+        let build_script = include_str!("../../build.rs");
+        let bound = |name: &str| -> i64 {
+            let prefix = format!("const {name}: i64 = ");
+            let line = build_script
+                .lines()
+                .find_map(|line| line.trim().strip_prefix(prefix.as_str()))
+                .unwrap_or_else(|| panic!("build.rs no longer declares {name}"));
+            line.trim_end_matches(';')
+                .replace('_', "")
+                .parse()
+                .unwrap_or_else(|error| panic!("build.rs {name} is not an integer: {error}"))
+        };
+        match contract_for(Lever::RuntimePm).semantic_envelope {
+            SemanticEnvelope::RuntimePm {
+                min_delay_ms,
+                max_delay_ms,
+            } => {
+                assert_eq!(bound("AUTOSUSPEND_DELAY_MIN_MS"), i64::from(min_delay_ms));
+                assert_eq!(bound("AUTOSUSPEND_DELAY_MAX_MS"), i64::from(max_delay_ms));
+            }
+            other => panic!("runtime-PM lever has an unexpected envelope: {other:?}"),
+        }
     }
 }

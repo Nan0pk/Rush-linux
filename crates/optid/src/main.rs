@@ -566,7 +566,7 @@ fn run(args: Args) -> io::Result<RunExit> {
         let active_scopes: Vec<String> = Vec::new();
         actuator.set_active_floors(contract_book.effective_floors(committed_class, &active_scopes));
         let contracts = contract_book.base();
-        let decision = policy.decide_resolved(
+        let mut decision = policy.decide_resolved(
             &snapshot,
             override_mode,
             committed_class,
@@ -575,6 +575,14 @@ fn run(args: Args) -> io::Result<RunExit> {
             Some(resolved_mode),
             mode_hysteresis_reason,
         );
+        // D1: choose each runtime-PM action's autosuspend delay once, here,
+        // before anything reports or plans it, so the status report, the
+        // public outcomes, the circuit breaker, the journal and the write all
+        // see the same value. A refused delay leaves the action lists and is
+        // reported as refused.
+        decision.select_runtime_pm_delays(|device_dir, proposed| {
+            actuator.select_runtime_pm_delay(device_dir, proposed)
+        });
 
         let correlation_id = cycle_ids.next();
         actuator.set_correlation_id(correlation_id.clone());
@@ -744,6 +752,7 @@ fn run(args: Args) -> io::Result<RunExit> {
                 args.apply,
             ));
         }
+        action_outcomes.extend(decision.refused_runtime_pm_outcomes(cycle_apply_armed));
 
         let parity = reconciler.parity_report(&legacy_stale_keys);
         append_log(

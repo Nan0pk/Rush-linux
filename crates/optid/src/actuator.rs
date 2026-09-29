@@ -383,6 +383,23 @@ impl Actuator {
         LatencyResolution::compose_max(&components)
     }
 
+    /// D1: choose the autosuspend delay for a runtime-PM write on
+    /// `device_dir`, from the device's own verified allowlist entry when one
+    /// records a delay, otherwise the policy's labelled fixed fallback. See
+    /// [`runtime_pm::select_autosuspend_delay`]. The daemon calls this once
+    /// per cycle through `Decision::select_runtime_pm_delays`, before it
+    /// reports or plans anything, and the reconciler calls it again as a
+    /// second guard; the value reported, journalled, written, and read back
+    /// is the one chosen here.
+    pub(crate) fn select_runtime_pm_delay(
+        &self,
+        device_dir: &Path,
+        proposed_ms: i32,
+    ) -> runtime_pm::RuntimePmDelaySelection {
+        let hwid = hwid_from_device_dir(self.kernel.as_ref(), device_dir);
+        runtime_pm::select_autosuspend_delay(self.allowlist.as_ref(), hwid.as_deref(), proposed_ms)
+    }
+
     pub(crate) fn set_correlation_id(&mut self, correlation_id: String) {
         self.correlation_id = correlation_id;
     }
