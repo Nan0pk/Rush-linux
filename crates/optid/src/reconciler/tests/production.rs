@@ -670,3 +670,241 @@ fn f4_restore_failure_withholds_watchdog_through_retry_exhaustion() {
         MAX_RESTORE_RETRIES
     );
 }
+
+// ── D1: per-device autosuspend delay through the production reconciler ──────
+
+const D1_DELAY_HWID: &str = "pci:v0000144Dd0000A808sv0000144Dsd0000A801bc01sc08i02";
+
+/// An idle PCI storage controller -- a class the runtime-PM precheck admits --
+/// with the given starting delay, plus an allowlist whose only override is one
+/// `runtime_pm` entry for it carrying `entry_fields`.
+fn d1_delay_fixture(name: &str, entry_fields: &str) -> (MemoryKernel, PathBuf, crate::allowlist::Allowlist) {
+    let device = PathBuf::from(format!("/sys/devices/pci0000:00/0000:00:1d.{name}"));
+    let kernel = MemoryKernel::new();
+    kernel.write_raw(&device.join("power/control"), "on");
+    kernel.write_raw(&device.join("power/autosuspend_delay_ms"), "100");
+    kernel.write_raw(&device.join("power/runtime_status"), "active");
+    kernel.write_raw(&device.join("power/runtime_usage"), "0");
+    kernel.write_raw(&device.join("class"), "0x010802");
+    kernel.write_raw(&device.join("modalias"), D1_DELAY_HWID);
+
+    let dir = std::env::temp_dir().join(format!(
+        "optid_d1_delay_{name}_{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("allowlist dir");
+    fs::write(
+        dir.join("90-admin.toml"),
+        format!(
+            "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{D1_DELAY_HWID}\"\n\
+             reason=\"D1 delay production test\"\n{entry_fields}"
+        ),
+    )
+    .expect("allowlist override");
+    let allowlist = crate::allowlist::Allowlist::load_from(
+        &crate::kernel_io::RealKernel::new(),
+        std::slice::from_ref(&dir),
+    );
+    let _ = fs::remove_dir_all(&dir);
+    (kernel, device, allowlist)
+}
+
+fn d1_delay_reconciler(state_dir: &Path, actuator: &mut Actuator) -> Reconciler {
+    Reconciler::load_with_systemd(
+        state_dir.to_path_buf(),
+        actuator,
+        Box::<FakeSystemd>::default(),
+    )
+    .expect("load reconciler")
+}
+
+fn recorded_desired_delay(reconciler: &Reconciler, action: &Action) -> Option<String> {
+    match reconciler
+        .targets
+        .get(&action.stable_target_id())
+        .and_then(|state| state.desired.clone())
+    {
+        Some(StoredValue::RuntimePm { delay, .. }) => delay,
+        other => panic!("expected a runtime-PM desired value, got {other:?}"),
+    }
+}
+
+/// The policy proposes its fixed 2000 ms, but this device's verified entry
+/// records 750 ms. The reconciler must record, write, confirm, and report
+/// 750 -- and handing the device back must still restore the original 100.
+#[test]
+fn d1_production_runtime_pm_writes_the_verified_per_device_delay() {
+    let state_dir = PathBuf::from("/run/optid-d1-delay-verified");
+    let (kernel, device, allowlist) = d1_delay_fixture(
+        "1",
+        "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=750\n",
+    );
+    let mut actuator = armed_actuator(state_dir.clone(), kernel);
+    actuator.enable_allowlist(allowlist);
+    let mut reconciler = d1_delay_reconciler(&state_dir, &mut actuator);
+    let action = runtime_pm_action(
+        &device,
+        crate::actuators::runtime_pm::DEFAULT_AUTOSUSPEND_DELAY_MS,
+    );
+    let _ = reconciler.detect_transitions(
+        Some(false),
+        WorkloadClass::Idle,
+        Mode::Battery,
+        &HashMap::from([(Domain::RuntimePm, DomainMode::Actuate)]),
+    );
+
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare cycle");
+    assert_eq!(
+        recorded_desired_delay(&reconciler, &action).as_deref(),
+        Some("750"),
+        "prepare_cycle must record the verified delay, not the policy's proposal"
+    );
+
+    let applied = reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("apply runtime PM");
+    assert_eq!(
+        applied.desired.value,
+        "control=auto;autosuspend_delay_ms=750"
+    );
+    assert!(
+        applied.targets.iter().all(|target| {
+            matches!(target.readback, ReadbackOutcome::Confirmed { .. })
+                && target.ownership == OwnershipState::Optid
+        }),
+        "the verified delay must be written and confirmed: {applied:?}"
+    );
+    let delay = device.join("power/autosuspend_delay_ms");
+    assert_eq!(actuator.kernel.read_to_string(&delay).expect("delay"), "750");
+    assert_eq!(
+        actuator
+            .kernel
+            .read_to_string(&device.join("power/control"))
+            .expect("control"),
+        "auto"
+    );
+    let log = actuator
+        .kernel
+        .read_to_string(&state_dir.join("actions.log"))
+        .unwrap_or_default();
+    assert!(
+        log.contains("autosuspend_delay_ms=750 from this device's verified allowlist entry"),
+        "the write must record where its delay came from: {log}"
+    );
+
+    let _ = reconciler.detect_transitions(
+        Some(true),
+        WorkloadClass::Interactive,
+        Mode::Balanced,
+        &HashMap::from([(Domain::RuntimePm, DomainMode::Actuate)]),
+    );
+    reconciler
+        .prepare_cycle(&[], &mut actuator)
+        .expect("prepare AC cycle");
+    let restored = reconciler.reconcile(&mut actuator).expect("restore");
+    assert_eq!(restored.len(), 1);
+    assert_eq!(restored[0].reason, OutcomeReasonCode::RestoreApplied);
+    assert_eq!(actuator.kernel.read_to_string(&delay).expect("delay"), "100");
+}
+
+/// A verified entry that records no delay leaves the policy's fixed value in
+/// place, and the write says it is the fallback rather than a per-device
+/// value.
+#[test]
+fn d1_production_runtime_pm_labels_the_fixed_fallback_delay() {
+    let state_dir = PathBuf::from("/run/optid-d1-delay-fallback");
+    let (kernel, device, allowlist) =
+        d1_delay_fixture("2", "verified=true\nexit_latency_us=500\n");
+    let mut actuator = armed_actuator(state_dir.clone(), kernel);
+    actuator.enable_allowlist(allowlist);
+    let mut reconciler = d1_delay_reconciler(&state_dir, &mut actuator);
+    let action = runtime_pm_action(&device, 2000);
+
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare cycle");
+    assert_eq!(
+        recorded_desired_delay(&reconciler, &action).as_deref(),
+        Some("2000")
+    );
+    let applied = reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("apply runtime PM");
+    assert_eq!(
+        applied.desired.value,
+        "control=auto;autosuspend_delay_ms=2000"
+    );
+    assert_eq!(
+        actuator
+            .kernel
+            .read_to_string(&device.join("power/autosuspend_delay_ms"))
+            .expect("delay"),
+        "2000"
+    );
+    let log = actuator
+        .kernel
+        .read_to_string(&state_dir.join("actions.log"))
+        .unwrap_or_default();
+    assert!(
+        log.contains("autosuspend_delay_ms=2000 is the fixed fallback, not a per-device value")
+            && log.contains("records no autosuspend_delay_ms"),
+        "a fallback write must say it is the fallback and why: {log}"
+    );
+}
+
+/// A verified entry whose delay lies outside the lever's envelope is refused
+/// before any transaction is prepared or anything is written: the device
+/// keeps its original control and delay.
+#[test]
+fn d1_production_runtime_pm_refuses_a_verified_delay_outside_the_envelope() {
+    let state_dir = PathBuf::from("/run/optid-d1-delay-refused");
+    let (kernel, device, allowlist) = d1_delay_fixture(
+        "3",
+        "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=-1\n",
+    );
+    let mut actuator = armed_actuator(state_dir.clone(), kernel);
+    actuator.enable_allowlist(allowlist);
+    let mut reconciler = d1_delay_reconciler(&state_dir, &mut actuator);
+    let action = runtime_pm_action(&device, 2000);
+
+    reconciler
+        .prepare_cycle(std::slice::from_ref(&action), &mut actuator)
+        .expect("prepare cycle");
+    let applied = reconciler
+        .apply_action(&mut actuator, &action)
+        .expect("apply runtime PM");
+    assert_eq!(applied.targets.len(), 1);
+    let target = &applied.targets[0];
+    assert!(!target.write_attempted);
+    assert_eq!(target.write_outcome, WriteOutcome::Denied);
+    let detail = target.detail.as_deref().unwrap_or_default();
+    assert!(
+        detail.contains("autosuspend delay refused") && detail.contains("autosuspend_delay_ms=-1"),
+        "the refusal must say what was wrong: {detail}"
+    );
+    assert_eq!(
+        actuator
+            .kernel
+            .read_to_string(&device.join("power/control"))
+            .expect("control"),
+        "on"
+    );
+    assert_eq!(
+        actuator
+            .kernel
+            .read_to_string(&device.join("power/autosuspend_delay_ms"))
+            .expect("delay"),
+        "100"
+    );
+    assert!(
+        reconciler
+            .transactions
+            .active_records(actuator.kernel.as_ref())
+            .expect("read undo records")
+            .is_empty(),
+        "a refused delay must not leave a prepared transaction"
+    );
+}

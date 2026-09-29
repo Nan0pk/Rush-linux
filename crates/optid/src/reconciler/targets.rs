@@ -94,6 +94,13 @@ impl Reconciler {
             } => {
                 let delay_path = device_dir.join("power/autosuspend_delay_ms");
                 let has_delay = actuator.kernel.exists(&delay_path);
+                // D1: the same delay choice `apply_action` makes. A refused
+                // choice keeps the proposal here only as a placeholder;
+                // `apply_action` denies that write before anything is written.
+                let autosuspend_delay_ms = actuator
+                    .select_runtime_pm_delay(device_dir, *autosuspend_delay_ms)
+                    .delay_ms()
+                    .unwrap_or(*autosuspend_delay_ms);
                 vec![DesiredTarget {
                     target_id: action.stable_target_id(),
                     domain,

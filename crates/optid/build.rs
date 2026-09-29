@@ -42,7 +42,18 @@ struct RawEntry {
     /// C1: the firmware revision `exit_latency_us` was established against.
     #[serde(default)]
     firmware_id: String,
+    /// D1: the autosuspend delay, in milliseconds, this device was verified
+    /// with. Only meaningful on a `runtime_pm` entry.
+    #[serde(default)]
+    autosuspend_delay_ms: Option<i64>,
 }
+
+/// D1: the same bounds as the runtime-PM lever's semantic envelope
+/// (`src/lever_contract.rs`, `SemanticEnvelope::RuntimePm`). A seeded value
+/// outside them is a maintainer error, so it fails the build rather than
+/// shipping a value the runtime would refuse.
+const AUTOSUSPEND_DELAY_MIN_MS: i64 = 0;
+const AUTOSUSPEND_DELAY_MAX_MS: i64 = 3_600_000;
 
 fn default_action() -> String {
     "allow".to_string()
@@ -139,6 +150,25 @@ fn main() {
             generated,
             "        exit_latency_us: {exit_latency_us}, firmware_id: {},",
             rust_string_literal(&e.firmware_id)
+        )
+        .unwrap();
+        let autosuspend_delay_ms = match e.autosuspend_delay_ms {
+            Some(_) if e.domain != "runtime_pm" => panic!(
+                "allowlist entry for {} sets autosuspend_delay_ms, which only applies to domain \"runtime_pm\" (found {:?})",
+                e.hwid, e.domain
+            ),
+            Some(n) if !(AUTOSUSPEND_DELAY_MIN_MS..=AUTOSUSPEND_DELAY_MAX_MS).contains(&n) => {
+                panic!(
+                    "allowlist entry for {} has autosuspend_delay_ms={n}, outside {AUTOSUSPEND_DELAY_MIN_MS}..={AUTOSUSPEND_DELAY_MAX_MS}",
+                    e.hwid
+                )
+            }
+            Some(n) => format!("Some({n})"),
+            None => "None".to_string(),
+        };
+        writeln!(
+            generated,
+            "        autosuspend_delay_ms: {autosuspend_delay_ms},"
         )
         .unwrap();
         writeln!(generated, "    }},").unwrap();

@@ -34,6 +34,16 @@
 #                but the value is only usable once optid can read the device's
 #                running revision; until then a pinned entry reads as a stale
 #                cache and is denied. Absent ⇒ not firmware-pinned.
+#   autosuspend_delay_ms
+#              — optional (D1, `runtime_pm` entries only): the
+#                `power/autosuspend_delay_ms` value, in MILLISECONDS, this
+#                device was verified with (research 0009 §1.8). It is an idle
+#                timer, never an exit latency. Only read from an entry with
+#                `verified = true`; optid then writes it in place of its fixed
+#                2000 ms fallback. Must lie within the runtime-PM envelope,
+#                0..=3600000: `build.rs` rejects a seeded value outside it, and
+#                a verified override outside it makes optid refuse the write.
+#                Absent ⇒ optid uses the fixed fallback and says so in its log.
 #   verified   — true once validated on real hardware per §4. False entries are
 #                candidates: Rush may identify and explain them, but automatic
 #                writes are denied with `entry_unverified`. An administrator can
