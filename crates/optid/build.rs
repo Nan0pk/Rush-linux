@@ -51,7 +51,10 @@ struct RawEntry {
 /// D1: the same bounds as the runtime-PM lever's semantic envelope
 /// (`src/lever_contract.rs`, `SemanticEnvelope::RuntimePm`). A seeded value
 /// outside them is a maintainer error, so it fails the build rather than
-/// shipping a value the runtime would refuse.
+/// shipping a value the runtime would refuse. These are a copy, because a
+/// build script cannot use the crate it builds;
+/// `build_script_delay_bounds_match_the_lever_contract` in
+/// `src/actuators/runtime_pm.rs` fails if the copy drifts.
 const AUTOSUSPEND_DELAY_MIN_MS: i64 = 0;
 const AUTOSUSPEND_DELAY_MAX_MS: i64 = 3_600_000;
 

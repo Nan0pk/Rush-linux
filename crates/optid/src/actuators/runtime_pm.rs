@@ -69,6 +69,46 @@ impl RuntimePmDelaySelection {
     }
 }
 
+/// Apply a delay choice to one action.
+///
+/// Returns the action unchanged when it is not a runtime-PM action. For a
+/// runtime-PM action, `select` is asked for the delay: a chosen delay replaces
+/// the proposed one and its source is appended to the reason (once, so running
+/// this again on an already-chosen action changes nothing), and a refused
+/// delay returns `Err` with the refusal in plain words.
+///
+/// The daemon runs this once per cycle on every action before it reports or
+/// plans anything (`Decision::select_runtime_pm_delays`), and the reconciler
+/// runs it again as a second guard for callers that skip that step.
+pub(crate) fn with_selected_delay(
+    action: &crate::action::Action,
+    select: impl FnOnce(&Path, i32) -> RuntimePmDelaySelection,
+) -> Result<crate::action::Action, String> {
+    let crate::action::Action::RuntimePm {
+        device_dir,
+        autosuspend_delay_ms,
+        reason,
+    } = action
+    else {
+        return Ok(action.clone());
+    };
+    let selection = select(device_dir, *autosuspend_delay_ms);
+    let Some(delay_ms) = selection.delay_ms() else {
+        return Err(selection.describe());
+    };
+    let source = selection.describe();
+    let reason = if reason.ends_with(&source) {
+        reason.clone()
+    } else {
+        format!("{reason}; {source}")
+    };
+    Ok(crate::action::Action::RuntimePm {
+        device_dir: device_dir.clone(),
+        autosuspend_delay_ms: delay_ms,
+        reason,
+    })
+}
+
 /// Choose the autosuspend delay for one runtime-PM write.
 ///
 /// `hwid` is the device's full modalias, as the allowlist gate matches it.
@@ -3280,6 +3320,35 @@ mod tests {
                 other => panic!("expected refusal for {value}, got {other:?}"),
             }
             assert_eq!(selection.delay_ms(), None);
+        }
+    }
+
+    /// `build.rs` cannot depend on the crate it builds, so it keeps its own
+    /// copy of the runtime-PM envelope bounds to reject seeded delays. This
+    /// fails if that copy drifts from the lever contract the runtime uses.
+    #[test]
+    fn build_script_delay_bounds_match_the_lever_contract() {
+        let build_script = include_str!("../../build.rs");
+        let bound = |name: &str| -> i64 {
+            let prefix = format!("const {name}: i64 = ");
+            let line = build_script
+                .lines()
+                .find_map(|line| line.trim().strip_prefix(prefix.as_str()))
+                .unwrap_or_else(|| panic!("build.rs no longer declares {name}"));
+            line.trim_end_matches(';')
+                .replace('_', "")
+                .parse()
+                .unwrap_or_else(|error| panic!("build.rs {name} is not an integer: {error}"))
+        };
+        match contract_for(Lever::RuntimePm).semantic_envelope {
+            SemanticEnvelope::RuntimePm {
+                min_delay_ms,
+                max_delay_ms,
+            } => {
+                assert_eq!(bound("AUTOSUSPEND_DELAY_MIN_MS"), i64::from(min_delay_ms));
+                assert_eq!(bound("AUTOSUSPEND_DELAY_MAX_MS"), i64::from(max_delay_ms));
+            }
+            other => panic!("runtime-PM lever has an unexpected envelope: {other:?}"),
         }
     }
 }

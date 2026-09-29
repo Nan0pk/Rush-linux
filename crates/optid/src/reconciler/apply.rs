@@ -27,41 +27,37 @@ impl Reconciler {
             return Ok(outcome);
         }
 
-        // D1: the policy proposes one fixed autosuspend delay for every
-        // device. Replace it here with the device's own verified delay when
-        // its allowlist entry records one, and label the fallback when it
-        // does not, so every later step -- the transaction record, the write,
-        // the readback, and the public outcome -- carries the chosen value.
-        // `expand_action` makes the same choice for `prepare_cycle`, so the
-        // desired state recorded there agrees with what is written here. A
-        // verified entry whose delay lies outside the lever's envelope is a
-        // contradiction in the evidence, and the write is refused.
+        // D1: the daemon already chose each runtime-PM action's delay once
+        // per cycle, before reporting or planning (see
+        // `Decision::select_runtime_pm_delays` in main.rs), so for it this
+        // choice changes nothing. It is repeated here as a second guard for
+        // any caller that reaches the reconciler without that step: the
+        // device's own verified delay replaces the policy's proposal, and a
+        // verified delay outside the lever's envelope is refused before any
+        // transaction is prepared. `expand_action` makes the same choice for
+        // `prepare_cycle`, so the desired state recorded there agrees.
         let resolved_runtime_pm;
-        let action = match action {
-            Action::RuntimePm {
-                device_dir,
-                autosuspend_delay_ms,
-                reason,
-            } => {
-                let selection = actuator.select_runtime_pm_delay(device_dir, *autosuspend_delay_ms);
-                let Some(delay_ms) = selection.delay_ms() else {
+        let action = if matches!(action, Action::RuntimePm { .. }) {
+            match crate::actuators::runtime_pm::with_selected_delay(action, |device_dir, proposed| {
+                actuator.select_runtime_pm_delay(device_dir, proposed)
+            }) {
+                Ok(resolved) => {
+                    resolved_runtime_pm = resolved;
+                    &resolved_runtime_pm
+                }
+                Err(refusal) => {
                     let mut outcome = active_action_outcome(action);
                     outcome.targets.push(TargetOutcome::denied(
                         action.stable_target_id(),
                         PipelineStage::Write,
-                        selection.describe(),
+                        refusal,
                     ));
                     self.record_action_outcome(action, &outcome, actuator)?;
                     return Ok(outcome);
-                };
-                resolved_runtime_pm = Action::RuntimePm {
-                    device_dir: device_dir.clone(),
-                    autosuspend_delay_ms: delay_ms,
-                    reason: format!("{reason}; {}", selection.describe()),
-                };
-                &resolved_runtime_pm
+                }
             }
-            _ => action,
+        } else {
+            action
         };
         let expanded = self.expand_action(action, actuator)?;
 

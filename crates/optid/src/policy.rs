@@ -1296,6 +1296,9 @@ impl Policy {
             // operator can see exactly what optid would have done
             // without those actions reaching the actuator.
             suppressed_actions,
+            // D1: filled by `Decision::select_runtime_pm_delays`, which the
+            // daemon runs after this, once it has the hardware allowlist.
+            refused_runtime_pm: Vec::new(),
         }
     }
 

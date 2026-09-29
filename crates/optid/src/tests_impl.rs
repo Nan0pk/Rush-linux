@@ -4647,3 +4647,277 @@ mod f2_fault_injection_tests {
         );
     }
 }
+
+/// D1: the daemon chooses each runtime-PM action's autosuspend delay once per
+/// cycle, before it renders the status report or builds the public outcomes.
+/// These tests follow that production order -- policy decision, then
+/// `Decision::select_runtime_pm_delays` through the actuator's allowlist,
+/// then `Decision::render` and the outcome builders `main.rs` uses -- and
+/// check that what is reported is the value that would be written.
+#[cfg(test)]
+mod d1_delay_status_tests {
+    use super::*;
+    use crate::envelope::{ActionOutcome, ControlCycleEnvelope};
+    use crate::policy::DomainMode;
+
+    const HWID: &str = "pci:v0000144Dd0000A809sv0000144Dsd0000A801bc01sc08i02";
+
+    struct Fixture {
+        temp: PathBuf,
+        device: PathBuf,
+        actuator: Actuator,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.temp);
+        }
+    }
+
+    fn fixture(name: &str, entry_fields: &str) -> Fixture {
+        let temp =
+            std::env::temp_dir().join(format!("optid_d1_status_{name}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        let device = temp.join("0000:00:1d.0");
+        fs::create_dir_all(device.join("power")).unwrap();
+        fs::write(device.join("modalias"), format!("{HWID}\n")).unwrap();
+        let admin = temp.join("admin");
+        fs::create_dir_all(&admin).unwrap();
+        fs::write(
+            admin.join("90-admin.toml"),
+            format!(
+                "[[entry]]\ndomain=\"runtime_pm\"\nhwid=\"{HWID}\"\n\
+                 reason=\"D1 status test\"\n{entry_fields}"
+            ),
+        )
+        .unwrap();
+        let mut actuator = Actuator::new(temp.join("state"));
+        actuator.enable_allowlist(Allowlist::load_from(
+            &kernel_io::RealKernel::new(),
+            std::slice::from_ref(&admin),
+        ));
+        Fixture {
+            temp,
+            device,
+            actuator,
+        }
+    }
+
+    fn snapshot(device: &Path) -> Snapshot {
+        Snapshot {
+            timestamp: 7,
+            on_ac: Some(false),
+            battery_pct: Some(80),
+            loadavg_1: Some(0.0),
+            runtime_pm_device_paths: vec![device.to_path_buf()],
+            ..Default::default()
+        }
+    }
+
+    fn policy(runtime_pm_mode: &str) -> Policy {
+        toml::from_str(&format!(
+            "[thresholds]\ncpu_pressure_perf_avg10 = 12.0\nmemory_pressure_protect_avg10 = 5.0\n\
+             io_pressure_throttle_avg10 = 8.0\nhot_temp_c = 82.0\ncritical_temp_c = 92.0\n\
+             low_battery_pct = 20\n\n[memory]\nhigh_swappiness_requires_zram = true\n\n\
+             [modes.battery]\ncpu_epp = \"power\"\nplatform_profile = \"low-power\"\n\n\
+             [modes.balanced]\ncpu_epp = \"balance_performance\"\nplatform_profile = \"balanced\"\n\n\
+             [modes.performance]\ncpu_epp = \"performance\"\nplatform_profile = \"performance\"\n\n\
+             [modes.realtime]\ncpu_epp = \"performance\"\nplatform_profile = \"performance\"\n\n\
+             [domains.runtime_pm]\nmode = \"{runtime_pm_mode}\"\n"
+        ))
+        .expect("valid policy")
+    }
+
+    /// The decision the daemon would report for this fixture, after the
+    /// per-cycle delay choice.
+    fn decide(fixture: &Fixture, runtime_pm_mode: &str) -> (Snapshot, crate::decision::Decision) {
+        let snapshot = snapshot(&fixture.device);
+        let mut decision = policy(runtime_pm_mode).decide_resolved(
+            &snapshot,
+            Mode::Auto,
+            WorkloadClass::Idle,
+            "test".to_string(),
+            &Contracts::default(),
+            None,
+            None,
+        );
+        let actuator = &fixture.actuator;
+        decision.select_runtime_pm_delays(|device_dir, proposed| {
+            actuator.select_runtime_pm_delay(device_dir, proposed)
+        });
+        (snapshot, decision)
+    }
+
+    fn runtime_pm_lines(report: &str) -> Vec<&str> {
+        report
+            .lines()
+            .filter(|line| line.starts_with("- runtime_pm "))
+            .collect()
+    }
+
+    #[test]
+    fn status_report_shows_the_verified_delay_the_daemon_will_write() {
+        let fixture = fixture(
+            "verified",
+            "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=750\n",
+        );
+        let (snapshot, decision) = decide(&fixture, "actuate");
+        let report = decision.render(&snapshot);
+        let lines = runtime_pm_lines(&report);
+        assert_eq!(lines.len(), 1, "expected one runtime_pm action:\n{report}");
+        assert!(
+            lines[0].contains("autosuspend_delay_ms=750")
+                && lines[0].contains("from this device's verified allowlist entry"),
+            "the status report must show the chosen delay and its source:\n{report}"
+        );
+        assert!(
+            !report.contains("autosuspend_delay_ms=2000"),
+            "the policy's proposal must not be reported as intended:\n{report}"
+        );
+        assert!(!report.contains("refused_actions:"));
+
+        // The same action feeds the outcomes status.json is built from,
+        // including the not-armed outcome `main.rs` builds when apply is off.
+        let action = decision
+            .actions
+            .iter()
+            .find(|action| matches!(action, Action::RuntimePm { .. }))
+            .expect("runtime_pm action");
+        let not_armed = ActionOutcome::suppressed(action, DomainMode::Actuate, false);
+        assert_eq!(
+            not_armed.desired.value,
+            "control=auto;autosuspend_delay_ms=750"
+        );
+    }
+
+    #[test]
+    fn observe_mode_would_act_line_shows_the_verified_delay() {
+        let fixture = fixture(
+            "observe_verified",
+            "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=750\n",
+        );
+        let (snapshot, decision) = decide(&fixture, "observe");
+        let report = decision.render(&snapshot);
+        let would_act: Vec<&str> = report
+            .lines()
+            .filter(|line| line.contains("would_act=runtime_pm"))
+            .collect();
+        assert_eq!(would_act.len(), 1, "expected one would_act line:\n{report}");
+        assert!(
+            would_act[0].contains("autosuspend_delay_ms=750"),
+            "observe mode must show the delay that would be written:\n{report}"
+        );
+        let (_, action) = &decision.suppressed_actions[0];
+        assert_eq!(
+            ActionOutcome::suppressed(action, DomainMode::Observe, false)
+                .desired
+                .value,
+            "control=auto;autosuspend_delay_ms=750"
+        );
+    }
+
+    #[test]
+    fn refused_delay_is_reported_as_refused_not_as_the_proposal() {
+        let fixture = fixture(
+            "refused",
+            "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=-1\n",
+        );
+        let (snapshot, decision) = decide(&fixture, "actuate");
+        assert!(
+            !decision
+                .actions
+                .iter()
+                .any(|action| matches!(action, Action::RuntimePm { .. })),
+            "a refused action must not be planned or applied"
+        );
+        let report = decision.render(&snapshot);
+        assert!(
+            runtime_pm_lines(&report).is_empty(),
+            "a refused action must not be listed as an action:\n{report}"
+        );
+        assert!(
+            !report.contains("autosuspend_delay_ms=2000"),
+            "the refused action must not be shown with the policy's proposal:\n{report}"
+        );
+        let refused_line = report
+            .lines()
+            .skip_while(|line| *line != "refused_actions:")
+            .nth(1)
+            .unwrap_or_else(|| panic!("missing refused_actions block:\n{report}"));
+        assert!(
+            refused_line.contains("domain=runtime_pm")
+                && refused_line.contains("autosuspend delay refused")
+                && refused_line.contains("autosuspend_delay_ms=-1")
+                && !refused_line.contains("observe mode"),
+            "the refusal must say what was wrong: {refused_line}"
+        );
+
+        // Both outcomes main.rs can build for it -- armed and not armed --
+        // say refused and name no delay, and the public envelope built from
+        // them still passes its schema and path checks.
+        for armed in [true, false] {
+            let outcomes = decision.refused_runtime_pm_outcomes(armed);
+            assert_eq!(outcomes.len(), 1);
+            let outcome = &outcomes[0];
+            assert_eq!(outcome.domain, "runtime_pm");
+            assert_eq!(
+                outcome.desired.value,
+                "control=auto;autosuspend_delay_ms=refused"
+            );
+            assert!(outcome.targets.iter().all(|target| {
+                !target.write_attempted
+                    && target
+                        .detail
+                        .as_deref()
+                        .is_some_and(|detail| detail.contains("autosuspend delay refused"))
+            }));
+            let boot = BootState {
+                policy_load_state: LoadState::Ok,
+                allowlist_load_state: LoadState::Ok,
+                apply_armed: armed,
+                baseline_armed: false,
+                allowlist_gate_enabled: true,
+            };
+            let envelope = ControlCycleEnvelope::build(
+                "d1-refused".to_string(),
+                &snapshot,
+                &decision,
+                &boot,
+                outcomes,
+                Vec::new(),
+            );
+            envelope
+                .validate_schema()
+                .expect("the refused outcome must fit the public envelope");
+        }
+    }
+
+    #[test]
+    fn observe_mode_refused_delay_is_reported_as_refused() {
+        let fixture = fixture(
+            "observe_refused",
+            "verified=true\nexit_latency_us=500\nautosuspend_delay_ms=3600001\n",
+        );
+        let (snapshot, decision) = decide(&fixture, "observe");
+        assert!(decision
+            .suppressed_actions
+            .iter()
+            .all(|(_, action)| !matches!(action, Action::RuntimePm { .. })));
+        let report = decision.render(&snapshot);
+        assert!(
+            !report.contains("would_act=runtime_pm"),
+            "a refused action must not be shown as a would-be action:\n{report}"
+        );
+        assert!(
+            report.contains("(observe mode) refused: autosuspend delay refused")
+                && report.contains("autosuspend_delay_ms=3600001"),
+            "observe mode must show the refusal:\n{report}"
+        );
+        let outcomes = decision.refused_runtime_pm_outcomes(true);
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(
+            outcomes[0].desired.value,
+            "control=auto;autosuspend_delay_ms=refused"
+        );
+    }
+}
