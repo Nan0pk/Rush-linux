@@ -431,27 +431,44 @@ jobs:
 
           MOUNT_DIR="$(mktemp -d)"
           MOUNTED=false
+          LOOP_DEVICE=""
+          cleanup_loop() {
+            [[ -n "$LOOP_DEVICE" ]] || return 0
+
+            if ! sudo losetup --detach "$LOOP_DEVICE"; then
+              # A prior detach may already have completed; fail only if the
+              # loop device still has a backing file after settling udev.
+              sudo udevadm settle
+              LOOP_ASSOCIATED="$(sudo losetup --list --noheadings --output NAME --associated "$FINAL_IMAGE")"
+              if [[ -n "$LOOP_ASSOCIATED" ]]; then
+                echo "::error title=Image diagnostic loop cleanup failed::Still attached loops for $FINAL_IMAGE: $LOOP_ASSOCIATED"
+                return 1
+              fi
+            fi
+
+            sudo udevadm settle
+            LOOP_ASSOCIATED="$(sudo losetup --list --noheadings --output NAME --associated "$FINAL_IMAGE")"
+            if [[ -n "$LOOP_ASSOCIATED" ]]; then
+              echo "::error title=Image diagnostic loop cleanup failed::Still attached loops for $FINAL_IMAGE: $LOOP_ASSOCIATED"
+              return 1
+            fi
+            LOOP_DEVICE=""
+          }
           cleanup() {
             if [[ "$MOUNTED" == true ]]; then
               sudo systemd-dissect --umount "$MOUNT_DIR" || true
             fi
             rmdir "$MOUNT_DIR" 2>/dev/null || true
+            cleanup_loop
           }
           trap cleanup EXIT
 
           echo "::group::Composed image partition and filesystem probe"
           sudo sfdisk --dump "$FINAL_IMAGE"
-          LOOP_DEVICE="$(sudo losetup --find --show --partscan "$FINAL_IMAGE")"
-          cleanup_loop() {
-            if [[ -n "${LOOP_DEVICE:-}" ]]; then
-              sudo losetup --detach "$LOOP_DEVICE" || true
-            fi
-          }
-          trap 'cleanup; cleanup_loop' EXIT
+          LOOP_DEVICE="$(sudo losetup --read-only --find --show --partscan "$FINAL_IMAGE")"
           sudo udevadm settle
           sudo lsblk --output NAME,TYPE,PARTTYPE,FSTYPE,LABEL,UUID "$LOOP_DEVICE"
           cleanup_loop
-          LOOP_DEVICE=""
           echo "::endgroup::"
 
           if ! MOUNT_ERROR="$(sudo env SYSTEMD_LOG_LEVEL=debug systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR" 2>&1)"; then
