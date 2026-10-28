@@ -439,6 +439,21 @@ jobs:
           }
           trap cleanup EXIT
 
+          echo "::group::Composed image partition and filesystem probe"
+          sudo sfdisk --dump "$FINAL_IMAGE"
+          LOOP_DEVICE="$(sudo losetup --find --show --partscan "$FINAL_IMAGE")"
+          cleanup_loop() {
+            if [[ -n "${LOOP_DEVICE:-}" ]]; then
+              sudo losetup --detach "$LOOP_DEVICE" || true
+            fi
+          }
+          trap 'cleanup; cleanup_loop' EXIT
+          sudo udevadm settle
+          sudo lsblk --output NAME,TYPE,PARTTYPE,FSTYPE,LABEL,UUID "$LOOP_DEVICE"
+          cleanup_loop
+          LOOP_DEVICE=""
+          echo "::endgroup::"
+
           if ! MOUNT_ERROR="$(sudo env SYSTEMD_LOG_LEVEL=debug systemd-dissect --mount "$FINAL_IMAGE" "$MOUNT_DIR" 2>&1)"; then
             MOUNT_ERROR="$(printf "%s" "$MOUNT_ERROR" | tr "\n" " " | tail -c 2400)"
             echo "::error title=Desktop compose mount failed::$MOUNT_ERROR"
