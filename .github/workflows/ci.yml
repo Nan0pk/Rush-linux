@@ -73,7 +73,7 @@ jobs:
           classify windows '^\.github/workflows/ci\.yml$|\.ps1$|^tools/(livedev-|rush[_-]livedev|rush-submit|rush_pr)|^testos/'
           classify workflow '^\.github/workflows/.*\.ya?ml$'
           classify image '^\.github/workflows/ci\.yml$|^(mkosi/|testos/build-testos\.sh|tools/(build-mkosi-image\.sh|build-all-editions\.sh|build-edition-image\.sh|build-edition-set\.py|build-edition-sysext\.py|_edition_sysext_impl\.py|compose-edition-image\.py|deploy-edition-sysext\.py)|packaging/|distro/|config/)'
-          classify dependencies '^\.github/workflows/ci\.yml$|^Cargo\.(toml|lock)$'
+          classify dependencies '^\.github/workflows/ci\.yml$|^Cargo\.(toml|lock)$|^deny\.toml$'
 
   linux:
     name: Linux and repository checks

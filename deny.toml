@@ -2,7 +2,12 @@
 yanked = "deny"
 unmaintained = "workspace"
 unsound = "all"
-ignore = []
+ignore = [
+    {
+        id = "RUSTSEC-2026-0370",
+        reason = "Defer only this deprecation advisory until a separately reviewed zbus 6/API and MSRV alignment migration: the current zbus 5 line still depends on zvariant 5, while zbus 6 requires Rust 1.89. Reassess by 2027-04-26.",
+    },
+]
 
 [licenses]
 allow = [
