@@ -468,6 +468,11 @@ jobs:
           LOOP_DEVICE="$(sudo losetup --read-only --find --show --partscan "$FINAL_IMAGE")"
           sudo udevadm settle
           sudo lsblk --output NAME,TYPE,PARTTYPE,FSTYPE,LABEL,UUID "$LOOP_DEVICE"
+          WHOLE_DISK_FSTYPE="$(sudo lsblk --nodeps --noheadings --output FSTYPE "$LOOP_DEVICE" | tr -d '[:space:]')"
+          if [[ "$WHOLE_DISK_FSTYPE" == iso9660 ]]; then
+            echo "::error title=Unexpected El Torito ISO9660 signature::A GPT raw disk must not have a whole-device ISO9660 filesystem; set ElTorito=no in mkosi/mkosi.conf."
+            exit 1
+          fi
           cleanup_loop
           echo "::endgroup::"
 
