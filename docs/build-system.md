@@ -19,6 +19,11 @@ distribution packages and are not covered by the package inventory alone.
   audio use the same product-edition path. Unsigned development is not release
   signing.
 
+The common base is a GPT raw disk image, not an optical ISO. `mkosi/mkosi.conf`
+explicitly disables El Torito: its ISO9660 descriptor at the start of a GPT disk
+can make `systemd-dissect` treat the whole image as a generic ISO root instead
+of selecting the declared GPT partitions.
+
 Use a supported Linux build host with Cargo/Rust, mkosi, the target package
 manager and keys, systemd/ukify, and required image/boot tools. CI's product-image
 job records its Arch build environment. The builder checks Cargo and mkosi

@@ -17,7 +17,7 @@ The runner selects checks from the files that changed:
   LiveDev changes;
 - image and boot contract tests plus a real product image build for image/build
   changes;
-- dependency policy when Cargo dependencies change.
+- dependency policy when Cargo dependencies or `deny.toml` change.
 
 Run all locally relevant checks with:
 
