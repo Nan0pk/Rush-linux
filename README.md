@@ -198,6 +198,7 @@ and independent committed evidence.
 | Current implementation work | [Active `optid` completion plan](OPTID-COMPLETION-PLAN.md) |
 | Compatibility | [Hardware support](docs/hardware-support.md) |
 | Release direction | [Roadmap](ROADMAP.md) |
+| Where it came from | [Project history reckoner](docs/HISTORY.md) |
 | Documentation index | [All documentation](docs/SUMMARY.md) |
 
 > Latest release: [v0.7.0-beta.4](https://github.com/Nan0pk/Rush-linux/releases/tag/v0.7.0-beta.4)
