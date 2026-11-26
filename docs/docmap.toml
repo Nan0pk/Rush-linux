@@ -178,7 +178,14 @@ purpose = "Curated index of maintained documentation"
 owner_area = "area:docs"
 covers_code = []
 deps = ["README.md", "docs/research/README.md", "docs/decisions/README.md"]
-last_verified = "2026-07-25"
+last_verified = "2026-11-26"
+
+[docs."docs/HISTORY.md"]
+purpose = "Project history ready reckoner for agents and humans"
+owner_area = "area:docs"
+covers_code = []
+deps = ["RELEASES.md", "release/milestones.toml", "release/evidence/dragnet/LEDGER.md", "docs/strategy/COMPASS.md", "docs/audit-archive/2026-07-19-pr317-audit.md"]
+last_verified = "2026-11-26"
 
 [docs."docs/research/README.md"]
 purpose = "Discoverability index for numbered research papers"

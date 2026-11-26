@@ -22,6 +22,7 @@ historical plans as active work.
 - [Kernel policy](kernel-policy.md)
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Roadmap](../ROADMAP.md)
+- [Project history — how the repository came to be](HISTORY.md)
 
 ## Current optid work
 
